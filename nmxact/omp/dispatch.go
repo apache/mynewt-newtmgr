@@ -56,8 +56,7 @@ func (om *OmpDispatcher) Dispatch(data []byte) bool {
 		return false
 	}
 
-	log.Debugf("TM=%+v", tm)
-	r, err := DeserializeOmgrMsg(tm)
+	r, err := DecodeOmpTcp(tm)
 	if err != nil {
 		log.Printf("OMP decode failure: %s", err.Error())
 		return false

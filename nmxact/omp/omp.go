@@ -40,7 +40,7 @@ type OicMsg struct {
  * codec.  So we need to decode the whole response, and then re-encode the
  * newtmgr response part.
  */
-func DeserializeOmgrMsg(tm *coap.TcpMessage) (nmp.NmpRsp, error) {
+func DecodeOmpTcp(tm *coap.TcpMessage) (nmp.NmpRsp, error) {
 	// Ignore non-responses.
 	if tm.Code == coap.GET || tm.Code == coap.PUT {
 		return nil, nil
@@ -80,7 +80,7 @@ func DeserializeOmgrMsg(tm *coap.TcpMessage) (nmp.NmpRsp, error) {
 	return rsp, nil
 }
 
-func SerializeOmgrMsg(nmr *nmp.NmpMsg) ([]byte, error) {
+func EncodeOmpTcp(nmr *nmp.NmpMsg) ([]byte, error) {
 	req := coap.TcpMessage{
 		Message: coap.Message{
 			Type: coap.Confirmable,

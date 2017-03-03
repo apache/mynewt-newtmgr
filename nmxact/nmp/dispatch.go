@@ -94,6 +94,22 @@ func (nd *NmpDispatcher) FakeRxError(seq uint8, err error) error {
 	return nil
 }
 
+func decodeRsp(pkt []byte) (NmpRsp, error) {
+	hdr, err := DecodeNmpHdr(pkt)
+	if err != nil {
+		return nil, err
+	}
+
+	// Ignore incoming non-responses.  This is necessary for devices that echo
+	// received requests over serial.
+	if hdr.Op != NMP_OP_READ_RSP && hdr.Op != NMP_OP_WRITE_RSP {
+		return nil, nil
+	}
+
+	body := pkt[NMP_HDR_SIZE:]
+	return DecodeRspBody(hdr, body)
+}
+
 // Returns true if the response was dispatched.
 func (nd *NmpDispatcher) DispatchRsp(r NmpRsp) bool {
 	log.Debugf("Received nmp rsp: %+v", r)
@@ -119,7 +135,7 @@ func (nd *NmpDispatcher) Dispatch(data []byte) bool {
 		return false
 	}
 
-	rsp, err := DecodeRsp(pkt)
+	rsp, err := decodeRsp(pkt)
 	if err != nil {
 		log.Printf("Failure decoding NMP rsp: %s\npacket=\n%s", err.Error(),
 			hex.Dump(data))

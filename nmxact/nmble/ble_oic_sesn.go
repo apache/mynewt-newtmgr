@@ -114,8 +114,8 @@ func (bos *BleOicSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 	}
 	defer bos.removeOmpListener(msg.Hdr.Seq)
 
-	msg.Encode()
-	b, err := omp.SerializeOmgrMsg(msg)
+	nmp.EncodeNmpPlain(msg)
+	b, err := omp.EncodeOmpTcp(msg)
 	if err != nil {
 		return nil, err
 	}

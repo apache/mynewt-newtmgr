@@ -108,7 +108,7 @@ func (bps *BlePlainSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 	}
 	defer bps.removeNmpListener(msg.Hdr.Seq)
 
-	b, err := msg.Encode()
+	b, err := nmp.EncodeNmpPlain(msg)
 	if err != nil {
 		return nil, err
 	}

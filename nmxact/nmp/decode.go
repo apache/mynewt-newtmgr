@@ -119,19 +119,3 @@ func DecodeRspBody(hdr *NmpHdr, body []byte) (NmpRsp, error) {
 	r.SetHdr(hdr)
 	return r, nil
 }
-
-func DecodeRsp(pkt []byte) (NmpRsp, error) {
-	hdr, err := DecodeNmpHdr(pkt)
-	if err != nil {
-		return nil, err
-	}
-
-	// Ignore incoming non-responses.  This is necessary for devices that echo
-	// received requests over serial.
-	if hdr.Op != NMP_OP_READ_RSP && hdr.Op != NMP_OP_WRITE_RSP {
-		return nil, nil
-	}
-
-	body := pkt[NMP_HDR_SIZE:]
-	return DecodeRspBody(hdr, body)
-}

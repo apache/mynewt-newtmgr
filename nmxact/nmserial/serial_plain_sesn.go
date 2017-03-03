@@ -71,7 +71,7 @@ func (sps *SerialPlainSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 	}
 	defer sps.removeNmpListener(msg.Hdr.Seq)
 
-	reqb, err := msg.Encode()
+	reqb, err := nmp.EncodeNmpPlain(msg)
 	if err != nil {
 		return nil, err
 	}

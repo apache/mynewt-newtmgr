@@ -135,8 +135,7 @@ func BodyBytes(body interface{}) ([]byte, error) {
 	return data, nil
 }
 
-// XXX: REMOVE
-func (nmr *NmpMsg) Encode() ([]byte, error) {
+func EncodeNmpPlain(nmr *NmpMsg) ([]byte, error) {
 	bb, err := BodyBytes(nmr.Body)
 	if err != nil {
 		return nil, err
