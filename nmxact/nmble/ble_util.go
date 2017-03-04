@@ -66,7 +66,7 @@ func NewBleConnectReq() *BleConnectReq {
 		ItvlMin:            24,
 		ItvlMax:            40,
 		Latency:            0,
-		SupervisionTimeout: 0x0100,
+		SupervisionTimeout: 0x0200,
 		MinCeLen:           0x0010,
 		MaxCeLen:           0x0300,
 	}
