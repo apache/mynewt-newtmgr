@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"sync"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -26,12 +25,8 @@ type XportCfg struct {
 
 // Implements xport.Xport.
 type BleXport struct {
-	Bd        *BleDispatcher
-	client    *unixchild.Client
-	synced    bool
-	syncMutex sync.Mutex
-
-	syncListeners [](chan error)
+	Bd     *BleDispatcher
+	client *unixchild.Client
 
 	syncTimeoutMs time.Duration
 }
@@ -91,35 +86,7 @@ func NewBleXport(cfg XportCfg) (*BleXport, error) {
 	return bx, nil
 }
 
-func (bx *BleXport) notifySyncListeners(err error) {
-	bx.syncMutex.Lock()
-	bx.synced = err == nil
-	for _, ch := range bx.syncListeners {
-		ch <- err
-	}
-	bx.syncMutex.Unlock()
-}
-
-func (bx *BleXport) Start() error {
-	if err := bx.client.Start(); err != nil {
-		return xport.NewXportError(
-			"Failed to start child child process: " + err.Error())
-	}
-
-	go func() {
-		err := <-bx.client.ErrChild
-		bx.Bd.ErrorAll(err)
-	}()
-
-	go func() {
-		for {
-			if _, err := bx.rx(); err != nil {
-				// The error should have been reported to everyone interested.
-				break
-			}
-		}
-	}()
-
+func (bx *BleXport) addSyncListener() (*BleListener, error) {
 	bl := NewBleListener()
 	base := BleMsgBase{
 		Op:         MSG_OP_EVT,
@@ -128,37 +95,13 @@ func (bx *BleXport) Start() error {
 		ConnHandle: -1,
 	}
 	if err := bx.Bd.AddListener(base, bl); err != nil {
-		return err
+		return nil, err
 	}
 
-	go func() {
-		defer bx.Bd.RemoveListener(base)
-
-		select {
-		case err := <-bl.ErrChan:
-			bx.notifySyncListeners(err)
-		case bm := <-bl.BleChan:
-			switch msg := bm.(type) {
-			case *BleSyncEvt:
-				if msg.Synced {
-					bx.notifySyncListeners(nil)
-				}
-			}
-		}
-	}()
-
-	return nil
+	return bl, nil
 }
 
 func (bx *BleXport) querySyncStatus() (bool, error) {
-	bx.syncMutex.Lock()
-	synced := bx.synced
-	bx.syncMutex.Unlock()
-
-	if synced {
-		return true, nil
-	}
-
 	req := &BleSyncReq{
 		Op:   MSG_OP_REQ,
 		Type: MSG_TYPE_SYNC,
@@ -190,42 +133,95 @@ func (bx *BleXport) querySyncStatus() (bool, error) {
 		case bm := <-bl.BleChan:
 			switch msg := bm.(type) {
 			case *BleSyncRsp:
-				if msg.Synced {
-					// Remember that the host is synced.  This is done so that
-					// we don't query the daemon for its sync status on every
-					// subsequent command.
-					bx.syncMutex.Lock()
-					bx.synced = true
-					bx.syncMutex.Unlock()
-				}
 				return msg.Synced, nil
 			}
 		}
 	}
 }
 
-func (bx *BleXport) waitUntilSync() error {
+func (bx *BleXport) onError(err error) {
+	bx.Bd.ErrorAll(err)
+	bx.Stop()
+}
+
+func (bx *BleXport) Start() error {
+	if err := bx.client.Start(); err != nil {
+		return xport.NewXportError(
+			"Failed to start child child process: " + err.Error())
+	}
+
+	go func() {
+		err := <-bx.client.ErrChild
+		bx.onError(err)
+	}()
+
+	go func() {
+		for {
+			if _, err := bx.rx(); err != nil {
+				// The error should have been reported to everyone interested.
+				break
+			}
+		}
+	}()
+
+	bl, err := bx.addSyncListener()
+	if err != nil {
+		return nil
+	}
+
 	synced, err := bx.querySyncStatus()
 	if err != nil {
 		return err
 	}
-	if synced {
-		return nil
+
+	if !synced {
+		// Not synced yet.  Wait for sync event.
+		tmoChan := make(chan struct{}, 1)
+		go func() {
+			time.Sleep(bx.syncTimeoutMs * time.Millisecond)
+			tmoChan <- struct{}{}
+		}()
+
+	SyncLoop:
+		for {
+			select {
+			case <-tmoChan:
+				return xport.NewXportError(
+					"Timeout waiting for host <-> controller sync")
+			case err := <-bl.ErrChan:
+				return err
+			case bm := <-bl.BleChan:
+				switch msg := bm.(type) {
+				case *BleSyncEvt:
+					if msg.Synced {
+						break SyncLoop
+					}
+				}
+			}
+		}
 	}
 
-	ch := make(chan error, 1)
-	bx.syncMutex.Lock()
-	bx.syncListeners = append(bx.syncListeners, ch)
-	bx.syncMutex.Unlock()
-
+	// Host and controller are synced.  Listen for sync loss in the background.
 	go func() {
-		time.Sleep(bx.syncTimeoutMs * time.Millisecond)
-		ch <- xport.NewXportError(
-			"Timeout waiting for host <-> controller sync")
+		for {
+			select {
+			case err := <-bl.ErrChan:
+				bx.onError(err)
+				return
+			case bm := <-bl.BleChan:
+				switch msg := bm.(type) {
+				case *BleSyncEvt:
+					if !msg.Synced {
+						bx.onError(xport.NewXportError(
+							"BLE host <-> controller sync lost"))
+						return
+					}
+				}
+			}
+		}
 	}()
 
-	err = <-ch
-	return err
+	return nil
 }
 
 func (bx *BleXport) txNoSync(data []byte) {
@@ -234,10 +230,7 @@ func (bx *BleXport) txNoSync(data []byte) {
 }
 
 func (bx *BleXport) Tx(data []byte) error {
-	if err := bx.waitUntilSync(); err != nil {
-		return err
-	}
-
+	// XXX: Make sure started.
 	bx.txNoSync(data)
 	return nil
 }
