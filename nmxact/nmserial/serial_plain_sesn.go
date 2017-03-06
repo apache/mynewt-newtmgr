@@ -2,6 +2,7 @@ package nmserial
 
 import (
 	"fmt"
+	"sync"
 
 	"mynewt.apache.org/newt/nmxact/nmp"
 	"mynewt.apache.org/newt/nmxact/sesn"
@@ -10,6 +11,10 @@ import (
 type SerialPlainSesn struct {
 	sx *SerialXport
 	nd *nmp.NmpDispatcher
+
+	// This mutex ensures each response get matched up with its corresponding
+	// request.
+	m sync.Mutex
 }
 
 func NewSerialPlainSesn(sx *SerialXport) *SerialPlainSesn {
@@ -56,6 +61,9 @@ func (sps *SerialPlainSesn) removeNmpListener(seq uint8) {
 
 func (sps *SerialPlainSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 	nmp.NmpRsp, error) {
+
+	sps.m.Lock()
+	defer sps.m.Unlock()
 
 	nl, err := sps.addNmpListener(msg.Hdr.Seq)
 	if err != nil {
