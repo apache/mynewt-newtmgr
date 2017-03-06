@@ -141,7 +141,16 @@ func (bx *BleXport) querySyncStatus() (bool, error) {
 
 func (bx *BleXport) onError(err error) {
 	bx.Bd.ErrorAll(err)
-	bx.Stop()
+	if bx.client != nil {
+		bx.client.Stop()
+		bx.client.FromChild <- nil
+	}
+}
+
+func (bx *BleXport) Stop() error {
+	log.Debugf("BleXport Stop()")
+	bx.onError(nil)
+	return nil
 }
 
 func (bx *BleXport) Start() error {
@@ -246,13 +255,4 @@ func (bx *BleXport) rx() ([]byte, error) {
 		}
 		return buf, nil
 	}
-}
-
-func (bx *BleXport) Stop() error {
-	if bx.client != nil {
-		bx.client.FromChild <- nil
-		bx.client.Stop()
-	}
-
-	return nil
 }

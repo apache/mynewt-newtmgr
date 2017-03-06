@@ -179,10 +179,17 @@ func (c *Client) handleChild(con net.Conn) {
 }
 
 func (c *Client) Stop() {
+	if c.stopping {
+		return
+	}
+	c.stopping = true
+	log.Debugf("Stopping client")
+
 	c.stop <- true
 
 	select {
 	case <-c.stopped:
+		log.Debugf("Stopped client")
 		return
 	}
 }
@@ -224,7 +231,6 @@ func (c *Client) Start() error {
 	go func() {
 		select {
 		case <-c.stop:
-			c.stopping = true
 			l.Close()
 			if cmd != nil {
 				cmd.Process.Kill()
