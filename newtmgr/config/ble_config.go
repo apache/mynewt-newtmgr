@@ -108,9 +108,6 @@ func BuildBleXport(bc *BleConfig) (*nmble.BleXport, error) {
 		return nil, util.ChildNewtError(err)
 	}
 
-	if err := bx.Start(); err != nil {
-		return nil, util.ChildNewtError(err)
-	}
 	return bx, nil
 }
 

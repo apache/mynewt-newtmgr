@@ -59,10 +59,8 @@ func GetXport() (xport.Xport, error) {
 		if err != nil {
 			return nil, err
 		}
-		globalXport, err = config.BuildSerialXport(sc)
-		if err != nil {
-			return nil, err
-		}
+
+		globalXport = nmserial.NewSerialXport(sc)
 	case config.CONN_TYPE_BLE_PLAIN, config.CONN_TYPE_BLE_OIC:
 		bc, err := config.ParseBleConnString(cp.ConnString)
 		if err != nil {
@@ -78,6 +76,11 @@ func GetXport() (xport.Xport, error) {
 	}
 
 	globalXportSet = true
+
+	if err := globalXport.Start(); err != nil {
+		return nil, err
+	}
+
 	return globalXport, nil
 }
 

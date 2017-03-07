@@ -148,7 +148,6 @@ func (bx *BleXport) onError(err error) {
 }
 
 func (bx *BleXport) Stop() error {
-	log.Debugf("BleXport Stop()")
 	bx.onError(nil)
 	return nil
 }
@@ -175,11 +174,13 @@ func (bx *BleXport) Start() error {
 
 	bl, err := bx.addSyncListener()
 	if err != nil {
-		return nil
+		bx.Stop()
+		return err
 	}
 
 	synced, err := bx.querySyncStatus()
 	if err != nil {
+		bx.Stop()
 		return err
 	}
 
@@ -195,6 +196,7 @@ func (bx *BleXport) Start() error {
 		for {
 			select {
 			case <-tmoChan:
+				bx.Stop()
 				return xport.NewXportError(
 					"Timeout waiting for host <-> controller sync")
 			case err := <-bl.ErrChan:
