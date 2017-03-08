@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -23,10 +24,19 @@ type XportCfg struct {
 	DevPath string
 }
 
+type BleXportState uint32
+
+const (
+	BLE_XPORT_STATE_STOPPED BleXportState = iota
+	BLE_XPORT_STATE_STARTING
+	BLE_XPORT_STATE_STARTED
+)
+
 // Implements xport.Xport.
 type BleXport struct {
 	Bd     *BleDispatcher
 	client *unixchild.Client
+	state  BleXportState
 
 	syncTimeoutMs time.Duration
 }
@@ -147,12 +157,33 @@ func (bx *BleXport) onError(err error) {
 	}
 }
 
+func (bx *BleXport) setStateFrom(from BleXportState, to BleXportState) bool {
+	return atomic.CompareAndSwapUint32(
+		(*uint32)(&bx.state), uint32(from), uint32(to))
+}
+
+func (bx *BleXport) getState() BleXportState {
+	u32 := atomic.LoadUint32((*uint32)(&bx.state))
+	return BleXportState(u32)
+}
+
 func (bx *BleXport) Stop() error {
+	if !bx.setStateFrom(BLE_XPORT_STATE_STARTED, BLE_XPORT_STATE_STOPPED) &&
+		!bx.setStateFrom(BLE_XPORT_STATE_STARTING, BLE_XPORT_STATE_STOPPED) {
+
+		// Stop already in progress.
+		return nil
+	}
+
 	bx.onError(nil)
 	return nil
 }
 
 func (bx *BleXport) Start() error {
+	if !bx.setStateFrom(BLE_XPORT_STATE_STOPPED, BLE_XPORT_STATE_STARTING) {
+		return xport.NewXportError("BLE xport started twice")
+	}
+
 	if err := bx.client.Start(); err != nil {
 		return xport.NewXportError(
 			"Failed to start child child process: " + err.Error())
@@ -161,6 +192,7 @@ func (bx *BleXport) Start() error {
 	go func() {
 		err := <-bx.client.ErrChild
 		bx.onError(err)
+		return
 	}()
 
 	go func() {
@@ -232,6 +264,11 @@ func (bx *BleXport) Start() error {
 		}
 	}()
 
+	if !bx.setStateFrom(BLE_XPORT_STATE_STARTING, BLE_XPORT_STATE_STARTED) {
+		return xport.NewXportError(
+			"Internal error; BLE transport in unexpected state")
+	}
+
 	return nil
 }
 
@@ -241,7 +278,11 @@ func (bx *BleXport) txNoSync(data []byte) {
 }
 
 func (bx *BleXport) Tx(data []byte) error {
-	// XXX: Make sure started.
+	if bx.getState() != BLE_XPORT_STATE_STARTED {
+		return xport.NewXportError("Attempt to transmit before BLE xport " +
+			"fully started")
+	}
+
 	bx.txNoSync(data)
 	return nil
 }
