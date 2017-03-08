@@ -232,14 +232,14 @@ func decodeBleMsg(data []byte) (BleMsgBase, BleMsg, error) {
 func (bd *BleDispatcher) Dispatch(data []byte) {
 	base, msg, err := decodeBleMsg(data)
 	if err != nil {
-		log.Warnf("BLE dispatch error: %s\n", err.Error())
+		log.Warnf("BLE dispatch error: %s", err.Error())
 		return
 	}
 
 	_, listener := bd.findListener(base)
 	if listener == nil {
-		log.Warnf(
-			"No BLE listener for op=%d type=%d seq=%d connHandle=%d\n",
+		log.Debugf(
+			"No BLE listener for op=%d type=%d seq=%d connHandle=%d",
 			base.Op, base.Type, base.Seq, base.ConnHandle)
 		return
 	}
