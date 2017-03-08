@@ -116,13 +116,12 @@ func (bps *BlePlainSesn) Close() error {
 		return err
 	}
 
-	// Block until close completes.
-	go func() {
-		time.Sleep(CLOSE_TIMEOUT)
-		bps.closeChan <- fmt.Errorf("BLE session close timeout")
-	}()
+	// Block until close completes or timeout.
+	select {
+	case <-bps.closeChan:
+	case <-time.After(CLOSE_TIMEOUT):
+	}
 
-	<-bps.closeChan
 	return nil
 }
 
@@ -161,13 +160,6 @@ func (bps *BlePlainSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 		return nil, err
 	}
 
-	if opt.Timeout != 0 {
-		go func() {
-			time.Sleep(opt.Timeout)
-			nl.ErrChan <- sesn.NewTimeoutError("NMP timeout")
-		}()
-	}
-
 	log.Debugf("Tx NMP request: %s", hex.Dump(b))
 	if err := bps.bf.writeCmd(b); err != nil {
 		return nil, err
@@ -179,6 +171,8 @@ func (bps *BlePlainSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 		return nil, err
 	case rsp := <-nl.RspChan:
 		return rsp, nil
+	case <-opt.AfterTimeout():
+		return nil, sesn.NewTimeoutError("NMP timeout")
 	}
 }
 

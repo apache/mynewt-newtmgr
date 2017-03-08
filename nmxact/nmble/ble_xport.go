@@ -218,19 +218,10 @@ func (bx *BleXport) Start() error {
 
 	if !synced {
 		// Not synced yet.  Wait for sync event.
-		tmoChan := make(chan struct{}, 1)
-		go func() {
-			time.Sleep(bx.syncTimeoutMs * time.Millisecond)
-			tmoChan <- struct{}{}
-		}()
 
 	SyncLoop:
 		for {
 			select {
-			case <-tmoChan:
-				bx.Stop()
-				return xport.NewXportError(
-					"Timeout waiting for host <-> controller sync")
 			case err := <-bl.ErrChan:
 				return err
 			case bm := <-bl.BleChan:
@@ -240,6 +231,10 @@ func (bx *BleXport) Start() error {
 						break SyncLoop
 					}
 				}
+			case <-time.After(bx.syncTimeoutMs * time.Millisecond):
+				bx.Stop()
+				return xport.NewXportError(
+					"Timeout waiting for host <-> controller sync")
 			}
 		}
 	}

@@ -13,6 +13,14 @@ type TxOptions struct {
 	Tries   int
 }
 
+func (opt *TxOptions) AfterTimeout() <-chan time.Time {
+	if opt.Timeout == 0 {
+		return nil
+	} else {
+		return time.After(opt.Timeout)
+	}
+}
+
 // Represents a communication session with a specific peer.  The particulars
 // vary according to protocol and transport. Several Sesn instances can use the
 // same Xport.
