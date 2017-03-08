@@ -3,6 +3,7 @@ package nmble
 import (
 	"encoding/hex"
 	"fmt"
+	"sync"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -18,6 +19,7 @@ type BleOicSesn struct {
 	od  *omp.OmpDispatcher
 
 	closeChan chan error
+	mx        sync.Mutex
 }
 
 func NewBleOicSesn(bx *BleXport, ownAddrType AddrType,
@@ -79,6 +81,26 @@ func (bos *BleOicSesn) removeNmpListener(seq uint8) {
 	}
 }
 
+// Returns true if a new channel was assigned.
+func (bos *BleOicSesn) setCloseChan() bool {
+	bos.mx.Lock()
+	defer bos.mx.Unlock()
+
+	if bos.closeChan != nil {
+		return false
+	}
+
+	bos.closeChan = make(chan error, 1)
+	return true
+}
+
+func (bos *BleOicSesn) clearCloseChan() {
+	bos.mx.Lock()
+	defer bos.mx.Unlock()
+
+	bos.closeChan = nil
+}
+
 func (bos *BleOicSesn) AbortRx(seq uint8) error {
 	return bos.od.FakeRxError(seq, fmt.Errorf("Rx aborted"))
 }
@@ -88,13 +110,10 @@ func (bos *BleOicSesn) Open() error {
 }
 
 func (bos *BleOicSesn) Close() error {
-	// XXX: This isn't entirely thread safe.
-	if bos.closeChan != nil {
+	if !bos.setCloseChan() {
 		return fmt.Errorf("BLE session already being closed")
 	}
-
-	bos.closeChan = make(chan error, 1)
-	defer func() { bos.closeChan = nil }()
+	defer bos.clearCloseChan()
 
 	if err := bos.bf.Stop(); err != nil {
 		return err
@@ -105,8 +124,8 @@ func (bos *BleOicSesn) Close() error {
 		time.Sleep(CLOSE_TIMEOUT)
 		bos.closeChan <- fmt.Errorf("BLE session close timeout")
 	}()
-
 	<-bos.closeChan
+
 	return nil
 }
 

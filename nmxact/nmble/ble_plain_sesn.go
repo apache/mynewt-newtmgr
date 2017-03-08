@@ -3,6 +3,7 @@ package nmble
 import (
 	"encoding/hex"
 	"fmt"
+	"sync"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -17,6 +18,7 @@ type BlePlainSesn struct {
 	nd  *nmp.NmpDispatcher
 
 	closeChan chan error
+	mx        sync.Mutex
 }
 
 func NewBlePlainSesn(bx *BleXport, ownAddrType AddrType,
@@ -73,6 +75,26 @@ func (bps *BlePlainSesn) removeNmpListener(seq uint8) {
 	}
 }
 
+// Returns true if a new channel was assigned.
+func (bps *BlePlainSesn) setCloseChan() bool {
+	bps.mx.Lock()
+	defer bps.mx.Unlock()
+
+	if bps.closeChan != nil {
+		return false
+	}
+
+	bps.closeChan = make(chan error, 1)
+	return true
+}
+
+func (bps *BlePlainSesn) clearCloseChan() {
+	bps.mx.Lock()
+	defer bps.mx.Unlock()
+
+	bps.closeChan = nil
+}
+
 func (bps *BlePlainSesn) AbortRx(seq uint8) error {
 	return bps.nd.FakeRxError(seq, fmt.Errorf("Rx aborted"))
 }
@@ -82,10 +104,10 @@ func (bps *BlePlainSesn) Open() error {
 }
 
 func (bps *BlePlainSesn) Close() error {
-	// XXX: This isn't entirely thread safe.
-	if bps.closeChan != nil {
+	if !bps.setCloseChan() {
 		return fmt.Errorf("BLE session already being closed")
 	}
+	defer bps.clearCloseChan()
 
 	bps.closeChan = make(chan error, 1)
 	defer func() { bps.closeChan = nil }()
