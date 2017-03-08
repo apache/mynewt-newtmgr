@@ -11,10 +11,14 @@ import (
 	"mynewt.apache.org/newt/nmxact/sesn"
 )
 
+const CLOSE_TIMEOUT = 5 * time.Second
+
 type BlePlainSesn struct {
 	bf  *BleFsm
 	nls map[*nmp.NmpListener]struct{}
 	nd  *nmp.NmpDispatcher
+
+	closeChan chan error
 }
 
 func NewBlePlainSesn(bx *BleXport, ownAddrType AddrType,
@@ -80,7 +84,27 @@ func (bps *BlePlainSesn) Open() error {
 }
 
 func (bps *BlePlainSesn) Close() error {
-	return bps.bf.Stop()
+	// XXX: This isn't entirely thread safe.
+	if bps.closeChan != nil {
+		return fmt.Errorf("BLE session already being closed")
+	}
+
+	bps.closeChan = make(chan error, 1)
+	defer func() { bps.closeChan = nil }()
+
+	if err := bps.bf.Stop(); err != nil {
+		return err
+	}
+
+	// Block until close completes.
+
+	go func() {
+		time.Sleep(CLOSE_TIMEOUT)
+		bps.closeChan <- fmt.Errorf("BLE session close timeout")
+	}()
+
+	<-bps.closeChan
+	return nil
 }
 
 func (bps *BlePlainSesn) onRxNmp(data []byte) {
@@ -90,6 +114,11 @@ func (bps *BlePlainSesn) onRxNmp(data []byte) {
 func (bps *BlePlainSesn) onDisconnect(err error) {
 	for nl, _ := range bps.nls {
 		nl.ErrChan <- err
+	}
+
+	// If the session is being closed, unblock the close() call.
+	if bps.closeChan != nil {
+		bps.closeChan <- err
 	}
 }
 
