@@ -78,7 +78,7 @@ func GetXport() (xport.Xport, error) {
 	globalXportSet = true
 
 	if err := globalXport.Start(); err != nil {
-		return nil, err
+		return nil, util.ChildNewtError(err)
 	}
 
 	return globalXport, nil
@@ -142,6 +142,11 @@ func GetSesn() (sesn.Sesn, error) {
 	}
 
 	globalSesnSet = true
+
+	if err := globalSesn.Open(); err != nil {
+		return nil, util.ChildNewtError(err)
+	}
+
 	return globalSesn, nil
 }
 
