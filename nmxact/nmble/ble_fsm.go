@@ -228,6 +228,7 @@ func (bf *BleFsm) connectListen(seq int) error {
 					for bl, _ := range bf.bls {
 						bl.ErrChan <- err
 					}
+					bf.setState(SESN_STATE_UNCONNECTED)
 					bf.disconnectCb(err)
 					return
 
