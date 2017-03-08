@@ -2,7 +2,7 @@ package nmble
 
 import (
 	"fmt"
-	"sync/atomic"
+	"sync"
 
 	log "github.com/Sirupsen/logrus"
 
@@ -58,6 +58,7 @@ type BleFsm struct {
 	nmpRspChr  *BleChr
 	attMtu     int
 	connChan   chan error
+	stateMx    sync.Mutex
 }
 
 func NewBleFsm(p BleFsmParams) *BleFsm {
@@ -77,26 +78,33 @@ func NewBleFsm(p BleFsmParams) *BleFsm {
 }
 
 func (bf *BleFsm) getState() BleSesnState {
-	val := atomic.LoadInt32((*int32)(&bf.state))
-	return BleSesnState(val)
+	bf.stateMx.Lock()
+	defer bf.stateMx.Unlock()
+
+	return bf.state
 }
 
 func (bf *BleFsm) setState(toState BleSesnState) {
-	atomic.StoreInt32((*int32)(&bf.state), int32(toState))
+	bf.stateMx.Lock()
+	defer bf.stateMx.Unlock()
+
+	bf.state = toState
 }
 
 func (bf *BleFsm) transitionState(fromState BleSesnState,
 	toState BleSesnState) error {
 
-	swapped := atomic.CompareAndSwapInt32((*int32)(&bf.state),
-		int32(fromState), int32(toState))
-	if !swapped {
+	bf.stateMx.Lock()
+	defer bf.stateMx.Unlock()
+
+	if bf.state != fromState {
 		return fmt.Errorf(
 			"Can't set BleFsm state to %d; current state != required "+
 				"value: %d",
 			toState, fromState)
 	}
 
+	bf.state = toState
 	return nil
 }
 
@@ -258,7 +266,7 @@ func (bf *BleFsm) nmpRspListen() error {
 		for {
 			select {
 			case <-bl.ErrChan:
-				// XXX: Make sure nothing else needs to happen here.
+				// The session encountered an error; stop listening.
 				return
 			case bm := <-bl.BleChan:
 				switch msg := bm.(type) {
@@ -504,15 +512,26 @@ func (bf *BleFsm) Start() error {
 }
 
 func (bf *BleFsm) Stop() error {
-	// XXX: This isn't entirely thread safe.
-	switch bf.getState() {
+	bf.stateMx.Lock()
+
+	var err error
+	switch bf.state {
 	case SESN_STATE_UNCONNECTED:
-		return fmt.Errorf("BLE session already closed")
+		err = fmt.Errorf("BLE session already closed")
 	case SESN_STATE_CONNECTING:
-		return fmt.Errorf("XXX Cancel connect not implemented yet")
+		err = fmt.Errorf("XXX Cancel connect not implemented yet")
 	case SESN_STATE_TERMINATING:
-		return fmt.Errorf("BLE session already being closed")
+		err = fmt.Errorf("BLE session already being closed")
 	default:
-		return bf.terminate()
+		bf.state = SESN_STATE_TERMINATING
+		err = nil
 	}
+
+	bf.stateMx.Unlock()
+
+	if err != nil {
+		return err
+	}
+
+	return bf.terminate()
 }
