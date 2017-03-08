@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"sync/atomic"
+	"time"
 )
 
 const NmpPlainSvcUuid = "8D53DC1D-1DB7-4CD3-868B-8A527460AA84"
@@ -13,6 +14,9 @@ const NmpOicReqChrUuid = "AD7B334F-4637-4B86-90B6-9D787F03D218"
 const NmpOicRspChrUuid = "E9241982-4580-42C4-8831-95048216B256"
 
 const WRITE_CMD_BASE_SZ = 3
+const NOTIFY_CMD_BASE_SZ = 3
+
+const CLOSE_TIMEOUT = 5 * time.Second
 
 var nextSeq uint32
 

@@ -11,8 +11,6 @@ import (
 	"mynewt.apache.org/newt/nmxact/sesn"
 )
 
-const CLOSE_TIMEOUT = 5 * time.Second
-
 type BlePlainSesn struct {
 	bf  *BleFsm
 	nls map[*nmp.NmpListener]struct{}
@@ -97,7 +95,6 @@ func (bps *BlePlainSesn) Close() error {
 	}
 
 	// Block until close completes.
-
 	go func() {
 		time.Sleep(CLOSE_TIMEOUT)
 		bps.closeChan <- fmt.Errorf("BLE session close timeout")
@@ -164,8 +161,9 @@ func (bps *BlePlainSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 }
 
 func (bps *BlePlainSesn) MtuIn() int {
-	return bps.bf.attMtu - WRITE_CMD_BASE_SZ
+	return bps.bf.attMtu - NOTIFY_CMD_BASE_SZ - nmp.NMP_HDR_SIZE
 }
+
 func (bps *BlePlainSesn) MtuOut() int {
-	return bps.bf.attMtu - WRITE_CMD_BASE_SZ
+	return bps.bf.attMtu - WRITE_CMD_BASE_SZ - nmp.NMP_HDR_SIZE
 }

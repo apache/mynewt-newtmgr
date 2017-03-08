@@ -31,6 +31,9 @@ import (
 	"mynewt.apache.org/newt/nmxact/nmp"
 )
 
+// OIC wrapping adds this many bytes to an NMP message.
+const OMP_MSG_OVERHEAD = 13
+
 type OicMsg struct {
 	Hdr []byte `codec:"_h"`
 }

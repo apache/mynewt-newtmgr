@@ -16,6 +16,8 @@ type BleOicSesn struct {
 	bf  *BleFsm
 	nls map[*nmp.NmpListener]struct{}
 	od  *omp.OmpDispatcher
+
+	closeChan chan error
 }
 
 func NewBleOicSesn(bx *BleXport, ownAddrType AddrType,
@@ -58,7 +60,7 @@ func NewBleOicSesn(bx *BleXport, ownAddrType AddrType,
 	return bos
 }
 
-func (bos *BleOicSesn) addOmpListener(seq uint8) (*nmp.NmpListener, error) {
+func (bos *BleOicSesn) addNmpListener(seq uint8) (*nmp.NmpListener, error) {
 	nl := nmp.NewNmpListener()
 	bos.nls[nl] = struct{}{}
 
@@ -70,7 +72,7 @@ func (bos *BleOicSesn) addOmpListener(seq uint8) (*nmp.NmpListener, error) {
 	return nl, nil
 }
 
-func (bos *BleOicSesn) removeOmpListener(seq uint8) {
+func (bos *BleOicSesn) removeNmpListener(seq uint8) {
 	listener := bos.od.RemoveListener(seq)
 	if listener != nil {
 		delete(bos.nls, listener)
@@ -86,7 +88,26 @@ func (bos *BleOicSesn) Open() error {
 }
 
 func (bos *BleOicSesn) Close() error {
-	return bos.bf.Stop()
+	// XXX: This isn't entirely thread safe.
+	if bos.closeChan != nil {
+		return fmt.Errorf("BLE session already being closed")
+	}
+
+	bos.closeChan = make(chan error, 1)
+	defer func() { bos.closeChan = nil }()
+
+	if err := bos.bf.Stop(); err != nil {
+		return err
+	}
+
+	// Block until close completes.
+	go func() {
+		time.Sleep(CLOSE_TIMEOUT)
+		bos.closeChan <- fmt.Errorf("BLE session close timeout")
+	}()
+
+	<-bos.closeChan
+	return nil
 }
 
 func (bos *BleOicSesn) onRxNmp(data []byte) {
@@ -96,6 +117,11 @@ func (bos *BleOicSesn) onRxNmp(data []byte) {
 func (bos *BleOicSesn) onDisconnect(err error) {
 	for nl, _ := range bos.nls {
 		nl.ErrChan <- err
+	}
+
+	// If the session is being closed, unblock the close() call.
+	if bos.closeChan != nil {
+		bos.closeChan <- err
 	}
 }
 
@@ -108,13 +134,12 @@ func (bos *BleOicSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 		return nil, err
 	}
 
-	nl, err := bos.addOmpListener(msg.Hdr.Seq)
+	nl, err := bos.addNmpListener(msg.Hdr.Seq)
 	if err != nil {
 		return nil, err
 	}
-	defer bos.removeOmpListener(msg.Hdr.Seq)
+	defer bos.removeNmpListener(msg.Hdr.Seq)
 
-	nmp.EncodeNmpPlain(msg)
 	b, err := omp.EncodeOmpTcp(msg)
 	if err != nil {
 		return nil, err
@@ -123,11 +148,11 @@ func (bos *BleOicSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 	if opt.Timeout != 0 {
 		go func() {
 			time.Sleep(opt.Timeout)
-			nl.ErrChan <- sesn.NewTimeoutError("OMP timeout")
+			nl.ErrChan <- sesn.NewTimeoutError("NMP timeout")
 		}()
 	}
 
-	log.Debugf("Tx OMP request:\n%s", hex.Dump(b))
+	log.Debugf("Tx NMP request: %s", hex.Dump(b))
 	if err := bos.bf.writeCmd(b); err != nil {
 		return nil, err
 	}
@@ -142,9 +167,15 @@ func (bos *BleOicSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 }
 
 func (bos *BleOicSesn) MtuIn() int {
-	return bos.bf.attMtu - WRITE_CMD_BASE_SZ
+	return bos.bf.attMtu -
+		NOTIFY_CMD_BASE_SZ -
+		omp.OMP_MSG_OVERHEAD -
+		nmp.NMP_HDR_SIZE
 }
 
 func (bos *BleOicSesn) MtuOut() int {
-	return bos.bf.attMtu - WRITE_CMD_BASE_SZ
+	return bos.bf.attMtu -
+		WRITE_CMD_BASE_SZ -
+		omp.OMP_MSG_OVERHEAD -
+		nmp.NMP_HDR_SIZE
 }
