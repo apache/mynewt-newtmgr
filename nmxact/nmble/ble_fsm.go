@@ -241,7 +241,6 @@ func (bf *BleFsm) connectListen(seq int) error {
 }
 
 func (bf *BleFsm) nmpRspListen() error {
-	bl := NewBleListener()
 	base := BleMsgBase{
 		Op:         MSG_OP_EVT,
 		Type:       MSG_TYPE_NOTIFY_RX_EVT,
@@ -285,10 +284,6 @@ func (bf *BleFsm) connect() error {
 	r.PeerAddr.Bytes = bf.peer.Addr
 
 	if err := bf.connectListen(r.Seq); err != nil {
-		return err
-	}
-
-	if err := bf.nmpRspListen(); err != nil {
 		return err
 	}
 

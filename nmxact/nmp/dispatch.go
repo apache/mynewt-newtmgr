@@ -89,7 +89,6 @@ func (nd *NmpDispatcher) FakeRxError(seq uint8, err error) error {
 	}
 
 	rl.ErrChan <- err
-	nd.removeListenerNoLock(seq)
 
 	return nil
 }
@@ -120,7 +119,6 @@ func (nd *NmpDispatcher) DispatchRsp(r NmpRsp) bool {
 	}
 
 	rl.RspChan <- r
-	nd.removeListenerNoLock(r.Hdr().Seq)
 
 	return true
 }
