@@ -509,5 +509,15 @@ func (bf *BleFsm) Start() error {
 }
 
 func (bf *BleFsm) Stop() error {
-	return bf.terminate()
+	// XXX: This isn't entirely thread safe.
+	switch bf.getState() {
+	case SESN_STATE_UNCONNECTED:
+		return nil
+	case SESN_STATE_CONNECTING:
+		return fmt.Errorf("XXX Cancel connect not implemented yet")
+	case SESN_STATE_TERMINATING:
+		return fmt.Errorf("BLE session already being closed")
+	default:
+		return bf.terminate()
+	}
 }
