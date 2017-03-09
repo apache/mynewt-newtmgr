@@ -23,7 +23,9 @@ import (
 	"fmt"
 	"os"
 
+	"mynewt.apache.org/newt/nmxact/bledefs"
 	"mynewt.apache.org/newt/nmxact/nmble"
+	"mynewt.apache.org/newt/nmxact/sesn"
 	"mynewt.apache.org/newt/nmxact/xact"
 )
 
@@ -34,7 +36,7 @@ func main() {
 		BlehostdPath: "blehostd",
 		DevPath:      "/dev/cu.usbserial-A600ANJ1",
 	}
-	bx, err := nmble.NewBleXport(params)
+	x, err := nmble.NewBleXport(params)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error creating BLE transport: %s\n",
 			err.Error())
@@ -42,19 +44,35 @@ func main() {
 	}
 
 	// Start the BLE transport.
-	if err := bx.Start(); err != nil {
+	if err := x.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "error starting BLE transport: %s\n",
 			err.Error())
 		os.Exit(1)
 	}
-	defer bx.Stop()
+	defer x.Stop()
 
-	// Prepare a session for a BLE peer with public address 0b:0a:0b:0a:0b:0a.
-	peer := nmble.BleDev{
-		AddrType: nmble.ADDR_TYPE_PUBLIC,
-		Addr:     [6]byte{0x0b, 0x0a, 0x0b, 0x0a, 0x0b, 0x0a},
+	// Prepare a BLE session:
+	//     * We use a random address.
+	//     * Peer has public address 0b:0a:0b:0a:0b:0a.
+	sc := sesn.SesnCfg{
+		MgmtProto: sesn.MGMT_PROTO_NMP,
+
+		Ble: sesn.SesnCfgBle{
+			OwnAddrType: bledefs.BLE_ADDR_TYPE_RANDOM,
+			Peer: bledefs.BleDev{
+				AddrType: bledefs.BLE_ADDR_TYPE_PUBLIC,
+				Addr: bledefs.BleAddr{
+					Bytes: [6]byte{0x0b, 0x0a, 0x0b, 0x0a, 0x0b, 0x0a},
+				},
+			},
+		},
 	}
-	s := nmble.NewBlePlainSesn(bx, nmble.ADDR_TYPE_RANDOM, peer)
+
+	s, err := x.BuildSesn(sc)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error creating BLE session: %s\n", err.Error())
+		os.Exit(1)
+	}
 
 	// Connect to the peer (open the session).
 	if err := s.Open(); err != nil {

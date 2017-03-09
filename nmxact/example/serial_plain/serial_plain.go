@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"mynewt.apache.org/newt/nmxact/nmserial"
+	"mynewt.apache.org/newt/nmxact/sesn"
 	"mynewt.apache.org/newt/nmxact/xact"
 )
 
@@ -46,7 +47,17 @@ func main() {
 	defer x.Stop()
 
 	// Create and open a session for connected Mynewt device.
-	s := nmserial.NewSerialPlainSesn(x)
+	sc := sesn.SesnCfg{
+		MgmtProto: sesn.MGMT_PROTO_NMP,
+	}
+
+	s, err := x.BuildSesn(sc)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error creating serial session: %s\n",
+			err.Error())
+		os.Exit(1)
+	}
+
 	if err := s.Open(); err != nil {
 		fmt.Fprintf(os.Stderr, "error starting serial session: %s\n",
 			err.Error())
