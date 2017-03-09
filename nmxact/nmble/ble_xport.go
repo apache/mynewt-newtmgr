@@ -3,12 +3,14 @@ package nmble
 import (
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"sync/atomic"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
 
 	"mynewt.apache.org/newt/nmxact/nmxutil"
+	"mynewt.apache.org/newt/nmxact/sesn"
 	"mynewt.apache.org/newt/util/unixchild"
 )
 
@@ -58,6 +60,19 @@ func NewBleXport(cfg XportCfg) (*BleXport, error) {
 	}
 
 	return bx, nil
+}
+
+func (bx *BleXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
+	switch cfg.MgmtProto {
+	case sesn.MGMT_PROTO_NMP:
+		return NewBlePlainSesn(bx, cfg.Ble.OwnAddrType, cfg.Ble.Peer), nil
+	case sesn.MGMT_PROTO_OMP:
+		return NewBleOicSesn(bx, cfg.Ble.OwnAddrType, cfg.Ble.Peer), nil
+	default:
+		return nil, fmt.Errorf(
+			"Invalid management protocol: %d; expected NMP or OMP",
+			cfg.MgmtProto)
+	}
 }
 
 func (bx *BleXport) addSyncListener() (*BleListener, error) {

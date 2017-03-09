@@ -13,8 +13,15 @@ import (
 	"github.com/tarm/serial"
 
 	"mynewt.apache.org/newt/nmxact/nmxutil"
+	"mynewt.apache.org/newt/nmxact/sesn"
 	"mynewt.apache.org/newt/util"
 )
+
+type XportCfg struct {
+	DevPath     string
+	Baud        int
+	ReadTimeout time.Duration
+}
 
 type SerialXport struct {
 	cfg     XportCfg
@@ -30,10 +37,17 @@ func NewSerialXport(cfg XportCfg) *SerialXport {
 	}
 }
 
-type XportCfg struct {
-	DevPath     string
-	Baud        int
-	ReadTimeout time.Duration
+func (sx *SerialXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
+	switch cfg.MgmtProto {
+	case sesn.MGMT_PROTO_NMP:
+		return NewSerialPlainSesn(sx), nil
+	case sesn.MGMT_PROTO_OMP:
+		return nil, fmt.Errorf("OMP over serial currently unsupported")
+	default:
+		return nil, fmt.Errorf(
+			"Invalid management protocol: %d; expected NMP or OMP",
+			cfg.MgmtProto)
+	}
 }
 
 func (sx *SerialXport) Start() error {
