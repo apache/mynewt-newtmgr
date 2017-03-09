@@ -87,6 +87,14 @@ func NewBleTerminateReq() *BleTerminateReq {
 	}
 }
 
+func NewBleConnCancelReq() *BleConnCancelReq {
+	return &BleConnCancelReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_CONN_CANCEL,
+		Seq:  NextSeq(),
+	}
+}
+
 func NewBleDiscSvcUuidReq() *BleDiscSvcUuidReq {
 	return &BleDiscSvcUuidReq{
 		Op:   MSG_OP_REQ,

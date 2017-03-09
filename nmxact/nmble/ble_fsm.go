@@ -24,6 +24,7 @@ const (
 	SESN_STATE_DISCOVERING_CHR              = 7
 	SESN_STATE_DISCOVERED_CHR               = 8
 	SESN_STATE_TERMINATING                  = 9
+	SESN_STATE_CONN_CANCELLING              = 10
 )
 
 type BleRxNmpFn func(data []byte)
@@ -303,9 +304,21 @@ func (bf *BleFsm) connect() error {
 }
 
 func (bf *BleFsm) terminate() error {
-	if bf.connHandle == 0 {
-		// Already disconnected.
-		return nil
+	{
+		bf.stateMx.Lock()
+		defer bf.stateMx.Unlock()
+
+		switch bf.state {
+		case SESN_STATE_UNCONNECTED,
+			SESN_STATE_CONNECTING,
+			SESN_STATE_CONN_CANCELLING:
+			return fmt.Errorf("BLE terminate failed; not connected")
+		case SESN_STATE_TERMINATING:
+			return fmt.Errorf(
+				"BLE terminate failed; session already being closed")
+		default:
+			bf.state = SESN_STATE_TERMINATING
+		}
 	}
 
 	r := NewBleTerminateReq()
@@ -319,6 +332,28 @@ func (bf *BleFsm) terminate() error {
 	defer bf.removeBleSeqListener(r.Seq)
 
 	if err := terminate(bf.bx, bl, r); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (bf *BleFsm) connCancel() error {
+	if err := bf.transitionState(
+		SESN_STATE_CONNECTING,
+		SESN_STATE_CONN_CANCELLING); err != nil {
+
+		return fmt.Errorf("BLE connect cancel failed; not connecting")
+	}
+
+	r := NewBleConnCancelReq()
+	bl, err := bf.addBleSeqListener(r.Seq)
+	if err != nil {
+		return err
+	}
+	defer bf.removeBleSeqListener(r.Seq)
+
+	if err := connCancel(bf.bx, bl, r); err != nil {
 		return err
 	}
 
@@ -511,27 +546,25 @@ func (bf *BleFsm) Start() error {
 	}
 }
 
-func (bf *BleFsm) Stop() error {
-	bf.stateMx.Lock()
+// @return bool                 true if stop complete;
+//                              false if disconnect is now pending.
+func (bf *BleFsm) Stop() (bool, error) {
+	state := bf.getState()
 
-	var err error
-	switch bf.state {
+	switch state {
 	case SESN_STATE_UNCONNECTED:
-		err = fmt.Errorf("BLE session already closed")
+		return false, fmt.Errorf("BLE session already closed")
+	case SESN_STATE_TERMINATING, SESN_STATE_CONN_CANCELLING:
+		return false, fmt.Errorf("BLE session already being closed")
 	case SESN_STATE_CONNECTING:
-		err = fmt.Errorf("XXX Cancel connect not implemented yet")
-	case SESN_STATE_TERMINATING:
-		err = fmt.Errorf("BLE session already being closed")
+		if err := bf.connCancel(); err != nil {
+			return false, err
+		}
+		return true, nil
 	default:
-		bf.state = SESN_STATE_TERMINATING
-		err = nil
+		if err := bf.terminate(); err != nil {
+			return false, err
+		}
+		return false, nil
 	}
-
-	bf.stateMx.Unlock()
-
-	if err != nil {
-		return err
-	}
-
-	return bf.terminate()
 }

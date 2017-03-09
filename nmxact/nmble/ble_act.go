@@ -58,6 +58,38 @@ func terminate(x xport.Xport, bl *BleListener, r *BleTerminateReq) error {
 	}
 }
 
+func connCancel(x xport.Xport, bl *BleListener, r *BleConnCancelReq) error {
+	j, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+
+	if err := x.Tx(j); err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return err
+		case bm := <-bl.BleChan:
+			switch msg := bm.(type) {
+			case *BleConnCancelRsp:
+				if msg.Status != 0 {
+					return FmtBleHostError(
+						msg.Status,
+						"Conn cancel response indicates status=%d",
+						msg.Status)
+				} else {
+					return nil
+				}
+
+			default:
+			}
+		}
+	}
+}
+
 // Blocking.
 func discSvcUuid(x xport.Xport, bl *BleListener, r *BleDiscSvcUuidReq) (
 	*BleSvc, error) {

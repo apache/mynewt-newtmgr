@@ -71,6 +71,7 @@ func discAllChrsRspCtor() BleMsg { return &BleDiscAllChrsRsp{} }
 func discChrUuidRspCtor() BleMsg { return &BleDiscChrUuidRsp{} }
 func writeCmdRspCtor() BleMsg    { return &BleWriteCmdRsp{} }
 func exchangeMtuRspCtor() BleMsg { return &BleExchangeMtuRsp{} }
+func connCancelRspCtor() BleMsg  { return &BleConnCancelRsp{} }
 
 func syncEvtCtor() BleMsg       { return &BleSyncEvt{} }
 func connectEvtCtor() BleMsg    { return &BleConnectEvt{} }
@@ -90,6 +91,7 @@ var msgCtorMap = map[OpTypePair]msgCtor{
 	{MSG_OP_RSP, MSG_TYPE_DISC_ALL_CHRS}: discAllChrsRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_WRITE_CMD}:     writeCmdRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_EXCHANGE_MTU}:  exchangeMtuRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_CONN_CANCEL}:   connCancelRspCtor,
 
 	{MSG_OP_EVT, MSG_TYPE_SYNC_EVT}:       syncEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_CONNECT_EVT}:    connectEvtCtor,

@@ -115,8 +115,14 @@ func (bos *BleOicSesn) Close() error {
 	}
 	defer bos.clearCloseChan()
 
-	if err := bos.bf.Stop(); err != nil {
+	done, err := bos.bf.Stop()
+	if err != nil {
 		return err
+	}
+
+	if done {
+		// Close complete.
+		return nil
 	}
 
 	// Block until close completes or timeout.

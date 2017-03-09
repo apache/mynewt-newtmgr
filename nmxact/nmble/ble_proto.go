@@ -132,19 +132,25 @@ const (
 	MSG_TYPE_SYNC                  = 2
 	MSG_TYPE_CONNECT               = 3
 	MSG_TYPE_TERMINATE             = 4
-	MSG_TYPE_DISC_SVC_UUID         = 5
-	MSG_TYPE_DISC_ALL_CHRS         = 6
-	MSG_TYPE_DISC_CHR_UUID         = 7
-	MSG_TYPE_WRITE_CMD             = 8
-	MSG_TYPE_EXCHANGE_MTU          = 9
+	MSG_TYPE_DISC_ALL_SVCS         = 5
+	MSG_TYPE_DISC_SVC_UUID         = 6
+	MSG_TYPE_DISC_ALL_CHRS         = 7
+	MSG_TYPE_DISC_CHR_UUID         = 8
+	MSG_TYPE_WRITE                 = 9
+	MSG_TYPE_WRITE_CMD             = 10
+	MSG_TYPE_EXCHANGE_MTU          = 11
+	MSG_TYPE_GEN_RAND_ADDR         = 12
+	MSG_TYPE_SET_RAND_ADDR         = 13
+	MSG_TYPE_CONN_CANCEL           = 14
 
 	MSG_TYPE_SYNC_EVT       = 2049
 	MSG_TYPE_CONNECT_EVT    = 2050
 	MSG_TYPE_DISCONNECT_EVT = 2051
 	MSG_TYPE_DISC_SVC_EVT   = 2052
 	MSG_TYPE_DISC_CHR_EVT   = 2053
-	MSG_TYPE_NOTIFY_RX_EVT  = 2054
-	MSG_TYPE_MTU_CHANGE_EVT = 2055
+	MSG_TYPE_WRITE_ACK_EVT  = 2054
+	MSG_TYPE_NOTIFY_RX_EVT  = 2055
+	MSG_TYPE_MTU_CHANGE_EVT = 2056
 )
 
 var AddrTypeStringMap = map[AddrType]string{
@@ -170,6 +176,7 @@ var MsgTypeStringMap = map[MsgType]string{
 	MSG_TYPE_DISC_ALL_CHRS: "disc_all_chrs",
 	MSG_TYPE_WRITE_CMD:     "write_cmd",
 	MSG_TYPE_EXCHANGE_MTU:  "exchange_mtu",
+	MSG_TYPE_CONN_CANCEL:   "conn_cancel",
 
 	MSG_TYPE_SYNC_EVT:       "sync_evt",
 	MSG_TYPE_CONNECT_EVT:    "connect_evt",
@@ -271,6 +278,23 @@ type BleTerminateReq struct {
 }
 
 type BleTerminateRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  int     `json:"seq"`
+
+	// Mandatory
+	Status int `json:"status"`
+}
+
+type BleConnCancelReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  int     `json:"seq"`
+}
+
+type BleConnCancelRsp struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`

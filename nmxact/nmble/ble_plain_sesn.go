@@ -112,8 +112,14 @@ func (bps *BlePlainSesn) Close() error {
 	bps.closeChan = make(chan error, 1)
 	defer func() { bps.closeChan = nil }()
 
-	if err := bps.bf.Stop(); err != nil {
+	done, err := bps.bf.Stop()
+	if err != nil {
 		return err
+	}
+
+	if done {
+		// Close complete.
+		return nil
 	}
 
 	// Block until close completes or timeout.
