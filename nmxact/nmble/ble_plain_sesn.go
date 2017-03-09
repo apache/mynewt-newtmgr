@@ -8,7 +8,9 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 
+	. "mynewt.apache.org/newt/nmxact/bledefs"
 	"mynewt.apache.org/newt/nmxact/nmp"
+	"mynewt.apache.org/newt/nmxact/nmxutil"
 	"mynewt.apache.org/newt/nmxact/sesn"
 )
 
@@ -21,7 +23,7 @@ type BlePlainSesn struct {
 	mx        sync.Mutex
 }
 
-func NewBlePlainSesn(bx *BleXport, ownAddrType AddrType,
+func NewBlePlainSesn(bx *BleXport, ownAddrType BleAddrType,
 	peer BleDev) *BlePlainSesn {
 
 	bps := &BlePlainSesn{
@@ -178,7 +180,7 @@ func (bps *BlePlainSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 	case rsp := <-nl.RspChan:
 		return rsp, nil
 	case <-opt.AfterTimeout():
-		return nil, sesn.NewTimeoutError("NMP timeout")
+		return nil, nmxutil.NewNmpTimeoutError("NMP timeout")
 	}
 }
 

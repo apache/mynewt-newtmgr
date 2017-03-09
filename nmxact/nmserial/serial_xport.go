@@ -12,7 +12,7 @@ import (
 	"github.com/joaojeronimo/go-crc16"
 	"github.com/tarm/serial"
 
-	"mynewt.apache.org/newt/nmxact/xport"
+	"mynewt.apache.org/newt/nmxact/nmxutil"
 	"mynewt.apache.org/newt/util"
 )
 
@@ -189,7 +189,8 @@ func (sx *SerialXport) Rx() ([]byte, error) {
 	if err == nil {
 		// Scanner hit EOF, so we'll need to create a new one.  This only
 		// happens on timeouts.
-		err = xport.NewTimeoutError("Timeout reading from serial connection")
+		err = nmxutil.NewXportTimeoutError(
+			"Timeout reading from serial connection")
 		sx.scanner = bufio.NewScanner(sx.port)
 	}
 	return nil, err

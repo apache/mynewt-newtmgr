@@ -3,6 +3,7 @@ package nmble
 import (
 	"encoding/json"
 
+	"mynewt.apache.org/newt/nmxact/nmxutil"
 	"mynewt.apache.org/newt/nmxact/xport"
 )
 
@@ -44,7 +45,7 @@ func terminate(x xport.Xport, bl *BleListener, r *BleTerminateReq) error {
 			switch msg := bm.(type) {
 			case *BleTerminateRsp:
 				if msg.Status != 0 {
-					return FmtBleHostError(
+					return nmxutil.FmtBleHostError(
 						msg.Status,
 						"Terminate response indicates status=%d",
 						msg.Status)
@@ -76,7 +77,7 @@ func connCancel(x xport.Xport, bl *BleListener, r *BleConnCancelReq) error {
 			switch msg := bm.(type) {
 			case *BleConnCancelRsp:
 				if msg.Status != 0 {
-					return FmtBleHostError(
+					return nmxutil.FmtBleHostError(
 						msg.Status,
 						"Conn cancel response indicates status=%d",
 						msg.Status)
@@ -112,7 +113,7 @@ func discSvcUuid(x xport.Xport, bl *BleListener, r *BleDiscSvcUuidReq) (
 			switch msg := bm.(type) {
 			case *BleDiscSvcUuidRsp:
 				if msg.Status != 0 {
-					return nil, FmtBleHostError(
+					return nil, nmxutil.FmtBleHostError(
 						msg.Status,
 						"DiscSvcUuid response indicates status=%d",
 						msg.Status)
@@ -124,14 +125,14 @@ func discSvcUuid(x xport.Xport, bl *BleListener, r *BleDiscSvcUuidReq) (
 					svc = &msg.Svc
 				case BLE_HS_EDONE:
 					if svc == nil {
-						return nil, FmtBleHostError(
+						return nil, nmxutil.FmtBleHostError(
 							msg.Status,
 							"Peer doesn't support required service: %s",
 							r.Uuid.String())
 					}
 					return svc, nil
 				default:
-					return nil, FmtBleHostError(
+					return nil, nmxutil.FmtBleHostError(
 						msg.Status,
 						"DiscSvc event indicates status=%d",
 						msg.Status)
@@ -165,7 +166,7 @@ func discAllChrs(x xport.Xport, bl *BleListener, r *BleDiscAllChrsReq) (
 			switch msg := bm.(type) {
 			case *BleDiscAllChrsRsp:
 				if msg.Status != 0 {
-					return nil, FmtBleHostError(
+					return nil, nmxutil.FmtBleHostError(
 						msg.Status,
 						"DiscAllChrs response indicates status=%d",
 						msg.Status)
@@ -178,7 +179,7 @@ func discAllChrs(x xport.Xport, bl *BleListener, r *BleDiscAllChrsReq) (
 				case BLE_HS_EDONE:
 					return chrs, nil
 				default:
-					return nil, FmtBleHostError(
+					return nil, nmxutil.FmtBleHostError(
 						msg.Status,
 						"DiscChr event indicates status=%d",
 						msg.Status)
@@ -209,7 +210,7 @@ func writeCmd(x xport.Xport, bl *BleListener, r *BleWriteCmdReq) error {
 			switch msg := bm.(type) {
 			case *BleWriteCmdRsp:
 				if msg.Status != 0 {
-					return FmtBleHostError(
+					return nmxutil.FmtBleHostError(
 						msg.Status,
 						"WriteCmd response indicates status=%d",
 						msg.Status)
@@ -244,7 +245,7 @@ func exchangeMtu(x xport.Xport, bl *BleListener, r *BleExchangeMtuReq) (
 			switch msg := bm.(type) {
 			case *BleExchangeMtuRsp:
 				if msg.Status != 0 {
-					return 0, FmtBleHostError(
+					return 0, nmxutil.FmtBleHostError(
 						msg.Status,
 						"ExchangeMtu response indicates status=%d",
 						msg.Status)
@@ -252,7 +253,7 @@ func exchangeMtu(x xport.Xport, bl *BleListener, r *BleExchangeMtuReq) (
 
 			case *BleMtuChangeEvt:
 				if msg.Status != 0 {
-					return 0, FmtBleHostError(
+					return 0, nmxutil.FmtBleHostError(
 						msg.Status,
 						"MtuChange event indicates status=%d",
 						msg.Status)

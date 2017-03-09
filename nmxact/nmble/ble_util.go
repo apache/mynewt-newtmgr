@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"sync/atomic"
 	"time"
+
+	. "mynewt.apache.org/newt/nmxact/bledefs"
 )
 
 const NmpPlainSvcUuid = "8D53DC1D-1DB7-4CD3-868B-8A527460AA84"
@@ -60,8 +62,8 @@ func NewBleConnectReq() *BleConnectReq {
 		Type: MSG_TYPE_CONNECT,
 		Seq:  NextSeq(),
 
-		OwnAddrType:  ADDR_TYPE_PUBLIC,
-		PeerAddrType: ADDR_TYPE_PUBLIC,
+		OwnAddrType:  BLE_ADDR_TYPE_PUBLIC,
+		PeerAddrType: BLE_ADDR_TYPE_PUBLIC,
 		PeerAddr:     BleAddr{},
 
 		DurationMs:         30000,

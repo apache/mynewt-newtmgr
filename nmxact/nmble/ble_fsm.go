@@ -6,7 +6,8 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 
-	"mynewt.apache.org/newt/nmxact/sesn"
+	. "mynewt.apache.org/newt/nmxact/bledefs"
+	"mynewt.apache.org/newt/nmxact/nmxutil"
 )
 
 type BleSesnState int32
@@ -32,7 +33,7 @@ type BleDisconnectFn func(err error)
 
 type BleFsmParams struct {
 	Bx           *BleXport
-	OwnAddrType  AddrType
+	OwnAddrType  BleAddrType
 	Peer         BleDev
 	SvcUuid      BleUuid
 	ReqChrUuid   BleUuid
@@ -43,7 +44,7 @@ type BleFsmParams struct {
 
 type BleFsm struct {
 	bx           *BleXport
-	ownAddrType  AddrType
+	ownAddrType  BleAddrType
 	peer         BleDev
 	svcUuid      BleUuid
 	reqChrUuid   BleUuid
@@ -194,7 +195,7 @@ func (bf *BleFsm) connectListen(seq int) error {
 						str := fmt.Sprintf("BLE connection attempt failed; "+
 							"status=%d peer=%s", msg.Status, bf.peer.String())
 						log.Debugf(str)
-						bf.connChan <- NewBleHostError(msg.Status, str)
+						bf.connChan <- nmxutil.NewBleHostError(msg.Status, str)
 						return
 					}
 
@@ -213,7 +214,7 @@ func (bf *BleFsm) connectListen(seq int) error {
 						str := fmt.Sprintf("BLE connection attempt failed; "+
 							"status=%d peer=%s", msg.Status, bf.peer.String())
 						log.Debugf(str)
-						bf.connChan <- NewBleHostError(msg.Status, str)
+						bf.connChan <- nmxutil.NewBleHostError(msg.Status, str)
 						return
 					}
 
@@ -233,7 +234,7 @@ func (bf *BleFsm) connectListen(seq int) error {
 						msg.Reason, bf.peer.String(), bf.connHandle)
 					log.Debugf(str)
 
-					err := sesn.NewDisconnectError(str)
+					err := nmxutil.NewSesnDisconnectError(str)
 					for bl, _ := range bf.bls {
 						bl.ErrChan <- err
 					}
@@ -290,7 +291,7 @@ func (bf *BleFsm) connect() error {
 	r := NewBleConnectReq()
 	r.OwnAddrType = bf.ownAddrType
 	r.PeerAddrType = bf.peer.AddrType
-	r.PeerAddr.Bytes = bf.peer.Addr
+	r.PeerAddr = bf.peer.Addr
 
 	if err := bf.connectListen(r.Seq); err != nil {
 		return err

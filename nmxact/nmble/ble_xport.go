@@ -3,13 +3,12 @@ package nmble
 import (
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"sync/atomic"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
 
-	"mynewt.apache.org/newt/nmxact/xport"
+	"mynewt.apache.org/newt/nmxact/nmxutil"
 	"mynewt.apache.org/newt/util/unixchild"
 )
 
@@ -39,41 +38,6 @@ type BleXport struct {
 	state  BleXportState
 
 	syncTimeoutMs time.Duration
-}
-
-type BleHostError struct {
-	Text   string
-	Status int
-}
-
-func NewBleHostError(status int, text string) *BleHostError {
-	return &BleHostError{
-		Status: status,
-		Text:   text,
-	}
-}
-
-func FmtBleHostError(status int, format string,
-	args ...interface{}) *BleHostError {
-
-	return NewBleHostError(status, fmt.Sprintf(format, args...))
-}
-
-func (e *BleHostError) Error() string {
-	return e.Text
-}
-
-func IsBleHost(err error) bool {
-	_, ok := err.(*BleHostError)
-	return ok
-}
-
-func ToBleHost(err error) *BleHostError {
-	if berr, ok := err.(*BleHostError); ok {
-		return berr
-	} else {
-		return nil
-	}
 }
 
 func NewBleXport(cfg XportCfg) (*BleXport, error) {
@@ -181,11 +145,11 @@ func (bx *BleXport) Stop() error {
 
 func (bx *BleXport) Start() error {
 	if !bx.setStateFrom(BLE_XPORT_STATE_STOPPED, BLE_XPORT_STATE_STARTING) {
-		return xport.NewXportError("BLE xport started twice")
+		return nmxutil.NewXportError("BLE xport started twice")
 	}
 
 	if err := bx.client.Start(); err != nil {
-		return xport.NewXportError(
+		return nmxutil.NewXportError(
 			"Failed to start child child process: " + err.Error())
 	}
 
@@ -233,7 +197,7 @@ func (bx *BleXport) Start() error {
 				}
 			case <-time.After(bx.syncTimeoutMs * time.Millisecond):
 				bx.Stop()
-				return xport.NewXportError(
+				return nmxutil.NewXportError(
 					"Timeout waiting for host <-> controller sync")
 			}
 		}
@@ -250,7 +214,7 @@ func (bx *BleXport) Start() error {
 				switch msg := bm.(type) {
 				case *BleSyncEvt:
 					if !msg.Synced {
-						bx.onError(xport.NewXportError(
+						bx.onError(nmxutil.NewXportError(
 							"BLE host <-> controller sync lost"))
 						return
 					}
@@ -260,7 +224,7 @@ func (bx *BleXport) Start() error {
 	}()
 
 	if !bx.setStateFrom(BLE_XPORT_STATE_STARTING, BLE_XPORT_STATE_STARTED) {
-		return xport.NewXportError(
+		return nmxutil.NewXportError(
 			"Internal error; BLE transport in unexpected state")
 	}
 
@@ -274,7 +238,7 @@ func (bx *BleXport) txNoSync(data []byte) {
 
 func (bx *BleXport) Tx(data []byte) error {
 	if bx.getState() != BLE_XPORT_STATE_STARTED {
-		return xport.NewXportError("Attempt to transmit before BLE xport " +
+		return nmxutil.NewXportError("Attempt to transmit before BLE xport " +
 			"fully started")
 	}
 

@@ -7,18 +7,15 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	. "mynewt.apache.org/newt/nmxact/bledefs"
 )
 
-type AddrType int
 type MsgOp int
 type MsgType int
 
 type BleBytes struct {
 	Bytes []byte
-}
-
-type BleAddr struct {
-	Bytes [6]byte
 }
 
 type BleUuid struct {
@@ -115,13 +112,6 @@ const (
 )
 
 const (
-	ADDR_TYPE_PUBLIC  AddrType = 0
-	ADDR_TYPE_RANDOM           = 1
-	ADDR_TYPE_RPA_PUB          = 2
-	ADDR_TYPE_RPA_RND          = 3
-)
-
-const (
 	MSG_OP_REQ MsgOp = 0
 	MSG_OP_RSP       = 1
 	MSG_OP_EVT       = 2
@@ -152,13 +142,6 @@ const (
 	MSG_TYPE_NOTIFY_RX_EVT  = 2055
 	MSG_TYPE_MTU_CHANGE_EVT = 2056
 )
-
-var AddrTypeStringMap = map[AddrType]string{
-	ADDR_TYPE_PUBLIC:  "public",
-	ADDR_TYPE_RANDOM:  "random",
-	ADDR_TYPE_RPA_PUB: "rpa_pub",
-	ADDR_TYPE_RPA_RND: "rpa_rnd",
-}
 
 var MsgOpStringMap = map[MsgOp]string{
 	MSG_OP_REQ: "request",
@@ -222,9 +205,9 @@ type BleConnectReq struct {
 	Seq  int     `json:"seq"`
 
 	// Mandatory
-	OwnAddrType  AddrType `json:"own_addr_type"`
-	PeerAddrType AddrType `json:"peer_addr_type"`
-	PeerAddr     BleAddr  `json:"peer_addr"`
+	OwnAddrType  BleAddrType `json:"own_addr_type"`
+	PeerAddrType BleAddrType `json:"peer_addr_type"`
+	PeerAddr     BleAddr     `json:"peer_addr"`
 
 	// Optional
 	DurationMs         int `json:"duration_ms"`
@@ -255,16 +238,16 @@ type BleConnectEvt struct {
 	Seq  int     `json:"seq"`
 
 	// Mandatory
-	Status          int      `json:"status"`
-	ConnHandle      int      `json:"conn_handle"`
-	OwnIdAddrType   AddrType `json:"own_id_addr_type"`
-	OwnIdAddr       BleAddr  `json:"own_id_addr"`
-	OwnOtaAddrType  AddrType `json:"own_ota_addr_type"`
-	OwnOtaAddr      BleAddr  `json:"own_ota_addr"`
-	PeerIdAddrType  AddrType `json:"peer_id_addr_type"`
-	PeerIdAddr      BleAddr  `json:"peer_id_addr"`
-	PeerOtaAddrType AddrType `json:"peer_ota_addr_type"`
-	PeerOtaAddr     BleAddr  `json:"peer_ota_addr"`
+	Status          int         `json:"status"`
+	ConnHandle      int         `json:"conn_handle"`
+	OwnIdAddrType   BleAddrType `json:"own_id_addr_type"`
+	OwnIdAddr       BleAddr     `json:"own_id_addr"`
+	OwnOtaAddrType  BleAddrType `json:"own_ota_addr_type"`
+	OwnOtaAddr      BleAddr     `json:"own_ota_addr"`
+	PeerIdAddrType  BleAddrType `json:"peer_id_addr_type"`
+	PeerIdAddr      BleAddr     `json:"peer_id_addr"`
+	PeerOtaAddrType BleAddrType `json:"peer_ota_addr_type"`
+	PeerOtaAddr     BleAddr     `json:"peer_ota_addr"`
 }
 
 type BleTerminateReq struct {
@@ -501,25 +484,6 @@ type BleMtuChangeEvt struct {
 	Mtu        int `json:"mtu"`
 }
 
-func AddrTypeToString(addrType AddrType) string {
-	s := AddrTypeStringMap[addrType]
-	if s == "" {
-		panic(fmt.Sprintf("Invalid AddrType: %d", int(addrType)))
-	}
-
-	return s
-}
-
-func AddrTypeFromString(s string) (AddrType, error) {
-	for addrType, name := range AddrTypeStringMap {
-		if s == name {
-			return addrType, nil
-		}
-	}
-
-	return AddrType(0), errors.New("Invalid AddrType string: " + s)
-}
-
 func MsgOpToString(addrType MsgOp) string {
 	s := MsgOpStringMap[addrType]
 	if s == "" {
@@ -556,22 +520,6 @@ func MsgTypeFromString(s string) (MsgType, error) {
 	}
 
 	return MsgType(0), errors.New("Invalid MsgType string: " + s)
-}
-
-func (a AddrType) MarshalJSON() ([]byte, error) {
-	return json.Marshal(AddrTypeToString(a))
-}
-
-func (a *AddrType) UnmarshalJSON(data []byte) error {
-	var err error
-
-	var s string
-	if err := json.Unmarshal(data, &s); err != nil {
-		return err
-	}
-
-	*a, err = AddrTypeFromString(s)
-	return err
 }
 
 func (o MsgOp) MarshalJSON() ([]byte, error) {
@@ -642,58 +590,6 @@ func (bb *BleBytes) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		bb.Bytes[i] = byte(u64)
-	}
-
-	return nil
-}
-
-func ParseBleAddr(s string) (BleAddr, error) {
-	ba := BleAddr{}
-
-	toks := strings.Split(strings.ToLower(s), ":")
-	if len(toks) != 6 {
-		return ba, fmt.Errorf("invalid BLE addr string: %s", s)
-	}
-
-	for i, t := range toks {
-		u64, err := strconv.ParseUint(t, 16, 8)
-		if err != nil {
-			return ba, err
-		}
-		ba.Bytes[i] = byte(u64)
-	}
-
-	return ba, nil
-}
-
-func (ba *BleAddr) String() string {
-	var buf bytes.Buffer
-	buf.Grow(len(ba.Bytes) * 3)
-
-	for i, b := range ba.Bytes {
-		if i != 0 {
-			buf.WriteString(":")
-		}
-		fmt.Fprintf(&buf, "%02x", b)
-	}
-
-	return buf.String()
-}
-
-func (ba *BleAddr) MarshalJSON() ([]byte, error) {
-	return json.Marshal(ba.String())
-}
-
-func (ba *BleAddr) UnmarshalJSON(data []byte) error {
-	var s string
-	if err := json.Unmarshal(data, &s); err != nil {
-		return err
-	}
-
-	var err error
-	*ba, err = ParseBleAddr(s)
-	if err != nil {
-		return err
 	}
 
 	return nil

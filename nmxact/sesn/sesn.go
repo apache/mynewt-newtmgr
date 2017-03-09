@@ -1,11 +1,10 @@
 package sesn
 
 import (
-	"fmt"
 	"time"
 
 	"mynewt.apache.org/newt/nmxact/nmp"
-	"mynewt.apache.org/newt/nmxact/xport"
+	"mynewt.apache.org/newt/nmxact/nmxutil"
 )
 
 type TxOptions struct {
@@ -47,54 +46,6 @@ type Sesn interface {
 	AbortRx(nmpSeq uint8) error
 }
 
-// Represents an NMP timeout; request sent, but no response received.
-type TimeoutError struct {
-	Text string
-}
-
-func NewTimeoutError(text string) *TimeoutError {
-	return &TimeoutError{
-		Text: text,
-	}
-}
-
-func FmtTimeoutError(format string, args ...interface{}) *TimeoutError {
-	return NewTimeoutError(fmt.Sprintf(format, args...))
-}
-
-func (e *TimeoutError) Error() string {
-	return e.Text
-}
-
-func IsTimeout(err error) bool {
-	_, ok := err.(*TimeoutError)
-	return ok
-}
-
-// Represents an NMP timeout; request sent, but no response received.
-type DisconnectError struct {
-	Text string
-}
-
-func NewDisconnectError(text string) *DisconnectError {
-	return &DisconnectError{
-		Text: text,
-	}
-}
-
-func FmtDisconnectError(format string, args ...interface{}) *DisconnectError {
-	return NewDisconnectError(fmt.Sprintf(format, args...))
-}
-
-func (e *DisconnectError) Error() string {
-	return e.Text
-}
-
-func IsDisconnect(err error) bool {
-	_, ok := err.(*DisconnectError)
-	return ok
-}
-
 func TxNmp(s Sesn, m *nmp.NmpMsg, o TxOptions) (nmp.NmpRsp, error) {
 	retries := o.Tries - 1
 	for i := 0; ; i++ {
@@ -103,7 +54,9 @@ func TxNmp(s Sesn, m *nmp.NmpMsg, o TxOptions) (nmp.NmpRsp, error) {
 			return r, nil
 		}
 
-		if (!IsTimeout(err) && !xport.IsTimeout(err)) || i >= retries {
+		if (!nmxutil.IsNmpTimeout(err) && !nmxutil.IsXportTimeout(err)) ||
+			i >= retries {
+
 			return nil, err
 		}
 	}

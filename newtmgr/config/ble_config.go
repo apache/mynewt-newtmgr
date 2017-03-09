@@ -23,16 +23,17 @@ import (
 	"fmt"
 	"strings"
 
+	"mynewt.apache.org/newt/nmxact/bledefs"
 	"mynewt.apache.org/newt/nmxact/nmble"
 	"mynewt.apache.org/newt/util"
 )
 
 type BleConfig struct {
-	PeerAddrType nmble.AddrType
-	PeerAddr     nmble.BleAddr
+	PeerAddrType bledefs.BleAddrType
+	PeerAddr     bledefs.BleAddr
 
-	OwnAddrType nmble.AddrType
-	OwnAddr     nmble.BleAddr
+	OwnAddrType bledefs.BleAddrType
+	OwnAddr     bledefs.BleAddr
 
 	BlehostdPath   string
 	ControllerPath string
@@ -64,23 +65,23 @@ func ParseBleConnString(cs string) (*BleConfig, error) {
 		var err error
 		switch k {
 		case "peer_addr_type":
-			bc.PeerAddrType, err = nmble.AddrTypeFromString(v)
+			bc.PeerAddrType, err = bledefs.BleAddrTypeFromString(v)
 			if err != nil {
 				return nil, einvalBleConnString("Invalid peer_addr_type: %s", v)
 			}
 		case "peer_addr":
-			bc.PeerAddr, err = nmble.ParseBleAddr(v)
+			bc.PeerAddr, err = bledefs.ParseBleAddr(v)
 			if err != nil {
 				return nil, einvalBleConnString("Invalid peer_addr; %s",
 					err.Error())
 			}
 		case "own_addr_type":
-			bc.OwnAddrType, err = nmble.AddrTypeFromString(v)
+			bc.OwnAddrType, err = bledefs.BleAddrTypeFromString(v)
 			if err != nil {
 				return nil, einvalBleConnString("Invalid own_addr_type: %s", v)
 			}
 		case "own_addr":
-			bc.OwnAddr, err = nmble.ParseBleAddr(v)
+			bc.OwnAddr, err = bledefs.ParseBleAddr(v)
 			if err != nil {
 				return nil, einvalBleConnString("Invalid own_addr; %s",
 					err.Error())
@@ -114,19 +115,19 @@ func BuildBleXport(bc *BleConfig) (*nmble.BleXport, error) {
 func BuildBlePlainSesn(bx *nmble.BleXport, bc *BleConfig) (
 	*nmble.BlePlainSesn, error) {
 
-	return nmble.NewBlePlainSesn(bx, nmble.ADDR_TYPE_RANDOM,
-		nmble.BleDev{
-			AddrType: bc.PeerAddrType,
-			Addr:     bc.PeerAddr.Bytes,
+	return nmble.NewBlePlainSesn(bx, bledefs.BLE_ADDR_TYPE_RANDOM,
+		bledefs.BleDev{
+			BleAddrType: bc.PeerAddrType,
+			Addr:        bc.PeerAddr,
 		}), nil
 }
 
 func BuildBleOicSesn(bx *nmble.BleXport, bc *BleConfig) (
 	*nmble.BleOicSesn, error) {
 
-	return nmble.NewBleOicSesn(bx, nmble.ADDR_TYPE_RANDOM,
-		nmble.BleDev{
-			AddrType: bc.PeerAddrType,
-			Addr:     bc.PeerAddr.Bytes,
+	return nmble.NewBleOicSesn(bx, bledefs.BLE_ADDR_TYPE_RANDOM,
+		bledefs.BleDev{
+			BleAddrType: bc.PeerAddrType,
+			Addr:        bc.PeerAddr,
 		}), nil
 }

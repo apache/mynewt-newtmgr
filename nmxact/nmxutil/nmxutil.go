@@ -5,21 +5,21 @@ import (
 	"sync"
 )
 
-var nextSeq uint8
+var nextNmpSeq uint8
 var beenRead bool
 var seqMutex sync.Mutex
 
-func NextSeq() uint8 {
+func NextNmpSeq() uint8 {
 	seqMutex.Lock()
 	defer seqMutex.Unlock()
 
 	if !beenRead {
-		nextSeq = uint8(rand.Uint32())
+		nextNmpSeq = uint8(rand.Uint32())
 		beenRead = true
 	}
 
-	val := nextSeq
-	nextSeq++
+	val := nextNmpSeq
+	nextNmpSeq++
 
 	return val
 }

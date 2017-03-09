@@ -157,7 +157,7 @@ func fillNmpReq(req NmpReq, op uint8, group uint16, id uint8) {
 		Flags: 0,
 		Len:   0,
 		Group: group,
-		Seq:   nmxutil.NextSeq(),
+		Seq:   nmxutil.NextNmpSeq(),
 		Id:    id,
 	}
 
