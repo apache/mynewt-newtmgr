@@ -27,15 +27,15 @@ import ()
 
 type ImageUploadReq struct {
 	NmpBase
-	Off  int    `codec:"off"`
+	Off  uint32 `codec:"off"`
 	Len  int    `codec:"len" codec:",omitempty"`
 	Data []byte `codec:"data"`
 }
 
 type ImageUploadRsp struct {
 	NmpBase
-	Rc  int `codec:"rc" codec:",omitempty"`
-	Off int `codec:"off"`
+	Rc  int    `codec:"rc" codec:",omitempty"`
+	Off uint32 `codec:"off"`
 }
 
 func NewImageUploadReq() *ImageUploadReq {

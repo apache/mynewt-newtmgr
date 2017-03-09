@@ -34,17 +34,19 @@ func (r *ImageUploadResult) Status() int {
 }
 
 // Returns nil if the final request has already been sent.
-func nextImageUploadChunk(data []byte, off int, mtu int) []byte {
-	bytesLeft := len(data) - off
+func nextImageUploadChunk(data []byte, off uint32, mtu int) []byte {
+	bytesLeft := uint32(len(data)) - off
 	if bytesLeft == 0 {
 		return nil
 	}
 
-	chunkSz := 0
+	// XXX: This calculation is mostly arbitrary.  This chunk size happens to
+	// work with Mynewt's CBOR library.
+	var chunkSz uint32
 	if off == 0 {
 		chunkSz = 64
 	} else {
-		chunkSz = mtu - 64
+		chunkSz = uint32(mtu) - 64
 		if chunkSz > 200 {
 			chunkSz = 200
 		}
@@ -57,7 +59,7 @@ func nextImageUploadChunk(data []byte, off int, mtu int) []byte {
 }
 
 func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
-	off := 0
+	var off uint32
 	res := newImageUploadResult()
 
 	for {

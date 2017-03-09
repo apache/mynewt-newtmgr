@@ -102,6 +102,8 @@ func nextUploadChunk(data []byte, off int, mtu int) []byte {
 		return nil
 	}
 
+	// XXX: This calculation is mostly arbitrary.  This chunk size happens to
+	// work with Mynewt's CBOR library.
 	chunkSz := 0
 	if off == 0 {
 		chunkSz = 64
