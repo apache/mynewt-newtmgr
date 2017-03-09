@@ -25,6 +25,7 @@ import (
 
 	"mynewt.apache.org/newt/nmxact/bledefs"
 	"mynewt.apache.org/newt/nmxact/nmble"
+	"mynewt.apache.org/newt/nmxact/sesn"
 	"mynewt.apache.org/newt/util"
 )
 
@@ -98,6 +99,14 @@ func ParseBleConnString(cs string) (*BleConfig, error) {
 	return bc, nil
 }
 
+func FillSesnCfg(bc *BleConfig, sc *sesn.SesnCfg) {
+	sc.Ble.OwnAddrType = bc.OwnAddrType
+	sc.Ble.Peer = bledefs.BleDev{
+		AddrType: bc.PeerAddrType,
+		Addr:     bc.PeerAddr,
+	}
+}
+
 func BuildBleXport(bc *BleConfig) (*nmble.BleXport, error) {
 	params := nmble.XportCfg{
 		SockPath:     "/tmp/blehostd-uds",
@@ -110,24 +119,4 @@ func BuildBleXport(bc *BleConfig) (*nmble.BleXport, error) {
 	}
 
 	return bx, nil
-}
-
-func BuildBlePlainSesn(bx *nmble.BleXport, bc *BleConfig) (
-	*nmble.BlePlainSesn, error) {
-
-	return nmble.NewBlePlainSesn(bx, bledefs.BLE_ADDR_TYPE_RANDOM,
-		bledefs.BleDev{
-			BleAddrType: bc.PeerAddrType,
-			Addr:        bc.PeerAddr,
-		}), nil
-}
-
-func BuildBleOicSesn(bx *nmble.BleXport, bc *BleConfig) (
-	*nmble.BleOicSesn, error) {
-
-	return nmble.NewBleOicSesn(bx, bledefs.BLE_ADDR_TYPE_RANDOM,
-		bledefs.BleDev{
-			BleAddrType: bc.PeerAddrType,
-			Addr:        bc.PeerAddr,
-		}), nil
 }

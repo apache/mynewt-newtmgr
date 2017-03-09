@@ -60,7 +60,3 @@ func BuildSerialXport(sc nmserial.XportCfg) (*nmserial.SerialXport, error) {
 
 	return sx, nil
 }
-
-func BuildSerialPlainSesn(sx *nmserial.SerialXport) (*nmserial.SerialPlainSesn, error) {
-	return nmserial.NewSerialPlainSesn(sx), nil
-}

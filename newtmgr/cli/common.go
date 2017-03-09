@@ -24,7 +24,6 @@ import (
 
 	"mynewt.apache.org/newt/newtmgr/config"
 	"mynewt.apache.org/newt/newtmgr/nmutil"
-	"mynewt.apache.org/newt/nmxact/nmble"
 	"mynewt.apache.org/newt/nmxact/nmserial"
 	"mynewt.apache.org/newt/nmxact/sesn"
 	"mynewt.apache.org/newt/nmxact/xport"
@@ -36,7 +35,6 @@ var globalXport xport.Xport
 
 // These keep track of whether the global interfaces have been assigned.  These
 // are necessary to accommodate golang's nil-interface semantics.
-var globalSesnSet bool
 var globalXportSet bool
 
 func getConnProfile() (*config.ConnProfile, error) {
@@ -92,12 +90,52 @@ func GetXportIfOpen() (xport.Xport, error) {
 	return globalXport, nil
 }
 
+func buildSesnCfg() (sesn.SesnCfg, error) {
+	sc := sesn.SesnCfg{}
+
+	cp, err := getConnProfile()
+	if err != nil {
+		return sc, err
+	}
+
+	switch cp.Type {
+	case config.CONN_TYPE_SERIAL:
+		sc.MgmtProto = sesn.MGMT_PROTO_NMP
+		return sc, nil
+
+	case config.CONN_TYPE_BLE_PLAIN:
+		bc, err := config.ParseBleConnString(cp.ConnString)
+		if err != nil {
+			return sc, err
+		}
+
+		sc.MgmtProto = sesn.MGMT_PROTO_NMP
+		config.FillSesnCfg(bc, &sc)
+		return sc, nil
+
+	case config.CONN_TYPE_BLE_OIC:
+		bc, err := config.ParseBleConnString(cp.ConnString)
+		if err != nil {
+			return sc, err
+		}
+
+		sc.MgmtProto = sesn.MGMT_PROTO_OMP
+		config.FillSesnCfg(bc, &sc)
+		return sc, nil
+
+	default:
+		return sc, util.FmtNewtError("Unknown connection type: %s (%d)",
+			config.ConnTypeToString(cp.Type), int(cp.Type))
+	}
+
+}
+
 func GetSesn() (sesn.Sesn, error) {
 	if globalSesn != nil {
 		return globalSesn, nil
 	}
 
-	cp, err := getConnProfile()
+	sc, err := buildSesnCfg()
 	if err != nil {
 		return nil, err
 	}
@@ -107,42 +145,12 @@ func GetSesn() (sesn.Sesn, error) {
 		return nil, err
 	}
 
-	switch cp.Type {
-	case config.CONN_TYPE_SERIAL:
-		globalSesn, err = config.BuildSerialPlainSesn(x.(*nmserial.SerialXport))
-		if err != nil {
-			return nil, err
-		}
-
-	case config.CONN_TYPE_BLE_PLAIN:
-		bc, err := config.ParseBleConnString(cp.ConnString)
-		if err != nil {
-			return nil, err
-		}
-
-		globalSesn, err = config.BuildBlePlainSesn(x.(*nmble.BleXport), bc)
-		if err != nil {
-			return nil, err
-		}
-
-	case config.CONN_TYPE_BLE_OIC:
-		bc, err := config.ParseBleConnString(cp.ConnString)
-		if err != nil {
-			return nil, err
-		}
-
-		globalSesn, err = config.BuildBleOicSesn(x.(*nmble.BleXport), bc)
-		if err != nil {
-			return nil, err
-		}
-
-	default:
-		return nil, util.FmtNewtError("Unknown connection type: %s (%d)",
-			config.ConnTypeToString(cp.Type), int(cp.Type))
+	s, err := x.BuildSesn(sc)
+	if err != nil {
+		return nil, util.ChildNewtError(err)
 	}
 
-	globalSesnSet = true
-
+	globalSesn = s
 	if err := globalSesn.Open(); err != nil {
 		return nil, util.ChildNewtError(err)
 	}
@@ -151,7 +159,7 @@ func GetSesn() (sesn.Sesn, error) {
 }
 
 func GetSesnIfOpen() (sesn.Sesn, error) {
-	if !globalSesnSet {
+	if globalSesn == nil {
 		return nil, fmt.Errorf("sesn not initailized")
 	}
 
