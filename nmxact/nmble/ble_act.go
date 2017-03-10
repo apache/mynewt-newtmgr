@@ -12,9 +12,20 @@ import (
 func bhdTimeoutError(rspType MsgType) error {
 	str := fmt.Sprintf("Timeout waiting for blehostd to send %s response",
 		MsgTypeToString(rspType))
-	log.Debugf(str)
 
+	log.Debug(str)
 	return nmxutil.NewXportTimeoutError(str)
+}
+
+func statusError(op MsgOp, msgType MsgType, status int) error {
+	str := fmt.Sprintf("%s %s indicates error: %s (%d)",
+		MsgOpToString(op),
+		MsgTypeToString(msgType),
+		ErrCodeToString(status),
+		status)
+
+	log.Debug(str)
+	return nmxutil.NewBleHostError(status, str)
 }
 
 // Blocking
@@ -57,9 +68,8 @@ func terminate(x *BleXport, bl *BleListener, r *BleTerminateReq) error {
 			case *BleTerminateRsp:
 				bl.acked = true
 				if msg.Status != 0 {
-					return nmxutil.FmtBleHostError(
-						msg.Status,
-						"Terminate response indicates status=%d",
+					return statusError(MSG_OP_RSP,
+						MSG_TYPE_TERMINATE,
 						msg.Status)
 				} else {
 					return nil
@@ -145,7 +155,7 @@ func discSvcUuid(x *BleXport, bl *BleListener, r *BleDiscSvcUuidReq) (
 				switch msg.Status {
 				case 0:
 					svc = &msg.Svc
-				case BLE_HS_EDONE:
+				case ERR_CODE_EDONE:
 					if svc == nil {
 						return nil, nmxutil.FmtBleHostError(
 							msg.Status,
@@ -203,7 +213,7 @@ func discAllChrs(x *BleXport, bl *BleListener, r *BleDiscAllChrsReq) (
 				switch msg.Status {
 				case 0:
 					chrs = append(chrs, &msg.Chr)
-				case BLE_HS_EDONE:
+				case ERR_CODE_EDONE:
 					return chrs, nil
 				default:
 					return nil, nmxutil.FmtBleHostError(

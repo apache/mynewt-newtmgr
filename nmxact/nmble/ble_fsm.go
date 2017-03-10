@@ -233,9 +233,10 @@ func (bf *BleFsm) connectListen(seq int) error {
 					}
 
 				case *BleDisconnectEvt:
-					str := fmt.Sprintf("BLE peer disconnected;"+
-						"reason=%d peer=%s handle=%d",
-						msg.Reason, bf.peer.String(), bf.connHandle)
+					str := fmt.Sprintf("BLE peer disconnected; "+
+						"reason=\"%s\" (%d) peer=%s handle=%d",
+						ErrCodeToString(msg.Reason), msg.Reason,
+						bf.peer.String(), bf.connHandle)
 					log.Debugf(str)
 
 					err := nmxutil.NewSesnDisconnectError(str)
@@ -331,7 +332,7 @@ func (bf *BleFsm) terminate() error {
 
 	r := NewBleTerminateReq()
 	r.ConnHandle = bf.connHandle
-	r.HciReason = BLE_ERR_REM_USER_CONN_TERM
+	r.HciReason = ERR_CODE_HCI_REM_USER_CONN_TERM
 
 	bl, err := bf.addBleSeqListener(r.Seq)
 	if err != nil {
