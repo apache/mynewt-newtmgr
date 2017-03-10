@@ -51,6 +51,7 @@ func logShowCmd(cmd *cobra.Command, args []string) {
 			if u64 > 0xffffffff {
 				nmUsage(cmd, util.NewNewtError("index out of range"))
 			}
+			c.Index = uint32(u64)
 		}
 	}
 	if len(args) >= 3 && args[1] != "last" {
