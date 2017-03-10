@@ -54,17 +54,14 @@ func main() {
 	// Prepare a BLE session:
 	//     * We use a random address.
 	//     * Peer has public address 0b:0a:0b:0a:0b:0a.
-	sc := sesn.SesnCfg{
-		MgmtProto: sesn.MGMT_PROTO_NMP,
+	sc := sesn.NewSesnCfg()
+	sc.MgmtProto = sesn.MGMT_PROTO_NMP
 
-		Ble: sesn.SesnCfgBle{
-			OwnAddrType: bledefs.BLE_ADDR_TYPE_RANDOM,
-			Peer: bledefs.BleDev{
-				AddrType: bledefs.BLE_ADDR_TYPE_PUBLIC,
-				Addr: bledefs.BleAddr{
-					Bytes: [6]byte{0x0b, 0x0a, 0x0b, 0x0a, 0x0b, 0x0a},
-				},
-			},
+	sc.Ble.OwnAddrType = bledefs.BLE_ADDR_TYPE_RANDOM
+	sc.Ble.Peer = bledefs.BleDev{
+		AddrType: bledefs.BLE_ADDR_TYPE_PUBLIC,
+		Addr: bledefs.BleAddr{
+			Bytes: [6]byte{0x0b, 0x0a, 0x0b, 0x0a, 0x0b, 0x0a},
 		},
 	}
 

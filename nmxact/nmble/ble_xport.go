@@ -14,15 +14,27 @@ import (
 	"mynewt.apache.org/newt/util/unixchild"
 )
 
-type XportCfg struct {
+type BleXportCfg struct {
 	// Path of Unix domain socket to create and listen on.
 	SockPath string
 
 	// Path of the blehostd executable.
 	BlehostdPath string
 
+	BlehostdAcceptTimeout time.Duration
+	BlehostdRestart       bool
+	BlehostdRspTimeout    time.Duration
+
 	// Path of the BLE controller device (e.g., /dev/ttyUSB0).
 	DevPath string
+}
+
+func NewBleXportCfg() BleXportCfg {
+	return BleXportCfg{
+		BlehostdAcceptTimeout: time.Second,
+		BlehostdRestart:       true,
+		BlehostdRspTimeout:    time.Second,
+	}
 }
 
 type BleXportState uint32
@@ -39,24 +51,28 @@ type BleXport struct {
 	client *unixchild.Client
 	state  BleXportState
 
-	syncTimeoutMs time.Duration
+	syncTimeout time.Duration
+	rspTimeout  time.Duration
 }
 
-func NewBleXport(cfg XportCfg) (*BleXport, error) {
+func NewBleXport(cfg BleXportCfg) (*BleXport, error) {
 	config := unixchild.Config{
-		SockPath:  cfg.SockPath,
-		ChildPath: cfg.BlehostdPath,
-		ChildArgs: []string{cfg.DevPath, cfg.SockPath},
-		Depth:     10,
-		MaxMsgSz:  10240,
+		SockPath:      cfg.SockPath,
+		ChildPath:     cfg.BlehostdPath,
+		ChildArgs:     []string{cfg.DevPath, cfg.SockPath},
+		Depth:         10,
+		MaxMsgSz:      10240,
+		AcceptTimeout: cfg.BlehostdAcceptTimeout,
+		Restart:       cfg.BlehostdRestart,
 	}
 
 	c := unixchild.New(config)
 
 	bx := &BleXport{
-		client:        c,
-		Bd:            NewBleDispatcher(),
-		syncTimeoutMs: 10000,
+		client:      c,
+		Bd:          NewBleDispatcher(),
+		syncTimeout: 10 * time.Second,
+		rspTimeout:  cfg.BlehostdRspTimeout,
 	}
 
 	return bx, nil
@@ -65,9 +81,9 @@ func NewBleXport(cfg XportCfg) (*BleXport, error) {
 func (bx *BleXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
 	switch cfg.MgmtProto {
 	case sesn.MGMT_PROTO_NMP:
-		return NewBlePlainSesn(bx, cfg.Ble.OwnAddrType, cfg.Ble.Peer), nil
+		return NewBlePlainSesn(bx, cfg), nil
 	case sesn.MGMT_PROTO_OMP:
-		return NewBleOicSesn(bx, cfg.Ble.OwnAddrType, cfg.Ble.Peer), nil
+		return NewBleOicSesn(bx, cfg), nil
 	default:
 		return nil, fmt.Errorf(
 			"Invalid management protocol: %d; expected NMP or OMP",
@@ -88,6 +104,16 @@ func (bx *BleXport) addSyncListener() (*BleListener, error) {
 	}
 
 	return bl, nil
+}
+
+func (bx *BleXport) removeSyncListener() {
+	base := BleMsgBase{
+		Op:         MSG_OP_EVT,
+		Type:       MSG_TYPE_SYNC_EVT,
+		Seq:        -1,
+		ConnHandle: -1,
+	}
+	bx.Bd.RemoveListener(base)
 }
 
 func (bx *BleXport) querySyncStatus() (bool, error) {
@@ -128,7 +154,28 @@ func (bx *BleXport) querySyncStatus() (bool, error) {
 	}
 }
 
+func (bx *BleXport) initialSyncCheck() (bool, *BleListener, error) {
+	bl, err := bx.addSyncListener()
+	if err != nil {
+		return false, nil, err
+	}
+
+	synced, err := bx.querySyncStatus()
+	if err != nil {
+		bx.removeSyncListener()
+		return false, nil, err
+	}
+
+	return synced, bl, nil
+}
+
 func (bx *BleXport) onError(err error) {
+	if !bx.setStateFrom(BLE_XPORT_STATE_STARTED, BLE_XPORT_STATE_STOPPED) &&
+		!bx.setStateFrom(BLE_XPORT_STATE_STARTING, BLE_XPORT_STATE_STOPPED) {
+
+		// Stop already in progress.
+		return
+	}
 	bx.Bd.ErrorAll(err)
 	if bx.client != nil {
 		bx.client.Stop()
@@ -147,13 +194,6 @@ func (bx *BleXport) getState() BleXportState {
 }
 
 func (bx *BleXport) Stop() error {
-	if !bx.setStateFrom(BLE_XPORT_STATE_STARTED, BLE_XPORT_STATE_STOPPED) &&
-		!bx.setStateFrom(BLE_XPORT_STATE_STARTING, BLE_XPORT_STATE_STOPPED) {
-
-		// Stop already in progress.
-		return nil
-	}
-
 	bx.onError(nil)
 	return nil
 }
@@ -170,6 +210,10 @@ func (bx *BleXport) Start() error {
 
 	go func() {
 		err := <-bx.client.ErrChild
+		if unixchild.IsUcAcceptError(err) {
+			err = fmt.Errorf("blehostd did not connect to socket; " +
+				"controller not attached?")
+		}
 		bx.onError(err)
 		return
 	}()
@@ -183,13 +227,7 @@ func (bx *BleXport) Start() error {
 		}
 	}()
 
-	bl, err := bx.addSyncListener()
-	if err != nil {
-		bx.Stop()
-		return err
-	}
-
-	synced, err := bx.querySyncStatus()
+	synced, bl, err := bx.initialSyncCheck()
 	if err != nil {
 		bx.Stop()
 		return err
@@ -210,7 +248,7 @@ func (bx *BleXport) Start() error {
 						break SyncLoop
 					}
 				}
-			case <-time.After(bx.syncTimeoutMs * time.Millisecond):
+			case <-time.After(bx.syncTimeout):
 				bx.Stop()
 				return nmxutil.NewXportError(
 					"Timeout waiting for host <-> controller sync")

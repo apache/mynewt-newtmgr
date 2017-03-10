@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 )
@@ -45,12 +46,32 @@ type BleMsgBase struct {
 type BleListener struct {
 	BleChan chan BleMsg
 	ErrChan chan error
+	tmoChan chan time.Time
+	acked   bool
+	timer   *time.Timer
 }
 
 func NewBleListener() *BleListener {
 	return &BleListener{
 		BleChan: make(chan BleMsg, 16),
 		ErrChan: make(chan error, 1),
+		tmoChan: make(chan time.Time, 1),
+	}
+}
+
+func (bl *BleListener) AfterTimeout(tmo time.Duration) <-chan time.Time {
+	fn := func() {
+		if !bl.acked {
+			bl.tmoChan <- time.Now()
+		}
+	}
+	bl.timer = time.AfterFunc(tmo, fn)
+	return bl.tmoChan
+}
+
+func (bl *BleListener) Stop() {
+	if bl.timer != nil {
+		bl.timer.Stop()
 	}
 }
 
@@ -190,6 +211,7 @@ func (bd *BleDispatcher) RemoveListener(base BleMsgBase) *BleListener {
 
 	base, bl := bd.findListener(base)
 	if bl != nil {
+		bl.Stop()
 		if base.Seq != -1 {
 			delete(bd.seqMap, base.Seq)
 		} else {

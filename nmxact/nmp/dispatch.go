@@ -23,6 +23,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sync"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 )
@@ -30,12 +31,28 @@ import (
 type NmpListener struct {
 	RspChan chan NmpRsp
 	ErrChan chan error
+	tmoChan chan time.Time
+	timer   *time.Timer
 }
 
 func NewNmpListener() *NmpListener {
 	return &NmpListener{
 		RspChan: make(chan NmpRsp, 1),
 		ErrChan: make(chan error, 1),
+	}
+}
+
+func (nl *NmpListener) AfterTimeout(tmo time.Duration) <-chan time.Time {
+	fn := func() {
+		nl.tmoChan <- time.Now()
+	}
+	nl.timer = time.AfterFunc(tmo, fn)
+	return nl.tmoChan
+}
+
+func (nl *NmpListener) Stop() {
+	if nl.timer != nil {
+		nl.timer.Stop()
 	}
 }
 
@@ -52,7 +69,7 @@ func NewNmpDispatcher() *NmpDispatcher {
 	}
 }
 
-func (nd *NmpDispatcher) AddListener(seq uint8, rl *NmpListener) error {
+func (nd *NmpDispatcher) AddListener(seq uint8, nl *NmpListener) error {
 	nd.mutex.Lock()
 	defer nd.mutex.Unlock()
 
@@ -60,16 +77,17 @@ func (nd *NmpDispatcher) AddListener(seq uint8, rl *NmpListener) error {
 		return fmt.Errorf("Duplicate NMP listener; seq=%d", seq)
 	}
 
-	nd.seqListenerMap[seq] = rl
+	nd.seqListenerMap[seq] = nl
 	return nil
 }
 
 func (nd *NmpDispatcher) removeListenerNoLock(seq uint8) *NmpListener {
-	rl := nd.seqListenerMap[seq]
-	if rl != nil {
+	nl := nd.seqListenerMap[seq]
+	if nl != nil {
+		nl.Stop()
 		delete(nd.seqListenerMap, seq)
 	}
-	return rl
+	return nl
 }
 
 func (nd *NmpDispatcher) RemoveListener(seq uint8) *NmpListener {
@@ -83,12 +101,12 @@ func (nd *NmpDispatcher) FakeRxError(seq uint8, err error) error {
 	nd.mutex.Lock()
 	defer nd.mutex.Unlock()
 
-	rl := nd.seqListenerMap[seq]
-	if rl == nil {
+	nl := nd.seqListenerMap[seq]
+	if nl == nil {
 		return fmt.Errorf("No NMP listener for seq %d", seq)
 	}
 
-	rl.ErrChan <- err
+	nl.ErrChan <- err
 
 	return nil
 }
@@ -113,12 +131,12 @@ func decodeRsp(pkt []byte) (NmpRsp, error) {
 func (nd *NmpDispatcher) DispatchRsp(r NmpRsp) bool {
 	log.Debugf("Received nmp rsp: %+v", r)
 
-	rl := nd.seqListenerMap[r.Hdr().Seq]
-	if rl == nil {
+	nl := nd.seqListenerMap[r.Hdr().Seq]
+	if nl == nil {
 		return false
 	}
 
-	rl.RspChan <- r
+	nl.RspChan <- r
 
 	return true
 }

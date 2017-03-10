@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 	"sync/atomic"
-	"time"
 
 	. "mynewt.apache.org/newt/nmxact/bledefs"
 )
@@ -17,8 +16,6 @@ const NmpOicRspChrUuid = "E9241982-4580-42C4-8831-95048216B256"
 
 const WRITE_CMD_BASE_SZ = 3
 const NOTIFY_CMD_BASE_SZ = 3
-
-const CLOSE_TIMEOUT = 5 * time.Second
 
 var nextSeq uint32
 

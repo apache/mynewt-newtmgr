@@ -47,9 +47,8 @@ func main() {
 	defer x.Stop()
 
 	// Create and open a session for connected Mynewt device.
-	sc := sesn.SesnCfg{
-		MgmtProto: sesn.MGMT_PROTO_NMP,
-	}
+	sc := sesn.NewSesnCfg()
+	sc.MgmtProto = sesn.MGMT_PROTO_NMP
 
 	s, err := x.BuildSesn(sc)
 	if err != nil {

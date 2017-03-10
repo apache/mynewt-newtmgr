@@ -8,7 +8,6 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 
-	. "mynewt.apache.org/newt/nmxact/bledefs"
 	"mynewt.apache.org/newt/nmxact/nmp"
 	"mynewt.apache.org/newt/nmxact/nmxutil"
 	"mynewt.apache.org/newt/nmxact/omp"
@@ -16,20 +15,20 @@ import (
 )
 
 type BleOicSesn struct {
-	bf  *BleFsm
-	nls map[*nmp.NmpListener]struct{}
-	od  *omp.OmpDispatcher
+	bf           *BleFsm
+	nls          map[*nmp.NmpListener]struct{}
+	od           *omp.OmpDispatcher
+	closeTimeout time.Duration
 
 	closeChan chan error
 	mx        sync.Mutex
 }
 
-func NewBleOicSesn(bx *BleXport, ownAddrType BleAddrType,
-	peer BleDev) *BleOicSesn {
-
+func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 	bos := &BleOicSesn{
-		nls: map[*nmp.NmpListener]struct{}{},
-		od:  omp.NewOmpDispatcher(),
+		nls:          map[*nmp.NmpListener]struct{}{},
+		od:           omp.NewOmpDispatcher(),
+		closeTimeout: cfg.Ble.CloseTimeout,
 	}
 
 	rxNmpCb := func(d []byte) { bos.onRxNmp(d) }
@@ -52,8 +51,8 @@ func NewBleOicSesn(bx *BleXport, ownAddrType BleAddrType,
 
 	bos.bf = NewBleFsm(BleFsmParams{
 		Bx:           bx,
-		OwnAddrType:  ownAddrType,
-		Peer:         peer,
+		OwnAddrType:  cfg.Ble.OwnAddrType,
+		Peer:         cfg.Ble.Peer,
 		SvcUuid:      svcUuid,
 		ReqChrUuid:   reqChrUuid,
 		RspChrUuid:   rspChrUuid,
@@ -130,7 +129,7 @@ func (bos *BleOicSesn) Close() error {
 	// Block until close completes or timeout.
 	select {
 	case <-bos.closeChan:
-	case <-time.After(CLOSE_TIMEOUT):
+	case <-time.After(bos.closeTimeout):
 	}
 
 	return nil

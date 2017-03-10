@@ -16,8 +16,9 @@ const (
 )
 
 type SesnCfgBle struct {
-	OwnAddrType bledefs.BleAddrType
-	Peer        bledefs.BleDev
+	OwnAddrType  bledefs.BleAddrType
+	Peer         bledefs.BleDev
+	CloseTimeout time.Duration
 }
 
 type SesnCfg struct {
@@ -26,6 +27,14 @@ type SesnCfg struct {
 
 	// Only used with BLE transports.
 	Ble SesnCfgBle
+}
+
+func NewSesnCfg() SesnCfg {
+	return SesnCfg{
+		Ble: SesnCfgBle{
+			CloseTimeout: 5 * time.Second,
+		},
+	}
 }
 
 type TxOptions struct {

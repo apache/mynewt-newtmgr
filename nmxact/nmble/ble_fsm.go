@@ -188,6 +188,7 @@ func (bf *BleFsm) connectListen(seq int) error {
 			select {
 			case <-bl.ErrChan:
 				return
+
 			case bm := <-bl.BleChan:
 				switch msg := bm.(type) {
 				case *BleConnectRsp:
@@ -197,10 +198,13 @@ func (bf *BleFsm) connectListen(seq int) error {
 						log.Debugf(str)
 						bf.connChan <- nmxutil.NewBleHostError(msg.Status, str)
 						return
+					} else {
+						bl.acked = true
 					}
 
 				case *BleConnectEvt:
 					if msg.Status == 0 {
+						bl.acked = true
 						log.Debugf("BLE connection attempt succeeded; "+
 							"peer=%d handle=%d", bf.peer.String(),
 							msg.ConnHandle)
@@ -244,6 +248,9 @@ func (bf *BleFsm) connectListen(seq int) error {
 
 				default:
 				}
+
+			case <-bl.AfterTimeout(bf.bx.rspTimeout):
+				bf.connChan <- bhdTimeoutError(MSG_TYPE_CONNECT)
 			}
 		}
 	}()
@@ -555,13 +562,16 @@ func (bf *BleFsm) Stop() (bool, error) {
 	switch state {
 	case SESN_STATE_UNCONNECTED:
 		return false, fmt.Errorf("BLE session already closed")
+
 	case SESN_STATE_TERMINATING, SESN_STATE_CONN_CANCELLING:
 		return false, fmt.Errorf("BLE session already being closed")
+
 	case SESN_STATE_CONNECTING:
 		if err := bf.connCancel(); err != nil {
 			return false, err
 		}
 		return true, nil
+
 	default:
 		if err := bf.terminate(); err != nil {
 			return false, err

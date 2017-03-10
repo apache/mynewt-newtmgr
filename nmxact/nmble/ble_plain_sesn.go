@@ -8,27 +8,26 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 
-	. "mynewt.apache.org/newt/nmxact/bledefs"
 	"mynewt.apache.org/newt/nmxact/nmp"
 	"mynewt.apache.org/newt/nmxact/nmxutil"
 	"mynewt.apache.org/newt/nmxact/sesn"
 )
 
 type BlePlainSesn struct {
-	bf  *BleFsm
-	nls map[*nmp.NmpListener]struct{}
-	nd  *nmp.NmpDispatcher
+	bf           *BleFsm
+	nls          map[*nmp.NmpListener]struct{}
+	nd           *nmp.NmpDispatcher
+	closeTimeout time.Duration
 
 	closeChan chan error
 	mx        sync.Mutex
 }
 
-func NewBlePlainSesn(bx *BleXport, ownAddrType BleAddrType,
-	peer BleDev) *BlePlainSesn {
-
+func NewBlePlainSesn(bx *BleXport, cfg sesn.SesnCfg) *BlePlainSesn {
 	bps := &BlePlainSesn{
-		nls: map[*nmp.NmpListener]struct{}{},
-		nd:  nmp.NewNmpDispatcher(),
+		nls:          map[*nmp.NmpListener]struct{}{},
+		nd:           nmp.NewNmpDispatcher(),
+		closeTimeout: cfg.Ble.CloseTimeout,
 	}
 
 	rxNmpCb := func(d []byte) { bps.onRxNmp(d) }
@@ -46,8 +45,8 @@ func NewBlePlainSesn(bx *BleXport, ownAddrType BleAddrType,
 
 	bps.bf = NewBleFsm(BleFsmParams{
 		Bx:           bx,
-		OwnAddrType:  ownAddrType,
-		Peer:         peer,
+		OwnAddrType:  cfg.Ble.OwnAddrType,
+		Peer:         cfg.Ble.Peer,
 		SvcUuid:      svcUuid,
 		ReqChrUuid:   chrUuid,
 		RspChrUuid:   chrUuid,
@@ -111,9 +110,6 @@ func (bps *BlePlainSesn) Close() error {
 	}
 	defer bps.clearCloseChan()
 
-	bps.closeChan = make(chan error, 1)
-	defer func() { bps.closeChan = nil }()
-
 	done, err := bps.bf.Stop()
 	if err != nil {
 		return err
@@ -127,7 +123,7 @@ func (bps *BlePlainSesn) Close() error {
 	// Block until close completes or timeout.
 	select {
 	case <-bps.closeChan:
-	case <-time.After(CLOSE_TIMEOUT):
+	case <-time.After(bps.closeTimeout):
 	}
 
 	return nil
@@ -174,13 +170,17 @@ func (bps *BlePlainSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 	}
 
 	// Now wait for newtmgr response.
-	select {
-	case err := <-nl.ErrChan:
-		return nil, err
-	case rsp := <-nl.RspChan:
-		return rsp, nil
-	case <-opt.AfterTimeout():
-		return nil, nmxutil.NewNmpTimeoutError("NMP timeout")
+	for {
+		select {
+		case err := <-nl.ErrChan:
+			return nil, err
+		case rsp := <-nl.RspChan:
+			if bps.bf.getState() == SESN_STATE_DISCOVERED_CHR {
+				return rsp, nil
+			}
+		case <-nl.AfterTimeout(opt.Timeout):
+			return nil, nmxutil.NewNmpTimeoutError("NMP timeout")
+		}
 	}
 }
 

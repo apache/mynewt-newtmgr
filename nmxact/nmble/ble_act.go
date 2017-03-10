@@ -2,13 +2,23 @@ package nmble
 
 import (
 	"encoding/json"
+	"fmt"
+
+	log "github.com/Sirupsen/logrus"
 
 	"mynewt.apache.org/newt/nmxact/nmxutil"
-	"mynewt.apache.org/newt/nmxact/xport"
 )
 
+func bhdTimeoutError(rspType MsgType) error {
+	str := fmt.Sprintf("Timeout waiting for blehostd to send %s response",
+		MsgTypeToString(rspType))
+	log.Debugf(str)
+
+	return nmxutil.NewXportTimeoutError(str)
+}
+
 // Blocking
-func connect(x xport.Xport, connChan chan error, r *BleConnectReq) error {
+func connect(x *BleXport, connChan chan error, r *BleConnectReq) error {
 	j, err := json.Marshal(r)
 	if err != nil {
 		return err
@@ -27,7 +37,7 @@ func connect(x xport.Xport, connChan chan error, r *BleConnectReq) error {
 }
 
 // Blocking
-func terminate(x xport.Xport, bl *BleListener, r *BleTerminateReq) error {
+func terminate(x *BleXport, bl *BleListener, r *BleTerminateReq) error {
 	j, err := json.Marshal(r)
 	if err != nil {
 		return err
@@ -41,9 +51,11 @@ func terminate(x xport.Xport, bl *BleListener, r *BleTerminateReq) error {
 		select {
 		case err := <-bl.ErrChan:
 			return err
+
 		case bm := <-bl.BleChan:
 			switch msg := bm.(type) {
 			case *BleTerminateRsp:
+				bl.acked = true
 				if msg.Status != 0 {
 					return nmxutil.FmtBleHostError(
 						msg.Status,
@@ -55,11 +67,14 @@ func terminate(x xport.Xport, bl *BleListener, r *BleTerminateReq) error {
 
 			default:
 			}
+
+		case <-bl.AfterTimeout(x.rspTimeout):
+			return bhdTimeoutError(MSG_TYPE_TERMINATE)
 		}
 	}
 }
 
-func connCancel(x xport.Xport, bl *BleListener, r *BleConnCancelReq) error {
+func connCancel(x *BleXport, bl *BleListener, r *BleConnCancelReq) error {
 	j, err := json.Marshal(r)
 	if err != nil {
 		return err
@@ -73,9 +88,11 @@ func connCancel(x xport.Xport, bl *BleListener, r *BleConnCancelReq) error {
 		select {
 		case err := <-bl.ErrChan:
 			return err
+
 		case bm := <-bl.BleChan:
 			switch msg := bm.(type) {
 			case *BleConnCancelRsp:
+				bl.acked = true
 				if msg.Status != 0 {
 					return nmxutil.FmtBleHostError(
 						msg.Status,
@@ -87,12 +104,15 @@ func connCancel(x xport.Xport, bl *BleListener, r *BleConnCancelReq) error {
 
 			default:
 			}
+
+		case <-bl.AfterTimeout(x.rspTimeout):
+			return bhdTimeoutError(MSG_TYPE_TERMINATE)
 		}
 	}
 }
 
 // Blocking.
-func discSvcUuid(x xport.Xport, bl *BleListener, r *BleDiscSvcUuidReq) (
+func discSvcUuid(x *BleXport, bl *BleListener, r *BleDiscSvcUuidReq) (
 	*BleSvc, error) {
 
 	j, err := json.Marshal(r)
@@ -109,9 +129,11 @@ func discSvcUuid(x xport.Xport, bl *BleListener, r *BleDiscSvcUuidReq) (
 		select {
 		case err := <-bl.ErrChan:
 			return nil, err
+
 		case bm := <-bl.BleChan:
 			switch msg := bm.(type) {
 			case *BleDiscSvcUuidRsp:
+				bl.acked = true
 				if msg.Status != 0 {
 					return nil, nmxutil.FmtBleHostError(
 						msg.Status,
@@ -140,12 +162,15 @@ func discSvcUuid(x xport.Xport, bl *BleListener, r *BleDiscSvcUuidReq) (
 
 			default:
 			}
+
+		case <-bl.AfterTimeout(x.rspTimeout):
+			return nil, bhdTimeoutError(MSG_TYPE_DISC_SVC_UUID)
 		}
 	}
 }
 
 // Blocking.
-func discAllChrs(x xport.Xport, bl *BleListener, r *BleDiscAllChrsReq) (
+func discAllChrs(x *BleXport, bl *BleListener, r *BleDiscAllChrsReq) (
 	[]*BleChr, error) {
 
 	j, err := json.Marshal(r)
@@ -162,9 +187,11 @@ func discAllChrs(x xport.Xport, bl *BleListener, r *BleDiscAllChrsReq) (
 		select {
 		case err := <-bl.ErrChan:
 			return nil, err
+
 		case bm := <-bl.BleChan:
 			switch msg := bm.(type) {
 			case *BleDiscAllChrsRsp:
+				bl.acked = true
 				if msg.Status != 0 {
 					return nil, nmxutil.FmtBleHostError(
 						msg.Status,
@@ -187,12 +214,15 @@ func discAllChrs(x xport.Xport, bl *BleListener, r *BleDiscAllChrsReq) (
 
 			default:
 			}
+
+		case <-bl.AfterTimeout(x.rspTimeout):
+			return nil, bhdTimeoutError(MSG_TYPE_DISC_ALL_CHRS)
 		}
 	}
 }
 
 // Blocking.
-func writeCmd(x xport.Xport, bl *BleListener, r *BleWriteCmdReq) error {
+func writeCmd(x *BleXport, bl *BleListener, r *BleWriteCmdReq) error {
 	j, err := json.Marshal(r)
 	if err != nil {
 		return err
@@ -206,9 +236,11 @@ func writeCmd(x xport.Xport, bl *BleListener, r *BleWriteCmdReq) error {
 		select {
 		case err := <-bl.ErrChan:
 			return err
+
 		case bm := <-bl.BleChan:
 			switch msg := bm.(type) {
 			case *BleWriteCmdRsp:
+				bl.acked = true
 				if msg.Status != 0 {
 					return nmxutil.FmtBleHostError(
 						msg.Status,
@@ -220,12 +252,15 @@ func writeCmd(x xport.Xport, bl *BleListener, r *BleWriteCmdReq) error {
 
 			default:
 			}
+
+		case <-bl.AfterTimeout(x.rspTimeout):
+			return bhdTimeoutError(MSG_TYPE_WRITE_CMD)
 		}
 	}
 }
 
 // Blocking.
-func exchangeMtu(x xport.Xport, bl *BleListener, r *BleExchangeMtuReq) (
+func exchangeMtu(x *BleXport, bl *BleListener, r *BleExchangeMtuReq) (
 	int, error) {
 
 	j, err := json.Marshal(r)
@@ -241,9 +276,11 @@ func exchangeMtu(x xport.Xport, bl *BleListener, r *BleExchangeMtuReq) (
 		select {
 		case err := <-bl.ErrChan:
 			return 0, err
+
 		case bm := <-bl.BleChan:
 			switch msg := bm.(type) {
 			case *BleExchangeMtuRsp:
+				bl.acked = true
 				if msg.Status != 0 {
 					return 0, nmxutil.FmtBleHostError(
 						msg.Status,
@@ -263,6 +300,9 @@ func exchangeMtu(x xport.Xport, bl *BleListener, r *BleExchangeMtuReq) (
 
 			default:
 			}
+
+		case <-bl.AfterTimeout(x.rspTimeout):
+			return 0, bhdTimeoutError(MSG_TYPE_EXCHANGE_MTU)
 		}
 	}
 }
