@@ -22,6 +22,7 @@ package config
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"mynewt.apache.org/newt/nmxact/bledefs"
 	"mynewt.apache.org/newt/nmxact/nmble"
@@ -105,14 +106,19 @@ func FillSesnCfg(bc *BleConfig, sc *sesn.SesnCfg) {
 		AddrType: bc.PeerAddrType,
 		Addr:     bc.PeerAddr,
 	}
+
+	// We don't need to stick around until a connection closes.
+	sc.Ble.CloseTimeout = 10000 * time.Millisecond
 }
 
 func BuildBleXport(bc *BleConfig) (*nmble.BleXport, error) {
-	params := nmble.XportCfg{
-		SockPath:     "/tmp/blehostd-uds",
-		BlehostdPath: bc.BlehostdPath,
-		DevPath:      bc.ControllerPath,
-	}
+	params := nmble.NewBleXportCfg()
+	params.SockPath = "/tmp/blehostd-uds"
+	params.BlehostdPath = bc.BlehostdPath
+	params.DevPath = bc.ControllerPath
+	params.BlehostdAcceptTimeout = time.Second / 10
+	params.BlehostdRestart = false
+
 	bx, err := nmble.NewBleXport(params)
 	if err != nil {
 		return nil, util.ChildNewtError(err)

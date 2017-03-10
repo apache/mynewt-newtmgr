@@ -91,7 +91,7 @@ func GetXportIfOpen() (xport.Xport, error) {
 }
 
 func buildSesnCfg() (sesn.SesnCfg, error) {
-	sc := sesn.SesnCfg{}
+	sc := sesn.NewSesnCfg()
 
 	cp, err := getConnProfile()
 	if err != nil {
