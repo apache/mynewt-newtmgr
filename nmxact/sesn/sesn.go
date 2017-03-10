@@ -62,6 +62,9 @@ type Sesn interface {
 	// this closes the connection.
 	Close() error
 
+	// Indicates whether the session is currently open.
+	IsOpen() bool
+
 	// Retrieves the maximum data payload for outgoing NMP requests.
 	MtuOut() int
 

@@ -1,15 +1,11 @@
 package nmble
 
 import (
-	"encoding/hex"
 	"fmt"
 	"sync"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
-
 	"mynewt.apache.org/newt/nmxact/nmp"
-	"mynewt.apache.org/newt/nmxact/nmxutil"
 	"mynewt.apache.org/newt/nmxact/sesn"
 )
 
@@ -129,6 +125,10 @@ func (bps *BlePlainSesn) Close() error {
 	return nil
 }
 
+func (bps *BlePlainSesn) IsOpen() bool {
+	return bps.bf.IsOpen()
+}
+
 func (bps *BlePlainSesn) onRxNmp(data []byte) {
 	bps.nd.Dispatch(data)
 }
@@ -164,24 +164,7 @@ func (bps *BlePlainSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 		return nil, err
 	}
 
-	log.Debugf("Tx NMP request: %s", hex.Dump(b))
-	if err := bps.bf.writeCmd(b); err != nil {
-		return nil, err
-	}
-
-	// Now wait for newtmgr response.
-	for {
-		select {
-		case err := <-nl.ErrChan:
-			return nil, err
-		case rsp := <-nl.RspChan:
-			if bps.bf.getState() == SESN_STATE_DISCOVERED_CHR {
-				return rsp, nil
-			}
-		case <-nl.AfterTimeout(opt.Timeout):
-			return nil, nmxutil.NewNmpTimeoutError("NMP timeout")
-		}
-	}
+	return bps.bf.TxNmp(b, nl, opt.Timeout)
 }
 
 func (bps *BlePlainSesn) MtuIn() int {

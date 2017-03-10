@@ -1,15 +1,11 @@
 package nmble
 
 import (
-	"encoding/hex"
 	"fmt"
 	"sync"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
-
 	"mynewt.apache.org/newt/nmxact/nmp"
-	"mynewt.apache.org/newt/nmxact/nmxutil"
 	"mynewt.apache.org/newt/nmxact/omp"
 	"mynewt.apache.org/newt/nmxact/sesn"
 )
@@ -135,6 +131,10 @@ func (bos *BleOicSesn) Close() error {
 	return nil
 }
 
+func (bos *BleOicSesn) IsOpen() bool {
+	return bos.bf.IsOpen()
+}
+
 func (bos *BleOicSesn) onRxNmp(data []byte) {
 	bos.od.Dispatch(data)
 }
@@ -170,20 +170,7 @@ func (bos *BleOicSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 		return nil, err
 	}
 
-	log.Debugf("Tx NMP request: %s", hex.Dump(b))
-	if err := bos.bf.writeCmd(b); err != nil {
-		return nil, err
-	}
-
-	// Now wait for newtmgr response.
-	select {
-	case err := <-nl.ErrChan:
-		return nil, err
-	case rsp := <-nl.RspChan:
-		return rsp, nil
-	case <-opt.AfterTimeout():
-		return nil, nmxutil.NewNmpTimeoutError("NMP timeout")
-	}
+	return bos.bf.TxNmp(b, nl, opt.Timeout)
 }
 
 func (bos *BleOicSesn) MtuIn() int {

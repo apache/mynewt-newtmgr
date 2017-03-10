@@ -1,12 +1,15 @@
 package nmble
 
 import (
+	"encoding/hex"
 	"fmt"
 	"sync"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 
 	. "mynewt.apache.org/newt/nmxact/bledefs"
+	"mynewt.apache.org/newt/nmxact/nmp"
 	"mynewt.apache.org/newt/nmxact/nmxutil"
 )
 
@@ -578,5 +581,34 @@ func (bf *BleFsm) Stop() (bool, error) {
 			return false, err
 		}
 		return false, nil
+	}
+}
+
+func (bf *BleFsm) IsOpen() bool {
+	return bf.getState() == SESN_STATE_DISCOVERED_CHR
+}
+
+func (bf *BleFsm) TxNmp(payload []byte, nl *nmp.NmpListener,
+	timeout time.Duration) (nmp.NmpRsp, error) {
+
+	log.Debugf("Tx NMP request: %s", hex.Dump(payload))
+	if err := bf.writeCmd(payload); err != nil {
+		return nil, err
+	}
+
+	// Now wait for NMP response.
+	for {
+		select {
+		case err := <-nl.ErrChan:
+			return nil, err
+		case rsp := <-nl.RspChan:
+			// Only accept NMP responses if the session is still open.  This is
+			// to help prevent race conditions in client code.
+			if bf.IsOpen() {
+				return rsp, nil
+			}
+		case <-nl.AfterTimeout(timeout):
+			return nil, nmxutil.NewNmpTimeoutError("NMP timeout")
+		}
 	}
 }

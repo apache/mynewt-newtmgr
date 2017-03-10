@@ -9,8 +9,9 @@ import (
 )
 
 type SerialPlainSesn struct {
-	sx *SerialXport
-	nd *nmp.NmpDispatcher
+	sx     *SerialXport
+	nd     *nmp.NmpDispatcher
+	isOpen bool
 
 	// This mutex ensures each response get matched up with its corresponding
 	// request.
@@ -25,11 +26,28 @@ func NewSerialPlainSesn(sx *SerialXport) *SerialPlainSesn {
 }
 
 func (sps *SerialPlainSesn) Open() error {
+	// XXX: Not strictly thread safe.
+	if sps.isOpen {
+		return fmt.Errorf(
+			"Attempt to open an already-open serial plain session")
+	}
+
+	sps.isOpen = true
 	return nil
 }
 
 func (sps *SerialPlainSesn) Close() error {
+	// XXX: Not strictly thread safe.
+	if !sps.isOpen {
+		return fmt.Errorf(
+			"Attempt to close an unopened serial plain session")
+	}
+	sps.isOpen = false
 	return nil
+}
+
+func (sps *SerialPlainSesn) IsOpen() bool {
+	return sps.isOpen
 }
 
 func (sps *SerialPlainSesn) MtuIn() int {
