@@ -25,6 +25,7 @@ import (
 
 	"encoding/json"
 	"io/ioutil"
+	"os"
 	"sort"
 
 	"mynewt.apache.org/newt/util"
@@ -34,20 +35,56 @@ type ConnProfileMgr struct {
 	profiles map[string]*ConnProfile
 }
 
-type NewtmgrConnProfile interface {
-	Name() string
-	Type() string
-	ConnString() string
-	DeviceAddress() []byte
-	DeviceAddressType() uint8
-}
+type ConnType int
 
 type ConnProfile struct {
-	MyName              string
-	MyType              string
-	MyConnString        string
-	MyDeviceAddress     []byte
-	MyDeviceAddressType uint8
+	Name       string   `json:"MyName"`
+	Type       ConnType `json:"MyType"`
+	ConnString string   `json:"MyConnString"`
+}
+
+const (
+	CONN_TYPE_SERIAL ConnType = iota
+	CONN_TYPE_BLE_PLAIN
+	CONN_TYPE_BLE_OIC
+	CONN_TYPE_UDP
+)
+
+var connTypeNameMap = map[ConnType]string{
+	CONN_TYPE_SERIAL:    "serial",
+	CONN_TYPE_BLE_PLAIN: "ble",
+	CONN_TYPE_BLE_OIC:   "oic_ble",
+	CONN_TYPE_UDP:       "udp",
+}
+
+func ConnTypeToString(ct ConnType) string {
+	return connTypeNameMap[ct]
+}
+
+func ConnTypeFromString(s string) (ConnType, error) {
+	for k, v := range connTypeNameMap {
+		if s == v {
+			return k, nil
+		}
+	}
+
+	return ConnType(0), util.FmtNewtError("Invalid connection type: %s", s)
+}
+
+func (t *ConnType) MarshalJSON() ([]byte, error) {
+	return json.Marshal(ConnTypeToString(*t))
+}
+
+func (ct *ConnType) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	var err error
+	*ct, err = ConnTypeFromString(s)
+
+	return err
 }
 
 func NewConnProfileMgr() (*ConnProfileMgr, error) {
@@ -77,23 +114,24 @@ func (cpm *ConnProfileMgr) Init() error {
 		return err
 	}
 
-	// XXX: Should determine whether file exists by attempting to read it.
-	if util.NodeExist(filename) {
-		blob, err := ioutil.ReadFile(filename)
-		if err != nil {
-			return util.NewNewtError(err.Error())
+	log.Debugf("Reading connection profiles from %s", filename)
+	blob, err := ioutil.ReadFile(filename)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		} else {
+			return util.ChildNewtError(err)
 		}
+	}
 
-		var profiles []*ConnProfile
-		err = json.Unmarshal(blob, &profiles)
-		if err != nil {
-			return util.FmtNewtError("error reading connection profile "+
-				"config (%s): %s", filename, err.Error())
-		}
+	var profiles []*ConnProfile
+	if err := json.Unmarshal(blob, &profiles); err != nil {
+		return util.FmtNewtError("error reading connection profile "+
+			"config (%s): %s", filename, err.Error())
+	}
 
-		for _, p := range profiles {
-			cpm.profiles[p.MyName] = p
-		}
+	for _, p := range profiles {
+		cpm.profiles[p.Name] = p
 	}
 
 	return nil
@@ -110,7 +148,7 @@ func (s connProfSorter) Swap(i, j int) {
 	s.cps[i], s.cps[j] = s.cps[j], s.cps[i]
 }
 func (s connProfSorter) Less(i, j int) bool {
-	return s.cps[i].Name() < s.cps[j].Name()
+	return s.cps[i].Name < s.cps[j].Name
 }
 
 func SortConnProfs(cps []*ConnProfile) []*ConnProfile {
@@ -151,7 +189,7 @@ func (cpm *ConnProfileMgr) save() error {
 
 	err = ioutil.WriteFile(filename, b, 0644)
 	if err != nil {
-		return util.NewNewtError(err.Error())
+		return util.ChildNewtError(err)
 	}
 
 	return nil
@@ -174,7 +212,7 @@ func (cpm *ConnProfileMgr) DeleteConnProfile(name string) error {
 }
 
 func (cpm *ConnProfileMgr) AddConnProfile(cp *ConnProfile) error {
-	cpm.profiles[cp.Name()] = cp
+	cpm.profiles[cp.Name] = cp
 
 	err := cpm.save()
 	if err != nil {
@@ -200,29 +238,29 @@ func (cpm *ConnProfileMgr) GetConnProfile(pName string) (*ConnProfile, error) {
 	return p, nil
 }
 
-func (cp *ConnProfile) Name() string {
-	return cp.MyName
+func NewConnProfile() *ConnProfile {
+	return &ConnProfile{}
 }
 
-func (cp *ConnProfile) Type() string {
-	return cp.MyType
+var globalConnProfileMgr *ConnProfileMgr
+
+func GlobalConnProfileMgr() *ConnProfileMgr {
+	if globalConnProfileMgr == nil {
+		panic("connection profile manager not initialized")
+	}
+	return globalConnProfileMgr
 }
 
-func (cp *ConnProfile) ConnString() string {
-	return cp.MyConnString
-}
+func InitGlobalConnProfileMgr() error {
+	if globalConnProfileMgr != nil {
+		return util.NewNewtError("connection profile manager initialized twice")
+	}
 
-func (cp *ConnProfile) DeviceAddressType() uint8 {
-	return cp.MyDeviceAddressType
-}
+	var err error
+	globalConnProfileMgr, err = NewConnProfileMgr()
+	if err != nil {
+		return err
+	}
 
-func (cp *ConnProfile) DeviceAddress() []byte {
-	return cp.MyDeviceAddress
-}
-
-func NewConnProfile(pName string) (*ConnProfile, error) {
-	cp := &ConnProfile{}
-	cp.MyName = pName
-
-	return cp, nil
+	return nil
 }

@@ -19,8 +19,60 @@
 
 package main
 
-import "mynewt.apache.org/newt/newtmgr/cli"
+import (
+	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"mynewt.apache.org/newt/newtmgr/cli"
+	"mynewt.apache.org/newt/newtmgr/config"
+	"mynewt.apache.org/newt/nmxact/nmserial"
+	"mynewt.apache.org/newt/util"
+)
 
 func main() {
+	if err := config.InitGlobalConnProfileMgr(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
+		os.Exit(1)
+	}
+
+	onExit := func() {
+		s, err := cli.GetSesnIfOpen()
+		if err == nil {
+			s.Close()
+		}
+
+		x, err := cli.GetXportIfOpen()
+		if err == nil {
+			// Don't attempt to close a serial transport.  Attempting to close
+			// the serial port while a read is in progress (in MacOS) just
+			// blocks until the read completes.  Instead, let the OS close the
+			// port on termination.
+			if _, ok := x.(*nmserial.SerialXport); !ok {
+				x.Stop()
+			}
+		}
+	}
+	defer onExit()
+	cli.NmSetOnExit(onExit)
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan)
+
+	go func() {
+		for {
+			s := <-sigChan
+			switch s {
+			case os.Interrupt, syscall.SIGTERM:
+				onExit()
+				os.Exit(0)
+
+			case syscall.SIGQUIT:
+				util.PrintStacks()
+			}
+		}
+	}()
+
 	cli.Commands().Execute()
 }

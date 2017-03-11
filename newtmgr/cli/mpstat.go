@@ -21,6 +21,7 @@ package cli
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/spf13/cobra"
 
@@ -29,36 +30,51 @@ import (
 	"mynewt.apache.org/newt/util"
 )
 
-func echoRunCmd(cmd *cobra.Command, args []string) {
-	if len(args) != 1 {
-		nmUsage(cmd, nil)
-	}
-
+func mempoolStatRunCmd(cmd *cobra.Command, args []string) {
 	s, err := GetSesn()
 	if err != nil {
 		nmUsage(nil, err)
 	}
 	defer s.Close()
 
-	c := xact.NewEchoCmd()
+	c := xact.NewMempoolStatCmd()
 	c.SetTxOptions(nmutil.TxOptions())
-	c.Payload = args[0]
 
 	res, err := c.Run(s)
 	if err != nil {
 		nmUsage(nil, util.ChildNewtError(err))
 	}
 
-	eres := res.(*xact.EchoResult)
-	fmt.Println(eres.Rsp.Payload)
-}
-
-func echoCmd() *cobra.Command {
-	echoCmd := &cobra.Command{
-		Use:   "echo",
-		Short: "Send data to remote endpoint using newtmgr, and receive data back",
-		Run:   echoRunCmd,
+	sres := res.(*xact.MempoolStatResult)
+	if sres.Rsp.Rc != 0 {
+		fmt.Printf("Error: %d\n", sres.Rsp.Rc)
+		return
 	}
 
-	return echoCmd
+	names := make([]string, 0, len(sres.Rsp.Mpools))
+	for k, _ := range sres.Rsp.Mpools {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+
+	fmt.Printf("%32s %5s %4s %4s %4s\n", "name", "blksz", "cnt", "free", "min")
+	for _, n := range names {
+		mp := sres.Rsp.Mpools[n]
+		fmt.Printf("%32s %5d %4d %4d %4d\n",
+			n,
+			mp["blksiz"],
+			mp["nblks"],
+			mp["nfree"],
+			mp["min"])
+	}
+}
+
+func mempoolStatCmd() *cobra.Command {
+	mempoolStatCmd := &cobra.Command{
+		Use:   "mpstat",
+		Short: "Read mempool statistics from a remote endpoint",
+		Run:   mempoolStatRunCmd,
+	}
+
+	return mempoolStatCmd
 }

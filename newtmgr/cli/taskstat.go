@@ -21,6 +21,7 @@ package cli
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/spf13/cobra"
 
@@ -29,36 +30,57 @@ import (
 	"mynewt.apache.org/newt/util"
 )
 
-func echoRunCmd(cmd *cobra.Command, args []string) {
-	if len(args) != 1 {
-		nmUsage(cmd, nil)
-	}
-
+func taskStatRunCmd(cmd *cobra.Command, args []string) {
 	s, err := GetSesn()
 	if err != nil {
 		nmUsage(nil, err)
 	}
 	defer s.Close()
 
-	c := xact.NewEchoCmd()
+	c := xact.NewTaskStatCmd()
 	c.SetTxOptions(nmutil.TxOptions())
-	c.Payload = args[0]
 
 	res, err := c.Run(s)
 	if err != nil {
 		nmUsage(nil, util.ChildNewtError(err))
 	}
 
-	eres := res.(*xact.EchoResult)
-	fmt.Println(eres.Rsp.Payload)
-}
-
-func echoCmd() *cobra.Command {
-	echoCmd := &cobra.Command{
-		Use:   "echo",
-		Short: "Send data to remote endpoint using newtmgr, and receive data back",
-		Run:   echoRunCmd,
+	sres := res.(*xact.TaskStatResult)
+	if sres.Rsp.Rc != 0 {
+		fmt.Printf("Error: %d\n", sres.Rsp.Rc)
+		return
 	}
 
-	return echoCmd
+	names := make([]string, 0, len(sres.Rsp.Tasks))
+	for k, _ := range sres.Rsp.Tasks {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+
+	fmt.Printf("  %8s %3s %3s %8s %8s %8s %8s %8s %8s\n",
+		"task", "pri", "tid", "runtime", "csw", "stksz",
+		"stkuse", "last_checkin", "next_checkin")
+	for _, n := range names {
+		t := sres.Rsp.Tasks[n]
+		fmt.Printf("  %8s %3d %3d %8d %8d %8d %8d %8d %8d\n",
+			n,
+			t["prio"],
+			t["tid"],
+			t["runtime"],
+			t["cswcnt"],
+			t["stksiz"],
+			t["stkuse"],
+			t["last_checkin"],
+			t["next_checkin"])
+	}
+}
+
+func taskStatCmd() *cobra.Command {
+	taskStatCmd := &cobra.Command{
+		Use:   "taskstat",
+		Short: "Read statistics from a remote endpoint",
+		Run:   taskStatRunCmd,
+	}
+
+	return taskStatCmd
 }

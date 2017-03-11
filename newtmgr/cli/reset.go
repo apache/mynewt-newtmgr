@@ -23,42 +23,33 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"mynewt.apache.org/newt/newtmgr/protocol"
+
+	"mynewt.apache.org/newt/newtmgr/nmutil"
+	"mynewt.apache.org/newt/nmxact/xact"
+	"mynewt.apache.org/newt/util"
 )
 
 func resetRunCmd(cmd *cobra.Command, args []string) {
-	runner, err := getTargetCmdRunner()
+	s, err := GetSesn()
 	if err != nil {
-		nmUsage(cmd, err)
+		nmUsage(nil, err)
 	}
-	defer runner.Conn.Close()
+	defer s.Close()
 
-	reset, err := protocol.NewReset()
-	if err != nil {
-		nmUsage(cmd, err)
-	}
+	c := xact.NewResetCmd()
+	c.SetTxOptions(nmutil.TxOptions())
 
-	nmr, err := reset.EncodeWriteRequest()
-	if err != nil {
-		nmUsage(cmd, err)
+	if _, err := c.Run(s); err != nil {
+		nmUsage(nil, util.ChildNewtError(err))
 	}
 
-	if err := runner.WriteReq(nmr); err != nil {
-		nmUsage(cmd, err)
-	}
-
-	_, err = runner.ReadResp()
-	if err != nil {
-		nmUsage(cmd, err)
-	}
-
-	fmt.Println("Done")
+	fmt.Printf("Done\n")
 }
 
 func resetCmd() *cobra.Command {
 	resetCmd := &cobra.Command{
-		Use:   "reset -c <conn_profile>",
-		Short: "Send reset request to a device",
+		Use:   "reset",
+		Short: "Performs a soft reset of target device",
 		Run:   resetRunCmd,
 	}
 

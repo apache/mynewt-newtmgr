@@ -23,85 +23,80 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"mynewt.apache.org/newt/newtmgr/protocol"
+
+	"mynewt.apache.org/newt/newtmgr/nmutil"
+	"mynewt.apache.org/newt/nmxact/sesn"
+	"mynewt.apache.org/newt/nmxact/xact"
 	"mynewt.apache.org/newt/util"
 )
 
-func dateTimeCmd(cmd *cobra.Command, args []string) {
-	runner, err := getTargetCmdRunner()
+func dateTimeRead(s sesn.Sesn) error {
+	c := xact.NewDateTimeReadCmd()
+	c.SetTxOptions(nmutil.TxOptions())
+
+	res, err := c.Run(s)
 	if err != nil {
-		nmUsage(cmd, err)
+		return util.ChildNewtError(err)
 	}
-	defer runner.Conn.Close()
 
-	dateTime, err := protocol.NewDateTime()
+	sres := res.(*xact.DateTimeReadResult)
+	fmt.Println("Datetime(RFC 3339 format):", sres.Rsp.DateTime)
+
+	return nil
+}
+
+func dateTimeWrite(s sesn.Sesn, args []string) error {
+	c := xact.NewDateTimeWriteCmd()
+	c.SetTxOptions(nmutil.TxOptions())
+	c.DateTime = args[0]
+
+	res, err := c.Run(s)
 	if err != nil {
-		nmUsage(cmd, err)
+		return util.ChildNewtError(err)
 	}
 
-	if len(args) > 0 {
-		dateTime.DateTime = args[0]
+	sres := res.(*xact.DateTimeWriteResult)
+	if sres.Rsp.Rc != 0 {
+		fmt.Printf("Error: %c\n", sres.Rsp.Rc)
+	} else {
+		fmt.Printf("Done\n")
 	}
-	nmr, err := dateTime.EncodeRequest()
+
+	return nil
+}
+
+func dateTimeRunCmd(cmd *cobra.Command, args []string) {
+	s, err := GetSesn()
 	if err != nil {
-		nmUsage(cmd, err)
+		nmUsage(nil, err)
 	}
+	defer s.Close()
 
-	if err := runner.WriteReq(nmr); err != nil {
-		nmUsage(cmd, err)
-	}
-
-	rsp, err := runner.ReadResp()
-	if err != nil {
-		nmUsage(cmd, err)
-	}
-
-	iRsp, err := protocol.DecodeDateTimeResponse(rsp.Data)
-	if err != nil {
-		nmUsage(cmd, err)
-	}
-
-	err_str := "Need to specify a datetime in RFC 3339 format\n"
-
-	if len(args) > 1 {
-		nmUsage(cmd, util.NewNewtError(err_str))
-	} else if len(args) == 1 {
-		if iRsp.Return != 0 {
-			nmUsage(cmd, util.NewNewtError(fmt.Sprintf("Return:%d\n%s",
-				iRsp.Return, err_str)))
-		} else {
-			fmt.Println("Return:", iRsp.Return)
+	if len(args) == 0 {
+		if err := dateTimeRead(s); err != nil {
+			nmUsage(nil, err)
 		}
-	} else if len(args) == 0 {
-		fmt.Println("Datetime(RFC 3339 format):", iRsp.DateTime)
+	} else {
+		if err := dateTimeWrite(s, args); err != nil {
+			nmUsage(nil, err)
+		}
 	}
 }
 
-func dTimeCmd() *cobra.Command {
-	dateTimeHelpText := "Display or set datetime on a device. "
-	dateTimeHelpText += "Specify a datetime-value\n"
-	dateTimeHelpText += "to set the datetime on the device.\n\n"
-	dateTimeHelpText += "Must specify datetime-value in RFC 3339 format.\n"
+func dateTimeCmd() *cobra.Command {
+	dateTimeCmd := &cobra.Command{
+		Use:   "datetime [rfc-3339-date-string]",
+		Short: "Manage datetime on the device",
+		Long: "Manage datetime on the device\n" +
+			"Example RFC 3339 strings:\n" +
+			"2016-03-02T22:44:00                  UTC time (implicit)\n" +
+			"2016-03-02T22:44:00Z                 UTC time (explicit)\n" +
+			"2016-03-02T22:44:00-08:00            PST timezone\n" +
+			"2016-03-02T22:44:00.1                fractional seconds\n" +
+			"2016-03-02T22:44:00.101+05:30        fractional seconds with timezone\n",
 
-	dateTimeEx := "newtmgr datetime -c myserial\n"
-	dateTimeEx += "newtmgr datetime 2016-03-02T22:44:00 -c myserial"
-	dateTimeEx += "             (implicit UTC) \n"
-	dateTimeEx += "newtmgr datetime 2016-03-02T22:44:00Z -c myserial"
-	dateTimeEx += "            (explicit UTC)\n"
-	dateTimeEx += "newtmgr datetime 2016-03-02T22:44:00-08:00 -c myserial"
-	dateTimeEx += "       (PST)\n"
-	dateTimeEx += "newtmgr datetime 2016-03-02T22:44:00.1 -c myserial"
-	dateTimeEx += "           (fractional secs)\n"
-	dateTimeEx += "newtmgr datetime 2016-03-02T22:44:00.101+05:30 -c myserial"
-	dateTimeEx += "   (fractional secs + timezone)\n"
-
-	dateTCmd := &cobra.Command{
-		Use:     "datetime [datetime-value] -c <conn_profile>",
-		Short:   "Manage datetime on a device",
-		Long:    dateTimeHelpText,
-		Example: dateTimeEx,
-		Run:     dateTimeCmd,
+		Run: dateTimeRunCmd,
 	}
 
-	return dateTCmd
+	return dateTimeCmd
 }

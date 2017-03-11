@@ -20,9 +20,7 @@
 package cli
 
 import (
-	"encoding/hex"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"mynewt.apache.org/newt/newtmgr/config"
@@ -31,36 +29,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func copyValidAddress(cp *config.ConnProfile, addrString string) bool {
-	switch cp.MyType {
-	case "ble":
-		deviceAddr, err := hex.DecodeString(strings.Replace(addrString, ":", "", -1))
-		if err != nil {
-			return false
-		}
-		if len(deviceAddr) > 6 {
-			return false
-		}
-		cp.MyDeviceAddress = deviceAddr
-	default:
-		return false
-	}
-
-	return true
-}
-
-func isAddressTypeValid(cp *config.ConnProfile, addrtype uint64) bool {
-	if cp.MyType == "ble" && addrtype < 4 {
-		return true
-	}
-	return false
-}
-
 func connProfileAddCmd(cmd *cobra.Command, args []string) {
-	cpm, err := config.NewConnProfileMgr()
-	if err != nil {
-		nmUsage(cmd, err)
-	}
+	cpm := config.GlobalConnProfileMgr()
 
 	// Connection Profile name required
 	if len(args) == 0 {
@@ -68,30 +38,22 @@ func connProfileAddCmd(cmd *cobra.Command, args []string) {
 	}
 
 	name := args[0]
-	cp, err := config.NewConnProfile(name)
-	if err != nil {
-		nmUsage(cmd, err)
-	}
+	cp := config.NewConnProfile()
+	cp.Name = name
 
 	for _, vdef := range args[1:] {
 		s := strings.SplitN(vdef, "=", 2)
 		switch s[0] {
 		case "name":
-			cp.MyName = s[1]
+			cp.Name = s[1]
 		case "type":
-			cp.MyType = s[1]
+			var err error
+			cp.Type, err = config.ConnTypeFromString(s[1])
+			if err != nil {
+				nmUsage(cmd, err)
+			}
 		case "connstring":
-			cp.MyConnString = s[1]
-		case "addr":
-			if copyValidAddress(cp, s[1]) != true {
-				nmUsage(cmd, util.NewNewtError("Invalid address"+s[1]))
-			}
-		case "addrtype":
-			deviceAddrType64, err := strconv.ParseUint(s[1], 10, 8)
-			if err != nil && isAddressTypeValid(cp, deviceAddrType64) {
-				nmUsage(cmd, util.NewNewtError("Invalid address type"+s[1]))
-			}
-			cp.MyDeviceAddressType = uint8(deviceAddrType64)
+			cp.ConnString = s[1]
 		default:
 			nmUsage(cmd, util.NewNewtError("Unknown variable "+s[0]))
 		}
@@ -104,20 +66,8 @@ func connProfileAddCmd(cmd *cobra.Command, args []string) {
 	fmt.Printf("Connection profile %s successfully added\n", name)
 }
 
-func print_addr_hex(addr []byte, sep string) string {
-	var str string = ""
-	for _, a := range addr {
-		str += fmt.Sprintf("%02x", a)
-		str += fmt.Sprintf(sep)
-	}
-	return str[:len(addr)*3-1]
-}
-
 func connProfileShowCmd(cmd *cobra.Command, args []string) {
-	cpm, err := config.NewConnProfileMgr()
-	if err != nil {
-		nmUsage(cmd, err)
-	}
+	cpm := config.GlobalConnProfileMgr()
 
 	name := ""
 	if len(args) > 0 {
@@ -133,7 +83,7 @@ func connProfileShowCmd(cmd *cobra.Command, args []string) {
 	for _, cp := range cpList {
 		// Print out the connection profile, if name is "" or name
 		// matches cp.Name
-		if name != "" && cp.Name() != name {
+		if name != "" && cp.Name != name {
 			continue
 		}
 
@@ -141,14 +91,8 @@ func connProfileShowCmd(cmd *cobra.Command, args []string) {
 			found = true
 			fmt.Printf("Connection profiles: \n")
 		}
-		fmt.Printf("  %s: type=%s, connstring='%s'", cp.MyName, cp.MyType,
-			cp.MyConnString)
-		if len(cp.MyDeviceAddress) > 0 {
-			fmt.Printf(", addr=%s", print_addr_hex(cp.MyDeviceAddress, ":"))
-			fmt.Printf(", addrtype=%+v", cp.MyDeviceAddressType)
-		}
-
-		fmt.Printf("\n")
+		fmt.Printf("  %s: type=%s, connstring='%s'\n",
+			cp.Name, config.ConnTypeToString(cp.Type), cp.ConnString)
 	}
 
 	if !found {
@@ -161,10 +105,7 @@ func connProfileShowCmd(cmd *cobra.Command, args []string) {
 }
 
 func connProfileDelCmd(cmd *cobra.Command, args []string) {
-	cpm, err := config.NewConnProfileMgr()
-	if err != nil {
-		nmUsage(cmd, err)
-	}
+	cpm := config.GlobalConnProfileMgr()
 
 	// Connection Profile name required
 	if len(args) == 0 {
@@ -172,7 +113,6 @@ func connProfileDelCmd(cmd *cobra.Command, args []string) {
 	}
 
 	name := args[0]
-
 	if err := cpm.DeleteConnProfile(name); err != nil {
 		nmUsage(cmd, err)
 	}

@@ -21,74 +21,55 @@ package cli
 
 import (
 	"fmt"
-	"time"
+	"strings"
 
 	"github.com/spf13/cobra"
-	"mynewt.apache.org/newt/newtmgr/config"
-	"mynewt.apache.org/newt/newtmgr/protocol"
-	"mynewt.apache.org/newt/newtmgr/transport"
+
+	"mynewt.apache.org/newt/newtmgr/nmutil"
+	"mynewt.apache.org/newt/nmxact/xact"
+	"mynewt.apache.org/newt/util"
 )
 
 func crashRunCmd(cmd *cobra.Command, args []string) {
-	cpm, err := config.NewConnProfileMgr()
-	if err != nil {
-		nmUsage(cmd, err)
-	}
-
 	if len(args) != 1 {
 		nmUsage(cmd, nil)
 	}
-	crashType := args[0]
 
-	profile, err := cpm.GetConnProfile(ConnProfileName)
+	ct, err := xact.CrashTypeFromString(args[0])
 	if err != nil {
-		nmUsage(cmd, err)
+		nmUsage(cmd, util.ChildNewtError(err))
 	}
 
-	conn, err := transport.NewConnWithTimeout(profile, time.Second*1)
+	s, err := GetSesn()
 	if err != nil {
-		nmUsage(cmd, err)
+		nmUsage(nil, err)
 	}
-	defer conn.Close()
+	defer s.Close()
 
-	runner, err := protocol.NewCmdRunner(conn)
+	c := xact.NewCrashCmd()
+	c.SetTxOptions(nmutil.TxOptions())
+	c.CrashType = ct
+
+	res, err := c.Run(s)
 	if err != nil {
-		nmUsage(cmd, err)
+		nmUsage(nil, util.ChildNewtError(err))
 	}
 
-	crash, err := protocol.NewCrash(crashType)
-	if err != nil {
-		nmUsage(cmd, err)
+	sres := res.(*xact.CrashResult)
+	if sres.Rsp.Rc != 0 {
+		fmt.Printf("Error: %d\n", sres.Rsp.Rc)
+	} else {
+		fmt.Printf("Done\n")
 	}
-
-	nmr, err := crash.EncodeWriteRequest()
-	if err != nil {
-		nmUsage(cmd, err)
-	}
-
-	if err := runner.WriteReq(nmr); err != nil {
-		nmUsage(cmd, err)
-	}
-
-	rsp, err := runner.ReadResp()
-	if err == nil {
-		cRsp, err := protocol.DecodeCrashResponse(rsp.Data)
-		if err != nil {
-			nmUsage(cmd, err)
-		}
-		if cRsp.Err != 0 {
-			fmt.Printf("Failed, error:%d\n", cRsp.Err)
-		}
-	}
-	fmt.Println("Done")
 }
 
 func crashCmd() *cobra.Command {
 	crashEx := "   newtmgr -c olimex crash div0\n"
 
+	namesStr := strings.Join(xact.CrashTypeNames(), "|")
 	crashCmd := &cobra.Command{
-		Use:     "crash <div0|jump0|ref0|assert|wdog> -c <conn_profile>",
-		Short:   "Send a crash command to a device",
+		Use:     "crash [" + namesStr + "]",
+		Short:   "Send crash command to remote endpoint using newtmgr",
 		Example: crashEx,
 		Run:     crashRunCmd,
 	}

@@ -21,74 +21,102 @@ package cli
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/spf13/cobra"
 
 	"mynewt.apache.org/newt/newtmgr/nmutil"
-	"mynewt.apache.org/newt/nmxact/sesn"
 	"mynewt.apache.org/newt/nmxact/xact"
 	"mynewt.apache.org/newt/util"
 )
 
-func configRead(s sesn.Sesn, args []string) {
-	c := xact.NewConfigReadCmd()
-	c.SetTxOptions(nmutil.TxOptions())
-	c.Name = args[0]
-
-	res, err := c.Run(s)
-	if err != nil {
-		nmUsage(nil, util.ChildNewtError(err))
-	}
-
-	sres := res.(*xact.ConfigReadResult)
-	if sres.Rsp.Rc != 0 {
-		fmt.Printf("Error: %d\n", sres.Rsp.Rc)
-	} else {
-		fmt.Printf("Value: %s\n", sres.Rsp.Val)
-	}
-}
-
-func configWrite(s sesn.Sesn, args []string) {
-	c := xact.NewConfigWriteCmd()
-	c.SetTxOptions(nmutil.TxOptions())
-	c.Name = args[0]
-	c.Val = args[1]
-
-	res, err := c.Run(s)
-	if err != nil {
-		nmUsage(nil, util.ChildNewtError(err))
-	}
-
-	sres := res.(*xact.ConfigWriteResult)
-	if sres.Rsp.Rc != 0 {
-		fmt.Printf("Error: %d\n", sres.Rsp.Rc)
-	} else {
-		fmt.Printf("Done\n")
-	}
-}
-
-func configRunCmd(cmd *cobra.Command, args []string) {
+func runTestCmd(cmd *cobra.Command, args []string) {
 	s, err := GetSesn()
 	if err != nil {
 		nmUsage(nil, err)
 	}
 	defer s.Close()
 
-	if len(args) == 1 {
-		configRead(s, args)
-	} else if len(args) >= 2 {
-		configWrite(s, args)
+	c := xact.NewRunTestCmd()
+	c.SetTxOptions(nmutil.TxOptions())
+
+	if len(args) == 0 {
+		c.Testname = "all"
 	} else {
-		nmUsage(cmd, nil)
+		c.Testname = args[0]
+		if len(args) > 1 {
+			c.Token = args[1]
+		}
+	}
+
+	res, err := c.Run(s)
+	if err != nil {
+		nmUsage(nil, util.ChildNewtError(err))
+	}
+
+	sres := res.(*xact.RunTestResult)
+	if sres.Rsp.Rc != 0 {
+		fmt.Printf("Error: %d\n", sres.Rsp.Rc)
+		return
+	}
+
+	fmt.Printf("Done\n")
+}
+
+func runListCmd(cmd *cobra.Command, args []string) {
+	s, err := GetSesn()
+	if err != nil {
+		nmUsage(nil, err)
+	}
+	defer s.Close()
+
+	c := xact.NewRunListCmd()
+	c.SetTxOptions(nmutil.TxOptions())
+
+	res, err := c.Run(s)
+	if err != nil {
+		nmUsage(nil, util.ChildNewtError(err))
+	}
+
+	sres := res.(*xact.RunListResult)
+	if sres.Rsp.Rc != 0 {
+		fmt.Printf("Error: %d\n", sres.Rsp.Rc)
+		return
+	}
+
+	sort.Strings(sres.Rsp.List)
+	fmt.Printf("available tests:\n")
+	for _, n := range sres.Rsp.List {
+		fmt.Printf("    %s\n", n)
 	}
 }
 
-func configCmd() *cobra.Command {
-	configCmd := &cobra.Command{
-		Use:   "config <name> [val]",
-		Short: "Read or write config value on target",
-		Run:   configRunCmd,
+func runCmd() *cobra.Command {
+	runCmd := &cobra.Command{
+		Use:   "run",
+		Short: "Run procedures on remote device",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmd.HelpFunc()(cmd, args)
+		},
 	}
 
-	return configCmd
+	runtestEx := "  newtmgr -c conn run test all 201612161220"
+
+	runTestCmd := &cobra.Command{
+		Use: "test [all | testname] [token]",
+		Short: "Run commands on remote device - \"token\" output on log " +
+			"messages",
+		Example: runtestEx,
+		Run:     runTestCmd,
+	}
+	runCmd.AddCommand(runTestCmd)
+
+	runListCmd := &cobra.Command{
+		Use:   "list",
+		Short: "List registered commands on remote device",
+		Run:   runListCmd,
+	}
+	runCmd.AddCommand(runListCmd)
+
+	return runCmd
 }

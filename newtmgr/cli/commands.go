@@ -27,7 +27,6 @@ import (
 	"mynewt.apache.org/newt/util"
 )
 
-var ConnProfileName string
 var NewtmgrLogLevel log.Level
 var NewtmgrHelp bool
 
@@ -38,6 +37,10 @@ func Commands() *cobra.Command {
 		Short: "Newtmgr helps you manage remote devices running the Mynewt OS",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			NewtmgrLogLevel, err := log.ParseLevel(logLevelStr)
+			if err != nil {
+				nmUsage(nil, util.ChildNewtError(err))
+			}
+
 			err = util.Init(NewtmgrLogLevel, "", util.VERBOSITY_DEFAULT)
 			if err != nil {
 				nmUsage(nil, err)
@@ -48,32 +51,31 @@ func Commands() *cobra.Command {
 		},
 	}
 
-	nmCmd.PersistentFlags().StringVarP(&ConnProfileName, "conn", "c", "",
-		"connection profile to use")
+	nmCmd.PersistentFlags().StringVarP(&nmutil.ConnProfile, "conn", "c", "",
+		"connection profile to use.")
+
+	nmCmd.PersistentFlags().Float64VarP(&nmutil.Timeout, "timeout", "t", 10.0,
+		"timeout in seconds (partial seconds allowed)")
+
+	nmCmd.PersistentFlags().IntVarP(&nmutil.Tries, "tries", "r", 1,
+		"total number of tries in case of timeout")
 
 	nmCmd.PersistentFlags().StringVarP(&logLevelStr, "loglevel", "l", "info",
 		"log level to use")
 
-	nmCmd.PersistentFlags().BoolVarP(&nmutil.TraceLogEnabled, "trace", "t",
-		false, "print all bytes transmitted and received")
-
-	// Add the help flag so it shows up under Global Flags
-	nmCmd.PersistentFlags().BoolVarP(&NewtmgrHelp, "help", "h",
-		false, "Help for newtmgr commands")
-
-	nmCmd.AddCommand(configCmd())
-	nmCmd.AddCommand(connProfileCmd())
 	nmCmd.AddCommand(crashCmd())
-	nmCmd.AddCommand(dTimeCmd())
+	nmCmd.AddCommand(dateTimeCmd())
 	nmCmd.AddCommand(fsCmd())
-	nmCmd.AddCommand(echoCmd())
 	nmCmd.AddCommand(imageCmd())
-	nmCmd.AddCommand(logsCmd())
-	nmCmd.AddCommand(mempoolStatsCmd())
+	nmCmd.AddCommand(logCmd())
+	nmCmd.AddCommand(mempoolStatCmd())
 	nmCmd.AddCommand(resetCmd())
 	nmCmd.AddCommand(runCmd())
 	nmCmd.AddCommand(statsCmd())
-	nmCmd.AddCommand(taskStatsCmd())
+	nmCmd.AddCommand(taskStatCmd())
+	nmCmd.AddCommand(configCmd())
+	nmCmd.AddCommand(connProfileCmd())
+	nmCmd.AddCommand(echoCmd())
 
 	return nmCmd
 }

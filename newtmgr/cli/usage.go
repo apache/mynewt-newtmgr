@@ -29,6 +29,12 @@ import (
 	"mynewt.apache.org/newt/util"
 )
 
+var nmOnExit func()
+
+func NmSetOnExit(cb func()) {
+	nmOnExit = cb
+}
+
 func nmUsage(cmd *cobra.Command, err error) {
 	if err != nil {
 		sErr := err.(*util.NewtError)
@@ -40,6 +46,10 @@ func nmUsage(cmd *cobra.Command, err error) {
 		fmt.Printf("\n")
 		fmt.Printf("%s - ", cmd.Name())
 		cmd.Help()
+	}
+
+	if nmOnExit != nil {
+		nmOnExit()
 	}
 	os.Exit(1)
 }

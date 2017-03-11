@@ -20,59 +20,18 @@
 package nmutil
 
 import (
-	"encoding/hex"
-	"fmt"
-	"os"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	"mynewt.apache.org/newt/nmxact/sesn"
 )
 
-var PacketTraceDir string
-var TraceLogEnabled bool
-var traceFile *os.File
+var Timeout float64
+var Tries int
+var ConnProfile string
 
-// @return                      true if the file can be used;
-//                              false otherwise.
-func ensureTraceFileOpen() bool {
-	if traceFile != nil {
-		return true
+func TxOptions() sesn.TxOptions {
+	return sesn.TxOptions{
+		Timeout: time.Duration(Timeout * float64(time.Second)),
+		Tries:   Tries,
 	}
-	if PacketTraceDir == "" {
-		return false
-	}
-
-	now := time.Now()
-	secs := now.Unix()
-
-	filename := fmt.Sprintf("%s/%d", PacketTraceDir, secs)
-
-	var err error
-	traceFile, err = os.Create(filename)
-	if err != nil {
-		return false
-	}
-
-	return true
-}
-
-func traceText(text string) {
-	if ensureTraceFileOpen() {
-		fmt.Fprintf(traceFile, "%s\n", text)
-	}
-	if TraceLogEnabled {
-		log.Infof("%s", text)
-	}
-}
-
-func TraceIncoming(bytes []byte) {
-	traceText(fmt.Sprintf("Incoming:\n%s", hex.Dump(bytes)))
-}
-
-func TraceOutgoing(bytes []byte) {
-	traceText(fmt.Sprintf("Outgoing:\n%s", hex.Dump(bytes)))
-}
-
-func TraceMessage(msg string) {
-	traceText(fmt.Sprintf("Message: %s\n", msg))
 }
