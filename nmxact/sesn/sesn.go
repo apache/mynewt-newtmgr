@@ -3,39 +3,9 @@ package sesn
 import (
 	"time"
 
-	"mynewt.apache.org/newt/nmxact/bledefs"
 	"mynewt.apache.org/newt/nmxact/nmp"
 	"mynewt.apache.org/newt/nmxact/nmxutil"
 )
-
-type MgmtProto int
-
-const (
-	MGMT_PROTO_NMP MgmtProto = iota
-	MGMT_PROTO_OMP
-)
-
-type SesnCfgBle struct {
-	OwnAddrType  bledefs.BleAddrType
-	Peer         bledefs.BleDev
-	CloseTimeout time.Duration
-}
-
-type SesnCfg struct {
-	// Used with all transport types.
-	MgmtProto MgmtProto
-
-	// Only used with BLE transports.
-	Ble SesnCfgBle
-}
-
-func NewSesnCfg() SesnCfg {
-	return SesnCfg{
-		Ble: SesnCfgBle{
-			CloseTimeout: 5 * time.Second,
-		},
-	}
-}
 
 type TxOptions struct {
 	Timeout time.Duration

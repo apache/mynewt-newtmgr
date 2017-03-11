@@ -15,6 +15,7 @@ type BleOicSesn struct {
 	nls          map[*nmp.NmpListener]struct{}
 	od           *omp.OmpDispatcher
 	closeTimeout time.Duration
+	onCloseCb    sesn.OnCloseFn
 
 	closeChan chan error
 	mx        sync.Mutex
@@ -25,10 +26,8 @@ func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 		nls:          map[*nmp.NmpListener]struct{}{},
 		od:           omp.NewOmpDispatcher(),
 		closeTimeout: cfg.Ble.CloseTimeout,
+		onCloseCb:    cfg.OnCloseCb,
 	}
-
-	rxNmpCb := func(d []byte) { bos.onRxNmp(d) }
-	disconnectCb := func(e error) { bos.onDisconnect(e) }
 
 	svcUuid, err := ParseUuid(NmpOicSvcUuid)
 	if err != nil {
@@ -52,8 +51,8 @@ func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 		SvcUuid:      svcUuid,
 		ReqChrUuid:   reqChrUuid,
 		RspChrUuid:   rspChrUuid,
-		RxNmpCb:      rxNmpCb,
-		DisconnectCb: disconnectCb,
+		RxNmpCb:      func(d []byte) { bos.onRxNmp(d) },
+		DisconnectCb: func(e error) { bos.onDisconnect(e) },
 	})
 
 	return bos
@@ -147,6 +146,9 @@ func (bos *BleOicSesn) onDisconnect(err error) {
 	// If the session is being closed, unblock the close() call.
 	if bos.closeChan != nil {
 		bos.closeChan <- err
+	}
+	if bos.onCloseCb != nil {
+		bos.onCloseCb(bos, err)
 	}
 }
 

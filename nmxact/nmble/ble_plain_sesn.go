@@ -14,6 +14,7 @@ type BlePlainSesn struct {
 	nls          map[*nmp.NmpListener]struct{}
 	nd           *nmp.NmpDispatcher
 	closeTimeout time.Duration
+	onCloseCb    sesn.OnCloseFn
 
 	closeChan chan error
 	mx        sync.Mutex
@@ -24,10 +25,8 @@ func NewBlePlainSesn(bx *BleXport, cfg sesn.SesnCfg) *BlePlainSesn {
 		nls:          map[*nmp.NmpListener]struct{}{},
 		nd:           nmp.NewNmpDispatcher(),
 		closeTimeout: cfg.Ble.CloseTimeout,
+		onCloseCb:    cfg.OnCloseCb,
 	}
-
-	rxNmpCb := func(d []byte) { bps.onRxNmp(d) }
-	disconnectCb := func(e error) { bps.onDisconnect(e) }
 
 	svcUuid, err := ParseUuid(NmpPlainSvcUuid)
 	if err != nil {
@@ -46,8 +45,8 @@ func NewBlePlainSesn(bx *BleXport, cfg sesn.SesnCfg) *BlePlainSesn {
 		SvcUuid:      svcUuid,
 		ReqChrUuid:   chrUuid,
 		RspChrUuid:   chrUuid,
-		RxNmpCb:      rxNmpCb,
-		DisconnectCb: disconnectCb,
+		RxNmpCb:      func(d []byte) { bps.onRxNmp(d) },
+		DisconnectCb: func(e error) { bps.onDisconnect(e) },
 	})
 
 	return bps
@@ -141,6 +140,9 @@ func (bps *BlePlainSesn) onDisconnect(err error) {
 	// If the session is being closed, unblock the close() call.
 	if bps.closeChan != nil {
 		bps.closeChan <- err
+	}
+	if bps.onCloseCb != nil {
+		bps.onCloseCb(bps, err)
 	}
 }
 
