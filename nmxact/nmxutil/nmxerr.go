@@ -28,28 +28,26 @@ func IsNmpTimeout(err error) bool {
 	return ok
 }
 
-type SesnDisconnectError struct {
-	Text string
+type BleSesnDisconnectError struct {
+	Text   string
+	Reason int
 }
 
-func NewSesnDisconnectError(text string) *SesnDisconnectError {
-	return &SesnDisconnectError{
-		Text: text,
+func NewBleSesnDisconnectError(reason int,
+	text string) *BleSesnDisconnectError {
+
+	return &BleSesnDisconnectError{
+		Reason: reason,
+		Text:   text,
 	}
 }
 
-func FmtSesnDisconnectError(format string,
-	args ...interface{}) *SesnDisconnectError {
-
-	return NewSesnDisconnectError(fmt.Sprintf(format, args...))
-}
-
-func (e *SesnDisconnectError) Error() string {
+func (e *BleSesnDisconnectError) Error() string {
 	return e.Text
 }
 
-func IsSesnDisconnect(err error) bool {
-	_, ok := err.(*SesnDisconnectError)
+func IsBleSesnDisconnect(err error) bool {
+	_, ok := err.(*BleSesnDisconnectError)
 	return ok
 }
 

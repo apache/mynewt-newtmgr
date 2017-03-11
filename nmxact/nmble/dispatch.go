@@ -46,27 +46,28 @@ type BleMsgBase struct {
 type BleListener struct {
 	BleChan chan BleMsg
 	ErrChan chan error
-	tmoChan chan time.Time
-	acked   bool
-	timer   *time.Timer
+	TmoChan chan time.Time
+	Acked   bool
+
+	timer *time.Timer
 }
 
 func NewBleListener() *BleListener {
 	return &BleListener{
 		BleChan: make(chan BleMsg, 16),
-		ErrChan: make(chan error, 1),
-		tmoChan: make(chan time.Time, 1),
+		ErrChan: make(chan error, 4),
+		TmoChan: make(chan time.Time, 1),
 	}
 }
 
 func (bl *BleListener) AfterTimeout(tmo time.Duration) <-chan time.Time {
 	fn := func() {
-		if !bl.acked {
-			bl.tmoChan <- time.Now()
+		if !bl.Acked {
+			bl.TmoChan <- time.Now()
 		}
 	}
 	bl.timer = time.AfterFunc(tmo, fn)
-	return bl.tmoChan
+	return bl.TmoChan
 }
 
 func (bl *BleListener) Stop() {

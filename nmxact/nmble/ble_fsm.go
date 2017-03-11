@@ -82,6 +82,13 @@ func NewBleFsm(p BleFsmParams) *BleFsm {
 	}
 }
 
+func (bf *BleFsm) disconnectError(reason int) error {
+	str := fmt.Sprintf("BLE peer disconnected; "+
+		"reason=\"%s\" (%d) peer=%s handle=%d",
+		ErrCodeToString(reason), reason, bf.peer.String(), bf.connHandle)
+	return nmxutil.NewBleSesnDisconnectError(reason, str)
+}
+
 func (bf *BleFsm) getState() BleSesnState {
 	bf.stateMx.Lock()
 	defer bf.stateMx.Unlock()
@@ -141,9 +148,9 @@ func (bf *BleFsm) addBleSeqListener(seq int) (*BleListener, error) {
 }
 
 func (bf *BleFsm) removeBleListener(base BleMsgBase) {
-	listener := bf.bx.Bd.RemoveListener(base)
-	if listener != nil {
-		delete(bf.bls, listener)
+	bl := bf.bx.Bd.RemoveListener(base)
+	if bl != nil {
+		delete(bf.bls, bl)
 	}
 }
 
@@ -195,19 +202,20 @@ func (bf *BleFsm) connectListen(seq int) error {
 			case bm := <-bl.BleChan:
 				switch msg := bm.(type) {
 				case *BleConnectRsp:
+					bl.Acked = true
 					if msg.Status != 0 {
 						str := fmt.Sprintf("BLE connection attempt failed; "+
-							"status=%d peer=%s", msg.Status, bf.peer.String())
+							"status=%s (%d) peer=%s",
+							ErrCodeToString(msg.Status), msg.Status,
+							bf.peer.String())
 						log.Debugf(str)
 						bf.connChan <- nmxutil.NewBleHostError(msg.Status, str)
 						return
-					} else {
-						bl.acked = true
 					}
 
 				case *BleConnectEvt:
 					if msg.Status == 0 {
-						bl.acked = true
+						bl.Acked = true
 						log.Debugf("BLE connection attempt succeeded; "+
 							"peer=%d handle=%d", bf.peer.String(),
 							msg.ConnHandle)
@@ -219,7 +227,9 @@ func (bf *BleFsm) connectListen(seq int) error {
 						bf.connChan <- nil
 					} else {
 						str := fmt.Sprintf("BLE connection attempt failed; "+
-							"status=%d peer=%s", msg.Status, bf.peer.String())
+							"status=%s (%d) peer=%s",
+							ErrCodeToString(msg.Status), msg.Status,
+							bf.peer.String())
 						log.Debugf(str)
 						bf.connChan <- nmxutil.NewBleHostError(msg.Status, str)
 						return
@@ -227,8 +237,10 @@ func (bf *BleFsm) connectListen(seq int) error {
 
 				case *BleMtuChangeEvt:
 					if msg.Status != 0 {
-						log.Debugf("BLE ATT MTU update failure; status=%d",
+						err := StatusError(MSG_OP_EVT,
+							MSG_TYPE_MTU_CHANGE_EVT,
 							msg.Status)
+						log.Debugf(err.Error())
 					} else {
 						log.Debugf("BLE ATT MTU updated; from=%d to=%d",
 							bf.attMtu, msg.Mtu)
@@ -236,16 +248,13 @@ func (bf *BleFsm) connectListen(seq int) error {
 					}
 
 				case *BleDisconnectEvt:
-					str := fmt.Sprintf("BLE peer disconnected; "+
-						"reason=\"%s\" (%d) peer=%s handle=%d",
-						ErrCodeToString(msg.Reason), msg.Reason,
-						bf.peer.String(), bf.connHandle)
-					log.Debugf(str)
+					err := bf.disconnectError(msg.Reason)
+					log.Debugf(err.Error())
 
-					err := nmxutil.NewSesnDisconnectError(str)
 					for bl, _ := range bf.bls {
 						bl.ErrChan <- err
 					}
+
 					bf.setState(SESN_STATE_UNCONNECTED)
 					bf.disconnectCb(err)
 					return
@@ -254,7 +263,7 @@ func (bf *BleFsm) connectListen(seq int) error {
 				}
 
 			case <-bl.AfterTimeout(bf.bx.rspTimeout):
-				bf.connChan <- bhdTimeoutError(MSG_TYPE_CONNECT)
+				bf.connChan <- BhdTimeoutError(MSG_TYPE_CONNECT)
 			}
 		}
 	}()

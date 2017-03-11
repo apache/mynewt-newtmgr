@@ -5,7 +5,10 @@ import (
 	"strconv"
 	"sync/atomic"
 
+	log "github.com/Sirupsen/logrus"
+
 	. "mynewt.apache.org/newt/nmxact/bledefs"
+	"mynewt.apache.org/newt/nmxact/nmxutil"
 )
 
 const NmpPlainSvcUuid = "8D53DC1D-1DB7-4CD3-868B-8A527460AA84"
@@ -51,6 +54,25 @@ func ParseUuid(uuidStr string) (BleUuid, error) {
 	}
 
 	return bu, nil
+}
+
+func BhdTimeoutError(rspType MsgType) error {
+	str := fmt.Sprintf("Timeout waiting for blehostd to send %s response",
+		MsgTypeToString(rspType))
+
+	log.Debug(str)
+	return nmxutil.NewXportTimeoutError(str)
+}
+
+func StatusError(op MsgOp, msgType MsgType, status int) error {
+	str := fmt.Sprintf("%s %s indicates error: %s (%d)",
+		MsgOpToString(op),
+		MsgTypeToString(msgType),
+		ErrCodeToString(status),
+		status)
+
+	log.Debug(str)
+	return nmxutil.NewBleHostError(status, str)
 }
 
 func NewBleConnectReq() *BleConnectReq {
