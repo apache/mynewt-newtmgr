@@ -48,7 +48,6 @@ func fsDownloadRunCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, err)
 	}
-	defer s.Close()
 
 	c := xact.NewFsDownloadCmd()
 	c.SetTxOptions(nmutil.TxOptions())
@@ -89,7 +88,6 @@ func fsUploadRunCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, err)
 	}
-	defer s.Close()
 
 	c := xact.NewFsUploadCmd()
 	c.SetTxOptions(nmutil.TxOptions())

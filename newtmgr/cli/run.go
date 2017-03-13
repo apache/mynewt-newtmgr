@@ -35,7 +35,6 @@ func runTestCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, err)
 	}
-	defer s.Close()
 
 	c := xact.NewRunTestCmd()
 	c.SetTxOptions(nmutil.TxOptions())
@@ -68,7 +67,6 @@ func runListCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, err)
 	}
-	defer s.Close()
 
 	c := xact.NewRunListCmd()
 	c.SetTxOptions(nmutil.TxOptions())

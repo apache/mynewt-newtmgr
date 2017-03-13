@@ -88,7 +88,6 @@ func imageStateListCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, err)
 	}
-	defer s.Close()
 
 	c := xact.NewImageStateReadCmd()
 	c.SetTxOptions(nmutil.TxOptions())
@@ -118,7 +117,6 @@ func imageStateTestCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, err)
 	}
-	defer s.Close()
 
 	c := xact.NewImageStateWriteCmd()
 	c.SetTxOptions(nmutil.TxOptions())
@@ -150,7 +148,6 @@ func imageStateConfirmCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, err)
 	}
-	defer s.Close()
 
 	c := xact.NewImageStateWriteCmd()
 	c.SetTxOptions(nmutil.TxOptions())
@@ -182,7 +179,6 @@ func imageUploadCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, err)
 	}
-	defer s.Close()
 
 	c := xact.NewImageUploadCmd()
 	c.SetTxOptions(nmutil.TxOptions())
@@ -210,7 +206,6 @@ func coreListCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, err)
 	}
-	defer s.Close()
 
 	c := xact.NewCoreListCmd()
 	c.SetTxOptions(nmutil.TxOptions())
@@ -249,7 +244,6 @@ func coreDownloadCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, err)
 	}
-	defer s.Close()
 
 	c := xact.NewCoreLoadCmd()
 	c.SetTxOptions(nmutil.TxOptions())
@@ -291,7 +285,6 @@ func coreEraseCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, err)
 	}
-	defer s.Close()
 
 	c := xact.NewCoreEraseCmd()
 	c.SetTxOptions(nmutil.TxOptions())

@@ -66,7 +66,6 @@ func logShowCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, err)
 	}
-	defer s.Close()
 
 	res, err := c.Run(s)
 	if err != nil {
@@ -107,7 +106,6 @@ func logListCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, err)
 	}
-	defer s.Close()
 
 	c := xact.NewLogListCmd()
 	c.SetTxOptions(nmutil.TxOptions())
@@ -136,7 +134,6 @@ func logModuleListCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, err)
 	}
-	defer s.Close()
 
 	c := xact.NewLogModuleListCmd()
 	c.SetTxOptions(nmutil.TxOptions())
@@ -169,7 +166,6 @@ func logLevelListCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, err)
 	}
-	defer s.Close()
 
 	c := xact.NewLogLevelListCmd()
 	c.SetTxOptions(nmutil.TxOptions())
@@ -202,7 +198,6 @@ func logClearCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, err)
 	}
-	defer s.Close()
 
 	c := xact.NewLogClearCmd()
 	c.SetTxOptions(nmutil.TxOptions())

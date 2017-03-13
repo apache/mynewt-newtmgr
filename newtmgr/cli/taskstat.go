@@ -35,7 +35,6 @@ func taskStatRunCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, err)
 	}
-	defer s.Close()
 
 	c := xact.NewTaskStatCmd()
 	c.SetTxOptions(nmutil.TxOptions())

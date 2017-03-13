@@ -35,7 +35,6 @@ func mempoolStatRunCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, err)
 	}
-	defer s.Close()
 
 	c := xact.NewMempoolStatCmd()
 	c.SetTxOptions(nmutil.TxOptions())

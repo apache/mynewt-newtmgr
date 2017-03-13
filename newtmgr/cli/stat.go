@@ -35,7 +35,6 @@ func statsListRunCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, err)
 	}
-	defer s.Close()
 
 	c := xact.NewStatListCmd()
 	c.SetTxOptions(nmutil.TxOptions())
@@ -73,7 +72,6 @@ func statsRunCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, err)
 	}
-	defer s.Close()
 
 	c := xact.NewStatReadCmd()
 	c.SetTxOptions(nmutil.TxOptions())

@@ -70,7 +70,6 @@ func dateTimeRunCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, err)
 	}
-	defer s.Close()
 
 	if len(args) == 0 {
 		if err := dateTimeRead(s); err != nil {

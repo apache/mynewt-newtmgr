@@ -34,7 +34,6 @@ func resetRunCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, err)
 	}
-	defer s.Close()
 
 	c := xact.NewResetCmd()
 	c.SetTxOptions(nmutil.TxOptions())

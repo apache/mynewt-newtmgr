@@ -72,7 +72,6 @@ func configRunCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, err)
 	}
-	defer s.Close()
 
 	if len(args) == 1 {
 		configRead(s, args)

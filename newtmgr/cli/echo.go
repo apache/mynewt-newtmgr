@@ -38,7 +38,6 @@ func echoRunCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, err)
 	}
-	defer s.Close()
 
 	c := xact.NewEchoCmd()
 	c.SetTxOptions(nmutil.TxOptions())
