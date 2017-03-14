@@ -55,15 +55,18 @@ type BleFsm struct {
 	rxNmpCb      BleRxNmpFn
 	disconnectCb BleDisconnectFn
 
-	state      BleSesnState
 	connHandle int
-	bls        map[*BleListener]struct{}
 	nmpSvc     *BleSvc
 	nmpReqChr  *BleChr
 	nmpRspChr  *BleChr
 	attMtu     int
 	connChan   chan error
-	stateMx    sync.Mutex
+
+	mtx sync.Mutex
+
+	// These variables must be protected by the mutex.
+	bls   map[*BleListener]struct{}
+	state BleSesnState
 }
 
 func NewBleFsm(p BleFsmParams) *BleFsm {
@@ -90,15 +93,15 @@ func (bf *BleFsm) disconnectError(reason int) error {
 }
 
 func (bf *BleFsm) getState() BleSesnState {
-	bf.stateMx.Lock()
-	defer bf.stateMx.Unlock()
+	bf.mtx.Lock()
+	defer bf.mtx.Unlock()
 
 	return bf.state
 }
 
 func (bf *BleFsm) setState(toState BleSesnState) {
-	bf.stateMx.Lock()
-	defer bf.stateMx.Unlock()
+	bf.mtx.Lock()
+	defer bf.mtx.Unlock()
 
 	bf.state = toState
 }
@@ -106,8 +109,8 @@ func (bf *BleFsm) setState(toState BleSesnState) {
 func (bf *BleFsm) transitionState(fromState BleSesnState,
 	toState BleSesnState) error {
 
-	bf.stateMx.Lock()
-	defer bf.stateMx.Unlock()
+	bf.mtx.Lock()
+	defer bf.mtx.Unlock()
 
 	if bf.state != fromState {
 		return fmt.Errorf(
@@ -122,7 +125,10 @@ func (bf *BleFsm) transitionState(fromState BleSesnState,
 
 func (bf *BleFsm) addBleListener(base BleMsgBase) (*BleListener, error) {
 	bl := NewBleListener()
+
+	bf.mtx.Lock()
 	bf.bls[bl] = struct{}{}
+	bf.mtx.Unlock()
 
 	if err := bf.bx.Bd.AddListener(base, bl); err != nil {
 		delete(bf.bls, bl)
@@ -150,7 +156,9 @@ func (bf *BleFsm) addBleSeqListener(seq int) (*BleListener, error) {
 func (bf *BleFsm) removeBleListener(base BleMsgBase) {
 	bl := bf.bx.Bd.RemoveListener(base)
 	if bl != nil {
+		bf.mtx.Lock()
 		delete(bf.bls, bl)
+		bf.mtx.Unlock()
 	}
 }
 
@@ -251,7 +259,14 @@ func (bf *BleFsm) connectListen(seq int) error {
 					err := bf.disconnectError(msg.Reason)
 					log.Debugf(err.Error())
 
+					bf.mtx.Lock()
+					bls := make([]*BleListener, 0, len(bf.bls))
 					for bl, _ := range bf.bls {
+						bls = append(bls, bl)
+					}
+					bf.mtx.Unlock()
+
+					for _, bl := range bls {
 						bl.ErrChan <- err
 					}
 
@@ -324,22 +339,28 @@ func (bf *BleFsm) connect() error {
 	return nil
 }
 
-func (bf *BleFsm) terminate() error {
-	{
-		bf.stateMx.Lock()
-		defer bf.stateMx.Unlock()
+func (bf *BleFsm) terminateSetState() error {
+	bf.mtx.Lock()
+	defer bf.mtx.Unlock()
 
-		switch bf.state {
-		case SESN_STATE_UNCONNECTED,
-			SESN_STATE_CONNECTING,
-			SESN_STATE_CONN_CANCELLING:
-			return fmt.Errorf("BLE terminate failed; not connected")
-		case SESN_STATE_TERMINATING:
-			return fmt.Errorf(
-				"BLE terminate failed; session already being closed")
-		default:
-			bf.state = SESN_STATE_TERMINATING
-		}
+	switch bf.state {
+	case SESN_STATE_UNCONNECTED,
+		SESN_STATE_CONNECTING,
+		SESN_STATE_CONN_CANCELLING:
+		return fmt.Errorf("BLE terminate failed; not connected")
+	case SESN_STATE_TERMINATING:
+		return fmt.Errorf(
+			"BLE terminate failed; session already being closed")
+	default:
+		bf.state = SESN_STATE_TERMINATING
+	}
+
+	return nil
+}
+
+func (bf *BleFsm) terminate() error {
+	if err := bf.terminateSetState(); err != nil {
+		return err
 	}
 
 	r := NewBleTerminateReq()
