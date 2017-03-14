@@ -3,10 +3,16 @@ package coap
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"sort"
+)
+
+const (
+	TCP_MESSAGE_LEN13_BASE = 13
+	TCP_MESSAGE_LEN14_BASE = 269
+	TCP_MESSAGE_LEN15_BASE = 65805
+	TCP_MESSAGE_MAX_LEN    = 4295033101
 )
 
 // TcpMessage is a CoAP Message that can encode itself for TCP
@@ -30,6 +36,16 @@ func (m *TcpMessage) MarshalBinary() ([]byte, error) {
 	      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 	      |1 1 1 1 1 1 1 1|    Payload (if any) ...
 	      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+	   The size of the Extended Length field is inferred from the value of the
+	   Len field as follows:
+
+	   | Len value  | Extended Length size  | Total length              |
+	   +------------+-----------------------+---------------------------+
+	   | 0-12       | 0                     | Len                       |
+	   | 13         | 1                     | Extended Length + 13      |
+	   | 14         | 2                     | Extended Length + 269     |
+	   | 15         | 4                     | Extended Length + 65805   |
 	*/
 
 	buf := bytes.Buffer{}
@@ -45,20 +61,20 @@ func (m *TcpMessage) MarshalBinary() ([]byte, error) {
 	var lenNib uint8
 	var extLenBytes []byte
 
-	if buf.Len() < 13 {
+	if buf.Len() < TCP_MESSAGE_LEN14_BASE {
 		lenNib = uint8(buf.Len())
-	} else if buf.Len() < 269 {
+	} else if buf.Len() < TCP_MESSAGE_LEN14_BASE {
 		lenNib = 13
-		extLen := buf.Len() - 13
+		extLen := buf.Len() - TCP_MESSAGE_LEN13_BASE
 		extLenBytes = []byte{uint8(extLen)}
-	} else if buf.Len() < 65805 {
+	} else if buf.Len() < TCP_MESSAGE_LEN15_BASE {
 		lenNib = 14
-		extLen := buf.Len() - 269
+		extLen := buf.Len() - TCP_MESSAGE_LEN14_BASE
 		extLenBytes = make([]byte, 2)
 		binary.BigEndian.PutUint16(extLenBytes, uint16(extLen))
-	} else {
+	} else if buf.Len() < TCP_MESSAGE_MAX_LEN {
 		lenNib = 15
-		extLen := buf.Len() - 65805
+		extLen := buf.Len() - TCP_MESSAGE_LEN15_BASE
 		extLenBytes = make([]byte, 4)
 		binary.BigEndian.PutUint32(extLenBytes, uint32(extLen))
 	}
@@ -89,75 +105,104 @@ func (m *TcpMessage) MarshalBinary() ([]byte, error) {
 	return append(hdr, buf.Bytes()...), nil
 }
 
+// msgTcpInfo describes a single TCP CoAP message.  Used during reassembly.
 type msgTcpInfo struct {
-	tkl       uint8
-	code      uint8
-	messageId uint16
-	totLen    int
-	tokenOff  int
+	typ    uint8
+	token  []byte
+	code   uint8
+	hdrLen int
+	totLen int
 }
 
-func parseTcpMsgInfo(data []byte) (msgTcpInfo, bool) {
+// readTcpMsgInfo infers information about a TCP CoAP message from the first
+// fragment.
+func readTcpMsgInfo(r io.Reader) (msgTcpInfo, error) {
 	mti := msgTcpInfo{}
-
-	if len(data) < 1 {
-		return mti, false
-	}
 
 	hdrOff := 0
 
-	firstByte := data[hdrOff]
+	var firstByte byte
+	if err := binary.Read(r, binary.BigEndian, &firstByte); err != nil {
+		return mti, err
+	}
 	hdrOff++
 
 	lenNib := (firstByte & 0xf0) >> 4
-	mti.tkl = firstByte & 0x0f
+	tkl := firstByte & 0x0f
 
 	var opLen int
-	if lenNib < 13 {
+	if lenNib < TCP_MESSAGE_LEN13_BASE {
 		opLen = int(lenNib)
 	} else if lenNib == 13 {
-		if len(data) < hdrOff+1 {
-			return mti, false
+		var extLen byte
+		if err := binary.Read(r, binary.BigEndian, &extLen); err != nil {
+			return mti, err
 		}
-		extLen := uint32(data[hdrOff])
 		hdrOff++
-
-		opLen = 13 + int(extLen)
+		opLen = TCP_MESSAGE_LEN13_BASE + int(extLen)
 	} else if lenNib == 14 {
-		if len(data) < hdrOff+2 {
-			return mti, false
+		var extLen uint16
+		if err := binary.Read(r, binary.BigEndian, &extLen); err != nil {
+			return mti, err
 		}
-		extLen := binary.BigEndian.Uint16(data[hdrOff : hdrOff+2])
 		hdrOff += 2
-
-		opLen = 269 + int(extLen)
+		opLen = TCP_MESSAGE_LEN14_BASE + int(extLen)
 	} else if lenNib == 15 {
-		if len(data) < hdrOff+4 {
-			return mti, false
+		var extLen uint32
+		if err := binary.Read(r, binary.BigEndian, &extLen); err != nil {
+			return mti, err
 		}
-		extLen := binary.BigEndian.Uint32(data[hdrOff : hdrOff+4])
 		hdrOff += 4
-
-		opLen = 65805 + int(extLen)
+		opLen = TCP_MESSAGE_LEN15_BASE + int(extLen)
 	}
 
-	mti.totLen = hdrOff + 1 + int(mti.tkl) + opLen
-	if len(data) < mti.totLen-opLen {
-		return mti, false
-	}
+	mti.totLen = hdrOff + 1 + int(tkl) + opLen
 
-	mti.code = data[hdrOff]
+	if err := binary.Read(r, binary.BigEndian, &mti.code); err != nil {
+		return mti, err
+	}
 	hdrOff++
 
-	mti.tokenOff = hdrOff
+	mti.token = make([]byte, tkl)
+	if _, err := io.ReadFull(r, mti.token); err != nil {
+		return mti, err
+	}
+	hdrOff += int(tkl)
 
-	return mti, true
+	mti.hdrLen = hdrOff
+
+	return mti, nil
+}
+
+func readTcpMsgBody(mti msgTcpInfo, r io.Reader) (options, []byte, error) {
+	bodyLen := mti.totLen - mti.hdrLen
+	b := make([]byte, bodyLen)
+	if _, err := io.ReadFull(r, b); err != nil {
+		return nil, nil, err
+	}
+
+	o, p, err := parseBody(b)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return o, p, nil
+}
+
+func (m *TcpMessage) fill(mti msgTcpInfo, o options, p []byte) {
+	m.Type = COAPType(mti.typ)
+	m.Code = COAPCode(mti.code)
+	m.Token = mti.token
+	m.opts = o
+	m.Payload = p
 }
 
 func (m *TcpMessage) UnmarshalBinary(data []byte) error {
-	mti, ok := parseTcpMsgInfo(data)
-	if !ok {
-		return errors.New("short packet")
+	r := bytes.NewReader(data)
+
+	mti, err := readTcpMsgInfo(r)
+	if err != nil {
+		return fmt.Errorf("Error reading TCP CoAP header; %s", err.Error())
 	}
 
 	if len(data) != mti.totLen {
@@ -165,58 +210,65 @@ func (m *TcpMessage) UnmarshalBinary(data []byte) error {
 			mti.totLen, len(data))
 	}
 
-	if mti.tkl > 0 {
-		m.Token = make([]byte, mti.tkl)
-		copy(m.Message.Token, data[mti.tokenOff:mti.tokenOff+int(mti.tkl)])
-	}
-
-	p, o, err := parseOpts(data[mti.tokenOff+int(mti.tkl):])
+	o, p, err := readTcpMsgBody(mti, r)
 	if err != nil {
 		return err
 	}
 
-	m.Code = COAPCode(mti.code)
-	m.MessageID = mti.messageId
-	m.Payload = p
-	m.opts = o
-
+	m.fill(mti, o, p)
 	return nil
 }
 
+// PullTcp extracts a complete TCP CoAP message from the front of a byte queue.
+//
+// Return values:
+//  *TcpMessage: On success, points to the extracted message; nil if a complete
+//               message could not be extracted.
+//  []byte: The unread portion of of the supplied byte buffer.  If a message
+//          was not extracted, this is the unchanged buffer that was passed in.
+//  error: Non-nil if the buffer contains an invalid CoAP message.
+//
+// Note: It is not an error if the supplied buffer does not contain a complete
+// message.  In such a case, nil *TclMessage and error values are returned
+// along with the original buffer.
 func PullTcp(data []byte) (*TcpMessage, []byte, error) {
-	mti, ok := parseTcpMsgInfo(data)
-	if !ok {
-		return nil, data, nil
+	r := bytes.NewReader(data)
+	m, err := Decode(r)
+	if err != nil {
+		if err == io.EOF {
+			// Packet is incomplete.
+			return nil, data, nil
+		} else {
+			// Some other error.
+			return nil, data, err
+		}
 	}
 
-	if len(data) < mti.totLen {
-		return nil, data, nil
+	// Determine the number of bytes read.  These bytes get trimmed from the
+	// front of the returned data slice.
+	sz, err := r.Seek(0, io.SeekCurrent)
+	if err != nil {
+		// This should never happen.
+		return nil, data, err
 	}
 
-	mbytes := data[:mti.totLen]
-	nextData := data[mti.totLen:]
-
-	m := &TcpMessage{}
-	err := m.UnmarshalBinary(mbytes)
-	return m, nextData, err
+	return m, data[sz:], nil
 }
 
 // Decode reads a single message from its input.
 func Decode(r io.Reader) (*TcpMessage, error) {
-	var ln uint16
-	err := binary.Read(r, binary.BigEndian, &ln)
+	mti, err := readTcpMsgInfo(r)
 	if err != nil {
 		return nil, err
 	}
 
-	packet := make([]byte, ln)
-	_, err = io.ReadFull(r, packet)
+	o, p, err := readTcpMsgBody(mti, r)
 	if err != nil {
 		return nil, err
 	}
 
-	m := TcpMessage{}
+	m := &TcpMessage{}
+	m.fill(mti, o, p)
 
-	err = m.UnmarshalBinary(packet)
-	return &m, err
+	return m, nil
 }

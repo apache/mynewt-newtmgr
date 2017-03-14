@@ -553,12 +553,16 @@ func (m *Message) MarshalBinary() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// ParseMessage extracts the Message from the given input.
 func ParseMessage(data []byte) (Message, error) {
 	rv := Message{}
 	return rv, rv.UnmarshalBinary(data)
 }
 
-func parseOpts(data []byte) ([]byte, options, error) {
+// parseBody extracts the options and payload from a byte slice.  The supplied
+// byte slice contains everything following the message header (everything
+// after the token).
+func parseBody(data []byte) (options, []byte, error) {
 	prev := 0
 
 	parseExtOpt := func(opt int) (int, error) {
@@ -579,7 +583,7 @@ func parseOpts(data []byte) ([]byte, options, error) {
 		return opt, nil
 	}
 
-	opts := options{}
+	var opts options
 
 	for len(data) > 0 {
 		if data[0] == 0xff {
@@ -611,6 +615,7 @@ func parseOpts(data []byte) ([]byte, options, error) {
 
 		oid := OptionID(prev + delta)
 		opval := parseOptionValue(oid, data[:length])
+		data = data[length:]
 		prev = int(oid)
 
 		if opval != nil {
@@ -619,10 +624,10 @@ func parseOpts(data []byte) ([]byte, options, error) {
 		}
 	}
 
-	return data, opts, nil
+	return opts, data, nil
 }
 
-// UnmarjhalBinary parses the given binary slice as a Message.
+// UnmarshalBinary parses the given binary slice as a Message.
 func (m *Message) UnmarshalBinary(data []byte) error {
 	if len(data) < 4 {
 		return errors.New("short packet")
@@ -650,7 +655,7 @@ func (m *Message) UnmarshalBinary(data []byte) error {
 	copy(m.Token, data[4:4+tokenLen])
 	b := data[4+tokenLen:]
 
-	p, o, err := parseOpts(b)
+	o, p, err := parseBody(b)
 	if err != nil {
 		return err
 	}
