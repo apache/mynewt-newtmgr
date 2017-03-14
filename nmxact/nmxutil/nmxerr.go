@@ -51,6 +51,44 @@ func IsBleSesnDisconnect(err error) bool {
 	return ok
 }
 
+type SesnAlreadyOpenError struct {
+	Text string
+}
+
+func NewSesnAlreadyOpenError(text string) *SesnAlreadyOpenError {
+	return &SesnAlreadyOpenError{
+		Text: text,
+	}
+}
+
+func (e *SesnAlreadyOpenError) Error() string {
+	return e.Text
+}
+
+func IsSesnAlreadyOpen(err error) bool {
+	_, ok := err.(*SesnAlreadyOpenError)
+	return ok
+}
+
+type SesnClosedError struct {
+	Text string
+}
+
+func NewSesnClosedError(text string) *SesnClosedError {
+	return &SesnClosedError{
+		Text: text,
+	}
+}
+
+func (e *SesnClosedError) Error() string {
+	return e.Text
+}
+
+func IsSesnClosed(err error) bool {
+	_, ok := err.(*SesnClosedError)
+	return ok
+}
+
 // Represents a low-level transport error.
 type XportError struct {
 	Text string

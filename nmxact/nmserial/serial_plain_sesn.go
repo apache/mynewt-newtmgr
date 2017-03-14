@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"mynewt.apache.org/newt/nmxact/nmp"
+	"mynewt.apache.org/newt/nmxact/nmxutil"
 	"mynewt.apache.org/newt/nmxact/sesn"
 )
 
@@ -13,8 +14,9 @@ type SerialPlainSesn struct {
 	nd     *nmp.NmpDispatcher
 	isOpen bool
 
-	// This mutex ensures each response get matched up with its corresponding
-	// request.
+	// This mutex ensures:
+	//     * each response get matched up with its corresponding request.
+	//     * accesses to isOpen are protected.
 	m sync.Mutex
 }
 
@@ -26,10 +28,12 @@ func NewSerialPlainSesn(sx *SerialXport) *SerialPlainSesn {
 }
 
 func (sps *SerialPlainSesn) Open() error {
-	// XXX: Not strictly thread safe.
+	sps.m.Lock()
+	defer sps.m.Unlock()
+
 	if sps.isOpen {
-		return fmt.Errorf(
-			"Attempt to open an already-open serial plain session")
+		return nmxutil.NewSesnAlreadyOpenError(
+			"Attempt to open an already-open serial session")
 	}
 
 	sps.isOpen = true
@@ -37,16 +41,21 @@ func (sps *SerialPlainSesn) Open() error {
 }
 
 func (sps *SerialPlainSesn) Close() error {
-	// XXX: Not strictly thread safe.
+	sps.m.Lock()
+	defer sps.m.Unlock()
+
 	if !sps.isOpen {
-		return fmt.Errorf(
-			"Attempt to close an unopened serial plain session")
+		return nmxutil.NewSesnClosedError(
+			"Attempt to close an unopened serial session")
 	}
 	sps.isOpen = false
 	return nil
 }
 
 func (sps *SerialPlainSesn) IsOpen() bool {
+	sps.m.Lock()
+	defer sps.m.Unlock()
+
 	return sps.isOpen
 }
 
@@ -82,6 +91,11 @@ func (sps *SerialPlainSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 
 	sps.m.Lock()
 	defer sps.m.Unlock()
+
+	if !sps.isOpen {
+		return nil, nmxutil.NewSesnClosedError(
+			"Attempt to transmit over closed serial session")
+	}
 
 	nl, err := sps.addNmpListener(msg.Hdr.Seq)
 	if err != nil {

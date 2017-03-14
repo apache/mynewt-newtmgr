@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"mynewt.apache.org/newt/nmxact/nmp"
+	"mynewt.apache.org/newt/nmxact/nmxutil"
 	"mynewt.apache.org/newt/nmxact/sesn"
 )
 
@@ -101,7 +102,8 @@ func (bps *BlePlainSesn) Open() error {
 
 func (bps *BlePlainSesn) Close() error {
 	if !bps.setCloseChan() {
-		return fmt.Errorf("BLE session already being closed")
+		return nmxutil.NewSesnClosedError(
+			"Attempt to close an unopened BLE session")
 	}
 	defer bps.clearCloseChan()
 
@@ -150,9 +152,9 @@ func (bps *BlePlainSesn) onDisconnect(err error) {
 func (bps *BlePlainSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 	nmp.NmpRsp, error) {
 
-	// Make sure peer is connected.
-	if err := bps.Open(); err != nil {
-		return nil, err
+	if !bps.IsOpen() {
+		return nil, nmxutil.NewSesnClosedError(
+			"Attempt to transmit over closed BLE session")
 	}
 
 	nl, err := bps.addNmpListener(msg.Hdr.Seq)
