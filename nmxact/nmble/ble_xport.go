@@ -14,23 +14,29 @@ import (
 	"mynewt.apache.org/newt/util/unixchild"
 )
 
-type BleXportCfg struct {
+type XportCfg struct {
 	// Path of Unix domain socket to create and listen on.
 	SockPath string
 
 	// Path of the blehostd executable.
 	BlehostdPath string
 
+	// How long to wait for the blehostd process to connect to the Unix domain
+	// socket.
 	BlehostdAcceptTimeout time.Duration
-	BlehostdRestart       bool
-	BlehostdRspTimeout    time.Duration
+
+	// Whether to restart the blehostd process if it terminates.
+	BlehostdRestart bool
+
+	// How long to wait for a JSON response from the blehostd process.
+	BlehostdRspTimeout time.Duration
 
 	// Path of the BLE controller device (e.g., /dev/ttyUSB0).
 	DevPath string
 }
 
-func NewBleXportCfg() BleXportCfg {
-	return BleXportCfg{
+func NewXportCfg() XportCfg {
+	return XportCfg{
 		BlehostdAcceptTimeout: time.Second,
 		BlehostdRestart:       true,
 		BlehostdRspTimeout:    time.Second,
@@ -55,7 +61,7 @@ type BleXport struct {
 	rspTimeout  time.Duration
 }
 
-func NewBleXport(cfg BleXportCfg) (*BleXport, error) {
+func NewBleXport(cfg XportCfg) (*BleXport, error) {
 	config := unixchild.Config{
 		SockPath:      cfg.SockPath,
 		ChildPath:     cfg.BlehostdPath,

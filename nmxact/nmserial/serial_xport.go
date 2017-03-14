@@ -23,15 +23,21 @@ type XportCfg struct {
 	ReadTimeout time.Duration
 }
 
+func NewXportCfg() *XportCfg {
+	return &XportCfg{
+		ReadTimeout: 10 * time.Second,
+	}
+}
+
 type SerialXport struct {
-	cfg     XportCfg
+	cfg     *XportCfg
 	port    *serial.Port
 	scanner *bufio.Scanner
 
 	pkt *Packet
 }
 
-func NewSerialXport(cfg XportCfg) *SerialXport {
+func NewSerialXport(cfg *XportCfg) *SerialXport {
 	return &SerialXport{
 		cfg: cfg,
 	}
