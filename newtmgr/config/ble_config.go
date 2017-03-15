@@ -112,7 +112,7 @@ func FillSesnCfg(bc *BleConfig, sc *sesn.SesnCfg) {
 }
 
 func BuildBleXport(bc *BleConfig) (*nmble.BleXport, error) {
-	params := nmble.NewBleXportCfg()
+	params := nmble.NewXportCfg()
 	params.SockPath = "/tmp/blehostd-uds"
 	params.BlehostdPath = bc.BlehostdPath
 	params.DevPath = bc.ControllerPath

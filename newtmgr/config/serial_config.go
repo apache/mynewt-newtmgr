@@ -15,12 +15,10 @@ func einvalSerialConnString(f string, args ...interface{}) error {
 	return util.FmtNewtError("Invalid serial connstring; %s", suffix)
 }
 
-func ParseSerialConnString(cs string) (nmserial.XportCfg, error) {
-	sc := nmserial.XportCfg{
-		DevPath:     "",
-		Baud:        115200,
-		ReadTimeout: nmutil.TxOptions().Timeout,
-	}
+func ParseSerialConnString(cs string) (*nmserial.XportCfg, error) {
+	sc := nmserial.NewXportCfg()
+	sc.Baud = 115200
+	sc.ReadTimeout = nmutil.TxOptions().Timeout
 
 	parts := strings.Split(cs, ",")
 	for _, p := range parts {
@@ -52,7 +50,7 @@ func ParseSerialConnString(cs string) (nmserial.XportCfg, error) {
 	return sc, nil
 }
 
-func BuildSerialXport(sc nmserial.XportCfg) (*nmserial.SerialXport, error) {
+func BuildSerialXport(sc *nmserial.XportCfg) (*nmserial.SerialXport, error) {
 	sx := nmserial.NewSerialXport(sc)
 	if err := sx.Start(); err != nil {
 		return nil, util.ChildNewtError(err)
