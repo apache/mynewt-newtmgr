@@ -26,10 +26,17 @@ func (opt *TxOptions) AfterTimeout() <-chan time.Time {
 type Sesn interface {
 	// Initiates communication with the peer.  For connection-oriented
 	// transports, this creates a connection.
+	// Returns:
+	//     * nil: success.
+	//     * nmxutil.SesnAlreadyOpenError: session already open.
+	//     * other error
 	Open() error
 
 	// Ends communication with the peer.  For connection-oriented transports,
 	// this closes the connection.
+	//     * nil: success.
+	//     * nmxutil.SesnClosedError: session not open.
+	//     * other error
 	Close() error
 
 	// Indicates whether the session is currently open.
@@ -41,8 +48,14 @@ type Sesn interface {
 	// Retrieves the maximum data payload for incoming NMP responses.
 	MtuIn() int
 
-	// Transmits a single NMP message and listens for the response.  Blocking.
-	TxNmpOnce(msg *nmp.NmpMsg, opt TxOptions) (nmp.NmpRsp, error)
+	EncodeNmpMsg(msg *nmp.NmpMsg) ([]byte, error)
+
+	// Performs a blocking transmit a single NMP message and listens for the
+	// response.
+	//     * nil: success.
+	//     * nmxutil.SesnClosedError: session not open.
+	//     * other error
+	TxNmpOnce(m *nmp.NmpMsg, opt TxOptions) (nmp.NmpRsp, error)
 
 	// Stops a receive operation in progress.  This must be called from a
 	// separate thread, as sesn receive operations are blocking.

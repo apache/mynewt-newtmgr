@@ -5,8 +5,11 @@ import (
 	"sync"
 	"time"
 
+	"mynewt.apache.org/newt/nmxact/bledefs"
 	"mynewt.apache.org/newt/nmxact/nmp"
+	"mynewt.apache.org/newt/nmxact/nmxutil"
 	"mynewt.apache.org/newt/nmxact/sesn"
+	"mynewt.apache.org/newt/util"
 )
 
 type BlePlainSesn struct {
@@ -101,7 +104,8 @@ func (bps *BlePlainSesn) Open() error {
 
 func (bps *BlePlainSesn) Close() error {
 	if !bps.setCloseChan() {
-		return fmt.Errorf("BLE session already being closed")
+		return nmxutil.NewSesnClosedError(
+			"Attempt to close an unopened BLE session")
 	}
 	defer bps.clearCloseChan()
 
@@ -146,13 +150,17 @@ func (bps *BlePlainSesn) onDisconnect(err error) {
 	}
 }
 
+func (bps *BlePlainSesn) EncodeNmpMsg(m *nmp.NmpMsg) ([]byte, error) {
+	return nmp.EncodeNmpPlain(m)
+}
+
 // Blocking.
 func (bps *BlePlainSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 	nmp.NmpRsp, error) {
 
-	// Make sure peer is connected.
-	if err := bps.Open(); err != nil {
-		return nil, err
+	if !bps.IsOpen() {
+		return nil, nmxutil.NewSesnClosedError(
+			"Attempt to transmit over closed BLE session")
 	}
 
 	nl, err := bps.addNmpListener(msg.Hdr.Seq)
@@ -161,7 +169,7 @@ func (bps *BlePlainSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 	}
 	defer bps.removeNmpListener(msg.Hdr.Seq)
 
-	b, err := nmp.EncodeNmpPlain(msg)
+	b, err := bps.EncodeNmpMsg(msg)
 	if err != nil {
 		return nil, err
 	}
@@ -174,5 +182,6 @@ func (bps *BlePlainSesn) MtuIn() int {
 }
 
 func (bps *BlePlainSesn) MtuOut() int {
-	return bps.bf.attMtu - WRITE_CMD_BASE_SZ - nmp.NMP_HDR_SIZE
+	mtu := bps.bf.attMtu - WRITE_CMD_BASE_SZ - nmp.NMP_HDR_SIZE
+	return util.IntMin(mtu, bledefs.BLE_ATT_ATTR_MAX_LEN)
 }

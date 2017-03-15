@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"mynewt.apache.org/newt/nmxact/nmp"
+	"mynewt.apache.org/newt/nmxact/nmxutil"
 	"mynewt.apache.org/newt/nmxact/sesn"
 )
 
@@ -13,8 +14,9 @@ type SerialPlainSesn struct {
 	nd     *nmp.NmpDispatcher
 	isOpen bool
 
-	// This mutex ensures each response get matched up with its corresponding
-	// request.
+	// This mutex ensures:
+	//     * each response get matched up with its corresponding request.
+	//     * accesses to isOpen are protected.
 	m sync.Mutex
 }
 
@@ -26,10 +28,12 @@ func NewSerialPlainSesn(sx *SerialXport) *SerialPlainSesn {
 }
 
 func (sps *SerialPlainSesn) Open() error {
-	// XXX: Not strictly thread safe.
+	sps.m.Lock()
+	defer sps.m.Unlock()
+
 	if sps.isOpen {
-		return fmt.Errorf(
-			"Attempt to open an already-open serial plain session")
+		return nmxutil.NewSesnAlreadyOpenError(
+			"Attempt to open an already-open serial session")
 	}
 
 	sps.isOpen = true
@@ -37,16 +41,21 @@ func (sps *SerialPlainSesn) Open() error {
 }
 
 func (sps *SerialPlainSesn) Close() error {
-	// XXX: Not strictly thread safe.
+	sps.m.Lock()
+	defer sps.m.Unlock()
+
 	if !sps.isOpen {
-		return fmt.Errorf(
-			"Attempt to close an unopened serial plain session")
+		return nmxutil.NewSesnClosedError(
+			"Attempt to close an unopened serial session")
 	}
 	sps.isOpen = false
 	return nil
 }
 
 func (sps *SerialPlainSesn) IsOpen() bool {
+	sps.m.Lock()
+	defer sps.m.Unlock()
+
 	return sps.isOpen
 }
 
@@ -55,7 +64,9 @@ func (sps *SerialPlainSesn) MtuIn() int {
 }
 
 func (sps *SerialPlainSesn) MtuOut() int {
-	return 1024
+	// Mynewt commands have a default chunk buffer size of 512.  Account for
+	// base64 encoding.
+	return 512 * 3 / 4
 }
 
 func (sps *SerialPlainSesn) AbortRx(seq uint8) error {
@@ -77,19 +88,28 @@ func (sps *SerialPlainSesn) removeNmpListener(seq uint8) {
 	sps.nd.RemoveListener(seq)
 }
 
-func (sps *SerialPlainSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
+func (sps *SerialPlainSesn) EncodeNmpMsg(m *nmp.NmpMsg) ([]byte, error) {
+	return nmp.EncodeNmpPlain(m)
+}
+
+func (sps *SerialPlainSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 	nmp.NmpRsp, error) {
 
 	sps.m.Lock()
 	defer sps.m.Unlock()
 
-	nl, err := sps.addNmpListener(msg.Hdr.Seq)
+	if !sps.isOpen {
+		return nil, nmxutil.NewSesnClosedError(
+			"Attempt to transmit over closed serial session")
+	}
+
+	nl, err := sps.addNmpListener(m.Hdr.Seq)
 	if err != nil {
 		return nil, err
 	}
-	defer sps.removeNmpListener(msg.Hdr.Seq)
+	defer sps.removeNmpListener(m.Hdr.Seq)
 
-	reqb, err := nmp.EncodeNmpPlain(msg)
+	reqb, err := sps.EncodeNmpMsg(m)
 	if err != nil {
 		return nil, err
 	}

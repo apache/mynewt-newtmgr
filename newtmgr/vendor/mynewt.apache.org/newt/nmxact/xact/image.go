@@ -1,6 +1,8 @@
 package xact
 
 import (
+	"fmt"
+
 	"mynewt.apache.org/newt/nmxact/nmp"
 	"mynewt.apache.org/newt/nmxact/sesn"
 )
@@ -33,45 +35,62 @@ func (r *ImageUploadResult) Status() int {
 	return rsp.Rc
 }
 
-// Returns nil if the final request has already been sent.
-func nextImageUploadChunk(data []byte, off uint32, mtu int) []byte {
-	bytesLeft := uint32(len(data)) - off
-	if bytesLeft == 0 {
-		return nil
+func buildImageUploadReq(imageSz int, chunk []byte,
+	off int) *nmp.ImageUploadReq {
+
+	r := nmp.NewImageUploadReq()
+
+	if r.Off == 0 {
+		r.Len = uint32(imageSz)
+	}
+	r.Off = uint32(off)
+	r.Data = chunk
+
+	return r
+}
+
+func nextImageUploadReq(s sesn.Sesn, data []byte, off int) (
+	*nmp.ImageUploadReq, error) {
+
+	// First, build a request without data to determine how much data could
+	// fit.
+	empty := buildImageUploadReq(len(data), nil, off)
+	emptyEnc, err := s.EncodeNmpMsg(empty.Msg())
+	if err != nil {
+		return nil, err
 	}
 
-	// XXX: This calculation is mostly arbitrary.  This chunk size happens to
-	// work with Mynewt's CBOR library.
-	var chunkSz uint32
-	if off == 0 {
-		chunkSz = 64
-	} else {
-		chunkSz = uint32(mtu) - 64
-		if chunkSz > 200 {
-			chunkSz = 200
-		}
+	room := s.MtuOut() - len(emptyEnc)
+	if room <= 0 {
+		return nil, fmt.Errorf("Cannot create image upload request; " +
+			"MTU too low to fit any image data")
 	}
 
-	if chunkSz > bytesLeft {
-		chunkSz = bytesLeft
+	// Assume all the unused space can hold image data.  This assumption may
+	// not be valid for some encodings (e.g., CBOR uses variable length fields
+	// to encodes byte string lengths).
+	r := buildImageUploadReq(len(data), data[off:off+room], off)
+	enc, err := s.EncodeNmpMsg(r.Msg())
+	if err != nil {
+		return nil, err
 	}
-	return data[off : off+chunkSz]
+
+	oversize := len(enc) - s.MtuOut()
+	if oversize > 0 {
+		// Request too big.  Reduce the amount of image data.
+		r = buildImageUploadReq(len(data), data[off:off+room-oversize], off)
+	}
+
+	return r, nil
 }
 
 func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
-	var off uint32
 	res := newImageUploadResult()
 
-	for {
-		r := nmp.NewImageUploadReq()
-
-		if off == 0 {
-			r.Len = len(c.Data)
-		}
-		r.Off = off
-		r.Data = nextImageUploadChunk(c.Data, off, s.MtuOut())
-		if r.Data == nil {
-			break
+	for off := 0; off < len(c.Data); {
+		r, err := nextImageUploadReq(s, c.Data, off)
+		if err != nil {
+			return nil, err
 		}
 
 		rsp, err := txReq(s, r.Msg(), &c.CmdBase)
@@ -80,7 +99,7 @@ func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 		}
 		irsp := rsp.(*nmp.ImageUploadRsp)
 
-		off = irsp.Off
+		off = int(irsp.Off)
 
 		if c.ProgressCb != nil {
 			c.ProgressCb(c, irsp)

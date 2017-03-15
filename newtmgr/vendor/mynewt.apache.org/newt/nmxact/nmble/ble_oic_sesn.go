@@ -5,9 +5,12 @@ import (
 	"sync"
 	"time"
 
+	"mynewt.apache.org/newt/nmxact/bledefs"
 	"mynewt.apache.org/newt/nmxact/nmp"
+	"mynewt.apache.org/newt/nmxact/nmxutil"
 	"mynewt.apache.org/newt/nmxact/omp"
 	"mynewt.apache.org/newt/nmxact/sesn"
+	"mynewt.apache.org/newt/util"
 )
 
 type BleOicSesn struct {
@@ -107,7 +110,8 @@ func (bos *BleOicSesn) Open() error {
 
 func (bos *BleOicSesn) Close() error {
 	if !bos.setCloseChan() {
-		return fmt.Errorf("BLE session already being closed")
+		return nmxutil.NewSesnClosedError(
+			"Attempt to close an unopened BLE session")
 	}
 	defer bos.clearCloseChan()
 
@@ -152,22 +156,26 @@ func (bos *BleOicSesn) onDisconnect(err error) {
 	}
 }
 
+func (bos *BleOicSesn) EncodeNmpMsg(m *nmp.NmpMsg) ([]byte, error) {
+	return omp.EncodeOmpTcp(m)
+}
+
 // Blocking.
-func (bos *BleOicSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
+func (bos *BleOicSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 	nmp.NmpRsp, error) {
 
-	// Make sure peer is connected.
-	if err := bos.Open(); err != nil {
-		return nil, err
+	if !bos.IsOpen() {
+		return nil, nmxutil.NewSesnClosedError(
+			"Attempt to transmit over closed BLE session")
 	}
 
-	nl, err := bos.addNmpListener(msg.Hdr.Seq)
+	nl, err := bos.addNmpListener(m.Hdr.Seq)
 	if err != nil {
 		return nil, err
 	}
-	defer bos.removeNmpListener(msg.Hdr.Seq)
+	defer bos.removeNmpListener(m.Hdr.Seq)
 
-	b, err := omp.EncodeOmpTcp(msg)
+	b, err := bos.EncodeNmpMsg(m)
 	if err != nil {
 		return nil, err
 	}
@@ -183,8 +191,9 @@ func (bos *BleOicSesn) MtuIn() int {
 }
 
 func (bos *BleOicSesn) MtuOut() int {
-	return bos.bf.attMtu -
+	mtu := bos.bf.attMtu -
 		WRITE_CMD_BASE_SZ -
 		omp.OMP_MSG_OVERHEAD -
 		nmp.NMP_HDR_SIZE
+	return util.IntMin(mtu, bledefs.BLE_ATT_ATTR_MAX_LEN)
 }

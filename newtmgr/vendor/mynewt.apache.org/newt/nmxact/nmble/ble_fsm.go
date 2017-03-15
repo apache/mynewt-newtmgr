@@ -520,6 +520,11 @@ func (bf *BleFsm) subscribe() error {
 }
 
 func (bf *BleFsm) Start() error {
+	if bf.getState() != SESN_STATE_UNCONNECTED {
+		return nmxutil.NewSesnAlreadyOpenError(
+			"Attempt to open an already-open BLE session")
+	}
+
 	for {
 		state := bf.getState()
 		switch state {
@@ -594,11 +599,12 @@ func (bf *BleFsm) Stop() (bool, error) {
 	state := bf.getState()
 
 	switch state {
-	case SESN_STATE_UNCONNECTED:
-		return false, fmt.Errorf("BLE session already closed")
+	case SESN_STATE_UNCONNECTED,
+		SESN_STATE_TERMINATING,
+		SESN_STATE_CONN_CANCELLING:
 
-	case SESN_STATE_TERMINATING, SESN_STATE_CONN_CANCELLING:
-		return false, fmt.Errorf("BLE session already being closed")
+		return false, nmxutil.NewSesnClosedError(
+			"Attempt to close an unopened BLE session")
 
 	case SESN_STATE_CONNECTING:
 		if err := bf.connCancel(); err != nil {

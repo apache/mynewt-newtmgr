@@ -29,6 +29,8 @@ import (
 
 type BleAddrType int
 
+const BLE_ATT_ATTR_MAX_LEN = 512
+
 const (
 	BLE_ADDR_TYPE_PUBLIC  BleAddrType = 0
 	BLE_ADDR_TYPE_RANDOM              = 1
