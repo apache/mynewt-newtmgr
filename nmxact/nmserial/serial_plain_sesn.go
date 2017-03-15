@@ -64,7 +64,9 @@ func (sps *SerialPlainSesn) MtuIn() int {
 }
 
 func (sps *SerialPlainSesn) MtuOut() int {
-	return 1024
+	// Mynewt commands have a default chunk buffer size of 512.  Account for
+	// base64 encoding.
+	return 512 * 3 / 4
 }
 
 func (sps *SerialPlainSesn) AbortRx(seq uint8) error {
@@ -86,7 +88,11 @@ func (sps *SerialPlainSesn) removeNmpListener(seq uint8) {
 	sps.nd.RemoveListener(seq)
 }
 
-func (sps *SerialPlainSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
+func (sps *SerialPlainSesn) EncodeNmpMsg(m *nmp.NmpMsg) ([]byte, error) {
+	return nmp.EncodeNmpPlain(m)
+}
+
+func (sps *SerialPlainSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 	nmp.NmpRsp, error) {
 
 	sps.m.Lock()
@@ -97,13 +103,13 @@ func (sps *SerialPlainSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 			"Attempt to transmit over closed serial session")
 	}
 
-	nl, err := sps.addNmpListener(msg.Hdr.Seq)
+	nl, err := sps.addNmpListener(m.Hdr.Seq)
 	if err != nil {
 		return nil, err
 	}
-	defer sps.removeNmpListener(msg.Hdr.Seq)
+	defer sps.removeNmpListener(m.Hdr.Seq)
 
-	reqb, err := nmp.EncodeNmpPlain(msg)
+	reqb, err := sps.EncodeNmpMsg(m)
 	if err != nil {
 		return nil, err
 	}

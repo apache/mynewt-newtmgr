@@ -28,7 +28,7 @@ import ()
 type ImageUploadReq struct {
 	NmpBase
 	Off  uint32 `codec:"off"`
-	Len  int    `codec:"len" codec:",omitempty"`
+	Len  uint32 `codec:"len" codec:",omitempty"`
 	Data []byte `codec:"data"`
 }
 
