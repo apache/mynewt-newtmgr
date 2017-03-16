@@ -62,7 +62,8 @@ type BleFsm struct {
 	attMtu     int
 	connChan   chan error
 
-	mtx sync.Mutex
+	mtx             sync.Mutex
+	lastStateChange time.Time
 
 	// These variables must be protected by the mutex.
 	bls   map[*BleListener]struct{}
@@ -92,6 +93,12 @@ func (bf *BleFsm) disconnectError(reason int) error {
 	return nmxutil.NewBleSesnDisconnectError(reason, str)
 }
 
+func (bf *BleFsm) closedError(msg string) error {
+	return nmxutil.NewSesnClosedError(fmt.Sprintf(
+		"%s; state=%d last-state-change=%s",
+		msg, bf.getState(), bf.lastStateChange))
+}
+
 func (bf *BleFsm) getState() BleSesnState {
 	bf.mtx.Lock()
 	defer bf.mtx.Unlock()
@@ -104,6 +111,7 @@ func (bf *BleFsm) setState(toState BleSesnState) {
 	defer bf.mtx.Unlock()
 
 	bf.state = toState
+	bf.lastStateChange = time.Now()
 }
 
 func (bf *BleFsm) transitionState(fromState BleSesnState,
@@ -603,8 +611,8 @@ func (bf *BleFsm) Stop() (bool, error) {
 		SESN_STATE_TERMINATING,
 		SESN_STATE_CONN_CANCELLING:
 
-		return false, nmxutil.NewSesnClosedError(
-			"Attempt to close an unopened BLE session")
+		return false,
+			bf.closedError("Attempt to close an unopened BLE session")
 
 	case SESN_STATE_CONNECTING:
 		if err := bf.connCancel(); err != nil {

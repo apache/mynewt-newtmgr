@@ -7,7 +7,6 @@ import (
 
 	"mynewt.apache.org/newt/nmxact/bledefs"
 	"mynewt.apache.org/newt/nmxact/nmp"
-	"mynewt.apache.org/newt/nmxact/nmxutil"
 	"mynewt.apache.org/newt/nmxact/omp"
 	"mynewt.apache.org/newt/nmxact/sesn"
 	"mynewt.apache.org/newt/util"
@@ -110,7 +109,7 @@ func (bos *BleOicSesn) Open() error {
 
 func (bos *BleOicSesn) Close() error {
 	if !bos.setCloseChan() {
-		return nmxutil.NewSesnClosedError(
+		return bos.bf.closedError(
 			"Attempt to close an unopened BLE session")
 	}
 	defer bos.clearCloseChan()
@@ -165,7 +164,7 @@ func (bos *BleOicSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 	nmp.NmpRsp, error) {
 
 	if !bos.IsOpen() {
-		return nil, nmxutil.NewSesnClosedError(
+		return nil, bos.bf.closedError(
 			"Attempt to transmit over closed BLE session")
 	}
 
