@@ -129,8 +129,9 @@ type LogShowLog struct {
 
 type LogShowRsp struct {
 	NmpBase
-	Rc   int          `codec:"rc" codec:",omitempty"`
-	Logs []LogShowLog `codec:"logs"`
+	Rc        int          `codec:"rc" codec:",omitempty"`
+	NextIndex uint32       `codec:"next_index"`
+	Logs      []LogShowLog `codec:"logs"`
 }
 
 func NewLogShowReq() *LogShowReq {

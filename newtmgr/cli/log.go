@@ -74,6 +74,7 @@ func logShowCmd(cmd *cobra.Command, args []string) {
 
 	sres := res.(*xact.LogShowResult)
 	fmt.Printf("Status: %d\n", sres.Status())
+	fmt.Printf("Next index: %d\n", sres.Rsp.NextIndex)
 	if len(sres.Rsp.Logs) == 0 {
 		fmt.Printf("(no logs retrieved)\n")
 		return
