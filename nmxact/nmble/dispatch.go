@@ -94,6 +94,8 @@ func discChrUuidRspCtor() BleMsg { return &BleDiscChrUuidRsp{} }
 func writeCmdRspCtor() BleMsg    { return &BleWriteCmdRsp{} }
 func exchangeMtuRspCtor() BleMsg { return &BleExchangeMtuRsp{} }
 func connCancelRspCtor() BleMsg  { return &BleConnCancelRsp{} }
+func scanRspCtor() BleMsg        { return &BleScanRsp{} }
+func scanCancelRspCtor() BleMsg  { return &BleScanCancelRsp{} }
 
 func syncEvtCtor() BleMsg       { return &BleSyncEvt{} }
 func connectEvtCtor() BleMsg    { return &BleConnectEvt{} }
@@ -102,6 +104,7 @@ func discSvcEvtCtor() BleMsg    { return &BleDiscSvcEvt{} }
 func discChrEvtCtor() BleMsg    { return &BleDiscChrEvt{} }
 func notifyRxEvtCtor() BleMsg   { return &BleNotifyRxEvt{} }
 func mtuChangeEvtCtor() BleMsg  { return &BleMtuChangeEvt{} }
+func scanEvtCtor() BleMsg       { return &BleScanEvt{} }
 
 var msgCtorMap = map[OpTypePair]msgCtor{
 	{MSG_OP_RSP, MSG_TYPE_ERR}:           errRspCtor,
@@ -114,6 +117,8 @@ var msgCtorMap = map[OpTypePair]msgCtor{
 	{MSG_OP_RSP, MSG_TYPE_WRITE_CMD}:     writeCmdRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_EXCHANGE_MTU}:  exchangeMtuRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_CONN_CANCEL}:   connCancelRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_SCAN}:          scanRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_SCAN_CANCEL}:   scanCancelRspCtor,
 
 	{MSG_OP_EVT, MSG_TYPE_SYNC_EVT}:       syncEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_CONNECT_EVT}:    connectEvtCtor,
@@ -122,6 +127,7 @@ var msgCtorMap = map[OpTypePair]msgCtor{
 	{MSG_OP_EVT, MSG_TYPE_DISC_CHR_EVT}:   discChrEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_NOTIFY_RX_EVT}:  notifyRxEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_MTU_CHANGE_EVT}: mtuChangeEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_SCAN_EVT}:       scanEvtCtor,
 }
 
 func NewBleDispatcher() *BleDispatcher {

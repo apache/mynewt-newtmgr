@@ -156,3 +156,19 @@ func NewBleWriteCmdReq() *BleWriteCmdReq {
 		Data:       BleBytes{},
 	}
 }
+
+func NewBleScanReq() *BleScanReq {
+	return &BleScanReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_SCAN,
+		Seq:  NextSeq(),
+	}
+}
+
+func NewBleScanCancelReq() *BleScanCancelReq {
+	return &BleScanCancelReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_SCAN_CANCEL,
+		Seq:  NextSeq(),
+	}
+}

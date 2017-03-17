@@ -286,3 +286,78 @@ func exchangeMtu(x *BleXport, bl *BleListener, r *BleExchangeMtuReq) (
 		}
 	}
 }
+
+type scanFn func(evt *BleScanEvt)
+
+func scan(x *BleXport, bl *BleListener, r *BleScanReq,
+	abortChan chan struct{}, scanCb scanFn) error {
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+
+	if err := x.Tx(j); err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return err
+
+		case bm := <-bl.BleChan:
+			switch msg := bm.(type) {
+			case *BleScanRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return StatusError(MSG_OP_RSP, MSG_TYPE_SCAN, msg.Status)
+				}
+
+			case *BleScanEvt:
+				scanCb(msg)
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.rspTimeout):
+			return BhdTimeoutError(MSG_TYPE_EXCHANGE_MTU)
+
+		case <-abortChan:
+			return nil
+		}
+	}
+}
+
+func scanCancel(x *BleXport, bl *BleListener, r *BleScanCancelReq) error {
+	j, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+
+	if err := x.Tx(j); err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return err
+
+		case bm := <-bl.BleChan:
+			switch msg := bm.(type) {
+			case *BleScanCancelRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return StatusError(MSG_OP_RSP, MSG_TYPE_SCAN, msg.Status)
+				}
+				return nil
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.rspTimeout):
+			return BhdTimeoutError(MSG_TYPE_EXCHANGE_MTU)
+		}
+	}
+}

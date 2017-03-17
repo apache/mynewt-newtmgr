@@ -19,16 +19,17 @@ const DFLT_ATT_MTU = 23
 
 const (
 	SESN_STATE_UNCONNECTED     BleSesnState = 0
-	SESN_STATE_CONNECTING                   = 1
-	SESN_STATE_CONNECTED                    = 2
-	SESN_STATE_EXCHANGING_MTU               = 3
-	SESN_STATE_EXCHANGED_MTU                = 4
-	SESN_STATE_DISCOVERING_SVC              = 5
-	SESN_STATE_DISCOVERED_SVC               = 6
-	SESN_STATE_DISCOVERING_CHR              = 7
-	SESN_STATE_DISCOVERED_CHR               = 8
-	SESN_STATE_TERMINATING                  = 9
-	SESN_STATE_CONN_CANCELLING              = 10
+	SESN_STATE_SCANNING                     = 1
+	SESN_STATE_CONNECTING                   = 2
+	SESN_STATE_CONNECTED                    = 3
+	SESN_STATE_EXCHANGING_MTU               = 4
+	SESN_STATE_EXCHANGED_MTU                = 5
+	SESN_STATE_DISCOVERING_SVC              = 6
+	SESN_STATE_DISCOVERED_SVC               = 7
+	SESN_STATE_DISCOVERING_CHR              = 8
+	SESN_STATE_DISCOVERED_CHR               = 9
+	SESN_STATE_TERMINATING                  = 10
+	SESN_STATE_CONN_CANCELLING              = 11
 )
 
 type BleRxNmpFn func(data []byte)
@@ -37,7 +38,7 @@ type BleDisconnectFn func(err error)
 type BleFsmParams struct {
 	Bx           *BleXport
 	OwnAddrType  BleAddrType
-	Peer         BleDev
+	PeerSpec     BlePeerSpec
 	SvcUuid      BleUuid
 	ReqChrUuid   BleUuid
 	RspChrUuid   BleUuid
@@ -47,8 +48,9 @@ type BleFsmParams struct {
 
 type BleFsm struct {
 	bx           *BleXport
+	peerSpec     BlePeerSpec
 	ownAddrType  BleAddrType
-	peer         BleDev
+	peer         *BleDev
 	svcUuid      BleUuid
 	reqChrUuid   BleUuid
 	rspChrUuid   BleUuid
@@ -71,10 +73,10 @@ type BleFsm struct {
 }
 
 func NewBleFsm(p BleFsmParams) *BleFsm {
-	return &BleFsm{
+	bf := &BleFsm{
 		bx:           p.Bx,
+		peerSpec:     p.PeerSpec,
 		ownAddrType:  p.OwnAddrType,
-		peer:         p.Peer,
 		svcUuid:      p.SvcUuid,
 		reqChrUuid:   p.ReqChrUuid,
 		rspChrUuid:   p.RspChrUuid,
@@ -84,6 +86,12 @@ func NewBleFsm(p BleFsmParams) *BleFsm {
 		bls:    map[*BleListener]struct{}{},
 		attMtu: DFLT_ATT_MTU,
 	}
+
+	if bf.peerSpec.Name == "" {
+		bf.peer = &bf.peerSpec.Dev
+	}
+
+	return bf
 }
 
 func (bf *BleFsm) disconnectError(reason int) error {
@@ -347,6 +355,56 @@ func (bf *BleFsm) connect() error {
 	return nil
 }
 
+func (bf *BleFsm) scan() error {
+	r := NewBleScanReq()
+	r.OwnAddrType = bf.ownAddrType
+	r.DurationMs = 15000
+	r.FilterPolicy = BLE_SCAN_FILT_NO_WL
+	r.Limited = false
+	r.Passive = false
+	r.FilterDuplicates = true
+
+	bl, err := bf.addBleSeqListener(r.Seq)
+	if err != nil {
+		return err
+	}
+	defer bf.removeBleSeqListener(r.Seq)
+
+	abortChan := make(chan struct{}, 1)
+
+	scanCb := func(evt *BleScanEvt) {
+		if evt.DataName == bf.peerSpec.Name {
+			bf.peer = &BleDev{
+				AddrType: evt.AddrType,
+				Addr:     evt.Addr,
+			}
+			abortChan <- struct{}{}
+		}
+	}
+	if err := scan(bf.bx, bl, r, abortChan, scanCb); err != nil {
+		return err
+	}
+
+	// Scanning still in progress; cancel the operation.
+	return bf.scanCancel()
+}
+
+func (bf *BleFsm) scanCancel() error {
+	r := NewBleScanCancelReq()
+
+	bl, err := bf.addBleSeqListener(r.Seq)
+	if err != nil {
+		return err
+	}
+	defer bf.removeBleSeqListener(r.Seq)
+
+	if err := scanCancel(bf.bx, bl, r); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (bf *BleFsm) terminateSetState() error {
 	bf.mtx.Lock()
 	defer bf.mtx.Unlock()
@@ -537,12 +595,22 @@ func (bf *BleFsm) Start() error {
 		state := bf.getState()
 		switch state {
 		case SESN_STATE_UNCONNECTED:
-			cb := func() error { return bf.connect() }
-			err := bf.action(
-				SESN_STATE_UNCONNECTED,
-				SESN_STATE_CONNECTING,
-				SESN_STATE_CONNECTED,
-				cb)
+			var err error
+			if bf.peer == nil {
+				cb := func() error { return bf.scan() }
+				err = bf.action(
+					SESN_STATE_UNCONNECTED,
+					SESN_STATE_SCANNING,
+					SESN_STATE_UNCONNECTED,
+					cb)
+			} else {
+				cb := func() error { return bf.connect() }
+				err = bf.action(
+					SESN_STATE_UNCONNECTED,
+					SESN_STATE_CONNECTING,
+					SESN_STATE_CONNECTED,
+					cb)
+			}
 
 			if err != nil {
 				return err

@@ -49,7 +49,7 @@ func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 	bos.bf = NewBleFsm(BleFsmParams{
 		Bx:           bx,
 		OwnAddrType:  cfg.Ble.OwnAddrType,
-		Peer:         cfg.Ble.Peer,
+		PeerSpec:     cfg.Ble.Peer,
 		SvcUuid:      svcUuid,
 		ReqChrUuid:   reqChrUuid,
 		RspChrUuid:   rspChrUuid,
