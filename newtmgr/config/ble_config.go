@@ -116,7 +116,7 @@ func BuildBleXport(bc *BleConfig) (*nmble.BleXport, error) {
 	params.SockPath = "/tmp/blehostd-uds"
 	params.BlehostdPath = bc.BlehostdPath
 	params.DevPath = bc.ControllerPath
-	params.BlehostdAcceptTimeout = time.Second / 10
+	params.BlehostdAcceptTimeout = 2 * time.Second
 	params.BlehostdRestart = false
 
 	bx, err := nmble.NewBleXport(params)
