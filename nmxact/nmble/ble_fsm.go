@@ -11,6 +11,7 @@ import (
 	. "mynewt.apache.org/newt/nmxact/bledefs"
 	"mynewt.apache.org/newt/nmxact/nmp"
 	"mynewt.apache.org/newt/nmxact/nmxutil"
+	"mynewt.apache.org/newt/nmxact/sesn"
 )
 
 type BleSesnState int32
@@ -38,7 +39,7 @@ type BleDisconnectFn func(err error)
 type BleFsmParams struct {
 	Bx           *BleXport
 	OwnAddrType  BleAddrType
-	PeerSpec     BlePeerSpec
+	PeerSpec     sesn.BlePeerSpec
 	SvcUuid      BleUuid
 	ReqChrUuid   BleUuid
 	RspChrUuid   BleUuid
@@ -48,9 +49,9 @@ type BleFsmParams struct {
 
 type BleFsm struct {
 	bx           *BleXport
-	peerSpec     BlePeerSpec
 	ownAddrType  BleAddrType
-	peer         *BleDev
+	peerSpec     sesn.BlePeerSpec
+	peerDev      *BleDev
 	svcUuid      BleUuid
 	reqChrUuid   BleUuid
 	rspChrUuid   BleUuid
@@ -87,8 +88,14 @@ func NewBleFsm(p BleFsmParams) *BleFsm {
 		attMtu: DFLT_ATT_MTU,
 	}
 
-	if bf.peerSpec.Name == "" {
-		bf.peer = &bf.peerSpec.Dev
+	// The peer spec contains one of:
+	//     * Peer address;
+	//     * Predicate function to call during scanning.
+	// If a peer address is specified, fill in the peer field now so the
+	// scanning step can be skipped.  Otherwise, the peer field gets populated
+	// during scanning.
+	if bf.peerSpec.ScanPred == nil {
+		bf.peerDev = &bf.peerSpec.Dev
 	}
 
 	return bf
@@ -97,7 +104,7 @@ func NewBleFsm(p BleFsmParams) *BleFsm {
 func (bf *BleFsm) disconnectError(reason int) error {
 	str := fmt.Sprintf("BLE peer disconnected; "+
 		"reason=\"%s\" (%d) peer=%s handle=%d",
-		ErrCodeToString(reason), reason, bf.peer.String(), bf.connHandle)
+		ErrCodeToString(reason), reason, bf.peerDev.String(), bf.connHandle)
 	return nmxutil.NewBleSesnDisconnectError(reason, str)
 }
 
@@ -231,7 +238,7 @@ func (bf *BleFsm) connectListen(seq int) error {
 						str := fmt.Sprintf("BLE connection attempt failed; "+
 							"status=%s (%d) peer=%s",
 							ErrCodeToString(msg.Status), msg.Status,
-							bf.peer.String())
+							bf.peerDev.String())
 						log.Debugf(str)
 						bf.connChan <- nmxutil.NewBleHostError(msg.Status, str)
 						return
@@ -241,7 +248,7 @@ func (bf *BleFsm) connectListen(seq int) error {
 					if msg.Status == 0 {
 						bl.Acked = true
 						log.Debugf("BLE connection attempt succeeded; "+
-							"peer=%d handle=%d", bf.peer.String(),
+							"peer=%d handle=%d", bf.peerDev.String(),
 							msg.ConnHandle)
 						bf.connHandle = msg.ConnHandle
 						if err := bf.nmpRspListen(); err != nil {
@@ -253,7 +260,7 @@ func (bf *BleFsm) connectListen(seq int) error {
 						str := fmt.Sprintf("BLE connection attempt failed; "+
 							"status=%s (%d) peer=%s",
 							ErrCodeToString(msg.Status), msg.Status,
-							bf.peer.String())
+							bf.peerDev.String())
 						log.Debugf(str)
 						bf.connChan <- nmxutil.NewBleHostError(msg.Status, str)
 						return
@@ -341,8 +348,8 @@ func (bf *BleFsm) nmpRspListen() error {
 func (bf *BleFsm) connect() error {
 	r := NewBleConnectReq()
 	r.OwnAddrType = bf.ownAddrType
-	r.PeerAddrType = bf.peer.AddrType
-	r.PeerAddr = bf.peer.Addr
+	r.PeerAddrType = bf.peerDev.AddrType
+	r.PeerAddr = bf.peerDev.Addr
 
 	if err := bf.connectListen(r.Seq); err != nil {
 		return err
@@ -372,15 +379,29 @@ func (bf *BleFsm) scan() error {
 
 	abortChan := make(chan struct{}, 1)
 
+	// This function gets called for each incoming advertisement.
 	scanCb := func(evt *BleScanEvt) {
-		if evt.DataName == bf.peerSpec.Name {
-			bf.peer = &BleDev{
+		r := BleAdvReport{
+			EventType: evt.EventType,
+			Sender: BleDev{
 				AddrType: evt.AddrType,
 				Addr:     evt.Addr,
-			}
+			},
+			Rssi: evt.Rssi,
+			Data: evt.Data.Bytes,
+
+			Flags:          evt.DataFlags,
+			Name:           evt.DataName,
+			NameIsComplete: evt.DataNameIsComplete,
+		}
+
+		// Ask client if we should connect to this advertiser.
+		if bf.peerSpec.ScanPred(r) {
+			bf.peerDev = &r.Sender
 			abortChan <- struct{}{}
 		}
 	}
+
 	if err := scan(bf.bx, bl, r, abortChan, scanCb); err != nil {
 		return err
 	}
@@ -596,7 +617,14 @@ func (bf *BleFsm) Start() error {
 		switch state {
 		case SESN_STATE_UNCONNECTED:
 			var err error
-			if bf.peer == nil {
+
+			// Determine if we can immediately initiate a connection, or if we
+			// need to scan for a peer first.  If the client specified a peer
+			// address, or if we have already successfully scanned, we initiate
+			// a connection now.  Otherwise, we need to scan to determine which
+			// peer meets the specified scan criteria.
+			if bf.peerDev == nil {
+				// Peer not inferred yet.  Initiate scan.
 				cb := func() error { return bf.scan() }
 				err = bf.action(
 					SESN_STATE_UNCONNECTED,
@@ -604,6 +632,8 @@ func (bf *BleFsm) Start() error {
 					SESN_STATE_UNCONNECTED,
 					cb)
 			} else {
+				// We already know the address we want to connect to.  Initiate
+				// a connection.
 				cb := func() error { return bf.connect() }
 				err = bf.action(
 					SESN_STATE_UNCONNECTED,
