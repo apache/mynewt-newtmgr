@@ -33,6 +33,7 @@ import (
 type BleConfig struct {
 	PeerAddrType bledefs.BleAddrType
 	PeerAddr     bledefs.BleAddr
+	PeerName     string
 
 	OwnAddrType bledefs.BleAddrType
 	OwnAddr     bledefs.BleAddr
@@ -77,6 +78,8 @@ func ParseBleConnString(cs string) (*BleConfig, error) {
 				return nil, einvalBleConnString("Invalid peer_addr; %s",
 					err.Error())
 			}
+		case "peer_name":
+			bc.PeerName = v
 		case "own_addr_type":
 			bc.OwnAddrType, err = bledefs.BleAddrTypeFromString(v)
 			if err != nil {
@@ -102,9 +105,12 @@ func ParseBleConnString(cs string) (*BleConfig, error) {
 
 func FillSesnCfg(bc *BleConfig, sc *sesn.SesnCfg) {
 	sc.Ble.OwnAddrType = bc.OwnAddrType
-	sc.Ble.Peer = bledefs.BleDev{
-		AddrType: bc.PeerAddrType,
-		Addr:     bc.PeerAddr,
+	sc.Ble.Peer = bledefs.BlePeerSpec{
+		Dev: bledefs.BleDev{
+			AddrType: bc.PeerAddrType,
+			Addr:     bc.PeerAddr,
+		},
+		Name: bc.PeerName,
 	}
 
 	// We don't need to stick around until a connection closes.
