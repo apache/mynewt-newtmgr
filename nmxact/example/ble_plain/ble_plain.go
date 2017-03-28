@@ -58,12 +58,12 @@ func main() {
 	sc.MgmtProto = sesn.MGMT_PROTO_NMP
 
 	sc.Ble.OwnAddrType = bledefs.BLE_ADDR_TYPE_RANDOM
-	sc.Ble.Peer = bledefs.BleDev{
+	sc.Ble.PeerSpec = sesn.BlePeerSpecDev(bledefs.BleDev{
 		AddrType: bledefs.BLE_ADDR_TYPE_PUBLIC,
 		Addr: bledefs.BleAddr{
 			Bytes: [6]byte{0x0b, 0x0a, 0x0b, 0x0a, 0x0b, 0x0a},
 		},
-	}
+	})
 
 	s, err := x.BuildSesn(sc)
 	if err != nil {

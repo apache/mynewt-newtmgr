@@ -31,11 +31,11 @@ import (
 
 func main() {
 	// Initialize the serial transport.
-	cfg := nmserial.XportCfg{
-		DevPath:     "/dev/cu.usbserial-A600ANJ1",
-		Baud:        115200,
-		ReadTimeout: 3 * time.Second,
-	}
+	cfg := nmserial.NewXportCfg()
+	cfg.DevPath = "/dev/cu.usbserial-A600ANJ1"
+	cfg.Baud = 115200
+	cfg.ReadTimeout = 3 * time.Second
+
 	x := nmserial.NewSerialXport(cfg)
 
 	// Start the serial transport.
