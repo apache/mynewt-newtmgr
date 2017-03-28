@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"mynewt.apache.org/newt/newtmgr/nmutil"
-	"mynewt.apache.org/newt/nmxact/nmserial"
+	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
+	"mynewt.apache.org/newtmgr/nmxact/nmserial"
 	"mynewt.apache.org/newt/util"
 )
 

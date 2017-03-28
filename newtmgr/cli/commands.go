@@ -23,7 +23,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	"mynewt.apache.org/newt/newtmgr/nmutil"
+	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newt/util"
 )
 

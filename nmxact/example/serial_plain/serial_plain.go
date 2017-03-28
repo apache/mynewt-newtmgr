@@ -24,9 +24,9 @@ import (
 	"os"
 	"time"
 
-	"mynewt.apache.org/newt/nmxact/nmserial"
-	"mynewt.apache.org/newt/nmxact/sesn"
-	"mynewt.apache.org/newt/nmxact/xact"
+	"mynewt.apache.org/newtmgr/nmxact/nmserial"
+	"mynewt.apache.org/newtmgr/nmxact/sesn"
+	"mynewt.apache.org/newtmgr/nmxact/xact"
 )
 
 func main() {

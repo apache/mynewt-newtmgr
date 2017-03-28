@@ -23,10 +23,10 @@ import (
 	"fmt"
 	"os"
 
-	"mynewt.apache.org/newt/nmxact/bledefs"
-	"mynewt.apache.org/newt/nmxact/nmble"
-	"mynewt.apache.org/newt/nmxact/sesn"
-	"mynewt.apache.org/newt/nmxact/xact"
+	"mynewt.apache.org/newtmgr/nmxact/bledefs"
+	"mynewt.apache.org/newtmgr/nmxact/nmble"
+	"mynewt.apache.org/newtmgr/nmxact/sesn"
+	"mynewt.apache.org/newtmgr/nmxact/xact"
 )
 
 func main() {

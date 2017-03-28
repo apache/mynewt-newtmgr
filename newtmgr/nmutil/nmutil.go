@@ -22,7 +22,7 @@ package nmutil
 import (
 	"time"
 
-	"mynewt.apache.org/newt/nmxact/sesn"
+	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
 var Timeout float64

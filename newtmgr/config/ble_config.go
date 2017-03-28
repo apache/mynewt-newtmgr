@@ -24,9 +24,9 @@ import (
 	"strings"
 	"time"
 
-	"mynewt.apache.org/newt/nmxact/bledefs"
-	"mynewt.apache.org/newt/nmxact/nmble"
-	"mynewt.apache.org/newt/nmxact/sesn"
+	"mynewt.apache.org/newtmgr/nmxact/bledefs"
+	"mynewt.apache.org/newtmgr/nmxact/nmble"
+	"mynewt.apache.org/newtmgr/nmxact/sesn"
 	"mynewt.apache.org/newt/util"
 )
 

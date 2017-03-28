@@ -22,11 +22,11 @@ package cli
 import (
 	"fmt"
 
-	"mynewt.apache.org/newt/newtmgr/config"
-	"mynewt.apache.org/newt/newtmgr/nmutil"
-	"mynewt.apache.org/newt/nmxact/nmserial"
-	"mynewt.apache.org/newt/nmxact/sesn"
-	"mynewt.apache.org/newt/nmxact/xport"
+	"mynewt.apache.org/newtmgr/newtmgr/config"
+	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
+	"mynewt.apache.org/newtmgr/nmxact/nmserial"
+	"mynewt.apache.org/newtmgr/nmxact/sesn"
+	"mynewt.apache.org/newtmgr/nmxact/xport"
 	"mynewt.apache.org/newt/util"
 )
 

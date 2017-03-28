@@ -25,9 +25,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"mynewt.apache.org/newt/newtmgr/cli"
-	"mynewt.apache.org/newt/newtmgr/config"
-	"mynewt.apache.org/newt/nmxact/nmserial"
+	"mynewt.apache.org/newtmgr/newtmgr/cli"
+	"mynewt.apache.org/newtmgr/newtmgr/config"
+	"mynewt.apache.org/newtmgr/nmxact/nmserial"
 	"mynewt.apache.org/newt/util"
 )
 

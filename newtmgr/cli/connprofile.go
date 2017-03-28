@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"strings"
 
-	"mynewt.apache.org/newt/newtmgr/config"
+	"mynewt.apache.org/newtmgr/newtmgr/config"
 	"mynewt.apache.org/newt/util"
 
 	"github.com/spf13/cobra"

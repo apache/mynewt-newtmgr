@@ -24,9 +24,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"mynewt.apache.org/newt/newtmgr/nmutil"
-	"mynewt.apache.org/newt/nmxact/sesn"
-	"mynewt.apache.org/newt/nmxact/xact"
+	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
+	"mynewt.apache.org/newtmgr/nmxact/sesn"
+	"mynewt.apache.org/newtmgr/nmxact/xact"
 	"mynewt.apache.org/newt/util"
 )
 
