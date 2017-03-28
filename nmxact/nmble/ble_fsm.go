@@ -88,16 +88,6 @@ func NewBleFsm(p BleFsmParams) *BleFsm {
 		attMtu: DFLT_ATT_MTU,
 	}
 
-	// The peer spec contains one of:
-	//     * Peer address;
-	//     * Predicate function to call during scanning.
-	// If a peer address is specified, fill in the peer field now so the
-	// scanning step can be skipped.  Otherwise, the peer field gets populated
-	// during scanning.
-	if bf.peerSpec.ScanPred == nil {
-		bf.peerDev = &bf.peerSpec.Dev
-	}
-
 	return bf
 }
 
@@ -294,6 +284,7 @@ func (bf *BleFsm) connectListen(seq int) error {
 					}
 
 					bf.setState(SESN_STATE_UNCONNECTED)
+					bf.peerDev = nil
 					bf.disconnectCb(err)
 					return
 
@@ -606,6 +597,23 @@ func (bf *BleFsm) subscribe() error {
 	return nil
 }
 
+// Tries to populate the FSM's peerDev field.  This function succeeds if the
+// client specified the address of the peer to connect to.
+func (bf *BleFsm) tryFillPeerDev() bool {
+	// The peer spec contains one of:
+	//     * Peer address;
+	//     * Predicate function to call during scanning.
+	// If a peer address is specified, fill in the peer field now so the
+	// scanning step can be skipped.  Otherwise, the peer field gets populated
+	// during scanning.
+	if bf.peerSpec.ScanPred == nil {
+		bf.peerDev = &bf.peerSpec.Dev
+		return true
+	}
+
+	return false
+}
+
 func (bf *BleFsm) Start() error {
 	if bf.getState() != SESN_STATE_UNCONNECTED {
 		return nmxutil.NewSesnAlreadyOpenError(
@@ -623,6 +631,7 @@ func (bf *BleFsm) Start() error {
 			// address, or if we have already successfully scanned, we initiate
 			// a connection now.  Otherwise, we need to scan to determine which
 			// peer meets the specified scan criteria.
+			bf.tryFillPeerDev()
 			if bf.peerDev == nil {
 				// Peer not inferred yet.  Initiate scan.
 				cb := func() error { return bf.scan() }
