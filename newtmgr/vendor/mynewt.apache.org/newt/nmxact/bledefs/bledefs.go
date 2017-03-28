@@ -147,11 +147,6 @@ func (bd *BleDev) String() string {
 		bd.Addr.String())
 }
 
-type BlePeerSpec struct {
-	Name string
-	Dev  BleDev // Only used if name not present.
-}
-
 type BleScanFilterPolicy int
 
 const (
@@ -257,3 +252,19 @@ func (a *BleAdvEventType) UnmarshalJSON(data []byte) error {
 	*a, err = BleAdvEventTypeFromString(s)
 	return err
 }
+
+type BleAdvReport struct {
+	// These fields are always present.
+	EventType BleAdvEventType
+	Sender    BleDev
+	Rssi      int8
+	Data      []byte
+
+	// These fields are only present if the sender included them in its
+	// advertisement.
+	Flags          uint8  // 0 if not present.
+	Name           string // "" if not present.
+	NameIsComplete bool   // false if not present.
+}
+
+type BleAdvPredicate func(adv BleAdvReport) bool

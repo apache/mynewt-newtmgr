@@ -763,12 +763,18 @@ func (bb *BleBytes) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
+	// strings.Split() appears to return { nil } when passed an empty string.
+	if len(s) == 0 {
+		return nil
+	}
+
 	toks := strings.Split(strings.ToLower(s), ":")
 	bb.Bytes = make([]byte, len(toks))
 
 	for i, t := range toks {
 		if !strings.HasPrefix(t, "0x") {
-			return errors.New("Byte stream contains invalid token: " + t)
+			return fmt.Errorf(
+				"Byte stream contains invalid token; token=%s stream=%s", t, s)
 		}
 
 		u64, err := strconv.ParseUint(t, 0, 8)

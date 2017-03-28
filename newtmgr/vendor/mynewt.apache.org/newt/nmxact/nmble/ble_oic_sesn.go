@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"mynewt.apache.org/newt/nmxact/bledefs"
+	. "mynewt.apache.org/newt/nmxact/bledefs"
 	"mynewt.apache.org/newt/nmxact/nmp"
 	"mynewt.apache.org/newt/nmxact/omp"
 	"mynewt.apache.org/newt/nmxact/sesn"
@@ -17,7 +17,7 @@ type BleOicSesn struct {
 	nls          map[*nmp.NmpListener]struct{}
 	od           *omp.OmpDispatcher
 	closeTimeout time.Duration
-	onCloseCb    sesn.OnCloseFn
+	onCloseCb    sesn.BleOnCloseFn
 
 	closeChan chan error
 	mx        sync.Mutex
@@ -28,7 +28,7 @@ func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 		nls:          map[*nmp.NmpListener]struct{}{},
 		od:           omp.NewOmpDispatcher(),
 		closeTimeout: cfg.Ble.CloseTimeout,
-		onCloseCb:    cfg.OnCloseCb,
+		onCloseCb:    cfg.Ble.OnCloseCb,
 	}
 
 	svcUuid, err := ParseUuid(NmpOicSvcUuid)
@@ -49,12 +49,12 @@ func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 	bos.bf = NewBleFsm(BleFsmParams{
 		Bx:           bx,
 		OwnAddrType:  cfg.Ble.OwnAddrType,
-		PeerSpec:     cfg.Ble.Peer,
+		PeerSpec:     cfg.Ble.PeerSpec,
 		SvcUuid:      svcUuid,
 		ReqChrUuid:   reqChrUuid,
 		RspChrUuid:   rspChrUuid,
 		RxNmpCb:      func(d []byte) { bos.onRxNmp(d) },
-		DisconnectCb: func(e error) { bos.onDisconnect(e) },
+		DisconnectCb: func(p BleDev, e error) { bos.onDisconnect(p, e) },
 	})
 
 	return bos
@@ -141,7 +141,7 @@ func (bos *BleOicSesn) onRxNmp(data []byte) {
 	bos.od.Dispatch(data)
 }
 
-func (bos *BleOicSesn) onDisconnect(err error) {
+func (bos *BleOicSesn) onDisconnect(peer BleDev, err error) {
 	for nl, _ := range bos.nls {
 		nl.ErrChan <- err
 	}
@@ -151,7 +151,7 @@ func (bos *BleOicSesn) onDisconnect(err error) {
 		bos.closeChan <- err
 	}
 	if bos.onCloseCb != nil {
-		bos.onCloseCb(bos, err)
+		bos.onCloseCb(bos, peer, err)
 	}
 }
 
@@ -194,5 +194,5 @@ func (bos *BleOicSesn) MtuOut() int {
 		WRITE_CMD_BASE_SZ -
 		omp.OMP_MSG_OVERHEAD -
 		nmp.NMP_HDR_SIZE
-	return util.IntMin(mtu, bledefs.BLE_ATT_ATTR_MAX_LEN)
+	return util.IntMin(mtu, BLE_ATT_ATTR_MAX_LEN)
 }

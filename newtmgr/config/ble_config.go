@@ -105,12 +105,14 @@ func ParseBleConnString(cs string) (*BleConfig, error) {
 
 func FillSesnCfg(bc *BleConfig, sc *sesn.SesnCfg) {
 	sc.Ble.OwnAddrType = bc.OwnAddrType
-	sc.Ble.Peer = bledefs.BlePeerSpec{
-		Dev: bledefs.BleDev{
+
+	if bc.PeerName != "" {
+		sc.Ble.PeerSpec = sesn.BlePeerSpecName(bc.PeerName)
+	} else {
+		sc.Ble.PeerSpec = sesn.BlePeerSpecDev(bledefs.BleDev{
 			AddrType: bc.PeerAddrType,
 			Addr:     bc.PeerAddr,
-		},
-		Name: bc.PeerName,
+		})
 	}
 
 	// We don't need to stick around until a connection closes.
