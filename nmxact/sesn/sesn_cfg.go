@@ -13,7 +13,7 @@ const (
 	MGMT_PROTO_OMP
 )
 
-type OnCloseFn func(s Sesn, err error)
+type BleOnCloseFn func(s Sesn, peer bledefs.BleDev, err error)
 
 // Specifies the BLE peer to connect to.
 type BlePeerSpec struct {
@@ -45,12 +45,12 @@ type SesnCfgBle struct {
 	OwnAddrType  bledefs.BleAddrType
 	PeerSpec     BlePeerSpec
 	CloseTimeout time.Duration
+	OnCloseCb    BleOnCloseFn
 }
 
 type SesnCfg struct {
 	// Used with all transport types.
 	MgmtProto MgmtProto
-	OnCloseCb OnCloseFn
 
 	// Only used with BLE transports.
 	Ble SesnCfgBle

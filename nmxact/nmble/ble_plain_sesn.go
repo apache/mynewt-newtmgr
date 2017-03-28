@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"mynewt.apache.org/newt/nmxact/bledefs"
+	. "mynewt.apache.org/newt/nmxact/bledefs"
 	"mynewt.apache.org/newt/nmxact/nmp"
 	"mynewt.apache.org/newt/nmxact/sesn"
 	"mynewt.apache.org/newt/util"
@@ -16,7 +16,7 @@ type BlePlainSesn struct {
 	nls          map[*nmp.NmpListener]struct{}
 	nd           *nmp.NmpDispatcher
 	closeTimeout time.Duration
-	onCloseCb    sesn.OnCloseFn
+	onCloseCb    sesn.BleOnCloseFn
 
 	closeChan chan error
 	mx        sync.Mutex
@@ -27,7 +27,7 @@ func NewBlePlainSesn(bx *BleXport, cfg sesn.SesnCfg) *BlePlainSesn {
 		nls:          map[*nmp.NmpListener]struct{}{},
 		nd:           nmp.NewNmpDispatcher(),
 		closeTimeout: cfg.Ble.CloseTimeout,
-		onCloseCb:    cfg.OnCloseCb,
+		onCloseCb:    cfg.Ble.OnCloseCb,
 	}
 
 	svcUuid, err := ParseUuid(NmpPlainSvcUuid)
@@ -48,7 +48,7 @@ func NewBlePlainSesn(bx *BleXport, cfg sesn.SesnCfg) *BlePlainSesn {
 		ReqChrUuid:   chrUuid,
 		RspChrUuid:   chrUuid,
 		RxNmpCb:      func(d []byte) { bps.onRxNmp(d) },
-		DisconnectCb: func(e error) { bps.onDisconnect(e) },
+		DisconnectCb: func(p BleDev, e error) { bps.onDisconnect(p, e) },
 	})
 
 	return bps
@@ -135,7 +135,7 @@ func (bps *BlePlainSesn) onRxNmp(data []byte) {
 	bps.nd.Dispatch(data)
 }
 
-func (bps *BlePlainSesn) onDisconnect(err error) {
+func (bps *BlePlainSesn) onDisconnect(peer BleDev, err error) {
 	for nl, _ := range bps.nls {
 		nl.ErrChan <- err
 	}
@@ -145,7 +145,7 @@ func (bps *BlePlainSesn) onDisconnect(err error) {
 		bps.closeChan <- err
 	}
 	if bps.onCloseCb != nil {
-		bps.onCloseCb(bps, err)
+		bps.onCloseCb(bps, peer, err)
 	}
 }
 
@@ -182,5 +182,5 @@ func (bps *BlePlainSesn) MtuIn() int {
 
 func (bps *BlePlainSesn) MtuOut() int {
 	mtu := bps.bf.attMtu - WRITE_CMD_BASE_SZ - nmp.NMP_HDR_SIZE
-	return util.IntMin(mtu, bledefs.BLE_ATT_ATTR_MAX_LEN)
+	return util.IntMin(mtu, BLE_ATT_ATTR_MAX_LEN)
 }

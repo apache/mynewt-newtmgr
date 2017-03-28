@@ -34,7 +34,7 @@ const (
 )
 
 type BleRxNmpFn func(data []byte)
-type BleDisconnectFn func(err error)
+type BleDisconnectFn func(peer BleDev, err error)
 
 type BleFsmParams struct {
 	Bx           *BleXport
@@ -284,8 +284,9 @@ func (bf *BleFsm) connectListen(seq int) error {
 					}
 
 					bf.setState(SESN_STATE_UNCONNECTED)
+					peer := *bf.peerDev
 					bf.peerDev = nil
-					bf.disconnectCb(err)
+					bf.disconnectCb(peer, err)
 					return
 
 				default:
