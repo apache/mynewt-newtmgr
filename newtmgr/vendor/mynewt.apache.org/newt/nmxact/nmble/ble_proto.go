@@ -227,6 +227,8 @@ const (
 	MSG_TYPE_GEN_RAND_ADDR         = 12
 	MSG_TYPE_SET_RAND_ADDR         = 13
 	MSG_TYPE_CONN_CANCEL           = 14
+	MSG_TYPE_SCAN                  = 15
+	MSG_TYPE_SCAN_CANCEL           = 16
 
 	MSG_TYPE_SYNC_EVT       = 2049
 	MSG_TYPE_CONNECT_EVT    = 2050
@@ -236,6 +238,7 @@ const (
 	MSG_TYPE_WRITE_ACK_EVT  = 2054
 	MSG_TYPE_NOTIFY_RX_EVT  = 2055
 	MSG_TYPE_MTU_CHANGE_EVT = 2056
+	MSG_TYPE_SCAN_EVT       = 2057
 )
 
 var MsgOpStringMap = map[MsgOp]string{
@@ -255,6 +258,8 @@ var MsgTypeStringMap = map[MsgType]string{
 	MSG_TYPE_WRITE_CMD:     "write_cmd",
 	MSG_TYPE_EXCHANGE_MTU:  "exchange_mtu",
 	MSG_TYPE_CONN_CANCEL:   "conn_cancel",
+	MSG_TYPE_SCAN:          "scan",
+	MSG_TYPE_SCAN_CANCEL:   "scan_cancel",
 
 	MSG_TYPE_SYNC_EVT:       "sync_evt",
 	MSG_TYPE_CONNECT_EVT:    "connect_evt",
@@ -263,6 +268,7 @@ var MsgTypeStringMap = map[MsgType]string{
 	MSG_TYPE_DISC_CHR_EVT:   "disc_chr_evt",
 	MSG_TYPE_NOTIFY_RX_EVT:  "notify_rx_evt",
 	MSG_TYPE_MTU_CHANGE_EVT: "mtu_change_evt",
+	MSG_TYPE_SCAN_EVT:       "scan_evt",
 }
 
 type BleHdr struct {
@@ -577,6 +583,69 @@ type BleMtuChangeEvt struct {
 	Status     int `json:"status"`
 	ConnHandle int `json:"conn_handle"`
 	Mtu        int `json:"mtu"`
+}
+
+type BleScanReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  int     `json:"seq"`
+
+	// Mandatory
+	OwnAddrType      BleAddrType         `json:"own_addr_type"`
+	DurationMs       int                 `json:"duration_ms"`
+	Itvl             int                 `json:"itvl"`
+	Window           int                 `json:"window"`
+	FilterPolicy     BleScanFilterPolicy `json:"filter_policy"`
+	Limited          bool                `json:"limited"`
+	Passive          bool                `json:"passive"`
+	FilterDuplicates bool                `json:"filter_duplicates"`
+}
+
+type BleScanRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  int     `json:"seq"`
+
+	// Mandatory
+	Status int `json:"status"`
+}
+
+type BleScanEvt struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  int     `json:"seq"`
+
+	// Mandatory
+	EventType BleAdvEventType `json:"event_type"`
+	AddrType  BleAddrType     `json:"addr_type"`
+	Addr      BleAddr         `json:"addr"`
+	Rssi      int8            `json:"rssi"`
+	Data      BleBytes        `json:"data"`
+
+	// Optional
+	DataFlags          uint8  `json:"data_flags"`
+	DataName           string `json:"data_name"`
+	DataNameIsComplete bool   `json:"data_name_is_complete"`
+}
+
+type BleScanCancelReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  int     `json:"seq"`
+}
+
+type BleScanCancelRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  int     `json:"seq"`
+
+	// Mandatory
+	Status int `json:"status"`
 }
 
 func ErrCodeToString(e int) string {

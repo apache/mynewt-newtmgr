@@ -27,9 +27,9 @@ import (
 	"strings"
 )
 
-type BleAddrType int
-
 const BLE_ATT_ATTR_MAX_LEN = 512
+
+type BleAddrType int
 
 const (
 	BLE_ADDR_TYPE_PUBLIC  BleAddrType = 0
@@ -43,21 +43,6 @@ var BleAddrTypeStringMap = map[BleAddrType]string{
 	BLE_ADDR_TYPE_RANDOM:  "random",
 	BLE_ADDR_TYPE_RPA_PUB: "rpa_pub",
 	BLE_ADDR_TYPE_RPA_RND: "rpa_rnd",
-}
-
-type BleAddr struct {
-	Bytes [6]byte
-}
-
-type BleDev struct {
-	AddrType BleAddrType
-	Addr     BleAddr
-}
-
-func (bd *BleDev) String() string {
-	return fmt.Sprintf("%s,%s",
-		BleAddrTypeToString(bd.AddrType),
-		bd.Addr.String())
 }
 
 func BleAddrTypeToString(addrType BleAddrType) string {
@@ -93,6 +78,10 @@ func (a *BleAddrType) UnmarshalJSON(data []byte) error {
 
 	*a, err = BleAddrTypeFromString(s)
 	return err
+}
+
+type BleAddr struct {
+	Bytes [6]byte
 }
 
 func ParseBleAddr(s string) (BleAddr, error) {
@@ -145,4 +134,126 @@ func (ba *BleAddr) UnmarshalJSON(data []byte) error {
 	}
 
 	return nil
+}
+
+type BleDev struct {
+	AddrType BleAddrType
+	Addr     BleAddr
+}
+
+func (bd *BleDev) String() string {
+	return fmt.Sprintf("%s,%s",
+		BleAddrTypeToString(bd.AddrType),
+		bd.Addr.String())
+}
+
+type BlePeerSpec struct {
+	Name string
+	Dev  BleDev // Only used if name not present.
+}
+
+type BleScanFilterPolicy int
+
+const (
+	BLE_SCAN_FILT_NO_WL        BleScanFilterPolicy = 0
+	BLE_SCAN_FILT_USE_WL                           = 1
+	BLE_SCAN_FILT_NO_WL_INITA                      = 2
+	BLE_SCAN_FILT_USE_WL_INITA                     = 3
+)
+
+var BleScanFilterPolicyStringMap = map[BleScanFilterPolicy]string{
+	BLE_SCAN_FILT_NO_WL:        "no_wl",
+	BLE_SCAN_FILT_USE_WL:       "use_wl",
+	BLE_SCAN_FILT_NO_WL_INITA:  "no_wl_inita",
+	BLE_SCAN_FILT_USE_WL_INITA: "use_wl_inita",
+}
+
+func BleScanFilterPolicyToString(filtPolicy BleScanFilterPolicy) string {
+	s := BleScanFilterPolicyStringMap[filtPolicy]
+	if s == "" {
+		panic(fmt.Sprintf("Invalid BleScanFilterPolicy: %d", int(filtPolicy)))
+	}
+
+	return s
+}
+
+func BleScanFilterPolicyFromString(s string) (BleScanFilterPolicy, error) {
+	for filtPolicy, name := range BleScanFilterPolicyStringMap {
+		if s == name {
+			return filtPolicy, nil
+		}
+	}
+
+	return BleScanFilterPolicy(0),
+		fmt.Errorf("Invalid BleScanFilterPolicy string: %s", s)
+}
+
+func (a BleScanFilterPolicy) MarshalJSON() ([]byte, error) {
+	return json.Marshal(BleScanFilterPolicyToString(a))
+}
+
+func (a *BleScanFilterPolicy) UnmarshalJSON(data []byte) error {
+	var err error
+
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	*a, err = BleScanFilterPolicyFromString(s)
+	return err
+}
+
+type BleAdvEventType int
+
+const (
+	BLE_ADV_EVENT_IND           BleAdvEventType = 0
+	BLE_ADV_EVENT_DIRECT_IND_HD                 = 1
+	BLE_ADV_EVENT_SCAN_IND                      = 2
+	BLE_ADV_EVENT_NONCONN_IND                   = 3
+	BLE_ADV_EVENT_DIRECT_IND_LD                 = 4
+)
+
+var BleAdvEventTypeStringMap = map[BleAdvEventType]string{
+	BLE_ADV_EVENT_IND:           "ind",
+	BLE_ADV_EVENT_DIRECT_IND_HD: "direct_ind_hd",
+	BLE_ADV_EVENT_SCAN_IND:      "scan_ind",
+	BLE_ADV_EVENT_NONCONN_IND:   "nonconn_ind",
+	BLE_ADV_EVENT_DIRECT_IND_LD: "direct_ind_ld",
+}
+
+func BleAdvEventTypeToString(advEventType BleAdvEventType) string {
+	s := BleAdvEventTypeStringMap[advEventType]
+	if s == "" {
+		panic(fmt.Sprintf("Invalid BleAdvEventType: %d", int(advEventType)))
+	}
+
+	return s
+}
+
+func BleAdvEventTypeFromString(s string) (BleAdvEventType, error) {
+	for advEventType, name := range BleAdvEventTypeStringMap {
+		if s == name {
+			return advEventType, nil
+		}
+	}
+
+	return BleAdvEventType(0),
+		fmt.Errorf("Invalid BleAdvEventType string: %s", s)
+}
+
+func (a BleAdvEventType) MarshalJSON() ([]byte, error) {
+	return json.Marshal(BleAdvEventTypeToString(a))
+}
+
+func (a *BleAdvEventType) UnmarshalJSON(data []byte) error {
+	var err error
+
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	*a, err = BleAdvEventTypeFromString(s)
+	return err
 }

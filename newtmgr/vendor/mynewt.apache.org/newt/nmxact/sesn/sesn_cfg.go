@@ -17,7 +17,7 @@ type OnCloseFn func(s Sesn, err error)
 
 type SesnCfgBle struct {
 	OwnAddrType  bledefs.BleAddrType
-	Peer         bledefs.BleDev
+	Peer         bledefs.BlePeerSpec
 	CloseTimeout time.Duration
 }
 
