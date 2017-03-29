@@ -48,16 +48,9 @@ type BleFsmParams struct {
 }
 
 type BleFsm struct {
-	bx           *BleXport
-	ownAddrType  BleAddrType
-	peerSpec     sesn.BlePeerSpec
-	peerDev      *BleDev
-	svcUuid      BleUuid
-	reqChrUuid   BleUuid
-	rspChrUuid   BleUuid
-	rxNmpCb      BleRxNmpFn
-	disconnectCb BleDisconnectFn
+	params BleFsmParams
 
+	peerDev    *BleDev
 	connHandle int
 	nmpSvc     *BleSvc
 	nmpReqChr  *BleChr
@@ -75,14 +68,7 @@ type BleFsm struct {
 
 func NewBleFsm(p BleFsmParams) *BleFsm {
 	bf := &BleFsm{
-		bx:           p.Bx,
-		peerSpec:     p.PeerSpec,
-		ownAddrType:  p.OwnAddrType,
-		svcUuid:      p.SvcUuid,
-		reqChrUuid:   p.ReqChrUuid,
-		rspChrUuid:   p.RspChrUuid,
-		rxNmpCb:      p.RxNmpCb,
-		disconnectCb: p.DisconnectCb,
+		params: p,
 
 		bls:    map[*BleListener]struct{}{},
 		attMtu: DFLT_ATT_MTU,
@@ -143,7 +129,7 @@ func (bf *BleFsm) addBleListener(base BleMsgBase) (*BleListener, error) {
 	bf.bls[bl] = struct{}{}
 	bf.mtx.Unlock()
 
-	if err := bf.bx.Bd.AddListener(base, bl); err != nil {
+	if err := bf.params.Bx.Bd.AddListener(base, bl); err != nil {
 		delete(bf.bls, bl)
 		return nil, err
 	}
@@ -167,7 +153,7 @@ func (bf *BleFsm) addBleSeqListener(seq int) (*BleListener, error) {
 }
 
 func (bf *BleFsm) removeBleListener(base BleMsgBase) {
-	bl := bf.bx.Bd.RemoveListener(base)
+	bl := bf.params.Bx.Bd.RemoveListener(base)
 	if bl != nil {
 		bf.mtx.Lock()
 		delete(bf.bls, bl)
@@ -286,13 +272,13 @@ func (bf *BleFsm) connectListen(seq int) error {
 					bf.setState(SESN_STATE_UNCONNECTED)
 					peer := *bf.peerDev
 					bf.peerDev = nil
-					bf.disconnectCb(peer, err)
+					bf.params.DisconnectCb(peer, err)
 					return
 
 				default:
 				}
 
-			case <-bl.AfterTimeout(bf.bx.rspTimeout):
+			case <-bl.AfterTimeout(bf.params.Bx.rspTimeout):
 				bf.connChan <- BhdTimeoutError(MSG_TYPE_CONNECT)
 			}
 		}
@@ -326,7 +312,7 @@ func (bf *BleFsm) nmpRspListen() error {
 					if bf.nmpRspChr != nil &&
 						msg.AttrHandle == bf.nmpRspChr.ValHandle {
 
-						bf.rxNmpCb(msg.Data.Bytes)
+						bf.params.RxNmpCb(msg.Data.Bytes)
 					}
 
 				default:
@@ -339,7 +325,7 @@ func (bf *BleFsm) nmpRspListen() error {
 
 func (bf *BleFsm) connect() error {
 	r := NewBleConnectReq()
-	r.OwnAddrType = bf.ownAddrType
+	r.OwnAddrType = bf.params.OwnAddrType
 	r.PeerAddrType = bf.peerDev.AddrType
 	r.PeerAddr = bf.peerDev.Addr
 
@@ -347,7 +333,7 @@ func (bf *BleFsm) connect() error {
 		return err
 	}
 
-	if err := connect(bf.bx, bf.connChan, r); err != nil {
+	if err := connect(bf.params.Bx, bf.connChan, r); err != nil {
 		return err
 	}
 
@@ -356,7 +342,7 @@ func (bf *BleFsm) connect() error {
 
 func (bf *BleFsm) scan() error {
 	r := NewBleScanReq()
-	r.OwnAddrType = bf.ownAddrType
+	r.OwnAddrType = bf.params.OwnAddrType
 	r.DurationMs = 15000
 	r.FilterPolicy = BLE_SCAN_FILT_NO_WL
 	r.Limited = false
@@ -388,13 +374,13 @@ func (bf *BleFsm) scan() error {
 		}
 
 		// Ask client if we should connect to this advertiser.
-		if bf.peerSpec.ScanPred(r) {
+		if bf.params.PeerSpec.ScanPred(r) {
 			bf.peerDev = &r.Sender
 			abortChan <- struct{}{}
 		}
 	}
 
-	if err := scan(bf.bx, bl, r, abortChan, scanCb); err != nil {
+	if err := scan(bf.params.Bx, bl, r, abortChan, scanCb); err != nil {
 		return err
 	}
 
@@ -411,7 +397,7 @@ func (bf *BleFsm) scanCancel() error {
 	}
 	defer bf.removeBleSeqListener(r.Seq)
 
-	if err := scanCancel(bf.bx, bl, r); err != nil {
+	if err := scanCancel(bf.params.Bx, bl, r); err != nil {
 		return err
 	}
 
@@ -452,7 +438,7 @@ func (bf *BleFsm) terminate() error {
 	}
 	defer bf.removeBleSeqListener(r.Seq)
 
-	if err := terminate(bf.bx, bl, r); err != nil {
+	if err := terminate(bf.params.Bx, bl, r); err != nil {
 		return err
 	}
 
@@ -474,7 +460,7 @@ func (bf *BleFsm) connCancel() error {
 	}
 	defer bf.removeBleSeqListener(r.Seq)
 
-	if err := connCancel(bf.bx, bl, r); err != nil {
+	if err := connCancel(bf.params.Bx, bl, r); err != nil {
 		return err
 	}
 
@@ -484,7 +470,7 @@ func (bf *BleFsm) connCancel() error {
 func (bf *BleFsm) discSvcUuid() error {
 	r := NewBleDiscSvcUuidReq()
 	r.ConnHandle = bf.connHandle
-	r.Uuid = bf.svcUuid
+	r.Uuid = bf.params.SvcUuid
 
 	bl, err := bf.addBleSeqListener(r.Seq)
 	if err != nil {
@@ -492,7 +478,7 @@ func (bf *BleFsm) discSvcUuid() error {
 	}
 	defer bf.removeBleSeqListener(r.Seq)
 
-	bf.nmpSvc, err = discSvcUuid(bf.bx, bl, r)
+	bf.nmpSvc, err = discSvcUuid(bf.params.Bx, bl, r)
 	if err != nil {
 		return err
 	}
@@ -512,16 +498,16 @@ func (bf *BleFsm) discAllChrs() error {
 	}
 	defer bf.removeBleSeqListener(r.Seq)
 
-	chrs, err := discAllChrs(bf.bx, bl, r)
+	chrs, err := discAllChrs(bf.params.Bx, bl, r)
 	if err != nil {
 		return err
 	}
 
 	for _, c := range chrs {
-		if CompareUuids(bf.reqChrUuid, c.Uuid) == 0 {
+		if CompareUuids(bf.params.ReqChrUuid, c.Uuid) == 0 {
 			bf.nmpReqChr = c
 		}
-		if CompareUuids(bf.rspChrUuid, c.Uuid) == 0 {
+		if CompareUuids(bf.params.RspChrUuid, c.Uuid) == 0 {
 			bf.nmpRspChr = c
 		}
 	}
@@ -529,13 +515,13 @@ func (bf *BleFsm) discAllChrs() error {
 	if bf.nmpReqChr == nil {
 		return fmt.Errorf(
 			"Peer doesn't support required characteristic: %s",
-			bf.reqChrUuid.String())
+			bf.params.ReqChrUuid.String())
 	}
 
 	if bf.nmpRspChr == nil {
 		return fmt.Errorf(
 			"Peer doesn't support required characteristic: %s",
-			bf.rspChrUuid.String())
+			bf.params.RspChrUuid.String())
 	}
 
 	return nil
@@ -551,7 +537,7 @@ func (bf *BleFsm) exchangeMtu() error {
 	}
 	defer bf.removeBleSeqListener(r.Seq)
 
-	mtu, err := exchangeMtu(bf.bx, bl, r)
+	mtu, err := exchangeMtu(bf.params.Bx, bl, r)
 	if err != nil {
 		return err
 	}
@@ -572,7 +558,7 @@ func (bf *BleFsm) writeCmd(data []byte) error {
 	}
 	defer bf.removeBleSeqListener(r.Seq)
 
-	if err := writeCmd(bf.bx, bl, r); err != nil {
+	if err := writeCmd(bf.params.Bx, bl, r); err != nil {
 		return err
 	}
 
@@ -591,7 +577,7 @@ func (bf *BleFsm) subscribe() error {
 	}
 	defer bf.removeBleSeqListener(r.Seq)
 
-	if err := writeCmd(bf.bx, bl, r); err != nil {
+	if err := writeCmd(bf.params.Bx, bl, r); err != nil {
 		return err
 	}
 
@@ -607,8 +593,8 @@ func (bf *BleFsm) tryFillPeerDev() bool {
 	// If a peer address is specified, fill in the peer field now so the
 	// scanning step can be skipped.  Otherwise, the peer field gets populated
 	// during scanning.
-	if bf.peerSpec.ScanPred == nil {
-		bf.peerDev = &bf.peerSpec.Dev
+	if bf.params.PeerSpec.ScanPred == nil {
+		bf.peerDev = &bf.params.PeerSpec.Dev
 		return true
 	}
 
