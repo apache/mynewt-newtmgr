@@ -5,17 +5,18 @@ import (
 	"sync"
 	"time"
 
+	"mynewt.apache.org/newt/util"
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/omp"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
-	"mynewt.apache.org/newt/util"
 )
 
 type BleOicSesn struct {
 	bf           *BleFsm
 	nls          map[*nmp.NmpListener]struct{}
 	od           *omp.OmpDispatcher
+	connTries    int
 	closeTimeout time.Duration
 	onCloseCb    sesn.BleOnCloseFn
 
@@ -27,6 +28,7 @@ func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 	bos := &BleOicSesn{
 		nls:          map[*nmp.NmpListener]struct{}{},
 		od:           omp.NewOmpDispatcher(),
+		connTries:    cfg.Ble.ConnTries,
 		closeTimeout: cfg.Ble.CloseTimeout,
 		onCloseCb:    cfg.Ble.OnCloseCb,
 	}
@@ -47,14 +49,16 @@ func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 	}
 
 	bos.bf = NewBleFsm(BleFsmParams{
-		Bx:           bx,
-		OwnAddrType:  cfg.Ble.OwnAddrType,
-		PeerSpec:     cfg.Ble.PeerSpec,
-		SvcUuid:      svcUuid,
-		ReqChrUuid:   reqChrUuid,
-		RspChrUuid:   rspChrUuid,
-		RxNmpCb:      func(d []byte) { bos.onRxNmp(d) },
-		DisconnectCb: func(p BleDev, e error) { bos.onDisconnect(p, e) },
+		Bx:          bx,
+		OwnAddrType: cfg.Ble.OwnAddrType,
+		PeerSpec:    cfg.Ble.PeerSpec,
+		SvcUuid:     svcUuid,
+		ReqChrUuid:  reqChrUuid,
+		RspChrUuid:  rspChrUuid,
+		RxNmpCb:     func(d []byte) { bos.onRxNmp(d) },
+		DisconnectCb: func(dt BleFsmDisconnectType, p BleDev, e error) {
+			bos.onDisconnect(dt, p, e)
+		},
 	})
 
 	return bos
@@ -80,16 +84,16 @@ func (bos *BleOicSesn) removeNmpListener(seq uint8) {
 }
 
 // Returns true if a new channel was assigned.
-func (bos *BleOicSesn) setCloseChan() bool {
+func (bos *BleOicSesn) setCloseChan() error {
 	bos.mx.Lock()
 	defer bos.mx.Unlock()
 
 	if bos.closeChan != nil {
-		return false
+		return fmt.Errorf("Multiple listeners waiting for session to close")
 	}
 
 	bos.closeChan = make(chan error, 1)
-	return true
+	return nil
 }
 
 func (bos *BleOicSesn) clearCloseChan() {
@@ -99,18 +103,51 @@ func (bos *BleOicSesn) clearCloseChan() {
 	bos.closeChan = nil
 }
 
+func (bos *BleOicSesn) listenForClose(timeout time.Duration) error {
+	select {
+	case <-bos.closeChan:
+		return nil
+	case <-time.After(timeout):
+		// Session never closed.
+		return fmt.Errorf("Timeout while waiting for session to close")
+	}
+}
+
+func (bos *BleOicSesn) blockUntilClosed(timeout time.Duration) error {
+	if err := bos.setCloseChan(); err != nil {
+		return err
+	}
+	defer bos.clearCloseChan()
+
+	// If the session is already closed, we're done.
+	if bos.bf.IsClosed() {
+		return nil
+	}
+
+	// Block until close completes or timeout.
+	return bos.listenForClose(timeout)
+}
+
 func (bos *BleOicSesn) AbortRx(seq uint8) error {
 	return bos.od.FakeRxError(seq, fmt.Errorf("Rx aborted"))
 }
 
 func (bos *BleOicSesn) Open() error {
-	return bos.bf.Start()
+	var err error
+	for i := 0; i < bos.connTries; i++ {
+		var retry bool
+		retry, err = bos.bf.Start()
+		if !retry {
+			break
+		}
+	}
+
+	return err
 }
 
 func (bos *BleOicSesn) Close() error {
-	if !bos.setCloseChan() {
-		return bos.bf.closedError(
-			"Attempt to close an unopened BLE session")
+	if err := bos.setCloseChan(); err != nil {
+		return err
 	}
 	defer bos.clearCloseChan()
 
@@ -125,12 +162,7 @@ func (bos *BleOicSesn) Close() error {
 	}
 
 	// Block until close completes or timeout.
-	select {
-	case <-bos.closeChan:
-	case <-time.After(bos.closeTimeout):
-	}
-
-	return nil
+	return bos.listenForClose(bos.closeTimeout)
 }
 
 func (bos *BleOicSesn) IsOpen() bool {
@@ -141,7 +173,9 @@ func (bos *BleOicSesn) onRxNmp(data []byte) {
 	bos.od.Dispatch(data)
 }
 
-func (bos *BleOicSesn) onDisconnect(peer BleDev, err error) {
+func (bos *BleOicSesn) onDisconnect(dt BleFsmDisconnectType, peer BleDev,
+	err error) {
+
 	for nl, _ := range bos.nls {
 		nl.ErrChan <- err
 	}
@@ -150,7 +184,10 @@ func (bos *BleOicSesn) onDisconnect(peer BleDev, err error) {
 	if bos.closeChan != nil {
 		bos.closeChan <- err
 	}
-	if bos.onCloseCb != nil {
+
+	// Only execute client's disconnect callback if the disconnect was
+	// unsolicited and the session was fully open.
+	if dt == FSM_DISCONNECT_TYPE_OPENED && bos.onCloseCb != nil {
 		bos.onCloseCb(bos, peer, err)
 	}
 }
