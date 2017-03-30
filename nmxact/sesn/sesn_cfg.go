@@ -44,6 +44,7 @@ func BlePeerSpecName(name string) BlePeerSpec {
 type SesnCfgBle struct {
 	OwnAddrType  bledefs.BleAddrType
 	PeerSpec     BlePeerSpec
+	ConnTries    int
 	CloseTimeout time.Duration
 	OnCloseCb    BleOnCloseFn
 }
@@ -59,6 +60,7 @@ type SesnCfg struct {
 func NewSesnCfg() SesnCfg {
 	return SesnCfg{
 		Ble: SesnCfgBle{
+			ConnTries:    3,
 			CloseTimeout: 5 * time.Second,
 		},
 	}

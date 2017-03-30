@@ -14,9 +14,9 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
-type BleSesnState int32
-
 const DFLT_ATT_MTU = 23
+
+type BleSesnState int32
 
 const (
 	SESN_STATE_UNCONNECTED     BleSesnState = 0
@@ -33,8 +33,17 @@ const (
 	SESN_STATE_CONN_CANCELLING              = 11
 )
 
+type BleFsmDisconnectType int
+
+const (
+	FSM_DISCONNECT_TYPE_UNOPENED BleFsmDisconnectType = iota
+	FSM_DISCONNECT_TYPE_IMMEDIATE_TIMEOUT
+	FSM_DISCONNECT_TYPE_OPENED
+	FSM_DISCONNECT_TYPE_REQUESTED
+)
+
 type BleRxNmpFn func(data []byte)
-type BleDisconnectFn func(peer BleDev, err error)
+type BleDisconnectFn func(dt BleFsmDisconnectType, peer BleDev, err error)
 
 type BleFsmParams struct {
 	Bx           *BleXport
@@ -191,6 +200,22 @@ func (bf *BleFsm) action(
 	return nil
 }
 
+func (bf *BleFsm) calcDisconnectType() BleFsmDisconnectType {
+	switch bf.getState() {
+	case SESN_STATE_EXCHANGING_MTU:
+		return FSM_DISCONNECT_TYPE_IMMEDIATE_TIMEOUT
+
+	case SESN_STATE_DISCOVERED_CHR:
+		return FSM_DISCONNECT_TYPE_OPENED
+
+	case SESN_STATE_TERMINATING, SESN_STATE_CONN_CANCELLING:
+		return FSM_DISCONNECT_TYPE_REQUESTED
+
+	default:
+		return FSM_DISCONNECT_TYPE_UNOPENED
+	}
+}
+
 func (bf *BleFsm) connectListen(seq int) error {
 	bf.connChan = make(chan error, 1)
 
@@ -265,14 +290,18 @@ func (bf *BleFsm) connectListen(seq int) error {
 					}
 					bf.mtx.Unlock()
 
+					// Remember some fields before we clear them.
+					dt := bf.calcDisconnectType()
+					peer := *bf.peerDev
+
+					bf.setState(SESN_STATE_UNCONNECTED)
+					bf.peerDev = nil
+
 					for _, bl := range bls {
 						bl.ErrChan <- err
 					}
 
-					bf.setState(SESN_STATE_UNCONNECTED)
-					peer := *bf.peerDev
-					bf.peerDev = nil
-					bf.params.DisconnectCb(peer, err)
+					bf.params.DisconnectCb(dt, peer, err)
 					return
 
 				default:
@@ -601,9 +630,12 @@ func (bf *BleFsm) tryFillPeerDev() bool {
 	return false
 }
 
-func (bf *BleFsm) Start() error {
+// @return bool                 Whether another start attempt should be made;
+//         error                The error that caused the start attempt to
+//                                  fail; nil on success.
+func (bf *BleFsm) Start() (bool, error) {
 	if bf.getState() != SESN_STATE_UNCONNECTED {
-		return nmxutil.NewSesnAlreadyOpenError(
+		return false, nmxutil.NewSesnAlreadyOpenError(
 			"Attempt to open an already-open BLE session")
 	}
 
@@ -639,7 +671,7 @@ func (bf *BleFsm) Start() error {
 			}
 
 			if err != nil {
-				return err
+				return false, err
 			}
 
 		case SESN_STATE_CONNECTED:
@@ -650,7 +682,9 @@ func (bf *BleFsm) Start() error {
 				SESN_STATE_EXCHANGED_MTU,
 				cb)
 			if err != nil {
-				return err
+				bhe := nmxutil.ToBleHost(err)
+				retry := bhe != nil && bhe.Status == ERR_CODE_ENOTCONN
+				return retry, err
 			}
 
 		case SESN_STATE_EXCHANGED_MTU:
@@ -661,7 +695,7 @@ func (bf *BleFsm) Start() error {
 				SESN_STATE_DISCOVERED_SVC,
 				cb)
 			if err != nil {
-				return err
+				return false, err
 			}
 
 		case SESN_STATE_DISCOVERED_SVC:
@@ -675,22 +709,22 @@ func (bf *BleFsm) Start() error {
 				SESN_STATE_DISCOVERED_CHR,
 				cb)
 			if err != nil {
-				return err
+				return false, err
 			}
 
 			if err := bf.subscribe(); err != nil {
-				return err
+				return false, err
 			}
 
 		case SESN_STATE_DISCOVERED_CHR:
 			/* Open complete. */
-			return nil
+			return false, nil
 
 		case SESN_STATE_CONNECTING,
 			SESN_STATE_DISCOVERING_SVC,
 			SESN_STATE_DISCOVERING_CHR,
 			SESN_STATE_TERMINATING:
-			return fmt.Errorf("BleFsm already being opened")
+			return false, fmt.Errorf("BleFsm already being opened")
 		}
 	}
 }
@@ -724,6 +758,10 @@ func (bf *BleFsm) Stop() (bool, error) {
 
 func (bf *BleFsm) IsOpen() bool {
 	return bf.getState() == SESN_STATE_DISCOVERED_CHR
+}
+
+func (bf *BleFsm) IsClosed() bool {
+	return bf.getState() == SESN_STATE_UNCONNECTED
 }
 
 func (bf *BleFsm) TxNmp(payload []byte, nl *nmp.NmpListener,
