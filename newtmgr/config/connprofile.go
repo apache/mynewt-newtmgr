@@ -177,7 +177,7 @@ func (cpm *ConnProfileMgr) GetConnProfileList() ([]*ConnProfile, error) {
 
 func (cpm *ConnProfileMgr) save() error {
 	list, _ := cpm.GetConnProfileList()
-	b, err := json.Marshal(list)
+	b, err := json.MarshalIndent(list, "", "    ")
 	if err != nil {
 		return util.NewNewtError(err.Error())
 	}
