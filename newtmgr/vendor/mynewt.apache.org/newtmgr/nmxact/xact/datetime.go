@@ -14,7 +14,9 @@ type DateTimeReadCmd struct {
 }
 
 func NewDateTimeReadCmd() *DateTimeReadCmd {
-	return &DateTimeReadCmd{}
+	return &DateTimeReadCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 type DateTimeReadResult struct {
@@ -53,7 +55,9 @@ type DateTimeWriteCmd struct {
 }
 
 func NewDateTimeWriteCmd() *DateTimeWriteCmd {
-	return &DateTimeWriteCmd{}
+	return &DateTimeWriteCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 type DateTimeWriteResult struct {

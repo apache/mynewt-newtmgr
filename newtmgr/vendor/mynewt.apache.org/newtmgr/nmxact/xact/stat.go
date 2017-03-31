@@ -15,7 +15,9 @@ type StatReadCmd struct {
 }
 
 func NewStatReadCmd() *StatReadCmd {
-	return &StatReadCmd{}
+	return &StatReadCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 type StatReadResult struct {
@@ -54,7 +56,9 @@ type StatListCmd struct {
 }
 
 func NewStatListCmd() *StatListCmd {
-	return &StatListCmd{}
+	return &StatListCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 type StatListResult struct {

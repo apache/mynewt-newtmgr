@@ -19,7 +19,9 @@ type FsDownloadCmd struct {
 }
 
 func NewFsDownloadCmd() *FsDownloadCmd {
-	return &FsDownloadCmd{}
+	return &FsDownloadCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 type FsDownloadResult struct {
@@ -81,7 +83,9 @@ type FsUploadCmd struct {
 }
 
 func NewFsUploadCmd() *FsUploadCmd {
-	return &FsUploadCmd{}
+	return &FsUploadCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 type FsUploadResult struct {

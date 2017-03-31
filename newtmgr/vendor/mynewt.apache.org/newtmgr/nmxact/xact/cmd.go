@@ -45,6 +45,12 @@ type CmdBase struct {
 	abortErr  error
 }
 
+func NewCmdBase() CmdBase {
+	return CmdBase{
+		txOptions: sesn.NewTxOptions(),
+	}
+}
+
 func (c *CmdBase) TxOptions() sesn.TxOptions {
 	return c.txOptions
 }

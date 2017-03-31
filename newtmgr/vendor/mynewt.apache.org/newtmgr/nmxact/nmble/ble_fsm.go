@@ -216,6 +216,30 @@ func (bf *BleFsm) calcDisconnectType() BleFsmDisconnectType {
 	}
 }
 
+func (bf *BleFsm) onDisconnect(err error) {
+	log.Debugf(err.Error())
+
+	bf.mtx.Lock()
+	bls := make([]*BleListener, 0, len(bf.bls))
+	for bl, _ := range bf.bls {
+		bls = append(bls, bl)
+	}
+	bf.mtx.Unlock()
+
+	// Remember some fields before we clear them.
+	dt := bf.calcDisconnectType()
+	peer := *bf.peerDev
+
+	bf.setState(SESN_STATE_UNCONNECTED)
+	bf.peerDev = nil
+
+	for _, bl := range bls {
+		bl.ErrChan <- err
+	}
+
+	bf.params.DisconnectCb(dt, peer, err)
+}
+
 func (bf *BleFsm) connectListen(seq int) error {
 	bf.connChan = make(chan error, 1)
 
@@ -228,7 +252,10 @@ func (bf *BleFsm) connectListen(seq int) error {
 		defer bf.removeBleSeqListener(seq)
 		for {
 			select {
-			case <-bl.ErrChan:
+			case err := <-bl.ErrChan:
+				// Transport reported error.  Assume all connections have
+				// dropped.
+				bf.onDisconnect(err)
 				return
 
 			case bm := <-bl.BleChan:
@@ -281,33 +308,13 @@ func (bf *BleFsm) connectListen(seq int) error {
 
 				case *BleDisconnectEvt:
 					err := bf.disconnectError(msg.Reason)
-					log.Debugf(err.Error())
-
-					bf.mtx.Lock()
-					bls := make([]*BleListener, 0, len(bf.bls))
-					for bl, _ := range bf.bls {
-						bls = append(bls, bl)
-					}
-					bf.mtx.Unlock()
-
-					// Remember some fields before we clear them.
-					dt := bf.calcDisconnectType()
-					peer := *bf.peerDev
-
-					bf.setState(SESN_STATE_UNCONNECTED)
-					bf.peerDev = nil
-
-					for _, bl := range bls {
-						bl.ErrChan <- err
-					}
-
-					bf.params.DisconnectCb(dt, peer, err)
+					bf.onDisconnect(err)
 					return
 
 				default:
 				}
 
-			case <-bl.AfterTimeout(bf.params.Bx.rspTimeout):
+			case <-bl.AfterTimeout(bf.params.Bx.RspTimeout()):
 				bf.connChan <- BhdTimeoutError(MSG_TYPE_CONNECT)
 			}
 		}

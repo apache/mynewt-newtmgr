@@ -12,6 +12,13 @@ type TxOptions struct {
 	Tries   int
 }
 
+func NewTxOptions() TxOptions {
+	return TxOptions{
+		Timeout: 10 * time.Second,
+		Tries:   1,
+	}
+}
+
 func (opt *TxOptions) AfterTimeout() <-chan time.Time {
 	if opt.Timeout == 0 {
 		return nil

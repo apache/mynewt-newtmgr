@@ -11,7 +11,9 @@ type ResetCmd struct {
 }
 
 func NewResetCmd() *ResetCmd {
-	return &ResetCmd{}
+	return &ResetCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 type ResetResult struct {

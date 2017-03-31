@@ -267,7 +267,10 @@ func (bd *BleDispatcher) Dispatch(data []byte) {
 		return
 	}
 
+	bd.mutex.Lock()
 	_, listener := bd.findListener(base)
+	bd.mutex.Unlock()
+
 	if listener == nil {
 		log.Debugf(
 			"No BLE listener for op=%d type=%d seq=%d connHandle=%d",
@@ -293,5 +296,17 @@ func (bd *BleDispatcher) ErrorAll(err error) {
 
 	for _, listener := range listeners {
 		listener.ErrChan <- err
+	}
+}
+
+func (bd *BleDispatcher) Clear() {
+	bd.mutex.Lock()
+	defer bd.mutex.Unlock()
+
+	for s, _ := range bd.seqMap {
+		delete(bd.seqMap, s)
+	}
+	for b, _ := range bd.baseMap {
+		delete(bd.baseMap, b)
 	}
 }

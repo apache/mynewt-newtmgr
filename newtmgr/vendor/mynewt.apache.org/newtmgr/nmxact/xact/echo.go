@@ -11,7 +11,9 @@ type EchoCmd struct {
 }
 
 func NewEchoCmd() *EchoCmd {
-	return &EchoCmd{}
+	return &EchoCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 type EchoResult struct {
