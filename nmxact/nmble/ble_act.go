@@ -56,7 +56,7 @@ func terminate(x *BleXport, bl *BleListener, r *BleTerminateReq) error {
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.rspTimeout):
+		case <-bl.AfterTimeout(x.RspTimeout()):
 			return BhdTimeoutError(MSG_TYPE_TERMINATE)
 		}
 	}
@@ -92,7 +92,7 @@ func connCancel(x *BleXport, bl *BleListener, r *BleConnCancelReq) error {
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.rspTimeout):
+		case <-bl.AfterTimeout(x.RspTimeout()):
 			return BhdTimeoutError(MSG_TYPE_TERMINATE)
 		}
 	}
@@ -148,7 +148,7 @@ func discSvcUuid(x *BleXport, bl *BleListener, r *BleDiscSvcUuidReq) (
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.rspTimeout):
+		case <-bl.AfterTimeout(x.RspTimeout()):
 			return nil, BhdTimeoutError(MSG_TYPE_DISC_SVC_UUID)
 		}
 	}
@@ -198,7 +198,7 @@ func discAllChrs(x *BleXport, bl *BleListener, r *BleDiscAllChrsReq) (
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.rspTimeout):
+		case <-bl.AfterTimeout(x.RspTimeout()):
 			return nil, BhdTimeoutError(MSG_TYPE_DISC_ALL_CHRS)
 		}
 	}
@@ -235,7 +235,7 @@ func writeCmd(x *BleXport, bl *BleListener, r *BleWriteCmdReq) error {
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.rspTimeout):
+		case <-bl.AfterTimeout(x.RspTimeout()):
 			return BhdTimeoutError(MSG_TYPE_WRITE_CMD)
 		}
 	}
@@ -281,7 +281,7 @@ func exchangeMtu(x *BleXport, bl *BleListener, r *BleExchangeMtuReq) (
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.rspTimeout):
+		case <-bl.AfterTimeout(x.RspTimeout()):
 			return 0, BhdTimeoutError(MSG_TYPE_EXCHANGE_MTU)
 		}
 	}
@@ -320,7 +320,7 @@ func scan(x *BleXport, bl *BleListener, r *BleScanReq,
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.rspTimeout):
+		case <-bl.AfterTimeout(x.RspTimeout()):
 			return BhdTimeoutError(MSG_TYPE_EXCHANGE_MTU)
 
 		case <-abortChan:
@@ -356,7 +356,7 @@ func scanCancel(x *BleXport, bl *BleListener, r *BleScanCancelReq) error {
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.rspTimeout):
+		case <-bl.AfterTimeout(x.RspTimeout()):
 			return BhdTimeoutError(MSG_TYPE_EXCHANGE_MTU)
 		}
 	}

@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
+
 	"mynewt.apache.org/newt/util"
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
@@ -128,6 +130,8 @@ func (bps *BlePlainSesn) AbortRx(seq uint8) error {
 func (bps *BlePlainSesn) Open() error {
 	var err error
 	for i := 0; i < bps.connTries; i++ {
+		log.Debugf("Opening BLE session; try %d/%d", i+1, bps.connTries)
+
 		var retry bool
 		retry, err = bps.bf.Start()
 		if !retry {
@@ -139,6 +143,8 @@ func (bps *BlePlainSesn) Open() error {
 			bps.Close()
 			return err
 		}
+
+		log.Debugf("Connection to BLE peer dropped immediately; retrying")
 	}
 
 	return err

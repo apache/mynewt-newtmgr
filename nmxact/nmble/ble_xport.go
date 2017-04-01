@@ -9,9 +9,9 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 
+	"mynewt.apache.org/newt/util/unixchild"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
-	"mynewt.apache.org/newt/util/unixchild"
 )
 
 type XportCfg struct {
@@ -33,13 +33,17 @@ type XportCfg struct {
 
 	// Path of the BLE controller device (e.g., /dev/ttyUSB0).
 	DevPath string
+
+	// How long to allow for the host and controller to sync at startup.
+	SyncTimeout time.Duration
 }
 
 func NewXportCfg() XportCfg {
 	return XportCfg{
 		BlehostdAcceptTimeout: time.Second,
-		BlehostdRestart:       true,
 		BlehostdRspTimeout:    time.Second,
+		BlehostdRestart:       true,
+		SyncTimeout:           10 * time.Second,
 	}
 }
 
@@ -57,31 +61,29 @@ type BleXport struct {
 	client *unixchild.Client
 	state  BleXportState
 
-	syncTimeout time.Duration
-	rspTimeout  time.Duration
+	cfg XportCfg
 }
 
 func NewBleXport(cfg XportCfg) (*BleXport, error) {
-	config := unixchild.Config{
-		SockPath:      cfg.SockPath,
-		ChildPath:     cfg.BlehostdPath,
-		ChildArgs:     []string{cfg.DevPath, cfg.SockPath},
-		Depth:         10,
-		MaxMsgSz:      10240,
-		AcceptTimeout: cfg.BlehostdAcceptTimeout,
-		Restart:       cfg.BlehostdRestart,
-	}
-
-	c := unixchild.New(config)
-
 	bx := &BleXport{
-		client:      c,
-		Bd:          NewBleDispatcher(),
-		syncTimeout: 10 * time.Second,
-		rspTimeout:  cfg.BlehostdRspTimeout,
+		Bd:  NewBleDispatcher(),
+		cfg: cfg,
 	}
 
 	return bx, nil
+}
+
+func (bx *BleXport) createUnixChild() {
+	config := unixchild.Config{
+		SockPath:      bx.cfg.SockPath,
+		ChildPath:     bx.cfg.BlehostdPath,
+		ChildArgs:     []string{bx.cfg.DevPath, bx.cfg.SockPath},
+		Depth:         10,
+		MaxMsgSz:      10240,
+		AcceptTimeout: bx.cfg.BlehostdAcceptTimeout,
+	}
+
+	bx.client = unixchild.New(config)
 }
 
 func (bx *BleXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
@@ -182,11 +184,11 @@ func (bx *BleXport) onError(err error) {
 		// Stop already in progress.
 		return
 	}
-	bx.Bd.ErrorAll(err)
 	if bx.client != nil {
 		bx.client.Stop()
 		bx.client.FromChild <- nil
 	}
+	bx.Bd.ErrorAll(err)
 }
 
 func (bx *BleXport) setStateFrom(from BleXportState, to BleXportState) bool {
@@ -209,24 +211,29 @@ func (bx *BleXport) Start() error {
 		return nmxutil.NewXportError("BLE xport started twice")
 	}
 
+	bx.createUnixChild()
 	if err := bx.client.Start(); err != nil {
-		return nmxutil.NewXportError(
-			"Failed to start child child process: " + err.Error())
+		if unixchild.IsUcAcceptError(err) {
+			err = nmxutil.NewXportError("blehostd did not connect to socket; " +
+				"controller not attached?")
+		} else {
+			err = nmxutil.NewXportError(
+				"Failed to start child process: " + err.Error())
+		}
+		bx.setStateFrom(BLE_XPORT_STATE_STARTING, BLE_XPORT_STATE_STOPPED)
+		return err
 	}
 
 	go func() {
 		err := <-bx.client.ErrChild
-		if unixchild.IsUcAcceptError(err) {
-			err = fmt.Errorf("blehostd did not connect to socket; " +
-				"controller not attached?")
-		}
+		err = nmxutil.NewXportError("BLE transport error: " + err.Error())
+		fmt.Printf("%s\n", err.Error())
 		bx.onError(err)
-		return
 	}()
 
 	go func() {
 		for {
-			if _, err := bx.rx(); err != nil {
+			if b := bx.rx(); b == nil {
 				// The error should have been reported to everyone interested.
 				break
 			}
@@ -254,7 +261,7 @@ func (bx *BleXport) Start() error {
 						break SyncLoop
 					}
 				}
-			case <-time.After(bx.syncTimeout):
+			case <-time.After(bx.cfg.SyncTimeout):
 				bx.Stop()
 				return nmxutil.NewXportError(
 					"Timeout waiting for host <-> controller sync")
@@ -305,15 +312,15 @@ func (bx *BleXport) Tx(data []byte) error {
 	return nil
 }
 
-func (bx *BleXport) rx() ([]byte, error) {
-	select {
-	case err := <-bx.client.ErrChild:
-		return nil, err
-	case buf := <-bx.client.FromChild:
-		if len(buf) != 0 {
-			log.Debugf("Receive from blehostd:\n%s", hex.Dump(buf))
-			bx.Bd.Dispatch(buf)
-		}
-		return buf, nil
+func (bx *BleXport) rx() []byte {
+	buf := <-bx.client.FromChild
+	if len(buf) != 0 {
+		log.Debugf("Receive from blehostd:\n%s", hex.Dump(buf))
+		bx.Bd.Dispatch(buf)
 	}
+	return buf
+}
+
+func (bx *BleXport) RspTimeout() time.Duration {
+	return bx.cfg.BlehostdRspTimeout
 }

@@ -39,6 +39,7 @@ func NewNmpListener() *NmpListener {
 	return &NmpListener{
 		RspChan: make(chan NmpRsp, 1),
 		ErrChan: make(chan error, 1),
+		tmoChan: make(chan time.Time, 1),
 	}
 }
 
