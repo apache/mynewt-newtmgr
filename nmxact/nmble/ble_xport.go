@@ -53,21 +53,26 @@ const (
 	BLE_XPORT_STATE_STOPPED BleXportState = iota
 	BLE_XPORT_STATE_STARTING
 	BLE_XPORT_STATE_STARTED
+	BLE_XPORT_STATE_STOPPING
 )
 
 // Implements xport.Xport.
 type BleXport struct {
-	Bd     *BleDispatcher
-	client *unixchild.Client
-	state  BleXportState
+	Bd               *BleDispatcher
+	client           *unixchild.Client
+	state            BleXportState
+	stopChan         chan struct{}
+	shutdownChan     chan bool
+	numStopListeners int
 
 	cfg XportCfg
 }
 
 func NewBleXport(cfg XportCfg) (*BleXport, error) {
 	bx := &BleXport{
-		Bd:  NewBleDispatcher(),
-		cfg: cfg,
+		Bd:           NewBleDispatcher(),
+		shutdownChan: make(chan bool),
+		cfg:          cfg,
 	}
 
 	return bx, nil
@@ -177,18 +182,46 @@ func (bx *BleXport) initialSyncCheck() (bool, *BleListener, error) {
 	return synced, bl, nil
 }
 
-func (bx *BleXport) onError(err error) {
-	if !bx.setStateFrom(BLE_XPORT_STATE_STARTED, BLE_XPORT_STATE_STOPPED) &&
-		!bx.setStateFrom(BLE_XPORT_STATE_STARTING, BLE_XPORT_STATE_STOPPED) {
+func (bx *BleXport) shutdown(restart bool, err error) {
+	var fullyStarted bool
 
+	if bx.setStateFrom(BLE_XPORT_STATE_STARTED,
+		BLE_XPORT_STATE_STOPPING) {
+
+		fullyStarted = true
+	} else if bx.setStateFrom(BLE_XPORT_STATE_STARTING,
+		BLE_XPORT_STATE_STOPPING) {
+
+		fullyStarted = false
+	} else {
 		// Stop already in progress.
 		return
 	}
+
+	// Stop the unixchild instance (blehostd + socket).
 	if bx.client != nil {
 		bx.client.Stop()
+
+		// Unblock the unixchild instance.
 		bx.client.FromChild <- nil
 	}
+
+	// Indicate an error to all of this transport's listeners.  This prevents
+	// them from blocking endlessly while awaiting a BLE message.
 	bx.Bd.ErrorAll(err)
+
+	// Stop all of this transport's go routines.
+	for i := 0; i < bx.numStopListeners; i++ {
+		bx.stopChan <- struct{}{}
+	}
+
+	bx.setStateFrom(BLE_XPORT_STATE_STOPPING, BLE_XPORT_STATE_STOPPED)
+
+	// Indicate that the shutdown is complete.  If restarts are enabled on this
+	// transport, this signals that the transport should be started again.
+	if fullyStarted {
+		bx.shutdownChan <- restart
+	}
 }
 
 func (bx *BleXport) setStateFrom(from BleXportState, to BleXportState) bool {
@@ -202,47 +235,68 @@ func (bx *BleXport) getState() BleXportState {
 }
 
 func (bx *BleXport) Stop() error {
-	bx.onError(nil)
+	bx.shutdown(false, nil)
 	return nil
 }
 
-func (bx *BleXport) Start() error {
+func (bx *BleXport) startOnce() error {
 	if !bx.setStateFrom(BLE_XPORT_STATE_STOPPED, BLE_XPORT_STATE_STARTING) {
 		return nmxutil.NewXportError("BLE xport started twice")
 	}
 
+	bx.stopChan = make(chan struct{})
+	bx.numStopListeners = 0
+	bx.Bd.Clear()
+
 	bx.createUnixChild()
 	if err := bx.client.Start(); err != nil {
 		if unixchild.IsUcAcceptError(err) {
-			err = nmxutil.NewXportError("blehostd did not connect to socket; " +
-				"controller not attached?")
+			err = nmxutil.NewXportError(
+				"blehostd did not connect to socket; " +
+					"controller not attached?")
 		} else {
+			panic(err.Error())
 			err = nmxutil.NewXportError(
 				"Failed to start child process: " + err.Error())
 		}
-		bx.setStateFrom(BLE_XPORT_STATE_STARTING, BLE_XPORT_STATE_STOPPED)
+		bx.shutdown(true, err)
 		return err
 	}
 
 	go func() {
-		err := <-bx.client.ErrChild
-		err = nmxutil.NewXportError("BLE transport error: " + err.Error())
-		fmt.Printf("%s\n", err.Error())
-		bx.onError(err)
+		bx.numStopListeners++
+		for {
+			select {
+			case err := <-bx.client.ErrChild:
+				err = nmxutil.NewXportError("BLE transport error: " +
+					err.Error())
+				go bx.shutdown(true, err)
+
+			case <-bx.stopChan:
+				return
+			}
+		}
 	}()
 
 	go func() {
+		bx.numStopListeners++
 		for {
-			if b := bx.rx(); b == nil {
-				// The error should have been reported to everyone interested.
-				break
+			select {
+			case buf := <-bx.client.FromChild:
+				if len(buf) != 0 {
+					log.Debugf("Receive from blehostd:\n%s", hex.Dump(buf))
+					bx.Bd.Dispatch(buf)
+				}
+
+			case <-bx.stopChan:
+				return
 			}
 		}
 	}()
 
 	synced, bl, err := bx.initialSyncCheck()
 	if err != nil {
-		bx.Stop()
+		bx.shutdown(true, err)
 		return err
 	}
 
@@ -253,6 +307,7 @@ func (bx *BleXport) Start() error {
 		for {
 			select {
 			case err := <-bl.ErrChan:
+				bx.shutdown(true, err)
 				return err
 			case bm := <-bl.BleChan:
 				switch msg := bm.(type) {
@@ -262,37 +317,81 @@ func (bx *BleXport) Start() error {
 					}
 				}
 			case <-time.After(bx.cfg.SyncTimeout):
-				bx.Stop()
-				return nmxutil.NewXportError(
+				err := nmxutil.NewXportError(
 					"Timeout waiting for host <-> controller sync")
+				bx.shutdown(true, err)
+				return err
 			}
 		}
 	}
 
 	// Host and controller are synced.  Listen for sync loss in the background.
 	go func() {
+		bx.numStopListeners++
 		for {
 			select {
 			case err := <-bl.ErrChan:
-				bx.onError(err)
-				return
+				go bx.shutdown(true, err)
 			case bm := <-bl.BleChan:
 				switch msg := bm.(type) {
 				case *BleSyncEvt:
 					if !msg.Synced {
-						bx.onError(nmxutil.NewXportError(
+						go bx.shutdown(true, nmxutil.NewXportError(
 							"BLE host <-> controller sync lost"))
-						return
 					}
 				}
+			case <-bx.stopChan:
+				return
 			}
 		}
 	}()
 
 	if !bx.setStateFrom(BLE_XPORT_STATE_STARTING, BLE_XPORT_STATE_STARTED) {
+		bx.shutdown(true, err)
 		return nmxutil.NewXportError(
 			"Internal error; BLE transport in unexpected state")
 	}
+
+	return nil
+}
+
+func (bx *BleXport) Start() error {
+	// Try to start the transport.  If this first attempt fails, report the
+	// error and don't retry.
+	if err := bx.startOnce(); err != nil {
+		log.Debugf("Error starting BLE transport: %s",
+			err.Error())
+		return err
+	}
+
+	// Now that the first start attempt has succeeded, start a restart loop in
+	// the background.
+	go func() {
+		// Block until transport shuts down.
+		restart := <-bx.shutdownChan
+		for {
+			// If restarts are disabled, or if the shutdown was a result of an
+			// explicit stop call (instead of an unexpected error), stop
+			// restarting the transport.
+			if !bx.cfg.BlehostdRestart || !restart {
+				break
+			}
+
+			// Wait a second before the next restart.  This is necessary to
+			// ensure the unix domain socket can be rebound.
+			time.Sleep(time.Second)
+
+			// Attempt to start the transport again.
+			if err := bx.startOnce(); err != nil {
+				// Start attempt failed.
+				log.Debugf("Error starting BLE transport: %s",
+					err.Error())
+			} else {
+				// Success.  Block until the transport shuts down.
+				restart = <-bx.shutdownChan
+			}
+		}
+	}()
 
 	return nil
 }
@@ -304,21 +403,13 @@ func (bx *BleXport) txNoSync(data []byte) {
 
 func (bx *BleXport) Tx(data []byte) error {
 	if bx.getState() != BLE_XPORT_STATE_STARTED {
-		return nmxutil.NewXportError("Attempt to transmit before BLE xport " +
-			"fully started")
+		return nmxutil.NewXportError(
+			fmt.Sprintf("Attempt to transmit before BLE xport fully started; "+
+				"state=%d", bx.getState()))
 	}
 
 	bx.txNoSync(data)
 	return nil
-}
-
-func (bx *BleXport) rx() []byte {
-	buf := <-bx.client.FromChild
-	if len(buf) != 0 {
-		log.Debugf("Receive from blehostd:\n%s", hex.Dump(buf))
-		bx.Bd.Dispatch(buf)
-	}
-	return buf
 }
 
 func (bx *BleXport) RspTimeout() time.Duration {
