@@ -15,7 +15,9 @@ type ConfigReadCmd struct {
 }
 
 func NewConfigReadCmd() *ConfigReadCmd {
-	return &ConfigReadCmd{}
+	return &ConfigReadCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 type ConfigReadResult struct {
@@ -56,7 +58,9 @@ type ConfigWriteCmd struct {
 }
 
 func NewConfigWriteCmd() *ConfigWriteCmd {
-	return &ConfigWriteCmd{}
+	return &ConfigWriteCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 type ConfigWriteResult struct {

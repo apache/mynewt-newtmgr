@@ -17,7 +17,9 @@ type LogShowCmd struct {
 }
 
 func NewLogShowCmd() *LogShowCmd {
-	return &LogShowCmd{}
+	return &LogShowCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 type LogShowResult struct {
@@ -58,7 +60,9 @@ type LogListCmd struct {
 }
 
 func NewLogListCmd() *LogListCmd {
-	return &LogListCmd{}
+	return &LogListCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 type LogListResult struct {
@@ -96,7 +100,9 @@ type LogModuleListCmd struct {
 }
 
 func NewLogModuleListCmd() *LogModuleListCmd {
-	return &LogModuleListCmd{}
+	return &LogModuleListCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 type LogModuleListResult struct {
@@ -134,7 +140,9 @@ type LogLevelListCmd struct {
 }
 
 func NewLogLevelListCmd() *LogLevelListCmd {
-	return &LogLevelListCmd{}
+	return &LogLevelListCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 type LogLevelListResult struct {
@@ -172,7 +180,9 @@ type LogClearCmd struct {
 }
 
 func NewLogClearCmd() *LogClearCmd {
-	return &LogClearCmd{}
+	return &LogClearCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 type LogClearResult struct {

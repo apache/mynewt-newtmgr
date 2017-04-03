@@ -23,7 +23,9 @@ type ImageUploadResult struct {
 }
 
 func NewImageUploadCmd() *ImageUploadCmd {
-	return &ImageUploadCmd{}
+	return &ImageUploadCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 func newImageUploadResult() *ImageUploadResult {
@@ -127,7 +129,9 @@ type ImageStateReadResult struct {
 }
 
 func NewImageStateReadCmd() *ImageStateReadCmd {
-	return &ImageStateReadCmd{}
+	return &ImageStateReadCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 func newImageStateReadResult() *ImageStateReadResult {
@@ -167,7 +171,9 @@ type ImageStateWriteResult struct {
 }
 
 func NewImageStateWriteCmd() *ImageStateWriteCmd {
-	return &ImageStateWriteCmd{}
+	return &ImageStateWriteCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 func newImageStateWriteResult() *ImageStateWriteResult {
@@ -207,7 +213,9 @@ type CoreListResult struct {
 }
 
 func NewCoreListCmd() *CoreListCmd {
-	return &CoreListCmd{}
+	return &CoreListCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 func newCoreListResult() *CoreListResult {
@@ -247,7 +255,9 @@ type CoreLoadResult struct {
 }
 
 func NewCoreLoadCmd() *CoreLoadCmd {
-	return &CoreLoadCmd{}
+	return &CoreLoadCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 func newCoreLoadResult() *CoreLoadResult {
@@ -306,7 +316,9 @@ type CoreEraseResult struct {
 }
 
 func NewCoreEraseCmd() *CoreEraseCmd {
-	return &CoreEraseCmd{}
+	return &CoreEraseCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 func newCoreEraseResult() *CoreEraseResult {

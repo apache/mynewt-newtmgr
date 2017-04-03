@@ -56,7 +56,9 @@ type CrashCmd struct {
 }
 
 func NewCrashCmd() *CrashCmd {
-	return &CrashCmd{}
+	return &CrashCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 type CrashResult struct {

@@ -16,7 +16,9 @@ type RunTestCmd struct {
 }
 
 func NewRunTestCmd() *RunTestCmd {
-	return &RunTestCmd{}
+	return &RunTestCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 type RunTestResult struct {
@@ -56,7 +58,9 @@ type RunListCmd struct {
 }
 
 func NewRunListCmd() *RunListCmd {
-	return &RunListCmd{}
+	return &RunListCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 type RunListResult struct {

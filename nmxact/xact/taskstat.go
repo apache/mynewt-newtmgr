@@ -10,7 +10,9 @@ type TaskStatCmd struct {
 }
 
 func NewTaskStatCmd() *TaskStatCmd {
-	return &TaskStatCmd{}
+	return &TaskStatCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 type TaskStatResult struct {

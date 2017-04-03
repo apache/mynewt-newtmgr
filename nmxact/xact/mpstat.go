@@ -10,7 +10,9 @@ type MempoolStatCmd struct {
 }
 
 func NewMempoolStatCmd() *MempoolStatCmd {
-	return &MempoolStatCmd{}
+	return &MempoolStatCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
 type MempoolStatResult struct {
