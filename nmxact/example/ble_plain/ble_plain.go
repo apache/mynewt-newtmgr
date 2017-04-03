@@ -31,11 +31,11 @@ import (
 
 func main() {
 	// Initialize the BLE transport.
-	params := nmble.XportCfg{
-		SockPath:     "/tmp/blehostd-uds",
-		BlehostdPath: "blehostd",
-		DevPath:      "/dev/cu.usbserial-A600ANJ1",
-	}
+	params := nmble.NewXportCfg()
+	params.SockPath = "/tmp/blehostd-uds"
+	params.BlehostdPath = "blehostd.elf"
+	params.DevPath = "/dev/cu.usbmodem142111"
+
 	x, err := nmble.NewBleXport(params)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error creating BLE transport: %s\n",
@@ -52,18 +52,13 @@ func main() {
 	defer x.Stop()
 
 	// Prepare a BLE session:
+	//     * Plain NMP (not tunnelled over OIC).
 	//     * We use a random address.
-	//     * Peer has public address 0b:0a:0b:0a:0b:0a.
+	//     * Peer has name "nimble-bleprph".
 	sc := sesn.NewSesnCfg()
 	sc.MgmtProto = sesn.MGMT_PROTO_NMP
-
 	sc.Ble.OwnAddrType = bledefs.BLE_ADDR_TYPE_RANDOM
-	sc.Ble.PeerSpec = sesn.BlePeerSpecDev(bledefs.BleDev{
-		AddrType: bledefs.BLE_ADDR_TYPE_PUBLIC,
-		Addr: bledefs.BleAddr{
-			Bytes: [6]byte{0x0b, 0x0a, 0x0b, 0x0a, 0x0b, 0x0a},
-		},
-	})
+	sc.Ble.PeerSpec = sesn.BlePeerSpecName("nimble-bleprph")
 
 	s, err := x.BuildSesn(sc)
 	if err != nil {
