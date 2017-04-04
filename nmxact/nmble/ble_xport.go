@@ -205,9 +205,6 @@ func (bx *BleXport) shutdown(restart bool, err error) {
 	// Stop the unixchild instance (blehostd + socket).
 	if bx.client != nil {
 		bx.client.Stop()
-
-		// Unblock the unixchild instance.
-		bx.client.FromChild <- nil
 	}
 
 	// Indicate an error to all of this transport's listeners.  This prevents
