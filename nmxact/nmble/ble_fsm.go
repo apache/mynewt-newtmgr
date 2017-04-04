@@ -146,7 +146,7 @@ func (bf *BleFsm) addBleListener(base BleMsgBase) (*BleListener, error) {
 	return bl, nil
 }
 
-func (bf *BleFsm) addBleSeqListener(seq int) (*BleListener, error) {
+func (bf *BleFsm) addBleSeqListener(seq BleSeq) (*BleListener, error) {
 	base := BleMsgBase{
 		Op:         -1,
 		Type:       -1,
@@ -170,7 +170,7 @@ func (bf *BleFsm) removeBleListener(base BleMsgBase) {
 	}
 }
 
-func (bf *BleFsm) removeBleSeqListener(seq int) {
+func (bf *BleFsm) removeBleSeqListener(seq BleSeq) {
 	base := BleMsgBase{
 		Op:         -1,
 		Type:       -1,
@@ -240,7 +240,7 @@ func (bf *BleFsm) onDisconnect(err error) {
 	bf.params.DisconnectCb(dt, peer, err)
 }
 
-func (bf *BleFsm) connectListen(seq int) error {
+func (bf *BleFsm) connectListen(seq BleSeq) error {
 	bf.connChan = make(chan error, 1)
 
 	bl, err := bf.addBleSeqListener(seq)
@@ -326,7 +326,7 @@ func (bf *BleFsm) nmpRspListen() error {
 	base := BleMsgBase{
 		Op:         MSG_OP_EVT,
 		Type:       MSG_TYPE_NOTIFY_RX_EVT,
-		Seq:        -1,
+		Seq:        BLE_SEQ_NONE,
 		ConnHandle: bf.connHandle,
 	}
 

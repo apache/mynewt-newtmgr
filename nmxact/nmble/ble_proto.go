@@ -13,6 +13,7 @@ import (
 
 type MsgOp int
 type MsgType int
+type BleSeq uint32
 
 type BleBytes struct {
 	Bytes []byte
@@ -21,6 +22,8 @@ type BleBytes struct {
 type BleUuid struct {
 	Bytes [16]byte
 }
+
+const BLE_SEQ_NONE BleSeq = 0xffffffff
 
 const ERR_CODE_ATT_BASE = 0x100
 const ERR_CODE_HCI_BASE = 0x200
@@ -274,7 +277,7 @@ var MsgTypeStringMap = map[MsgType]string{
 type BleHdr struct {
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 }
 
 type BleMsg interface{}
@@ -296,14 +299,14 @@ type BleSyncReq struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 }
 
 type BleConnectReq struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	OwnAddrType  BleAddrType `json:"own_addr_type"`
@@ -326,7 +329,7 @@ type BleConnectRsp struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	Status int `json:"status"`
@@ -336,7 +339,7 @@ type BleConnectEvt struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	Status          int         `json:"status"`
@@ -355,7 +358,7 @@ type BleTerminateReq struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	ConnHandle int `json:"conn_handle"`
 	HciReason  int `json:"hci_reason"`
@@ -365,7 +368,7 @@ type BleTerminateRsp struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	Status int `json:"status"`
@@ -375,14 +378,14 @@ type BleConnCancelReq struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 }
 
 type BleConnCancelRsp struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	Status int `json:"status"`
@@ -392,7 +395,7 @@ type BleDisconnectEvt struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	Reason     int `json:"reason"`
@@ -403,7 +406,7 @@ type BleDiscSvcUuidReq struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	ConnHandle int     `json:"conn_handle"`
@@ -414,7 +417,7 @@ type BleDiscSvcUuidRsp struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	Status int `json:"status"`
@@ -424,7 +427,7 @@ type BleDiscSvcEvt struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	Status int    `json:"status"`
@@ -435,7 +438,7 @@ type BleDiscChrUuidReq struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	ConnHandle  int     `json:"conn_handle"`
@@ -448,7 +451,7 @@ type BleDiscAllChrsReq struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	ConnHandle  int `json:"conn_handle"`
@@ -460,7 +463,7 @@ type BleDiscAllChrsRsp struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	Status int `json:"status"`
@@ -470,7 +473,7 @@ type BleErrRsp struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	Status int    `json:"status"`
@@ -481,7 +484,7 @@ type BleSyncRsp struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	Synced bool `json:"synced"`
@@ -491,7 +494,7 @@ type BleDiscChrUuidRsp struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	Status int `json:"status"`
@@ -501,7 +504,7 @@ type BleDiscChrEvt struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	Status int    `json:"status"`
@@ -512,7 +515,7 @@ type BleWriteCmdReq struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	ConnHandle int      `json:"conn_handle"`
@@ -524,7 +527,7 @@ type BleWriteCmdRsp struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	Status int `json:"status"`
@@ -534,7 +537,7 @@ type BleSyncEvt struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	Synced bool `json:"synced"`
@@ -544,7 +547,7 @@ type BleNotifyRxEvt struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	ConnHandle int      `json:"conn_handle"`
@@ -557,7 +560,7 @@ type BleExchangeMtuReq struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	ConnHandle int `json:"conn_handle"`
@@ -567,7 +570,7 @@ type BleExchangeMtuRsp struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	Status int `json:"status"`
@@ -577,7 +580,7 @@ type BleMtuChangeEvt struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	Status     int `json:"status"`
@@ -589,7 +592,7 @@ type BleScanReq struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	OwnAddrType      BleAddrType         `json:"own_addr_type"`
@@ -606,7 +609,7 @@ type BleScanRsp struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	Status int `json:"status"`
@@ -616,7 +619,7 @@ type BleScanEvt struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	EventType BleAdvEventType `json:"event_type"`
@@ -635,14 +638,14 @@ type BleScanCancelReq struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 }
 
 type BleScanCancelRsp struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
 	Status int `json:"status"`

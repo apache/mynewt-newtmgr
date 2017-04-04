@@ -113,7 +113,7 @@ func (bx *BleXport) addSyncListener() (*BleListener, error) {
 	base := BleMsgBase{
 		Op:         MSG_OP_EVT,
 		Type:       MSG_TYPE_SYNC_EVT,
-		Seq:        -1,
+		Seq:        BLE_SEQ_NONE,
 		ConnHandle: -1,
 	}
 	if err := bx.Bd.AddListener(base, bl); err != nil {
@@ -127,7 +127,7 @@ func (bx *BleXport) removeSyncListener() {
 	base := BleMsgBase{
 		Op:         MSG_OP_EVT,
 		Type:       MSG_TYPE_SYNC_EVT,
-		Seq:        -1,
+		Seq:        BLE_SEQ_NONE,
 		ConnHandle: -1,
 	}
 	bx.Bd.RemoveListener(base)
