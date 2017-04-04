@@ -4,7 +4,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -47,10 +47,11 @@ func NewXportCfg() XportCfg {
 	}
 }
 
-type BleXportState uint32
+type BleXportState int
 
 const (
-	BLE_XPORT_STATE_STOPPED BleXportState = iota
+	BLE_XPORT_STATE_DORMANT BleXportState = iota
+	BLE_XPORT_STATE_STOPPED
 	BLE_XPORT_STATE_STARTING
 	BLE_XPORT_STATE_STARTED
 	BLE_XPORT_STATE_STOPPING
@@ -58,12 +59,15 @@ const (
 
 // Implements xport.Xport.
 type BleXport struct {
-	Bd               *BleDispatcher
-	client           *unixchild.Client
-	state            BleXportState
-	stopChan         chan struct{}
-	shutdownChan     chan bool
-	numStopListeners int
+	Bd                *BleDispatcher
+	client            *unixchild.Client
+	state             BleXportState
+	stopChan          chan struct{}
+	numStopListeners  int
+	shutdownChan      chan bool
+	readyChan         chan error
+	numReadyListeners int
+	mtx               sync.Mutex
 
 	cfg XportCfg
 }
@@ -224,14 +228,53 @@ func (bx *BleXport) shutdown(restart bool, err error) {
 	}
 }
 
-func (bx *BleXport) setStateFrom(from BleXportState, to BleXportState) bool {
-	return atomic.CompareAndSwapUint32(
-		(*uint32)(&bx.state), uint32(from), uint32(to))
+func (bx *BleXport) blockUntilReady() error {
+	bx.mtx.Lock()
+	switch bx.state {
+	case BLE_XPORT_STATE_STARTED:
+		// Already started; don't block.
+		bx.mtx.Unlock()
+		return nil
+
+	case BLE_XPORT_STATE_DORMANT:
+		// Not in the process of starting; the user will be waiting forever.
+		bx.mtx.Unlock()
+		return fmt.Errorf("Attempt to use BLE transport without starting it")
+
+	default:
+	}
+
+	bx.numReadyListeners++
+	bx.mtx.Unlock()
+
+	return <-bx.readyChan
 }
 
-func (bx *BleXport) getState() BleXportState {
-	u32 := atomic.LoadUint32((*uint32)(&bx.state))
-	return BleXportState(u32)
+func (bx *BleXport) notifyReadyListeners(err error) {
+	for i := 0; i < bx.numReadyListeners; i++ {
+		bx.readyChan <- err
+	}
+	bx.numReadyListeners = 0
+}
+
+func (bx *BleXport) setStateFrom(from BleXportState, to BleXportState) bool {
+	bx.mtx.Lock()
+	defer bx.mtx.Unlock()
+
+	if bx.state != from {
+		return false
+	}
+
+	bx.state = to
+	switch bx.state {
+	case BLE_XPORT_STATE_STARTED:
+		bx.notifyReadyListeners(nil)
+	case BLE_XPORT_STATE_STOPPED:
+		bx.notifyReadyListeners(fmt.Errorf("BLE transport stopped"))
+	default:
+	}
+
+	return true
 }
 
 func (bx *BleXport) Stop() error {
@@ -356,9 +399,14 @@ func (bx *BleXport) startOnce() error {
 }
 
 func (bx *BleXport) Start() error {
+	if !bx.setStateFrom(BLE_XPORT_STATE_DORMANT, BLE_XPORT_STATE_STOPPED) {
+		return nmxutil.NewXportError("BLE xport started twice")
+	}
+
 	// Try to start the transport.  If this first attempt fails, report the
 	// error and don't retry.
 	if err := bx.startOnce(); err != nil {
+		bx.setStateFrom(BLE_XPORT_STATE_STOPPED, BLE_XPORT_STATE_DORMANT)
 		log.Debugf("Error starting BLE transport: %s",
 			err.Error())
 		return err
@@ -374,6 +422,8 @@ func (bx *BleXport) Start() error {
 			// explicit stop call (instead of an unexpected error), stop
 			// restarting the transport.
 			if !bx.cfg.BlehostdRestart || !restart {
+				bx.setStateFrom(BLE_XPORT_STATE_STOPPED,
+					BLE_XPORT_STATE_DORMANT)
 				break
 			}
 
@@ -402,10 +452,8 @@ func (bx *BleXport) txNoSync(data []byte) {
 }
 
 func (bx *BleXport) Tx(data []byte) error {
-	if bx.getState() != BLE_XPORT_STATE_STARTED {
-		return nmxutil.NewXportError(
-			fmt.Sprintf("Attempt to transmit before BLE xport fully started; "+
-				"state=%d", bx.getState()))
+	if err := bx.blockUntilReady(); err != nil {
+		return err
 	}
 
 	bx.txNoSync(data)
