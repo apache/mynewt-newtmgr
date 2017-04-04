@@ -22,7 +22,7 @@ type BlePlainSesn struct {
 	onCloseCb    sesn.BleOnCloseFn
 
 	closeChan chan error
-	mx        sync.Mutex
+	mtx       sync.Mutex
 }
 
 func NewBlePlainSesn(bx *BleXport, cfg sesn.SesnCfg) *BlePlainSesn {
@@ -61,18 +61,22 @@ func NewBlePlainSesn(bx *BleXport, cfg sesn.SesnCfg) *BlePlainSesn {
 }
 
 func (bps *BlePlainSesn) addNmpListener(seq uint8) (*nmp.NmpListener, error) {
-	nl := nmp.NewNmpListener()
-	bps.nls[nl] = struct{}{}
+	bps.mtx.Lock()
+	defer bps.mtx.Unlock()
 
+	nl := nmp.NewNmpListener()
 	if err := bps.nd.AddListener(seq, nl); err != nil {
-		delete(bps.nls, nl)
 		return nil, err
 	}
 
+	bps.nls[nl] = struct{}{}
 	return nl, nil
 }
 
 func (bps *BlePlainSesn) removeNmpListener(seq uint8) {
+	bps.mtx.Lock()
+	defer bps.mtx.Unlock()
+
 	listener := bps.nd.RemoveListener(seq)
 	if listener != nil {
 		delete(bps.nls, listener)
@@ -80,8 +84,8 @@ func (bps *BlePlainSesn) removeNmpListener(seq uint8) {
 }
 
 func (bps *BlePlainSesn) setCloseChan() error {
-	bps.mx.Lock()
-	defer bps.mx.Unlock()
+	bps.mtx.Lock()
+	defer bps.mtx.Unlock()
 
 	if bps.closeChan != nil {
 		return fmt.Errorf("Multiple listeners waiting for session to close")
@@ -92,8 +96,8 @@ func (bps *BlePlainSesn) setCloseChan() error {
 }
 
 func (bps *BlePlainSesn) clearCloseChan() {
-	bps.mx.Lock()
-	defer bps.mx.Unlock()
+	bps.mtx.Lock()
+	defer bps.mtx.Unlock()
 
 	bps.closeChan = nil
 }
@@ -119,7 +123,7 @@ func (bps *BlePlainSesn) blockUntilClosed(timeout time.Duration) error {
 		return nil
 	}
 
-	// Block until close completes or timeout.
+	// Block until close completes or times out.
 	return bps.listenForClose(timeout)
 }
 
@@ -166,7 +170,7 @@ func (bps *BlePlainSesn) Close() error {
 		return nil
 	}
 
-	// Block until close completes or timeout.
+	// Block until close completes or times out.
 	return bps.listenForClose(bps.closeTimeout)
 }
 
@@ -178,8 +182,11 @@ func (bps *BlePlainSesn) onRxNmp(data []byte) {
 	bps.nd.Dispatch(data)
 }
 
+// Called by the FSM when a blehostd disconnect event is received.
 func (bps *BlePlainSesn) onDisconnect(dt BleFsmDisconnectType, peer BleDev,
 	err error) {
+
+	bps.mtx.Lock()
 
 	for nl, _ := range bps.nls {
 		nl.ErrChan <- err
@@ -189,6 +196,8 @@ func (bps *BlePlainSesn) onDisconnect(dt BleFsmDisconnectType, peer BleDev,
 	if bps.closeChan != nil {
 		bps.closeChan <- err
 	}
+
+	bps.mtx.Unlock()
 
 	// Only execute client's disconnect callback if the disconnect was
 	// unsolicited and the session was fully open.
