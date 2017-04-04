@@ -22,8 +22,8 @@ const NOTIFY_CMD_BASE_SZ = 3
 
 var nextSeq uint32
 
-func NextSeq() int {
-	return int(atomic.AddUint32(&nextSeq, 1))
+func NextSeq() BleSeq {
+	return BleSeq(atomic.AddUint32(&nextSeq, 1))
 }
 
 func ParseUuid(uuidStr string) (BleUuid, error) {

@@ -23,7 +23,7 @@ type BleOicSesn struct {
 	onCloseCb    sesn.BleOnCloseFn
 
 	closeChan chan error
-	mx        sync.Mutex
+	mtx       sync.Mutex
 }
 
 func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
@@ -67,18 +67,22 @@ func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 }
 
 func (bos *BleOicSesn) addNmpListener(seq uint8) (*nmp.NmpListener, error) {
-	nl := nmp.NewNmpListener()
-	bos.nls[nl] = struct{}{}
+	bos.mtx.Lock()
+	defer bos.mtx.Unlock()
 
+	nl := nmp.NewNmpListener()
 	if err := bos.od.AddListener(seq, nl); err != nil {
-		delete(bos.nls, nl)
 		return nil, err
 	}
 
+	bos.nls[nl] = struct{}{}
 	return nl, nil
 }
 
 func (bos *BleOicSesn) removeNmpListener(seq uint8) {
+	bos.mtx.Lock()
+	defer bos.mtx.Unlock()
+
 	listener := bos.od.RemoveListener(seq)
 	if listener != nil {
 		delete(bos.nls, listener)
@@ -87,8 +91,8 @@ func (bos *BleOicSesn) removeNmpListener(seq uint8) {
 
 // Returns true if a new channel was assigned.
 func (bos *BleOicSesn) setCloseChan() error {
-	bos.mx.Lock()
-	defer bos.mx.Unlock()
+	bos.mtx.Lock()
+	defer bos.mtx.Unlock()
 
 	if bos.closeChan != nil {
 		return fmt.Errorf("Multiple listeners waiting for session to close")
@@ -99,8 +103,8 @@ func (bos *BleOicSesn) setCloseChan() error {
 }
 
 func (bos *BleOicSesn) clearCloseChan() {
-	bos.mx.Lock()
-	defer bos.mx.Unlock()
+	bos.mtx.Lock()
+	defer bos.mtx.Unlock()
 
 	bos.closeChan = nil
 }
@@ -126,7 +130,7 @@ func (bos *BleOicSesn) blockUntilClosed(timeout time.Duration) error {
 		return nil
 	}
 
-	// Block until close completes or timeout.
+	// Block until close completes or times out.
 	return bos.listenForClose(timeout)
 }
 
@@ -173,7 +177,7 @@ func (bos *BleOicSesn) Close() error {
 		return nil
 	}
 
-	// Block until close completes or timeout.
+	// Block until close completes or times out.
 	return bos.listenForClose(bos.closeTimeout)
 }
 
@@ -185,8 +189,11 @@ func (bos *BleOicSesn) onRxNmp(data []byte) {
 	bos.od.Dispatch(data)
 }
 
+// Called by the FSM when a blehostd disconnect event is received.
 func (bos *BleOicSesn) onDisconnect(dt BleFsmDisconnectType, peer BleDev,
 	err error) {
+
+	bos.mtx.Lock()
 
 	for nl, _ := range bos.nls {
 		nl.ErrChan <- err
@@ -196,6 +203,8 @@ func (bos *BleOicSesn) onDisconnect(dt BleFsmDisconnectType, peer BleDev,
 	if bos.closeChan != nil {
 		bos.closeChan <- err
 	}
+
+	bos.mtx.Unlock()
 
 	// Only execute client's disconnect callback if the disconnect was
 	// unsolicited and the session was fully open.

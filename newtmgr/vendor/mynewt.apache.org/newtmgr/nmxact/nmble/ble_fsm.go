@@ -59,14 +59,13 @@ type BleFsmParams struct {
 type BleFsm struct {
 	params BleFsmParams
 
-	peerDev    *BleDev
-	connHandle int
-	nmpSvc     *BleSvc
-	nmpReqChr  *BleChr
-	nmpRspChr  *BleChr
-	attMtu     int
-	connChan   chan error
-
+	peerDev         *BleDev
+	connHandle      int
+	nmpSvc          *BleSvc
+	nmpReqChr       *BleChr
+	nmpRspChr       *BleChr
+	attMtu          int
+	connChan        chan error
 	mtx             sync.Mutex
 	lastStateChange time.Time
 
@@ -106,12 +105,16 @@ func (bf *BleFsm) getState() BleSesnState {
 	return bf.state
 }
 
+func (bf *BleFsm) setStateNoLock(toState BleSesnState) {
+	bf.state = toState
+	bf.lastStateChange = time.Now()
+}
+
 func (bf *BleFsm) setState(toState BleSesnState) {
 	bf.mtx.Lock()
 	defer bf.mtx.Unlock()
 
-	bf.state = toState
-	bf.lastStateChange = time.Now()
+	bf.setStateNoLock(toState)
 }
 
 func (bf *BleFsm) transitionState(fromState BleSesnState,
@@ -127,7 +130,7 @@ func (bf *BleFsm) transitionState(fromState BleSesnState,
 			toState, fromState)
 	}
 
-	bf.state = toState
+	bf.setStateNoLock(toState)
 	return nil
 }
 
@@ -135,18 +138,17 @@ func (bf *BleFsm) addBleListener(base BleMsgBase) (*BleListener, error) {
 	bl := NewBleListener()
 
 	bf.mtx.Lock()
-	bf.bls[bl] = struct{}{}
-	bf.mtx.Unlock()
+	defer bf.mtx.Unlock()
 
 	if err := bf.params.Bx.Bd.AddListener(base, bl); err != nil {
-		delete(bf.bls, bl)
 		return nil, err
 	}
 
+	bf.bls[bl] = struct{}{}
 	return bl, nil
 }
 
-func (bf *BleFsm) addBleSeqListener(seq int) (*BleListener, error) {
+func (bf *BleFsm) addBleSeqListener(seq BleSeq) (*BleListener, error) {
 	base := BleMsgBase{
 		Op:         -1,
 		Type:       -1,
@@ -162,15 +164,16 @@ func (bf *BleFsm) addBleSeqListener(seq int) (*BleListener, error) {
 }
 
 func (bf *BleFsm) removeBleListener(base BleMsgBase) {
+	bf.mtx.Lock()
+	defer bf.mtx.Unlock()
+
 	bl := bf.params.Bx.Bd.RemoveListener(base)
 	if bl != nil {
-		bf.mtx.Lock()
 		delete(bf.bls, bl)
-		bf.mtx.Unlock()
 	}
 }
 
-func (bf *BleFsm) removeBleSeqListener(seq int) {
+func (bf *BleFsm) removeBleSeqListener(seq BleSeq) {
 	base := BleMsgBase{
 		Op:         -1,
 		Type:       -1,
@@ -200,8 +203,8 @@ func (bf *BleFsm) action(
 	return nil
 }
 
-func (bf *BleFsm) calcDisconnectType() BleFsmDisconnectType {
-	switch bf.getState() {
+func calcDisconnectType(state BleSesnState) BleFsmDisconnectType {
+	switch state {
 	case SESN_STATE_EXCHANGING_MTU:
 		return FSM_DISCONNECT_TYPE_IMMEDIATE_TIMEOUT
 
@@ -220,18 +223,22 @@ func (bf *BleFsm) onDisconnect(err error) {
 	log.Debugf(err.Error())
 
 	bf.mtx.Lock()
+
+	// Remember some fields before we clear them.
+	dt := calcDisconnectType(bf.state)
+	peer := *bf.peerDev
+
+	bf.setStateNoLock(SESN_STATE_UNCONNECTED)
+	bf.peerDev = nil
+
+	// Make a copy of all the listeners so we don't have to keep the mutex
+	// locked while we send error signals to them.
 	bls := make([]*BleListener, 0, len(bf.bls))
 	for bl, _ := range bf.bls {
 		bls = append(bls, bl)
 	}
+
 	bf.mtx.Unlock()
-
-	// Remember some fields before we clear them.
-	dt := bf.calcDisconnectType()
-	peer := *bf.peerDev
-
-	bf.setState(SESN_STATE_UNCONNECTED)
-	bf.peerDev = nil
 
 	for _, bl := range bls {
 		bl.ErrChan <- err
@@ -240,7 +247,7 @@ func (bf *BleFsm) onDisconnect(err error) {
 	bf.params.DisconnectCb(dt, peer, err)
 }
 
-func (bf *BleFsm) connectListen(seq int) error {
+func (bf *BleFsm) connectListen(seq BleSeq) error {
 	bf.connChan = make(chan error, 1)
 
 	bl, err := bf.addBleSeqListener(seq)
@@ -253,7 +260,7 @@ func (bf *BleFsm) connectListen(seq int) error {
 		for {
 			select {
 			case err := <-bl.ErrChan:
-				// Transport reported error.  Assume all connections have
+				// Transport reported error.  Assume the connection has
 				// dropped.
 				bf.onDisconnect(err)
 				return
@@ -326,7 +333,7 @@ func (bf *BleFsm) nmpRspListen() error {
 	base := BleMsgBase{
 		Op:         MSG_OP_EVT,
 		Type:       MSG_TYPE_NOTIFY_RX_EVT,
-		Seq:        -1,
+		Seq:        BLE_SEQ_NONE,
 		ConnHandle: bf.connHandle,
 	}
 
@@ -453,7 +460,7 @@ func (bf *BleFsm) terminateSetState() error {
 		return fmt.Errorf(
 			"BLE terminate failed; session already being closed")
 	default:
-		bf.state = SESN_STATE_TERMINATING
+		bf.setStateNoLock(SESN_STATE_TERMINATING)
 	}
 
 	return nil

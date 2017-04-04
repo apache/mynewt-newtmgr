@@ -76,6 +76,7 @@ func NewBleXport(cfg XportCfg) (*BleXport, error) {
 	bx := &BleXport{
 		Bd:           NewBleDispatcher(),
 		shutdownChan: make(chan bool),
+		readyChan:    make(chan error),
 		cfg:          cfg,
 	}
 
@@ -113,7 +114,7 @@ func (bx *BleXport) addSyncListener() (*BleListener, error) {
 	base := BleMsgBase{
 		Op:         MSG_OP_EVT,
 		Type:       MSG_TYPE_SYNC_EVT,
-		Seq:        -1,
+		Seq:        BLE_SEQ_NONE,
 		ConnHandle: -1,
 	}
 	if err := bx.Bd.AddListener(base, bl); err != nil {
@@ -127,7 +128,7 @@ func (bx *BleXport) removeSyncListener() {
 	base := BleMsgBase{
 		Op:         MSG_OP_EVT,
 		Type:       MSG_TYPE_SYNC_EVT,
-		Seq:        -1,
+		Seq:        BLE_SEQ_NONE,
 		ConnHandle: -1,
 	}
 	bx.Bd.RemoveListener(base)
@@ -205,9 +206,6 @@ func (bx *BleXport) shutdown(restart bool, err error) {
 	// Stop the unixchild instance (blehostd + socket).
 	if bx.client != nil {
 		bx.client.Stop()
-
-		// Unblock the unixchild instance.
-		bx.client.FromChild <- nil
 	}
 
 	// Indicate an error to all of this transport's listeners.  This prevents
@@ -289,7 +287,6 @@ func (bx *BleXport) startOnce() error {
 
 	bx.stopChan = make(chan struct{})
 	bx.numStopListeners = 0
-	bx.Bd.Clear()
 
 	bx.createUnixChild()
 	if err := bx.client.Start(); err != nil {

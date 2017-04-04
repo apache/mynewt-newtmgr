@@ -37,7 +37,7 @@ type BleMsgBase struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
-	Seq  int     `json:"seq"`
+	Seq  BleSeq  `json:"seq"`
 
 	// Optional
 	ConnHandle int `json:"conn_handle" json:",omitempty"`
@@ -77,7 +77,7 @@ func (bl *BleListener) Stop() {
 }
 
 type BleDispatcher struct {
-	seqMap  map[int]*BleListener
+	seqMap  map[BleSeq]*BleListener
 	baseMap map[BleMsgBase]*BleListener
 	mutex   sync.Mutex
 }
@@ -132,7 +132,7 @@ var msgCtorMap = map[OpTypePair]msgCtor{
 
 func NewBleDispatcher() *BleDispatcher {
 	return &BleDispatcher{
-		seqMap:  map[int]*BleListener{},
+		seqMap:  map[BleSeq]*BleListener{},
 		baseMap: map[BleMsgBase]*BleListener{},
 	}
 }
@@ -162,7 +162,7 @@ func (bd *BleDispatcher) findBaseListener(base BleMsgBase) (
 func (bd *BleDispatcher) findDupListener(base BleMsgBase) (
 	BleMsgBase, *BleListener) {
 
-	if base.Seq != -1 {
+	if base.Seq != BLE_SEQ_NONE {
 		return base, bd.seqMap[base.Seq]
 	}
 
@@ -172,7 +172,7 @@ func (bd *BleDispatcher) findDupListener(base BleMsgBase) (
 func (bd *BleDispatcher) findListener(base BleMsgBase) (
 	BleMsgBase, *BleListener) {
 
-	if base.Seq != -1 {
+	if base.Seq != BLE_SEQ_NONE {
 		if bl := bd.seqMap[base.Seq]; bl != nil {
 			return base, bl
 		}
@@ -196,7 +196,7 @@ func (bd *BleDispatcher) AddListener(base BleMsgBase,
 			base.Op, base.Type, base.Seq, base.ConnHandle)
 	}
 
-	if base.Seq != -1 {
+	if base.Seq != BLE_SEQ_NONE {
 		if base.Op != -1 ||
 			base.Type != -1 ||
 			base.ConnHandle != -1 {
@@ -219,7 +219,7 @@ func (bd *BleDispatcher) RemoveListener(base BleMsgBase) *BleListener {
 	base, bl := bd.findListener(base)
 	if bl != nil {
 		bl.Stop()
-		if base.Seq != -1 {
+		if base.Seq != BLE_SEQ_NONE {
 			delete(bd.seqMap, base.Seq)
 		} else {
 			delete(bd.baseMap, base)
@@ -292,6 +292,8 @@ func (bd *BleDispatcher) ErrorAll(err error) {
 		listeners = append(listeners, v)
 	}
 
+	bd.clear()
+
 	bd.mutex.Unlock()
 
 	for _, listener := range listeners {
@@ -299,10 +301,8 @@ func (bd *BleDispatcher) ErrorAll(err error) {
 	}
 }
 
-func (bd *BleDispatcher) Clear() {
-	bd.mutex.Lock()
-	defer bd.mutex.Unlock()
-
+// The caller must lock the mutex.
+func (bd *BleDispatcher) clear() {
 	for s, _ := range bd.seqMap {
 		delete(bd.seqMap, s)
 	}
