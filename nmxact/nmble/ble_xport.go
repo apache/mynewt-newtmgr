@@ -76,6 +76,7 @@ func NewBleXport(cfg XportCfg) (*BleXport, error) {
 	bx := &BleXport{
 		Bd:           NewBleDispatcher(),
 		shutdownChan: make(chan bool),
+		readyChan:    make(chan error),
 		cfg:          cfg,
 	}
 
@@ -286,7 +287,6 @@ func (bx *BleXport) startOnce() error {
 
 	bx.stopChan = make(chan struct{})
 	bx.numStopListeners = 0
-	bx.Bd.Clear()
 
 	bx.createUnixChild()
 	if err := bx.client.Start(); err != nil {

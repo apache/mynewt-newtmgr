@@ -292,6 +292,8 @@ func (bd *BleDispatcher) ErrorAll(err error) {
 		listeners = append(listeners, v)
 	}
 
+	bd.clear()
+
 	bd.mutex.Unlock()
 
 	for _, listener := range listeners {
@@ -299,10 +301,8 @@ func (bd *BleDispatcher) ErrorAll(err error) {
 	}
 }
 
-func (bd *BleDispatcher) Clear() {
-	bd.mutex.Lock()
-	defer bd.mutex.Unlock()
-
+// The caller must lock the mutex.
+func (bd *BleDispatcher) clear() {
 	for s, _ := range bd.seqMap {
 		delete(bd.seqMap, s)
 	}
