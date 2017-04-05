@@ -84,18 +84,21 @@ type BleDispatcher struct {
 
 type msgCtor func() BleMsg
 
-func errRspCtor() BleMsg         { return &BleErrRsp{} }
-func syncRspCtor() BleMsg        { return &BleSyncRsp{} }
-func connectRspCtor() BleMsg     { return &BleConnectRsp{} }
-func terminateRspCtor() BleMsg   { return &BleTerminateRsp{} }
-func discSvcUuidRspCtor() BleMsg { return &BleDiscSvcUuidRsp{} }
-func discAllChrsRspCtor() BleMsg { return &BleDiscAllChrsRsp{} }
-func discChrUuidRspCtor() BleMsg { return &BleDiscChrUuidRsp{} }
-func writeCmdRspCtor() BleMsg    { return &BleWriteCmdRsp{} }
-func exchangeMtuRspCtor() BleMsg { return &BleExchangeMtuRsp{} }
-func connCancelRspCtor() BleMsg  { return &BleConnCancelRsp{} }
-func scanRspCtor() BleMsg        { return &BleScanRsp{} }
-func scanCancelRspCtor() BleMsg  { return &BleScanCancelRsp{} }
+func errRspCtor() BleMsg             { return &BleErrRsp{} }
+func syncRspCtor() BleMsg            { return &BleSyncRsp{} }
+func connectRspCtor() BleMsg         { return &BleConnectRsp{} }
+func terminateRspCtor() BleMsg       { return &BleTerminateRsp{} }
+func discSvcUuidRspCtor() BleMsg     { return &BleDiscSvcUuidRsp{} }
+func discAllChrsRspCtor() BleMsg     { return &BleDiscAllChrsRsp{} }
+func discChrUuidRspCtor() BleMsg     { return &BleDiscChrUuidRsp{} }
+func writeCmdRspCtor() BleMsg        { return &BleWriteCmdRsp{} }
+func exchangeMtuRspCtor() BleMsg     { return &BleExchangeMtuRsp{} }
+func genRandAddrRspCtor() BleMsg     { return &BleGenRandAddrRsp{} }
+func setRandAddrRspCtor() BleMsg     { return &BleSetRandAddrRsp{} }
+func connCancelRspCtor() BleMsg      { return &BleConnCancelRsp{} }
+func scanRspCtor() BleMsg            { return &BleScanRsp{} }
+func scanCancelRspCtor() BleMsg      { return &BleScanCancelRsp{} }
+func setPreferredMtuRspCtor() BleMsg { return &BleSetPreferredMtuRsp{} }
 
 func syncEvtCtor() BleMsg       { return &BleSyncEvt{} }
 func connectEvtCtor() BleMsg    { return &BleConnectEvt{} }
@@ -107,18 +110,21 @@ func mtuChangeEvtCtor() BleMsg  { return &BleMtuChangeEvt{} }
 func scanEvtCtor() BleMsg       { return &BleScanEvt{} }
 
 var msgCtorMap = map[OpTypePair]msgCtor{
-	{MSG_OP_RSP, MSG_TYPE_ERR}:           errRspCtor,
-	{MSG_OP_RSP, MSG_TYPE_SYNC}:          syncRspCtor,
-	{MSG_OP_RSP, MSG_TYPE_CONNECT}:       connectRspCtor,
-	{MSG_OP_RSP, MSG_TYPE_TERMINATE}:     terminateRspCtor,
-	{MSG_OP_RSP, MSG_TYPE_DISC_SVC_UUID}: discSvcUuidRspCtor,
-	{MSG_OP_RSP, MSG_TYPE_DISC_CHR_UUID}: discChrUuidRspCtor,
-	{MSG_OP_RSP, MSG_TYPE_DISC_ALL_CHRS}: discAllChrsRspCtor,
-	{MSG_OP_RSP, MSG_TYPE_WRITE_CMD}:     writeCmdRspCtor,
-	{MSG_OP_RSP, MSG_TYPE_EXCHANGE_MTU}:  exchangeMtuRspCtor,
-	{MSG_OP_RSP, MSG_TYPE_CONN_CANCEL}:   connCancelRspCtor,
-	{MSG_OP_RSP, MSG_TYPE_SCAN}:          scanRspCtor,
-	{MSG_OP_RSP, MSG_TYPE_SCAN_CANCEL}:   scanCancelRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_ERR}:               errRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_SYNC}:              syncRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_CONNECT}:           connectRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_TERMINATE}:         terminateRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_DISC_SVC_UUID}:     discSvcUuidRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_DISC_CHR_UUID}:     discChrUuidRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_DISC_ALL_CHRS}:     discAllChrsRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_WRITE_CMD}:         writeCmdRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_EXCHANGE_MTU}:      exchangeMtuRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_GEN_RAND_ADDR}:     genRandAddrRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_SET_RAND_ADDR}:     setRandAddrRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_CONN_CANCEL}:       connCancelRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_SCAN}:              scanRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_SCAN_CANCEL}:       scanCancelRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_SET_PREFERRED_MTU}: setPreferredMtuRspCtor,
 
 	{MSG_OP_EVT, MSG_TYPE_SYNC_EVT}:       syncEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_CONNECT_EVT}:    connectEvtCtor,

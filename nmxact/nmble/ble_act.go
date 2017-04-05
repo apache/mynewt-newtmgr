@@ -3,6 +3,7 @@ package nmble
 import (
 	"encoding/json"
 
+	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 )
 
@@ -358,6 +359,115 @@ func scanCancel(x *BleXport, bl *BleListener, r *BleScanCancelReq) error {
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
 			return BhdTimeoutError(MSG_TYPE_EXCHANGE_MTU)
+		}
+	}
+}
+
+// Asks the controller to generate a random address.  This is done when the
+// transport is starting up, and therefore does not require the transport to be
+// synced.  Only the transport should call this function.
+func genRandAddr(x *BleXport, bl *BleListener, r *BleGenRandAddrReq) (
+	BleAddr, error) {
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return BleAddr{}, err
+	}
+
+	x.txNoSync(j)
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return BleAddr{}, err
+
+		case bm := <-bl.BleChan:
+			switch msg := bm.(type) {
+			case *BleGenRandAddrRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return BleAddr{},
+						StatusError(MSG_OP_RSP, MSG_TYPE_GEN_RAND_ADDR,
+							msg.Status)
+				}
+				return msg.Addr, nil
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return BleAddr{}, BhdTimeoutError(MSG_TYPE_GEN_RAND_ADDR)
+		}
+	}
+}
+
+// Configures the controller with the specified random address.  This is done
+// when the transport is starting up, and therefore does not require the
+// transport to be synced.  Only the transport should call this function.
+func setRandAddr(x *BleXport, bl *BleListener, r *BleSetRandAddrReq) error {
+	const msgType = MSG_TYPE_SET_RAND_ADDR
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+
+	x.txNoSync(j)
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return err
+
+		case bm := <-bl.BleChan:
+			switch msg := bm.(type) {
+			case *BleSetRandAddrRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return StatusError(MSG_OP_RSP, msgType, msg.Status)
+				}
+				return nil
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return BhdTimeoutError(msgType)
+		}
+	}
+}
+
+// Configures the host with the specified preferred ATT MTU.  This is done
+// when the transport is starting up, and therefore does not require the
+// transport to be synced.  Only the transport should call this function.
+func setPreferredMtu(x *BleXport, bl *BleListener,
+	r *BleSetPreferredMtuReq) error {
+
+	const msgType = MSG_TYPE_SET_PREFERRED_MTU
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+
+	x.txNoSync(j)
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return err
+
+		case bm := <-bl.BleChan:
+			switch msg := bm.(type) {
+			case *BleSetPreferredMtuRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return StatusError(MSG_OP_RSP, msgType, msg.Status)
+				}
+				return nil
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return BhdTimeoutError(msgType)
 		}
 	}
 }

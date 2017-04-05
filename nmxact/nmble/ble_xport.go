@@ -10,32 +10,54 @@ import (
 	log "github.com/Sirupsen/logrus"
 
 	"mynewt.apache.org/newt/util/unixchild"
+	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
 type XportCfg struct {
+	// ***********************
+	// *** Required fields ***
+	// ***********************
+
 	// Path of Unix domain socket to create and listen on.
 	SockPath string
 
 	// Path of the blehostd executable.
 	BlehostdPath string
 
-	// How long to wait for the blehostd process to connect to the Unix domain
-	// socket.
-	BlehostdAcceptTimeout time.Duration
-
-	// Whether to restart the blehostd process if it terminates.
-	BlehostdRestart bool
-
-	// How long to wait for a JSON response from the blehostd process.
-	BlehostdRspTimeout time.Duration
-
 	// Path of the BLE controller device (e.g., /dev/ttyUSB0).
 	DevPath string
 
+	// ***********************
+	// *** Optional fields ***
+	// ***********************
+
+	// How long to wait for the blehostd process to connect to the Unix domain
+	// socket.
+	// Default: 1 second.
+	BlehostdAcceptTimeout time.Duration
+
+	// How long to wait for a JSON response from the blehostd process.
+	// Default: 1 second.
+	BlehostdRspTimeout time.Duration
+
+	// Whether to restart the blehostd process if it terminates.
+	// Default: true.
+	BlehostdRestart bool
+
 	// How long to allow for the host and controller to sync at startup.
+	// Default: 10 seconds.
 	SyncTimeout time.Duration
+
+	// The static random address to use.  Set to nil if one should be
+	// generated.
+	// Default: nil (auto-generate).
+	RandAddr *BleAddr
+
+	// The value to specify during ATT MTU exchange.
+	// Default: 512.
+	PreferredMtu uint16
 }
 
 func NewXportCfg() XportCfg {
@@ -44,6 +66,7 @@ func NewXportCfg() XportCfg {
 		BlehostdRspTimeout:    time.Second,
 		BlehostdRestart:       true,
 		SyncTimeout:           10 * time.Second,
+		PreferredMtu:          512,
 	}
 }
 
@@ -51,10 +74,10 @@ type BleXportState int
 
 const (
 	BLE_XPORT_STATE_DORMANT BleXportState = iota
+	BLE_XPORT_STATE_STOPPING
 	BLE_XPORT_STATE_STOPPED
 	BLE_XPORT_STATE_STARTING
 	BLE_XPORT_STATE_STARTED
-	BLE_XPORT_STATE_STOPPING
 )
 
 // Implements xport.Xport.
@@ -67,6 +90,7 @@ type BleXport struct {
 	shutdownChan      chan bool
 	readyChan         chan error
 	numReadyListeners int
+	randAddr          *BleAddr
 	mtx               sync.Mutex
 
 	cfg XportCfg
@@ -94,6 +118,64 @@ func (bx *BleXport) createUnixChild() {
 	}
 
 	bx.client = unixchild.New(config)
+}
+
+func (bx *BleXport) genRandAddr() (BleAddr, error) {
+	r := NewBleGenRandAddrReq()
+	base := BleMsgBase{
+		Op:         -1,
+		Type:       -1,
+		Seq:        r.Seq,
+		ConnHandle: -1,
+	}
+
+	bl := NewBleListener()
+	if err := bx.Bd.AddListener(base, bl); err != nil {
+		return BleAddr{}, err
+	}
+	defer bx.Bd.RemoveListener(base)
+
+	return genRandAddr(bx, bl, r)
+}
+
+func (bx *BleXport) setRandAddr(addr BleAddr) error {
+	r := NewBleSetRandAddrReq()
+	r.Addr = addr
+
+	base := BleMsgBase{
+		Op:         -1,
+		Type:       -1,
+		Seq:        r.Seq,
+		ConnHandle: -1,
+	}
+
+	bl := NewBleListener()
+	if err := bx.Bd.AddListener(base, bl); err != nil {
+		return err
+	}
+	defer bx.Bd.RemoveListener(base)
+
+	return setRandAddr(bx, bl, r)
+}
+
+func (bx *BleXport) setPreferredMtu(mtu uint16) error {
+	r := NewBleSetPreferredMtuReq()
+	r.Mtu = mtu
+
+	base := BleMsgBase{
+		Op:         -1,
+		Type:       -1,
+		Seq:        r.Seq,
+		ConnHandle: -1,
+	}
+
+	bl := NewBleListener()
+	if err := bx.Bd.AddListener(base, bl); err != nil {
+		return err
+	}
+	defer bx.Bd.RemoveListener(base)
+
+	return setPreferredMtu(bx, bl, r)
 }
 
 func (bx *BleXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
@@ -385,6 +467,26 @@ func (bx *BleXport) startOnce() error {
 			}
 		}
 	}()
+
+	if bx.randAddr == nil {
+		addr, err := bx.genRandAddr()
+		if err != nil {
+			bx.shutdown(true, err)
+			return err
+		}
+
+		bx.randAddr = &addr
+	}
+
+	if err := bx.setRandAddr(*bx.randAddr); err != nil {
+		bx.shutdown(true, err)
+		return err
+	}
+
+	if err := bx.setPreferredMtu(bx.cfg.PreferredMtu); err != nil {
+		bx.shutdown(true, err)
+		return err
+	}
 
 	if !bx.setStateFrom(BLE_XPORT_STATE_STARTING, BLE_XPORT_STATE_STARTED) {
 		bx.shutdown(true, err)

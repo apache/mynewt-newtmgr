@@ -216,22 +216,23 @@ const (
 )
 
 const (
-	MSG_TYPE_ERR           MsgType = 1
-	MSG_TYPE_SYNC                  = 2
-	MSG_TYPE_CONNECT               = 3
-	MSG_TYPE_TERMINATE             = 4
-	MSG_TYPE_DISC_ALL_SVCS         = 5
-	MSG_TYPE_DISC_SVC_UUID         = 6
-	MSG_TYPE_DISC_ALL_CHRS         = 7
-	MSG_TYPE_DISC_CHR_UUID         = 8
-	MSG_TYPE_WRITE                 = 9
-	MSG_TYPE_WRITE_CMD             = 10
-	MSG_TYPE_EXCHANGE_MTU          = 11
-	MSG_TYPE_GEN_RAND_ADDR         = 12
-	MSG_TYPE_SET_RAND_ADDR         = 13
-	MSG_TYPE_CONN_CANCEL           = 14
-	MSG_TYPE_SCAN                  = 15
-	MSG_TYPE_SCAN_CANCEL           = 16
+	MSG_TYPE_ERR               MsgType = 1
+	MSG_TYPE_SYNC                      = 2
+	MSG_TYPE_CONNECT                   = 3
+	MSG_TYPE_TERMINATE                 = 4
+	MSG_TYPE_DISC_ALL_SVCS             = 5
+	MSG_TYPE_DISC_SVC_UUID             = 6
+	MSG_TYPE_DISC_ALL_CHRS             = 7
+	MSG_TYPE_DISC_CHR_UUID             = 8
+	MSG_TYPE_WRITE                     = 9
+	MSG_TYPE_WRITE_CMD                 = 10
+	MSG_TYPE_EXCHANGE_MTU              = 11
+	MSG_TYPE_GEN_RAND_ADDR             = 12
+	MSG_TYPE_SET_RAND_ADDR             = 13
+	MSG_TYPE_CONN_CANCEL               = 14
+	MSG_TYPE_SCAN                      = 15
+	MSG_TYPE_SCAN_CANCEL               = 16
+	MSG_TYPE_SET_PREFERRED_MTU         = 17
 
 	MSG_TYPE_SYNC_EVT       = 2049
 	MSG_TYPE_CONNECT_EVT    = 2050
@@ -251,18 +252,21 @@ var MsgOpStringMap = map[MsgOp]string{
 }
 
 var MsgTypeStringMap = map[MsgType]string{
-	MSG_TYPE_ERR:           "error",
-	MSG_TYPE_SYNC:          "sync",
-	MSG_TYPE_CONNECT:       "connect",
-	MSG_TYPE_TERMINATE:     "terminate",
-	MSG_TYPE_DISC_SVC_UUID: "disc_svc_uuid",
-	MSG_TYPE_DISC_CHR_UUID: "disc_chr_uuid",
-	MSG_TYPE_DISC_ALL_CHRS: "disc_all_chrs",
-	MSG_TYPE_WRITE_CMD:     "write_cmd",
-	MSG_TYPE_EXCHANGE_MTU:  "exchange_mtu",
-	MSG_TYPE_CONN_CANCEL:   "conn_cancel",
-	MSG_TYPE_SCAN:          "scan",
-	MSG_TYPE_SCAN_CANCEL:   "scan_cancel",
+	MSG_TYPE_ERR:               "error",
+	MSG_TYPE_SYNC:              "sync",
+	MSG_TYPE_CONNECT:           "connect",
+	MSG_TYPE_TERMINATE:         "terminate",
+	MSG_TYPE_DISC_SVC_UUID:     "disc_svc_uuid",
+	MSG_TYPE_DISC_CHR_UUID:     "disc_chr_uuid",
+	MSG_TYPE_DISC_ALL_CHRS:     "disc_all_chrs",
+	MSG_TYPE_WRITE_CMD:         "write_cmd",
+	MSG_TYPE_EXCHANGE_MTU:      "exchange_mtu",
+	MSG_TYPE_GEN_RAND_ADDR:     "gen_rand_addr",
+	MSG_TYPE_SET_RAND_ADDR:     "set_rand_addr",
+	MSG_TYPE_CONN_CANCEL:       "conn_cancel",
+	MSG_TYPE_SCAN:              "scan",
+	MSG_TYPE_SCAN_CANCEL:       "scan_cancel",
+	MSG_TYPE_SET_PREFERRED_MTU: "set_preferred_mtu",
 
 	MSG_TYPE_SYNC_EVT:       "sync_evt",
 	MSG_TYPE_CONNECT_EVT:    "connect_evt",
@@ -588,6 +592,47 @@ type BleMtuChangeEvt struct {
 	Mtu        int `json:"mtu"`
 }
 
+type BleGenRandAddrReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Nrpa bool `json:"nrpa"`
+}
+
+type BleGenRandAddrRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status int     `json:"status"`
+	Addr   BleAddr `json:"addr"`
+}
+
+type BleSetRandAddrReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Addr BleAddr `json:"addr"`
+}
+
+type BleSetRandAddrRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status int `json:"status"`
+}
+
 type BleScanReq struct {
 	// Header
 	Op   MsgOp   `json:"op"`
@@ -642,6 +687,26 @@ type BleScanCancelReq struct {
 }
 
 type BleScanCancelRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status int `json:"status"`
+}
+
+type BleSetPreferredMtuReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Mtu uint16 `json:"mtu"`
+}
+
+type BleSetPreferredMtuRsp struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`

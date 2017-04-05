@@ -145,6 +145,22 @@ func NewBleExchangeMtuReq() *BleExchangeMtuReq {
 	}
 }
 
+func NewBleGenRandAddrReq() *BleGenRandAddrReq {
+	return &BleGenRandAddrReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_GEN_RAND_ADDR,
+		Seq:  NextSeq(),
+	}
+}
+
+func NewBleSetRandAddrReq() *BleSetRandAddrReq {
+	return &BleSetRandAddrReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_SET_RAND_ADDR,
+		Seq:  NextSeq(),
+	}
+}
+
 func NewBleWriteCmdReq() *BleWriteCmdReq {
 	return &BleWriteCmdReq{
 		Op:   MSG_OP_REQ,
@@ -169,6 +185,14 @@ func NewBleScanCancelReq() *BleScanCancelReq {
 	return &BleScanCancelReq{
 		Op:   MSG_OP_REQ,
 		Type: MSG_TYPE_SCAN_CANCEL,
+		Seq:  NextSeq(),
+	}
+}
+
+func NewBleSetPreferredMtuReq() *BleSetPreferredMtuReq {
+	return &BleSetPreferredMtuReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_SET_PREFERRED_MTU,
 		Seq:  NextSeq(),
 	}
 }
