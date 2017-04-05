@@ -1,6 +1,7 @@
 #!/bin/sh
 
 read -r -d '' exdirs <<-'EOS'
+    ble_loop
     ble_plain
     serial_plain
 EOS
