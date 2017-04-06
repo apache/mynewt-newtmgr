@@ -24,10 +24,10 @@ import (
 	"strings"
 	"time"
 
+	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmble"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
-	"mynewt.apache.org/newt/util"
 )
 
 type BleConfig struct {
@@ -125,7 +125,7 @@ func BuildBleXport(bc *BleConfig) (*nmble.BleXport, error) {
 	params.BlehostdPath = bc.BlehostdPath
 	params.DevPath = bc.ControllerPath
 	params.BlehostdAcceptTimeout = 2 * time.Second
-	params.BlehostdRestart = false
+	params.Restart = false
 
 	bx, err := nmble.NewBleXport(params)
 	if err != nil {

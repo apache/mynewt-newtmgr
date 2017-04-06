@@ -641,7 +641,7 @@ func (bf *BleFsm) tryFillPeerDev() bool {
 //         error                The error that caused the start attempt to
 //                                  fail; nil on success.
 func (bf *BleFsm) Start() (bool, error) {
-	if bf.getState() != SESN_STATE_UNCONNECTED {
+	if !bf.IsClosed() {
 		return false, nmxutil.NewSesnAlreadyOpenError(
 			"Attempt to open an already-open BLE session")
 	}
@@ -678,6 +678,7 @@ func (bf *BleFsm) Start() (bool, error) {
 			}
 
 			if err != nil {
+				bf.setState(SESN_STATE_UNCONNECTED)
 				return false, err
 			}
 
@@ -691,6 +692,7 @@ func (bf *BleFsm) Start() (bool, error) {
 			if err != nil {
 				bhe := nmxutil.ToBleHost(err)
 				retry := bhe != nil && bhe.Status == ERR_CODE_ENOTCONN
+				bf.setState(SESN_STATE_UNCONNECTED)
 				return retry, err
 			}
 
@@ -702,6 +704,7 @@ func (bf *BleFsm) Start() (bool, error) {
 				SESN_STATE_DISCOVERED_SVC,
 				cb)
 			if err != nil {
+				bf.setState(SESN_STATE_UNCONNECTED)
 				return false, err
 			}
 
@@ -716,10 +719,12 @@ func (bf *BleFsm) Start() (bool, error) {
 				SESN_STATE_DISCOVERED_CHR,
 				cb)
 			if err != nil {
+				bf.setState(SESN_STATE_UNCONNECTED)
 				return false, err
 			}
 
 			if err := bf.subscribe(); err != nil {
+				bf.setState(SESN_STATE_UNCONNECTED)
 				return false, err
 			}
 

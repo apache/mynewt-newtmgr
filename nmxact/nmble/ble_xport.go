@@ -42,9 +42,10 @@ type XportCfg struct {
 	// Default: 1 second.
 	BlehostdRspTimeout time.Duration
 
-	// Whether to restart the blehostd process if it terminates.
+	// Whether to restart the transport if it goes down or fails to start in
+	// the first place.
 	// Default: true.
-	BlehostdRestart bool
+	Restart bool
 
 	// How long to allow for the host and controller to sync at startup.
 	// Default: 10 seconds.
@@ -64,9 +65,9 @@ func NewXportCfg() XportCfg {
 	return XportCfg{
 		BlehostdAcceptTimeout: time.Second,
 		BlehostdRspTimeout:    time.Second,
-		BlehostdRestart:       true,
+		Restart:               true,
 		SyncTimeout:           10 * time.Second,
-		PreferredMtu:          512,
+		PreferredMtu:          264,
 	}
 }
 
@@ -212,18 +213,28 @@ func (bx *BleXport) initialSyncCheck() (bool, *BleListener, error) {
 }
 
 func (bx *BleXport) shutdown(restart bool, err error) {
+	bx.mtx.Lock()
+
 	var fullyStarted bool
+	var already bool
 
-	if bx.setStateFrom(BLE_XPORT_STATE_STARTED,
-		BLE_XPORT_STATE_STOPPING) {
-
+	switch bx.state {
+	case BLE_XPORT_STATE_STARTED:
+		already = false
 		fullyStarted = true
-	} else if bx.setStateFrom(BLE_XPORT_STATE_STARTING,
-		BLE_XPORT_STATE_STOPPING) {
-
+		bx.state = BLE_XPORT_STATE_STOPPING
+	case BLE_XPORT_STATE_STARTING:
+		already = false
 		fullyStarted = false
-	} else {
-		// Stop already in progress.
+		bx.state = BLE_XPORT_STATE_STOPPING
+	default:
+		already = true
+	}
+
+	bx.mtx.Unlock()
+
+	if already {
+		// Shutdown already in progress.
 		return
 	}
 
@@ -291,7 +302,7 @@ func (bx *BleXport) setStateFrom(from BleXportState, to BleXportState) bool {
 	switch bx.state {
 	case BLE_XPORT_STATE_STARTED:
 		bx.notifyReadyListeners(nil)
-	case BLE_XPORT_STATE_STOPPED:
+	case BLE_XPORT_STATE_STOPPED, BLE_XPORT_STATE_DORMANT:
 		bx.notifyReadyListeners(fmt.Errorf("BLE transport stopped"))
 	default:
 	}
@@ -319,7 +330,6 @@ func (bx *BleXport) startOnce() error {
 				"blehostd did not connect to socket; " +
 					"controller not attached?")
 		} else {
-			panic(err.Error())
 			err = nmxutil.NewXportError(
 				"Failed to start child process: " + err.Error())
 		}
@@ -462,7 +472,7 @@ func (bx *BleXport) Start() error {
 			// If restarts are disabled, or if the shutdown was a result of an
 			// explicit stop call (instead of an unexpected error), stop
 			// restarting the transport.
-			if !bx.cfg.BlehostdRestart || !restart {
+			if !bx.cfg.Restart || !restart {
 				bx.setStateFrom(BLE_XPORT_STATE_STOPPED,
 					BLE_XPORT_STATE_DORMANT)
 				break
