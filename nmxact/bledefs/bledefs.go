@@ -268,3 +268,15 @@ type BleAdvReport struct {
 }
 
 type BleAdvPredicate func(adv BleAdvReport) bool
+
+type BleConnDesc struct {
+	ConnHandle      uint16
+	OwnIdAddrType   BleAddrType
+	OwnIdAddr       BleAddr
+	OwnOtaAddrType  BleAddrType
+	OwnOtaAddr      BleAddr
+	PeerIdAddrType  BleAddrType
+	PeerIdAddr      BleAddr
+	PeerOtaAddrType BleAddrType
+	PeerOtaAddr     BleAddr
+}

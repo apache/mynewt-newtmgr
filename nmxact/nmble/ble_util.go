@@ -196,3 +196,11 @@ func NewBleSetPreferredMtuReq() *BleSetPreferredMtuReq {
 		Seq:  NextSeq(),
 	}
 }
+
+func NewBleConnFindReq() *BleConnFindReq {
+	return &BleConnFindReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_CONN_FIND,
+		Seq:  NextSeq(),
+	}
+}

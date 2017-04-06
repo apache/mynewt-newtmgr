@@ -60,7 +60,7 @@ type BleFsm struct {
 	params BleFsmParams
 
 	peerDev         *BleDev
-	connHandle      int
+	connHandle      uint16
 	nmpSvc          *BleSvc
 	nmpReqChr       *BleChr
 	nmpRspChr       *BleChr
@@ -203,6 +203,27 @@ func (bf *BleFsm) action(
 	return nil
 }
 
+func (bf *BleFsm) logConnection() {
+	desc, err := bf.params.Bx.connFind(bf.connHandle)
+	if err != nil {
+		return
+	}
+
+	log.Debugf("BLE connection attempt succeeded; "+
+		"conn_handle=%d "+
+		"own_id_addr=%s,%s own_ota_addr=%s,%s "+
+		"peer_id_addr=%s,%s peer_ota_addr=%s,%s",
+		desc.ConnHandle,
+		BleAddrTypeToString(desc.OwnIdAddrType),
+		desc.OwnIdAddr.String(),
+		BleAddrTypeToString(desc.OwnOtaAddrType),
+		desc.OwnOtaAddr.String(),
+		BleAddrTypeToString(desc.PeerIdAddrType),
+		desc.PeerIdAddr.String(),
+		BleAddrTypeToString(desc.PeerOtaAddrType),
+		desc.PeerOtaAddr.String())
+}
+
 func calcDisconnectType(state BleSesnState) BleFsmDisconnectType {
 	switch state {
 	case SESN_STATE_EXCHANGING_MTU:
@@ -282,10 +303,8 @@ func (bf *BleFsm) connectListen(seq BleSeq) error {
 				case *BleConnectEvt:
 					if msg.Status == 0 {
 						bl.Acked = true
-						log.Debugf("BLE connection attempt succeeded; "+
-							"peer=%d handle=%d", bf.peerDev.String(),
-							msg.ConnHandle)
 						bf.connHandle = msg.ConnHandle
+						bf.logConnection()
 						if err := bf.nmpRspListen(); err != nil {
 							bf.connChan <- err
 							return
@@ -310,7 +329,7 @@ func (bf *BleFsm) connectListen(seq BleSeq) error {
 					} else {
 						log.Debugf("BLE ATT MTU updated; from=%d to=%d",
 							bf.attMtu, msg.Mtu)
-						bf.attMtu = msg.Mtu
+						bf.attMtu = int(msg.Mtu)
 					}
 
 				case *BleDisconnectEvt:
@@ -334,7 +353,7 @@ func (bf *BleFsm) nmpRspListen() error {
 		Op:         MSG_OP_EVT,
 		Type:       MSG_TYPE_NOTIFY_RX_EVT,
 		Seq:        BLE_SEQ_NONE,
-		ConnHandle: bf.connHandle,
+		ConnHandle: int(bf.connHandle),
 	}
 
 	bl, err := bf.addBleListener(base)

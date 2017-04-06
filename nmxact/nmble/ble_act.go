@@ -276,7 +276,7 @@ func exchangeMtu(x *BleXport, bl *BleListener, r *BleExchangeMtuReq) (
 						MSG_TYPE_MTU_CHANGE_EVT,
 						msg.Status)
 				} else {
-					return msg.Mtu, nil
+					return int(msg.Mtu), nil
 				}
 
 			default:
@@ -359,6 +359,55 @@ func scanCancel(x *BleXport, bl *BleListener, r *BleScanCancelReq) error {
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
 			return BhdTimeoutError(MSG_TYPE_EXCHANGE_MTU)
+		}
+	}
+}
+
+func connFind(x *BleXport, bl *BleListener, r *BleConnFindReq) (
+	BleConnDesc, error) {
+
+	const msgType = MSG_TYPE_CONN_FIND
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return BleConnDesc{}, err
+	}
+
+	if err := x.Tx(j); err != nil {
+		return BleConnDesc{}, err
+	}
+
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return BleConnDesc{}, err
+
+		case bm := <-bl.BleChan:
+			switch msg := bm.(type) {
+			case *BleConnFindRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return BleConnDesc{},
+						StatusError(MSG_OP_RSP, msgType, msg.Status)
+				}
+
+				return BleConnDesc{
+					ConnHandle:      msg.ConnHandle,
+					OwnIdAddrType:   msg.OwnIdAddrType,
+					OwnIdAddr:       msg.OwnIdAddr,
+					OwnOtaAddrType:  msg.OwnOtaAddrType,
+					OwnOtaAddr:      msg.OwnOtaAddr,
+					PeerIdAddrType:  msg.PeerIdAddrType,
+					PeerIdAddr:      msg.PeerIdAddr,
+					PeerOtaAddrType: msg.PeerOtaAddrType,
+					PeerOtaAddr:     msg.PeerOtaAddr,
+				}, nil
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return BleConnDesc{}, BhdTimeoutError(msgType)
 		}
 	}
 }

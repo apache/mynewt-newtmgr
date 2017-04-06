@@ -138,6 +138,26 @@ func (bx *BleXport) genRandAddr() (BleAddr, error) {
 	return genRandAddr(bx, bl, r)
 }
 
+func (bx *BleXport) connFind(connHandle uint16) (BleConnDesc, error) {
+	r := NewBleConnFindReq()
+	r.ConnHandle = connHandle
+
+	base := BleMsgBase{
+		Op:         -1,
+		Type:       -1,
+		Seq:        r.Seq,
+		ConnHandle: -1,
+	}
+
+	bl := NewBleListener()
+	if err := bx.Bd.AddListener(base, bl); err != nil {
+		return BleConnDesc{}, err
+	}
+	defer bx.Bd.RemoveListener(base)
+
+	return connFind(bx, bl, r)
+}
+
 func (bx *BleXport) setRandAddr(addr BleAddr) error {
 	r := NewBleSetRandAddrReq()
 	r.Addr = addr

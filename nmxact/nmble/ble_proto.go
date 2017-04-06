@@ -233,6 +233,8 @@ const (
 	MSG_TYPE_SCAN                      = 15
 	MSG_TYPE_SCAN_CANCEL               = 16
 	MSG_TYPE_SET_PREFERRED_MTU         = 17
+	MSG_TYPE_SECURITY_INITIATE         = 18
+	MSG_TYPE_CONN_FIND                 = 19
 
 	MSG_TYPE_SYNC_EVT       = 2049
 	MSG_TYPE_CONNECT_EVT    = 2050
@@ -243,6 +245,7 @@ const (
 	MSG_TYPE_NOTIFY_RX_EVT  = 2055
 	MSG_TYPE_MTU_CHANGE_EVT = 2056
 	MSG_TYPE_SCAN_EVT       = 2057
+	MSG_TYPE_ENC_CHANGE_EVT = 2058
 )
 
 var MsgOpStringMap = map[MsgOp]string{
@@ -267,6 +270,7 @@ var MsgTypeStringMap = map[MsgType]string{
 	MSG_TYPE_SCAN:              "scan",
 	MSG_TYPE_SCAN_CANCEL:       "scan_cancel",
 	MSG_TYPE_SET_PREFERRED_MTU: "set_preferred_mtu",
+	MSG_TYPE_CONN_FIND:         "conn_find",
 
 	MSG_TYPE_SYNC_EVT:       "sync_evt",
 	MSG_TYPE_CONNECT_EVT:    "connect_evt",
@@ -276,6 +280,7 @@ var MsgTypeStringMap = map[MsgType]string{
 	MSG_TYPE_NOTIFY_RX_EVT:  "notify_rx_evt",
 	MSG_TYPE_MTU_CHANGE_EVT: "mtu_change_evt",
 	MSG_TYPE_SCAN_EVT:       "scan_evt",
+	MSG_TYPE_ENC_CHANGE_EVT: "enc_change_evt",
 }
 
 type BleHdr struct {
@@ -346,16 +351,8 @@ type BleConnectEvt struct {
 	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
-	Status          int         `json:"status"`
-	ConnHandle      int         `json:"conn_handle"`
-	OwnIdAddrType   BleAddrType `json:"own_id_addr_type"`
-	OwnIdAddr       BleAddr     `json:"own_id_addr"`
-	OwnOtaAddrType  BleAddrType `json:"own_ota_addr_type"`
-	OwnOtaAddr      BleAddr     `json:"own_ota_addr"`
-	PeerIdAddrType  BleAddrType `json:"peer_id_addr_type"`
-	PeerIdAddr      BleAddr     `json:"peer_id_addr"`
-	PeerOtaAddrType BleAddrType `json:"peer_ota_addr_type"`
-	PeerOtaAddr     BleAddr     `json:"peer_ota_addr"`
+	Status     int    `json:"status"`
+	ConnHandle uint16 `json:"conn_handle"`
 }
 
 type BleTerminateReq struct {
@@ -364,8 +361,8 @@ type BleTerminateReq struct {
 	Type MsgType `json:"type"`
 	Seq  BleSeq  `json:"seq"`
 
-	ConnHandle int `json:"conn_handle"`
-	HciReason  int `json:"hci_reason"`
+	ConnHandle uint16 `json:"conn_handle"`
+	HciReason  int    `json:"hci_reason"`
 }
 
 type BleTerminateRsp struct {
@@ -402,8 +399,8 @@ type BleDisconnectEvt struct {
 	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
-	Reason     int `json:"reason"`
-	ConnHandle int `json:"conn_handle"`
+	Reason     int    `json:"reason"`
+	ConnHandle uint16 `json:"conn_handle"`
 }
 
 type BleDiscSvcUuidReq struct {
@@ -413,7 +410,7 @@ type BleDiscSvcUuidReq struct {
 	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
-	ConnHandle int     `json:"conn_handle"`
+	ConnHandle uint16  `json:"conn_handle"`
 	Uuid       BleUuid `json:"svc_uuid"`
 }
 
@@ -445,7 +442,7 @@ type BleDiscChrUuidReq struct {
 	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
-	ConnHandle  int     `json:"conn_handle"`
+	ConnHandle  uint16  `json:"conn_handle"`
 	StartHandle int     `json:"start_handle"`
 	EndHandle   int     `json:"end_handle"`
 	Uuid        BleUuid `json:"chr_uuid"`
@@ -458,9 +455,9 @@ type BleDiscAllChrsReq struct {
 	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
-	ConnHandle  int `json:"conn_handle"`
-	StartHandle int `json:"start_handle"`
-	EndHandle   int `json:"end_handle"`
+	ConnHandle  uint16 `json:"conn_handle"`
+	StartHandle int    `json:"start_handle"`
+	EndHandle   int    `json:"end_handle"`
 }
 
 type BleDiscAllChrsRsp struct {
@@ -522,7 +519,7 @@ type BleWriteCmdReq struct {
 	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
-	ConnHandle int      `json:"conn_handle"`
+	ConnHandle uint16   `json:"conn_handle"`
 	AttrHandle int      `json:"attr_handle"`
 	Data       BleBytes `json:"data"`
 }
@@ -554,7 +551,7 @@ type BleNotifyRxEvt struct {
 	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
-	ConnHandle int      `json:"conn_handle"`
+	ConnHandle uint16   `json:"conn_handle"`
 	AttrHandle int      `json:"attr_handle"`
 	Indication bool     `json:"indication"`
 	Data       BleBytes `json:"data"`
@@ -567,7 +564,7 @@ type BleExchangeMtuReq struct {
 	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
-	ConnHandle int `json:"conn_handle"`
+	ConnHandle uint16 `json:"conn_handle"`
 }
 
 type BleExchangeMtuRsp struct {
@@ -587,9 +584,9 @@ type BleMtuChangeEvt struct {
 	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
-	Status     int `json:"status"`
-	ConnHandle int `json:"conn_handle"`
-	Mtu        int `json:"mtu"`
+	Status     int    `json:"status"`
+	ConnHandle uint16 `json:"conn_handle"`
+	Mtu        uint16 `json:"mtu"`
 }
 
 type BleGenRandAddrReq struct {
@@ -714,6 +711,35 @@ type BleSetPreferredMtuRsp struct {
 
 	// Mandatory
 	Status int `json:"status"`
+}
+
+type BleConnFindReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	ConnHandle uint16 `json:"conn_handle"`
+}
+
+type BleConnFindRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status          int         `json:"status"`
+	ConnHandle      uint16      `json:"conn_handle"`
+	OwnIdAddrType   BleAddrType `json:"own_id_addr_type"`
+	OwnIdAddr       BleAddr     `json:"own_id_addr"`
+	OwnOtaAddrType  BleAddrType `json:"own_ota_addr_type"`
+	OwnOtaAddr      BleAddr     `json:"own_ota_addr"`
+	PeerIdAddrType  BleAddrType `json:"peer_id_addr_type"`
+	PeerIdAddr      BleAddr     `json:"peer_id_addr"`
+	PeerOtaAddrType BleAddrType `json:"peer_ota_addr_type"`
+	PeerOtaAddr     BleAddr     `json:"peer_ota_addr"`
 }
 
 func ErrCodeToString(e int) string {
