@@ -120,84 +120,6 @@ func (bx *BleXport) createUnixChild() {
 	bx.client = unixchild.New(config)
 }
 
-func (bx *BleXport) genRandAddr() (BleAddr, error) {
-	r := NewBleGenRandAddrReq()
-	base := BleMsgBase{
-		Op:         -1,
-		Type:       -1,
-		Seq:        r.Seq,
-		ConnHandle: -1,
-	}
-
-	bl := NewBleListener()
-	if err := bx.Bd.AddListener(base, bl); err != nil {
-		return BleAddr{}, err
-	}
-	defer bx.Bd.RemoveListener(base)
-
-	return genRandAddr(bx, bl, r)
-}
-
-func (bx *BleXport) connFind(connHandle uint16) (BleConnDesc, error) {
-	r := NewBleConnFindReq()
-	r.ConnHandle = connHandle
-
-	base := BleMsgBase{
-		Op:         -1,
-		Type:       -1,
-		Seq:        r.Seq,
-		ConnHandle: -1,
-	}
-
-	bl := NewBleListener()
-	if err := bx.Bd.AddListener(base, bl); err != nil {
-		return BleConnDesc{}, err
-	}
-	defer bx.Bd.RemoveListener(base)
-
-	return connFind(bx, bl, r)
-}
-
-func (bx *BleXport) setRandAddr(addr BleAddr) error {
-	r := NewBleSetRandAddrReq()
-	r.Addr = addr
-
-	base := BleMsgBase{
-		Op:         -1,
-		Type:       -1,
-		Seq:        r.Seq,
-		ConnHandle: -1,
-	}
-
-	bl := NewBleListener()
-	if err := bx.Bd.AddListener(base, bl); err != nil {
-		return err
-	}
-	defer bx.Bd.RemoveListener(base)
-
-	return setRandAddr(bx, bl, r)
-}
-
-func (bx *BleXport) setPreferredMtu(mtu uint16) error {
-	r := NewBleSetPreferredMtuReq()
-	r.Mtu = mtu
-
-	base := BleMsgBase{
-		Op:         -1,
-		Type:       -1,
-		Seq:        r.Seq,
-		ConnHandle: -1,
-	}
-
-	bl := NewBleListener()
-	if err := bx.Bd.AddListener(base, bl); err != nil {
-		return err
-	}
-	defer bx.Bd.RemoveListener(base)
-
-	return setPreferredMtu(bx, bl, r)
-}
-
 func (bx *BleXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
 	switch cfg.MgmtProto {
 	case sesn.MGMT_PROTO_NMP:
@@ -489,7 +411,7 @@ func (bx *BleXport) startOnce() error {
 	}()
 
 	if bx.randAddr == nil {
-		addr, err := bx.genRandAddr()
+		addr, err := GenRandAddrXact(bx)
 		if err != nil {
 			bx.shutdown(true, err)
 			return err
@@ -498,12 +420,12 @@ func (bx *BleXport) startOnce() error {
 		bx.randAddr = &addr
 	}
 
-	if err := bx.setRandAddr(*bx.randAddr); err != nil {
+	if err := SetRandAddrXact(bx, *bx.randAddr); err != nil {
 		bx.shutdown(true, err)
 		return err
 	}
 
-	if err := bx.setPreferredMtu(bx.cfg.PreferredMtu); err != nil {
+	if err := SetPreferredMtuXact(bx, bx.cfg.PreferredMtu); err != nil {
 		bx.shutdown(true, err)
 		return err
 	}

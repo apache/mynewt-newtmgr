@@ -75,6 +75,36 @@ func StatusError(op MsgOp, msgType MsgType, status int) error {
 	return nmxutil.NewBleHostError(status, str)
 }
 
+func BleDescFromConnFindRsp(r *BleConnFindRsp) BleConnDesc {
+	return BleConnDesc{
+		ConnHandle:      r.ConnHandle,
+		OwnIdAddrType:   r.OwnIdAddrType,
+		OwnIdAddr:       r.OwnIdAddr,
+		OwnOtaAddrType:  r.OwnOtaAddrType,
+		OwnOtaAddr:      r.OwnOtaAddr,
+		PeerIdAddrType:  r.PeerIdAddrType,
+		PeerIdAddr:      r.PeerIdAddr,
+		PeerOtaAddrType: r.PeerOtaAddrType,
+		PeerOtaAddr:     r.PeerOtaAddr,
+	}
+}
+
+func BleAdvReportFromScanEvt(e *BleScanEvt) BleAdvReport {
+	return BleAdvReport{
+		EventType: e.EventType,
+		Sender: BleDev{
+			AddrType: e.AddrType,
+			Addr:     e.Addr,
+		},
+		Rssi: e.Rssi,
+		Data: e.Data.Bytes,
+
+		Flags:          e.DataFlags,
+		Name:           e.DataName,
+		NameIsComplete: e.DataNameIsComplete,
+	}
+}
+
 func NewBleConnectReq() *BleConnectReq {
 	return &BleConnectReq{
 		Op:   MSG_OP_REQ,
@@ -203,4 +233,82 @@ func NewBleConnFindReq() *BleConnFindReq {
 		Type: MSG_TYPE_CONN_FIND,
 		Seq:  NextSeq(),
 	}
+}
+
+func ConnFindXact(x *BleXport, connHandle uint16) (BleConnDesc, error) {
+	r := NewBleConnFindReq()
+	r.ConnHandle = connHandle
+
+	base := BleMsgBase{
+		Op:         -1,
+		Type:       -1,
+		Seq:        r.Seq,
+		ConnHandle: -1,
+	}
+
+	bl := NewBleListener()
+	if err := x.Bd.AddListener(base, bl); err != nil {
+		return BleConnDesc{}, err
+	}
+	defer x.Bd.RemoveListener(base)
+
+	return connFind(x, bl, r)
+}
+
+func GenRandAddrXact(x *BleXport) (BleAddr, error) {
+	r := NewBleGenRandAddrReq()
+	base := BleMsgBase{
+		Op:         -1,
+		Type:       -1,
+		Seq:        r.Seq,
+		ConnHandle: -1,
+	}
+
+	bl := NewBleListener()
+	if err := x.Bd.AddListener(base, bl); err != nil {
+		return BleAddr{}, err
+	}
+	defer x.Bd.RemoveListener(base)
+
+	return genRandAddr(x, bl, r)
+}
+
+func SetRandAddrXact(x *BleXport, addr BleAddr) error {
+	r := NewBleSetRandAddrReq()
+	r.Addr = addr
+
+	base := BleMsgBase{
+		Op:         -1,
+		Type:       -1,
+		Seq:        r.Seq,
+		ConnHandle: -1,
+	}
+
+	bl := NewBleListener()
+	if err := x.Bd.AddListener(base, bl); err != nil {
+		return err
+	}
+	defer x.Bd.RemoveListener(base)
+
+	return setRandAddr(x, bl, r)
+}
+
+func SetPreferredMtuXact(x *BleXport, mtu uint16) error {
+	r := NewBleSetPreferredMtuReq()
+	r.Mtu = mtu
+
+	base := BleMsgBase{
+		Op:         -1,
+		Type:       -1,
+		Seq:        r.Seq,
+		ConnHandle: -1,
+	}
+
+	bl := NewBleListener()
+	if err := x.Bd.AddListener(base, bl); err != nil {
+		return err
+	}
+	defer x.Bd.RemoveListener(base)
+
+	return setPreferredMtu(x, bl, r)
 }

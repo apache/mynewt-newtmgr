@@ -204,24 +204,12 @@ func (bf *BleFsm) action(
 }
 
 func (bf *BleFsm) logConnection() {
-	desc, err := bf.params.Bx.connFind(bf.connHandle)
+	desc, err := ConnFindXact(bf.params.Bx, bf.connHandle)
 	if err != nil {
 		return
 	}
 
-	log.Debugf("BLE connection attempt succeeded; "+
-		"conn_handle=%d "+
-		"own_id_addr=%s,%s own_ota_addr=%s,%s "+
-		"peer_id_addr=%s,%s peer_ota_addr=%s,%s",
-		desc.ConnHandle,
-		BleAddrTypeToString(desc.OwnIdAddrType),
-		desc.OwnIdAddr.String(),
-		BleAddrTypeToString(desc.OwnOtaAddrType),
-		desc.OwnOtaAddr.String(),
-		BleAddrTypeToString(desc.PeerIdAddrType),
-		desc.PeerIdAddr.String(),
-		BleAddrTypeToString(desc.PeerOtaAddrType),
-		desc.PeerOtaAddr.String())
+	log.Debugf("BLE connection attempt succeeded; %s", desc.String())
 }
 
 func calcDisconnectType(state BleSesnState) BleFsmDisconnectType {
@@ -420,21 +408,7 @@ func (bf *BleFsm) scan() error {
 	abortChan := make(chan struct{}, 1)
 
 	// This function gets called for each incoming advertisement.
-	scanCb := func(evt *BleScanEvt) {
-		r := BleAdvReport{
-			EventType: evt.EventType,
-			Sender: BleDev{
-				AddrType: evt.AddrType,
-				Addr:     evt.Addr,
-			},
-			Rssi: evt.Rssi,
-			Data: evt.Data.Bytes,
-
-			Flags:          evt.DataFlags,
-			Name:           evt.DataName,
-			NameIsComplete: evt.DataNameIsComplete,
-		}
-
+	scanCb := func(r BleAdvReport) {
 		// Ask client if we should connect to this advertiser.
 		if bf.params.PeerSpec.ScanPred(r) {
 			bf.peerDev = &r.Sender

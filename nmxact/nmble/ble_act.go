@@ -288,7 +288,7 @@ func exchangeMtu(x *BleXport, bl *BleListener, r *BleExchangeMtuReq) (
 	}
 }
 
-type scanFn func(evt *BleScanEvt)
+type scanFn func(r BleAdvReport)
 
 func scan(x *BleXport, bl *BleListener, r *BleScanReq,
 	abortChan chan struct{}, scanCb scanFn) error {
@@ -316,7 +316,8 @@ func scan(x *BleXport, bl *BleListener, r *BleScanReq,
 				}
 
 			case *BleScanEvt:
-				scanCb(msg)
+				r := BleAdvReportFromScanEvt(msg)
+				scanCb(r)
 
 			default:
 			}
@@ -391,17 +392,7 @@ func connFind(x *BleXport, bl *BleListener, r *BleConnFindReq) (
 						StatusError(MSG_OP_RSP, msgType, msg.Status)
 				}
 
-				return BleConnDesc{
-					ConnHandle:      msg.ConnHandle,
-					OwnIdAddrType:   msg.OwnIdAddrType,
-					OwnIdAddr:       msg.OwnIdAddr,
-					OwnOtaAddrType:  msg.OwnOtaAddrType,
-					OwnOtaAddr:      msg.OwnOtaAddr,
-					PeerIdAddrType:  msg.PeerIdAddrType,
-					PeerIdAddr:      msg.PeerIdAddr,
-					PeerOtaAddrType: msg.PeerOtaAddrType,
-					PeerOtaAddr:     msg.PeerOtaAddr,
-				}, nil
+				return BleDescFromConnFindRsp(msg), nil
 
 			default:
 			}

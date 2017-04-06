@@ -280,3 +280,18 @@ type BleConnDesc struct {
 	PeerOtaAddrType BleAddrType
 	PeerOtaAddr     BleAddr
 }
+
+func (d *BleConnDesc) String() string {
+	return fmt.Sprintf("conn_handle=%d "+
+		"own_id_addr=%s,%s own_ota_addr=%s,%s "+
+		"peer_id_addr=%s,%s peer_ota_addr=%s,%s",
+		d.ConnHandle,
+		BleAddrTypeToString(d.OwnIdAddrType),
+		d.OwnIdAddr.String(),
+		BleAddrTypeToString(d.OwnOtaAddrType),
+		d.OwnOtaAddr.String(),
+		BleAddrTypeToString(d.PeerIdAddrType),
+		d.PeerIdAddr.String(),
+		BleAddrTypeToString(d.PeerOtaAddrType),
+		d.PeerOtaAddr.String())
+}
