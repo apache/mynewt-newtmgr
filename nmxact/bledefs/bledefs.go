@@ -147,6 +147,81 @@ func (bd *BleDev) String() string {
 		bd.Addr.String())
 }
 
+type BleUuid struct {
+	Bytes [16]byte
+}
+
+func (bu *BleUuid) String() string {
+	var buf bytes.Buffer
+	buf.Grow(len(bu.Bytes)*2 + 3)
+
+	// XXX: For now, only support 128-bit UUIDs.
+
+	for i, b := range bu.Bytes {
+		switch i {
+		case 4, 6, 8, 10:
+			buf.WriteString("-")
+		}
+
+		fmt.Fprintf(&buf, "%02x", b)
+	}
+
+	return buf.String()
+}
+
+func ParseUuid(uuidStr string) (BleUuid, error) {
+	bu := BleUuid{}
+
+	if len(uuidStr) != 36 {
+		return bu, fmt.Errorf("Invalid UUID: %s", uuidStr)
+	}
+
+	boff := 0
+	for i := 0; i < 36; {
+		switch i {
+		case 8, 13, 18, 23:
+			if uuidStr[i] != '-' {
+				return bu, fmt.Errorf("Invalid UUID: %s", uuidStr)
+			}
+			i++
+
+		default:
+			u64, err := strconv.ParseUint(uuidStr[i:i+2], 16, 8)
+			if err != nil {
+				return bu, fmt.Errorf("Invalid UUID: %s", uuidStr)
+			}
+			bu.Bytes[boff] = byte(u64)
+			i += 2
+			boff++
+		}
+	}
+
+	return bu, nil
+}
+
+func (bu *BleUuid) MarshalJSON() ([]byte, error) {
+	return json.Marshal(bu.String())
+}
+
+func (bu *BleUuid) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	var err error
+	*bu, err = ParseUuid(s)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func CompareUuids(a BleUuid, b BleUuid) int {
+	return bytes.Compare(a.Bytes[:], b.Bytes[:])
+}
+
 type BleScanFilterPolicy int
 
 const (
@@ -262,9 +337,30 @@ type BleAdvReport struct {
 
 	// These fields are only present if the sender included them in its
 	// advertisement.
-	Flags          uint8  // 0 if not present.
-	Name           string // "" if not present.
-	NameIsComplete bool   // false if not present.
+	Flags               uint8     // 0 if not present.
+	Uuids16             []uint16  // nil if not present
+	Uuids16IsComplete   bool      // false if not present
+	Uuids32             []uint32  // false if not present
+	Uuids32IsComplete   bool      // false if not present
+	Uuids128            []BleUuid // false if not present
+	Uuids128IsComplete  bool      // false if not present
+	Name                string    // "" if not present.
+	NameIsComplete      bool      // false if not present.
+	TxPwrLvl            int8      // Check TxPwrLvlIsPresent
+	TxPwrLvlIsPresent   bool      // false if not present
+	SlaveItvlMin        uint16    // Check SlaveItvlIsPresent
+	SlaveItvlMax        uint16    // Check SlaveItvlIsPresent
+	SlaveItvlIsPresent  bool      // false if not present
+	SvcDataUuid16       []byte    // false if not present
+	PublicTgtAddrs      []BleAddr // false if not present
+	Appearance          uint16    // Check AppearanceIsPresent
+	AppearanceIsPresent bool      // false if not present
+	AdvItvl             uint16    // Check AdvItvlIsPresent
+	AdvItvlIsPresent    bool      // false if not present
+	SvcDataUuid32       []byte    // false if not present
+	SvcDataUuid128      []byte    // false if not present
+	Uri                 []byte    // false if not present
+	MfgData             []byte    // false if not present
 }
 
 type BleAdvPredicate func(adv BleAdvReport) bool

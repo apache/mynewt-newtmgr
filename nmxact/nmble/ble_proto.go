@@ -19,10 +19,6 @@ type BleBytes struct {
 	Bytes []byte
 }
 
-type BleUuid struct {
-	Bytes [16]byte
-}
-
 const BLE_SEQ_NONE BleSeq = 0xffffffff
 
 const ERR_CODE_ATT_BASE = 0x100
@@ -671,9 +667,30 @@ type BleScanEvt struct {
 	Data      BleBytes        `json:"data"`
 
 	// Optional
-	DataFlags          uint8  `json:"data_flags"`
-	DataName           string `json:"data_name"`
-	DataNameIsComplete bool   `json:"data_name_is_complete"`
+	DataFlags               uint8     `json:"data_flags"`
+	DataUuids16             []uint16  `json:"data_uuids16"`
+	DataUuids16IsComplete   bool      `json:"data_uuids16_is_complete"`
+	DataUuids32             []uint32  `json:"data_uuids32"`
+	DataUuids32IsComplete   bool      `json:"data_uuids32_is_complete"`
+	DataUuids128            []BleUuid `json:"data_uuids128"`
+	DataUuids128IsComplete  bool      `json:"data_uuids128_is_complete"`
+	DataName                string    `json:"data_name"`
+	DataNameIsComplete      bool      `json:"data_name_is_complete"`
+	DataTxPwrLvl            int8      `json:"data_tx_pwr_lvl"`
+	DataTxPwrLvlIsPresent   bool
+	DataSlaveItvlMin        uint16 `json:"data_slave_itvl_min"`
+	DataSlaveItvlMax        uint16 `json:"data_slave_itvl_max"`
+	DataSlaveItvlIsPresent  bool
+	DataSvcDataUuid16       BleBytes  `json:"data_svc_data_uuid16"`
+	DataPublicTgtAddrs      []BleAddr `json:"data_public_tgt_addrs"`
+	DataAppearance          uint16    `json:"data_appearance"`
+	DataAppearanceIsPresent bool
+	DataAdvItvl             uint16 `json:"data_adv_itvl"`
+	DataAdvItvlIsPresent    bool
+	DataSvcDataUuid32       BleBytes `json:"data_svc_data_uuid32"`
+	DataSvcDataUuid128      BleBytes `json:"data_svc_data_uuid128"`
+	DataUri                 BleBytes `json:"data_uri"`
+	DataMfgData             BleBytes `json:"data_mfg_data"`
 }
 
 type BleScanCancelReq struct {
@@ -879,45 +896,4 @@ func (bb *BleBytes) UnmarshalJSON(data []byte) error {
 	}
 
 	return nil
-}
-
-func (bu *BleUuid) String() string {
-	var buf bytes.Buffer
-	buf.Grow(len(bu.Bytes)*2 + 3)
-
-	// XXX: For now, only support 128-bit UUIDs.
-
-	for i, b := range bu.Bytes {
-		switch i {
-		case 4, 6, 8, 10:
-			buf.WriteString("-")
-		}
-
-		fmt.Fprintf(&buf, "%02x", b)
-	}
-
-	return buf.String()
-}
-
-func (bu *BleUuid) MarshalJSON() ([]byte, error) {
-	return json.Marshal(bu.String())
-}
-
-func (bu *BleUuid) UnmarshalJSON(data []byte) error {
-	var s string
-	if err := json.Unmarshal(data, &s); err != nil {
-		return err
-	}
-
-	var err error
-	*bu, err = ParseUuid(s)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func CompareUuids(a BleUuid, b BleUuid) int {
-	return bytes.Compare(a.Bytes[:], b.Bytes[:])
 }

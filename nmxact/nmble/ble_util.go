@@ -2,7 +2,6 @@ package nmble
 
 import (
 	"fmt"
-	"strconv"
 	"sync/atomic"
 
 	log "github.com/Sirupsen/logrus"
@@ -24,36 +23,6 @@ var nextSeq uint32
 
 func NextSeq() BleSeq {
 	return BleSeq(atomic.AddUint32(&nextSeq, 1))
-}
-
-func ParseUuid(uuidStr string) (BleUuid, error) {
-	bu := BleUuid{}
-
-	if len(uuidStr) != 36 {
-		return bu, fmt.Errorf("Invalid UUID: %s", uuidStr)
-	}
-
-	boff := 0
-	for i := 0; i < 36; {
-		switch i {
-		case 8, 13, 18, 23:
-			if uuidStr[i] != '-' {
-				return bu, fmt.Errorf("Invalid UUID: %s", uuidStr)
-			}
-			i++
-
-		default:
-			u64, err := strconv.ParseUint(uuidStr[i:i+2], 16, 8)
-			if err != nil {
-				return bu, fmt.Errorf("Invalid UUID: %s", uuidStr)
-			}
-			bu.Bytes[boff] = byte(u64)
-			i += 2
-			boff++
-		}
-	}
-
-	return bu, nil
 }
 
 func BhdTimeoutError(rspType MsgType) error {
@@ -99,9 +68,30 @@ func BleAdvReportFromScanEvt(e *BleScanEvt) BleAdvReport {
 		Rssi: e.Rssi,
 		Data: e.Data.Bytes,
 
-		Flags:          e.DataFlags,
-		Name:           e.DataName,
-		NameIsComplete: e.DataNameIsComplete,
+		Flags:               e.DataFlags,
+		Uuids16:             e.DataUuids16,
+		Uuids16IsComplete:   e.DataUuids16IsComplete,
+		Uuids32:             e.DataUuids32,
+		Uuids32IsComplete:   e.DataUuids32IsComplete,
+		Uuids128:            e.DataUuids128,
+		Uuids128IsComplete:  e.DataUuids128IsComplete,
+		Name:                e.DataName,
+		NameIsComplete:      e.DataNameIsComplete,
+		TxPwrLvl:            e.DataTxPwrLvl,
+		TxPwrLvlIsPresent:   e.DataTxPwrLvlIsPresent,
+		SlaveItvlMin:        e.DataSlaveItvlMin,
+		SlaveItvlMax:        e.DataSlaveItvlMax,
+		SlaveItvlIsPresent:  e.DataSlaveItvlIsPresent,
+		SvcDataUuid16:       e.DataSvcDataUuid16.Bytes,
+		PublicTgtAddrs:      e.DataPublicTgtAddrs,
+		Appearance:          e.DataAppearance,
+		AppearanceIsPresent: e.DataAppearanceIsPresent,
+		AdvItvl:             e.DataAdvItvl,
+		AdvItvlIsPresent:    e.DataAdvItvlIsPresent,
+		SvcDataUuid32:       e.DataSvcDataUuid32.Bytes,
+		SvcDataUuid128:      e.DataSvcDataUuid128.Bytes,
+		Uri:                 e.DataUri.Bytes,
+		MfgData:             e.DataMfgData.Bytes,
 	}
 }
 
