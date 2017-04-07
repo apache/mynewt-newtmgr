@@ -22,12 +22,39 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmble"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 	"mynewt.apache.org/newtmgr/nmxact/xact"
+	"mynewt.apache.org/newtmgr/nmxact/xport"
 )
+
+func configExitHandler(x xport.Xport, s sesn.Sesn) {
+	onExit := func() {
+		if s.IsOpen() {
+			s.Close()
+		}
+
+		x.Stop()
+	}
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan)
+
+	go func() {
+		for {
+			s := <-sigChan
+			switch s {
+			case os.Interrupt, syscall.SIGTERM:
+				onExit()
+				os.Exit(0)
+			}
+		}
+	}()
+}
 
 func main() {
 	// Initialize the BLE transport.
@@ -65,6 +92,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "error creating BLE session: %s\n", err.Error())
 		os.Exit(1)
 	}
+
+	configExitHandler(x, s)
 
 	// Repeatedly:
 	//     * Connect to peer if unconnected.
