@@ -151,13 +151,6 @@ func (bf *BleFsm) transitionState(fromState BleSesnState,
 	return nil
 }
 
-func (bf *BleFsm) resetState() {
-	if err := bf.setState(SESN_STATE_UNCONNECTED); err != nil {
-		log.Debugf("BleFsm state change resulted in unexpected error: %s",
-			err)
-	}
-}
-
 func (bf *BleFsm) addBleListener(base BleMsgBase) (*BleListener, error) {
 	bl := NewBleListener()
 
@@ -256,16 +249,13 @@ func calcDisconnectType(state BleSesnState) BleFsmDisconnectType {
 	}
 }
 
-func (bf *BleFsm) onDisconnect(err error) {
+func (bf *BleFsm) resetState(err error) {
 	bf.mtx.Lock()
 
-	// Remember some fields before we clear them.
-	dt := calcDisconnectType(bf.state)
-	peer := *bf.peerDev
-
 	if err := bf.setStateNoLock(SESN_STATE_UNCONNECTED); err != nil {
-		log.Debugf("BleFsm state change resulted in unexpected error: %s",
-			err)
+		// Change to unconnected state should never fail.
+		panic(fmt.Sprintf(
+			"BleFsm state change resulted in unexpected error: %s", err))
 	}
 	bf.peerDev = nil
 
@@ -281,6 +271,14 @@ func (bf *BleFsm) onDisconnect(err error) {
 	for _, bl := range bls {
 		bl.ErrChan <- err
 	}
+}
+
+func (bf *BleFsm) onDisconnect(err error) {
+	// Remember some fields before we clear them.
+	dt := calcDisconnectType(bf.state)
+	peer := *bf.peerDev
+
+	bf.resetState(err)
 
 	bf.params.DisconnectCb(dt, peer, err)
 }
@@ -483,8 +481,9 @@ func (bf *BleFsm) terminateSetState() error {
 			"BLE terminate failed; session already being closed")
 	default:
 		if err := bf.setStateNoLock(SESN_STATE_TERMINATING); err != nil {
-			log.Debugf("BleFsm state change resulted in unexpected error: %s",
-				err)
+			// Change to terminating state should never fail.
+			panic(fmt.Sprintf(
+				"BleFsm state change resulted in unexpected error: %s", err))
 		}
 	}
 
@@ -710,7 +709,8 @@ func (bf *BleFsm) Start() (bool, error) {
 			}
 
 			if err != nil {
-				bf.resetState()
+				log.Info("[%p] FAILED FROM UNCONNECTED STATE: %s", bf, err.Error())
+				bf.resetState(err)
 				return false, err
 			}
 
@@ -724,7 +724,7 @@ func (bf *BleFsm) Start() (bool, error) {
 			if err != nil {
 				bhe := nmxutil.ToBleHost(err)
 				retry := bhe != nil && bhe.Status == ERR_CODE_ENOTCONN
-				bf.resetState()
+				bf.resetState(err)
 				return retry, err
 			}
 
@@ -736,7 +736,7 @@ func (bf *BleFsm) Start() (bool, error) {
 				SESN_STATE_DISCOVERED_SVC,
 				cb)
 			if err != nil {
-				bf.resetState()
+				bf.resetState(err)
 				return false, err
 			}
 
@@ -751,12 +751,12 @@ func (bf *BleFsm) Start() (bool, error) {
 				SESN_STATE_DISCOVERED_CHR,
 				cb)
 			if err != nil {
-				bf.resetState()
+				bf.resetState(err)
 				return false, err
 			}
 
 			if err := bf.subscribe(); err != nil {
-				bf.resetState()
+				bf.resetState(err)
 				return false, err
 			}
 
