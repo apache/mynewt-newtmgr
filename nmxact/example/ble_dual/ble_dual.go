@@ -21,12 +21,10 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
-	"time"
 
 	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
@@ -96,6 +94,8 @@ func sendOne(s sesn.Sesn) {
 
 	eres := res.(*xact.EchoResult)
 	fmt.Printf("Peer echoed back: %s\n", eres.Rsp.Payload)
+
+	s.Close()
 }
 
 func main() {
@@ -153,17 +153,13 @@ func main() {
 	go func() {
 		for {
 			sendOne(s1)
-			time.Sleep(time.Duration(rand.Uint32()%100) * time.Millisecond)
 		}
 	}()
 	wg.Add(1)
 
-	//time.Sleep(2 * time.Second)
-
 	go func() {
 		for {
 			sendOne(s2)
-			time.Sleep(time.Duration(rand.Uint32()%100) * time.Millisecond)
 		}
 	}()
 
