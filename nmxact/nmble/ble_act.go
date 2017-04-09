@@ -288,10 +288,11 @@ func exchangeMtu(x *BleXport, bl *BleListener, r *BleExchangeMtuReq) (
 	}
 }
 
-type scanFn func(r BleAdvReport)
+type scanSuccessFn func()
+type advRptFn func(r BleAdvReport)
 
-func scan(x *BleXport, bl *BleListener, r *BleScanReq,
-	abortChan chan struct{}, scanCb scanFn) error {
+func scan(x *BleXport, bl *BleListener, r *BleScanReq, abortChan chan struct{},
+	scanSuccessCb scanSuccessFn, advRptCb advRptFn) error {
 
 	j, err := json.Marshal(r)
 	if err != nil {
@@ -313,17 +314,22 @@ func scan(x *BleXport, bl *BleListener, r *BleScanReq,
 				bl.Acked = true
 				if msg.Status != 0 {
 					return StatusError(MSG_OP_RSP, MSG_TYPE_SCAN, msg.Status)
+				} else {
+					scanSuccessCb()
 				}
 
 			case *BleScanEvt:
 				r := BleAdvReportFromScanEvt(msg)
-				scanCb(r)
+				advRptCb(r)
+
+			case *BleScanTmoEvt:
+				return nmxutil.NewScanTmoError("scan duration expired")
 
 			default:
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return BhdTimeoutError(MSG_TYPE_EXCHANGE_MTU)
+			return BhdTimeoutError(MSG_TYPE_SCAN)
 
 		case <-abortChan:
 			return nil

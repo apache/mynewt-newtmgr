@@ -5,8 +5,6 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
-
 	"mynewt.apache.org/newt/util"
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
@@ -17,7 +15,6 @@ type BlePlainSesn struct {
 	bf           *BleFsm
 	nls          map[*nmp.NmpListener]struct{}
 	nd           *nmp.NmpDispatcher
-	connTries    int
 	closeTimeout time.Duration
 	onCloseCb    sesn.BleOnCloseFn
 
@@ -29,7 +26,6 @@ func NewBlePlainSesn(bx *BleXport, cfg sesn.SesnCfg) *BlePlainSesn {
 	bps := &BlePlainSesn{
 		nls:          map[*nmp.NmpListener]struct{}{},
 		nd:           nmp.NewNmpDispatcher(),
-		connTries:    cfg.Ble.ConnTries,
 		closeTimeout: cfg.Ble.CloseTimeout,
 		onCloseCb:    cfg.Ble.OnCloseCb,
 	}
@@ -48,6 +44,7 @@ func NewBlePlainSesn(bx *BleXport, cfg sesn.SesnCfg) *BlePlainSesn {
 		Bx:          bx,
 		OwnAddrType: cfg.Ble.OwnAddrType,
 		PeerSpec:    cfg.Ble.PeerSpec,
+		ConnTries:   cfg.Ble.ConnTries,
 		SvcUuid:     svcUuid,
 		ReqChrUuid:  chrUuid,
 		RspChrUuid:  chrUuid,
@@ -112,46 +109,12 @@ func (bps *BlePlainSesn) listenForClose(timeout time.Duration) error {
 	}
 }
 
-func (bps *BlePlainSesn) blockUntilClosed(timeout time.Duration) error {
-	if err := bps.setCloseChan(); err != nil {
-		return err
-	}
-	defer bps.clearCloseChan()
-
-	// If the session is already closed, we're done.
-	if bps.bf.IsClosed() {
-		return nil
-	}
-
-	// Block until close completes or times out.
-	return bps.listenForClose(timeout)
-}
-
 func (bps *BlePlainSesn) AbortRx(seq uint8) error {
 	return bps.nd.FakeRxError(seq, fmt.Errorf("Rx aborted"))
 }
 
 func (bps *BlePlainSesn) Open() error {
-	var err error
-	for i := 0; i < bps.connTries; i++ {
-		log.Debugf("Opening BLE session; try %d/%d", i+1, bps.connTries)
-
-		var retry bool
-		retry, err = bps.bf.Start()
-		if !retry {
-			break
-		}
-
-		if bps.blockUntilClosed(1*time.Second) != nil {
-			// Just close the session manually and report the original error.
-			bps.Close()
-			return err
-		}
-
-		log.Debugf("Connection to BLE peer dropped immediately; retrying")
-	}
-
-	return err
+	return bps.bf.Start()
 }
 
 func (bps *BlePlainSesn) Close() error {

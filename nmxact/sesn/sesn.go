@@ -77,9 +77,7 @@ func TxNmp(s Sesn, m *nmp.NmpMsg, o TxOptions) (nmp.NmpRsp, error) {
 			return r, nil
 		}
 
-		if (!nmxutil.IsNmpTimeout(err) && !nmxutil.IsXportTimeout(err)) ||
-			i >= retries {
-
+		if !nmxutil.IsNmpTimeout(err) || i >= retries {
 			return nil, err
 		}
 	}

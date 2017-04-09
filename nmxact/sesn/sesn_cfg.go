@@ -61,7 +61,7 @@ func NewSesnCfg() SesnCfg {
 	return SesnCfg{
 		Ble: SesnCfgBle{
 			ConnTries:    3,
-			CloseTimeout: 5 * time.Second,
+			CloseTimeout: 15 * time.Second,
 		},
 	}
 }

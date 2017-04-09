@@ -91,8 +91,7 @@ type BleXport struct {
 	shutdownChan      chan bool
 	readyChan         chan error
 	numReadyListeners int
-	masterQueue       [](chan error)
-	masterActive      bool
+	master            nmxutil.SingleResource
 	randAddr          *BleAddr
 	mtx               sync.Mutex
 
@@ -104,7 +103,7 @@ func NewBleXport(cfg XportCfg) (*BleXport, error) {
 		Bd:           NewBleDispatcher(),
 		shutdownChan: make(chan bool),
 		readyChan:    make(chan error),
-		masterQueue:  [](chan error){},
+		master:       nmxutil.NewSingleResource(),
 		cfg:          cfg,
 	}
 
@@ -216,6 +215,12 @@ func (bx *BleXport) initialSyncCheck() (bool, *BleListener, error) {
 }
 
 func (bx *BleXport) shutdown(restart bool, err error) {
+	if !nmxutil.IsXport(err) {
+		panic(fmt.Sprintf(
+			"BleXport.shutdown() received error that isn't an XportError: %+v",
+			err))
+	}
+
 	bx.mtx.Lock()
 
 	var fullyStarted bool
@@ -246,14 +251,11 @@ func (bx *BleXport) shutdown(restart bool, err error) {
 		bx.client.Stop()
 	}
 
+	bx.master.Abort(err)
+
 	// Indicate an error to all of this transport's listeners.  This prevents
 	// them from blocking endlessly while awaiting a BLE message.
 	bx.Bd.ErrorAll(err)
-
-	for _, listener := range bx.masterQueue {
-		listener <- err
-	}
-	bx.masterQueue = [](chan error){}
 
 	// Stop all of this transport's go routines.
 	for i := 0; i < bx.numStopListeners; i++ {
@@ -311,7 +313,7 @@ func (bx *BleXport) setStateFrom(from BleXportState, to BleXportState) bool {
 	case BLE_XPORT_STATE_STARTED:
 		bx.notifyReadyListeners(nil)
 	case BLE_XPORT_STATE_STOPPED, BLE_XPORT_STATE_DORMANT:
-		bx.notifyReadyListeners(fmt.Errorf("BLE transport stopped"))
+		bx.notifyReadyListeners(nmxutil.NewXportError("BLE transport stopped"))
 	default:
 	}
 
@@ -319,7 +321,7 @@ func (bx *BleXport) setStateFrom(from BleXportState, to BleXportState) bool {
 }
 
 func (bx *BleXport) Stop() error {
-	bx.shutdown(false, nil)
+	bx.shutdown(false, nmxutil.NewXportError("xport stopped"))
 	return nil
 }
 
@@ -524,40 +526,9 @@ func (bx *BleXport) RspTimeout() time.Duration {
 }
 
 func (bx *BleXport) AcquireMaster() error {
-	bx.mtx.Lock()
-
-	if !bx.masterActive {
-		bx.masterActive = true
-		bx.mtx.Unlock()
-		return nil
-	}
-
-	listener := make(chan error)
-	bx.masterQueue = append(bx.masterQueue, listener)
-
-	bx.mtx.Unlock()
-
-	return <-listener
+	return bx.master.Acquire()
 }
 
 func (bx *BleXport) ReleaseMaster() {
-	bx.mtx.Lock()
-
-	if !bx.masterActive {
-		bx.mtx.Unlock()
-		return
-	}
-
-	if len(bx.masterQueue) == 0 {
-		bx.masterActive = false
-		bx.mtx.Unlock()
-		return
-	}
-
-	listener := bx.masterQueue[0]
-	bx.masterQueue = bx.masterQueue[1:]
-
-	bx.mtx.Unlock()
-
-	listener <- nil
+	bx.master.Release()
 }

@@ -109,6 +109,7 @@ func discChrEvtCtor() BleMsg    { return &BleDiscChrEvt{} }
 func notifyRxEvtCtor() BleMsg   { return &BleNotifyRxEvt{} }
 func mtuChangeEvtCtor() BleMsg  { return &BleMtuChangeEvt{} }
 func scanEvtCtor() BleMsg       { return &BleScanEvt{} }
+func scanTmoEvtCtor() BleMsg    { return &BleScanTmoEvt{} }
 
 var msgCtorMap = map[OpTypePair]msgCtor{
 	{MSG_OP_RSP, MSG_TYPE_ERR}:               errRspCtor,
@@ -136,6 +137,7 @@ var msgCtorMap = map[OpTypePair]msgCtor{
 	{MSG_OP_EVT, MSG_TYPE_NOTIFY_RX_EVT}:  notifyRxEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_MTU_CHANGE_EVT}: mtuChangeEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_SCAN_EVT}:       scanEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_SCAN_TMO_EVT}:   scanTmoEvtCtor,
 }
 
 func NewBleDispatcher() *BleDispatcher {
@@ -256,8 +258,8 @@ func decodeBleMsg(data []byte) (BleMsgBase, BleMsg, error) {
 	cb := msgCtorMap[opTypePair]
 	if cb == nil {
 		return base, nil, fmt.Errorf(
-			"Unrecognized op+type pair: %s, %s",
-			MsgOpToString(base.Op), MsgTypeToString(base.Type))
+			"Unrecognized op+type pair:") // %s, %s",
+		//MsgOpToString(base.Op), MsgTypeToString(base.Type))
 	}
 
 	msg := cb()

@@ -89,6 +89,25 @@ func IsSesnClosed(err error) bool {
 	return ok
 }
 
+type ScanTmoError struct {
+	Text string
+}
+
+func NewScanTmoError(text string) *ScanTmoError {
+	return &ScanTmoError{
+		Text: text,
+	}
+}
+
+func (e *ScanTmoError) Error() string {
+	return e.Text
+}
+
+func IsScanTmo(err error) bool {
+	_, ok := err.(*ScanTmoError)
+	return ok
+}
+
 // Represents a low-level transport error.
 type XportError struct {
 	Text string
@@ -103,24 +122,11 @@ func (e *XportError) Error() string {
 }
 
 func IsXport(err error) bool {
+	if err == nil {
+		return false
+	}
+
 	_, ok := err.(*XportError)
-	return ok
-}
-
-type XportTimeoutError struct {
-	Text string
-}
-
-func NewXportTimeoutError(text string) *XportTimeoutError {
-	return &XportTimeoutError{text}
-}
-
-func (e *XportTimeoutError) Error() string {
-	return e.Text
-}
-
-func IsXportTimeout(err error) bool {
-	_, ok := err.(*XportTimeoutError)
 	return ok
 }
 

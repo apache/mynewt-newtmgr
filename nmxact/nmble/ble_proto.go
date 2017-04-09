@@ -241,7 +241,8 @@ const (
 	MSG_TYPE_NOTIFY_RX_EVT  = 2055
 	MSG_TYPE_MTU_CHANGE_EVT = 2056
 	MSG_TYPE_SCAN_EVT       = 2057
-	MSG_TYPE_ENC_CHANGE_EVT = 2058
+	MSG_TYPE_SCAN_TMO_EVT   = 2058
+	MSG_TYPE_ENC_CHANGE_EVT = 2059
 )
 
 var MsgOpStringMap = map[MsgOp]string{
@@ -276,6 +277,7 @@ var MsgTypeStringMap = map[MsgType]string{
 	MSG_TYPE_NOTIFY_RX_EVT:  "notify_rx_evt",
 	MSG_TYPE_MTU_CHANGE_EVT: "mtu_change_evt",
 	MSG_TYPE_SCAN_EVT:       "scan_evt",
+	MSG_TYPE_SCAN_TMO_EVT:   "scan_tmo_evt",
 	MSG_TYPE_ENC_CHANGE_EVT: "enc_change_evt",
 }
 
@@ -691,6 +693,13 @@ type BleScanEvt struct {
 	DataSvcDataUuid128      BleBytes `json:"data_svc_data_uuid128"`
 	DataUri                 BleBytes `json:"data_uri"`
 	DataMfgData             BleBytes `json:"data_mfg_data"`
+}
+
+type BleScanTmoEvt struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
 }
 
 type BleScanCancelReq struct {

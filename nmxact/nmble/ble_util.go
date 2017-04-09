@@ -30,7 +30,7 @@ func BhdTimeoutError(rspType MsgType) error {
 		MsgTypeToString(rspType))
 
 	log.Debug(str)
-	return nmxutil.NewXportTimeoutError(str)
+	return nmxutil.NewXportError(str)
 }
 
 func StatusError(op MsgOp, msgType MsgType, status int) error {

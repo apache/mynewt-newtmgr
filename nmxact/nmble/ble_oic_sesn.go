@@ -5,8 +5,6 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
-
 	"mynewt.apache.org/newt/util"
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
@@ -18,7 +16,6 @@ type BleOicSesn struct {
 	bf           *BleFsm
 	nls          map[*nmp.NmpListener]struct{}
 	od           *omp.OmpDispatcher
-	connTries    int
 	closeTimeout time.Duration
 	onCloseCb    sesn.BleOnCloseFn
 
@@ -30,7 +27,6 @@ func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 	bos := &BleOicSesn{
 		nls:          map[*nmp.NmpListener]struct{}{},
 		od:           omp.NewOmpDispatcher(),
-		connTries:    cfg.Ble.ConnTries,
 		closeTimeout: cfg.Ble.CloseTimeout,
 		onCloseCb:    cfg.Ble.OnCloseCb,
 	}
@@ -54,6 +50,7 @@ func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 		Bx:          bx,
 		OwnAddrType: cfg.Ble.OwnAddrType,
 		PeerSpec:    cfg.Ble.PeerSpec,
+		ConnTries:   cfg.Ble.ConnTries,
 		SvcUuid:     svcUuid,
 		ReqChrUuid:  reqChrUuid,
 		RspChrUuid:  rspChrUuid,
@@ -139,26 +136,7 @@ func (bos *BleOicSesn) AbortRx(seq uint8) error {
 }
 
 func (bos *BleOicSesn) Open() error {
-	var err error
-	for i := 0; i < bos.connTries; i++ {
-		log.Debugf("Opening BLE session; try %d/%d", i+1, bos.connTries)
-
-		var retry bool
-		retry, err = bos.bf.Start()
-		if !retry {
-			break
-		}
-
-		if bos.blockUntilClosed(1*time.Second) != nil {
-			// Just close the session manually and report the original error.
-			bos.Close()
-			return err
-		}
-
-		log.Debugf("Connection to BLE peer dropped immediately; retrying")
-	}
-
-	return err
+	return bos.bf.Start()
 }
 
 func (bos *BleOicSesn) Close() error {
