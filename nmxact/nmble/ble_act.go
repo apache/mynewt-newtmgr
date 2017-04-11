@@ -28,6 +28,8 @@ func connect(x *BleXport, connChan chan error, r *BleConnectReq) error {
 
 // Blocking
 func terminate(x *BleXport, bl *BleListener, r *BleTerminateReq) error {
+	const rspType = MSG_TYPE_TERMINATE
+
 	j, err := json.Marshal(r)
 	if err != nil {
 		return err
@@ -47,9 +49,7 @@ func terminate(x *BleXport, bl *BleListener, r *BleTerminateReq) error {
 			case *BleTerminateRsp:
 				bl.Acked = true
 				if msg.Status != 0 {
-					return StatusError(MSG_OP_RSP,
-						MSG_TYPE_TERMINATE,
-						msg.Status)
+					return StatusError(MSG_OP_RSP, rspType, msg.Status)
 				} else {
 					return nil
 				}
@@ -58,12 +58,14 @@ func terminate(x *BleXport, bl *BleListener, r *BleTerminateReq) error {
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return BhdTimeoutError(MSG_TYPE_TERMINATE)
+			return BhdTimeoutError(rspType)
 		}
 	}
 }
 
 func connCancel(x *BleXport, bl *BleListener, r *BleConnCancelReq) error {
+	const rspType = MSG_TYPE_CONN_CANCEL
+
 	j, err := json.Marshal(r)
 	if err != nil {
 		return err
@@ -83,9 +85,7 @@ func connCancel(x *BleXport, bl *BleListener, r *BleConnCancelReq) error {
 			case *BleConnCancelRsp:
 				bl.Acked = true
 				if msg.Status != 0 {
-					return StatusError(MSG_OP_RSP,
-						MSG_TYPE_CONN_CANCEL,
-						msg.Status)
+					return StatusError(MSG_OP_RSP, rspType, msg.Status)
 				} else {
 					return nil
 				}
@@ -94,7 +94,7 @@ func connCancel(x *BleXport, bl *BleListener, r *BleConnCancelReq) error {
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return BhdTimeoutError(MSG_TYPE_TERMINATE)
+			return BhdTimeoutError(rspType)
 		}
 	}
 }
@@ -102,6 +102,9 @@ func connCancel(x *BleXport, bl *BleListener, r *BleConnCancelReq) error {
 // Blocking.
 func discSvcUuid(x *BleXport, bl *BleListener, r *BleDiscSvcUuidReq) (
 	*BleSvc, error) {
+
+	const rspType = MSG_TYPE_DISC_SVC_UUID
+	const evtType = MSG_TYPE_DISC_SVC_EVT
 
 	j, err := json.Marshal(r)
 	if err != nil {
@@ -123,9 +126,7 @@ func discSvcUuid(x *BleXport, bl *BleListener, r *BleDiscSvcUuidReq) (
 			case *BleDiscSvcUuidRsp:
 				bl.Acked = true
 				if msg.Status != 0 {
-					return nil, StatusError(MSG_OP_RSP,
-						MSG_TYPE_DISC_SVC_UUID,
-						msg.Status)
+					return nil, StatusError(MSG_OP_RSP, rspType, msg.Status)
 				}
 
 			case *BleDiscSvcEvt:
@@ -141,16 +142,14 @@ func discSvcUuid(x *BleXport, bl *BleListener, r *BleDiscSvcUuidReq) (
 					}
 					return svc, nil
 				default:
-					return nil, StatusError(MSG_OP_EVT,
-						MSG_TYPE_DISC_SVC_EVT,
-						msg.Status)
+					return nil, StatusError(MSG_OP_EVT, evtType, msg.Status)
 				}
 
 			default:
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return nil, BhdTimeoutError(MSG_TYPE_DISC_SVC_UUID)
+			return nil, BhdTimeoutError(rspType)
 		}
 	}
 }
@@ -158,6 +157,9 @@ func discSvcUuid(x *BleXport, bl *BleListener, r *BleDiscSvcUuidReq) (
 // Blocking.
 func discAllChrs(x *BleXport, bl *BleListener, r *BleDiscAllChrsReq) (
 	[]*BleChr, error) {
+
+	const rspType = MSG_TYPE_DISC_ALL_CHRS
+	const evtType = MSG_TYPE_DISC_CHR_EVT
 
 	j, err := json.Marshal(r)
 	if err != nil {
@@ -179,9 +181,7 @@ func discAllChrs(x *BleXport, bl *BleListener, r *BleDiscAllChrsReq) (
 			case *BleDiscAllChrsRsp:
 				bl.Acked = true
 				if msg.Status != 0 {
-					return nil, StatusError(MSG_OP_RSP,
-						MSG_TYPE_DISC_ALL_CHRS,
-						msg.Status)
+					return nil, StatusError(MSG_OP_RSP, rspType, msg.Status)
 				}
 
 			case *BleDiscChrEvt:
@@ -191,22 +191,22 @@ func discAllChrs(x *BleXport, bl *BleListener, r *BleDiscAllChrsReq) (
 				case ERR_CODE_EDONE:
 					return chrs, nil
 				default:
-					return nil, StatusError(MSG_OP_EVT,
-						MSG_TYPE_DISC_CHR_EVT,
-						msg.Status)
+					return nil, StatusError(MSG_OP_EVT, evtType, msg.Status)
 				}
 
 			default:
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return nil, BhdTimeoutError(MSG_TYPE_DISC_ALL_CHRS)
+			return nil, BhdTimeoutError(rspType)
 		}
 	}
 }
 
 // Blocking.
 func writeCmd(x *BleXport, bl *BleListener, r *BleWriteCmdReq) error {
+	const rspType = MSG_TYPE_WRITE_CMD
+
 	j, err := json.Marshal(r)
 	if err != nil {
 		return err
@@ -226,9 +226,7 @@ func writeCmd(x *BleXport, bl *BleListener, r *BleWriteCmdReq) error {
 			case *BleWriteCmdRsp:
 				bl.Acked = true
 				if msg.Status != 0 {
-					return StatusError(MSG_OP_RSP,
-						MSG_TYPE_WRITE_CMD,
-						msg.Status)
+					return StatusError(MSG_OP_RSP, rspType, msg.Status)
 				} else {
 					return nil
 				}
@@ -237,7 +235,7 @@ func writeCmd(x *BleXport, bl *BleListener, r *BleWriteCmdReq) error {
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return BhdTimeoutError(MSG_TYPE_WRITE_CMD)
+			return BhdTimeoutError(rspType)
 		}
 	}
 }
@@ -245,6 +243,9 @@ func writeCmd(x *BleXport, bl *BleListener, r *BleWriteCmdReq) error {
 // Blocking.
 func exchangeMtu(x *BleXport, bl *BleListener, r *BleExchangeMtuReq) (
 	int, error) {
+
+	const rspType = MSG_TYPE_EXCHANGE_MTU
+	const evtType = MSG_TYPE_MTU_CHANGE_EVT
 
 	j, err := json.Marshal(r)
 	if err != nil {
@@ -265,16 +266,12 @@ func exchangeMtu(x *BleXport, bl *BleListener, r *BleExchangeMtuReq) (
 			case *BleExchangeMtuRsp:
 				bl.Acked = true
 				if msg.Status != 0 {
-					return 0, StatusError(MSG_OP_RSP,
-						MSG_TYPE_EXCHANGE_MTU,
-						msg.Status)
+					return 0, StatusError(MSG_OP_RSP, rspType, msg.Status)
 				}
 
 			case *BleMtuChangeEvt:
 				if msg.Status != 0 {
-					return 0, StatusError(MSG_OP_EVT,
-						MSG_TYPE_MTU_CHANGE_EVT,
-						msg.Status)
+					return 0, StatusError(MSG_OP_EVT, evtType, msg.Status)
 				} else {
 					return int(msg.Mtu), nil
 				}
@@ -283,7 +280,7 @@ func exchangeMtu(x *BleXport, bl *BleListener, r *BleExchangeMtuReq) (
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return 0, BhdTimeoutError(MSG_TYPE_EXCHANGE_MTU)
+			return 0, BhdTimeoutError(rspType)
 		}
 	}
 }
@@ -291,8 +288,11 @@ func exchangeMtu(x *BleXport, bl *BleListener, r *BleExchangeMtuReq) (
 type scanSuccessFn func()
 type advRptFn func(r BleAdvReport)
 
-func scan(x *BleXport, bl *BleListener, r *BleScanReq, abortChan chan struct{},
+func scan(x *BleXport, bl *BleListener, r *BleScanReq,
+	abortChan chan struct{},
 	scanSuccessCb scanSuccessFn, advRptCb advRptFn) error {
+
+	const rspType = MSG_TYPE_SCAN
 
 	j, err := json.Marshal(r)
 	if err != nil {
@@ -313,7 +313,7 @@ func scan(x *BleXport, bl *BleListener, r *BleScanReq, abortChan chan struct{},
 			case *BleScanRsp:
 				bl.Acked = true
 				if msg.Status != 0 {
-					return StatusError(MSG_OP_RSP, MSG_TYPE_SCAN, msg.Status)
+					return StatusError(MSG_OP_RSP, rspType, msg.Status)
 				} else {
 					scanSuccessCb()
 				}
@@ -329,7 +329,7 @@ func scan(x *BleXport, bl *BleListener, r *BleScanReq, abortChan chan struct{},
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return BhdTimeoutError(MSG_TYPE_SCAN)
+			return BhdTimeoutError(rspType)
 
 		case <-abortChan:
 			return nil
@@ -338,6 +338,8 @@ func scan(x *BleXport, bl *BleListener, r *BleScanReq, abortChan chan struct{},
 }
 
 func scanCancel(x *BleXport, bl *BleListener, r *BleScanCancelReq) error {
+	const rspType = MSG_TYPE_SCAN_CANCEL
+
 	j, err := json.Marshal(r)
 	if err != nil {
 		return err
@@ -357,7 +359,7 @@ func scanCancel(x *BleXport, bl *BleListener, r *BleScanCancelReq) error {
 			case *BleScanCancelRsp:
 				bl.Acked = true
 				if msg.Status != 0 {
-					return StatusError(MSG_OP_RSP, MSG_TYPE_SCAN, msg.Status)
+					return StatusError(MSG_OP_RSP, rspType, msg.Status)
 				}
 				return nil
 
@@ -365,7 +367,7 @@ func scanCancel(x *BleXport, bl *BleListener, r *BleScanCancelReq) error {
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return BhdTimeoutError(MSG_TYPE_EXCHANGE_MTU)
+			return BhdTimeoutError(rspType)
 		}
 	}
 }
@@ -373,7 +375,7 @@ func scanCancel(x *BleXport, bl *BleListener, r *BleScanCancelReq) error {
 func connFind(x *BleXport, bl *BleListener, r *BleConnFindReq) (
 	BleConnDesc, error) {
 
-	const msgType = MSG_TYPE_CONN_FIND
+	const rspType = MSG_TYPE_CONN_FIND
 
 	j, err := json.Marshal(r)
 	if err != nil {
@@ -395,7 +397,7 @@ func connFind(x *BleXport, bl *BleListener, r *BleConnFindReq) (
 				bl.Acked = true
 				if msg.Status != 0 {
 					return BleConnDesc{},
-						StatusError(MSG_OP_RSP, msgType, msg.Status)
+						StatusError(MSG_OP_RSP, rspType, msg.Status)
 				}
 
 				return BleDescFromConnFindRsp(msg), nil
@@ -404,7 +406,7 @@ func connFind(x *BleXport, bl *BleListener, r *BleConnFindReq) (
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return BleConnDesc{}, BhdTimeoutError(msgType)
+			return BleConnDesc{}, BhdTimeoutError(rspType)
 		}
 	}
 }
@@ -414,6 +416,8 @@ func connFind(x *BleXport, bl *BleListener, r *BleConnFindReq) (
 // synced.  Only the transport should call this function.
 func genRandAddr(x *BleXport, bl *BleListener, r *BleGenRandAddrReq) (
 	BleAddr, error) {
+
+	const rspType = MSG_TYPE_GEN_RAND_ADDR
 
 	j, err := json.Marshal(r)
 	if err != nil {
@@ -432,8 +436,7 @@ func genRandAddr(x *BleXport, bl *BleListener, r *BleGenRandAddrReq) (
 				bl.Acked = true
 				if msg.Status != 0 {
 					return BleAddr{},
-						StatusError(MSG_OP_RSP, MSG_TYPE_GEN_RAND_ADDR,
-							msg.Status)
+						StatusError(MSG_OP_RSP, rspType, msg.Status)
 				}
 				return msg.Addr, nil
 
@@ -441,7 +444,7 @@ func genRandAddr(x *BleXport, bl *BleListener, r *BleGenRandAddrReq) (
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return BleAddr{}, BhdTimeoutError(MSG_TYPE_GEN_RAND_ADDR)
+			return BleAddr{}, BhdTimeoutError(rspType)
 		}
 	}
 }
@@ -450,7 +453,7 @@ func genRandAddr(x *BleXport, bl *BleListener, r *BleGenRandAddrReq) (
 // when the transport is starting up, and therefore does not require the
 // transport to be synced.  Only the transport should call this function.
 func setRandAddr(x *BleXport, bl *BleListener, r *BleSetRandAddrReq) error {
-	const msgType = MSG_TYPE_SET_RAND_ADDR
+	const rspType = MSG_TYPE_SET_RAND_ADDR
 
 	j, err := json.Marshal(r)
 	if err != nil {
@@ -468,7 +471,7 @@ func setRandAddr(x *BleXport, bl *BleListener, r *BleSetRandAddrReq) error {
 			case *BleSetRandAddrRsp:
 				bl.Acked = true
 				if msg.Status != 0 {
-					return StatusError(MSG_OP_RSP, msgType, msg.Status)
+					return StatusError(MSG_OP_RSP, rspType, msg.Status)
 				}
 				return nil
 
@@ -476,7 +479,7 @@ func setRandAddr(x *BleXport, bl *BleListener, r *BleSetRandAddrReq) error {
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return BhdTimeoutError(msgType)
+			return BhdTimeoutError(rspType)
 		}
 	}
 }
@@ -487,7 +490,7 @@ func setRandAddr(x *BleXport, bl *BleListener, r *BleSetRandAddrReq) error {
 func setPreferredMtu(x *BleXport, bl *BleListener,
 	r *BleSetPreferredMtuReq) error {
 
-	const msgType = MSG_TYPE_SET_PREFERRED_MTU
+	const rspType = MSG_TYPE_SET_PREFERRED_MTU
 
 	j, err := json.Marshal(r)
 	if err != nil {
@@ -505,7 +508,7 @@ func setPreferredMtu(x *BleXport, bl *BleListener,
 			case *BleSetPreferredMtuRsp:
 				bl.Acked = true
 				if msg.Status != 0 {
-					return StatusError(MSG_OP_RSP, msgType, msg.Status)
+					return StatusError(MSG_OP_RSP, rspType, msg.Status)
 				}
 				return nil
 
@@ -513,7 +516,7 @@ func setPreferredMtu(x *BleXport, bl *BleListener,
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return BhdTimeoutError(msgType)
+			return BhdTimeoutError(rspType)
 		}
 	}
 }

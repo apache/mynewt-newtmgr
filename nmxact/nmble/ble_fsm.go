@@ -7,6 +7,7 @@ import (
 	"path"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -17,7 +18,11 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
-var curId int
+var nextId uint32
+
+func getNextId() uint32 {
+	return atomic.AddUint32(&nextId, 1) - 1
+}
 
 var listenLog = &log.Logger{
 	Out:       os.Stderr,
@@ -69,31 +74,23 @@ type BleFsmParams struct {
 type BleFsm struct {
 	params BleFsmParams
 
-	peerDev         *BleDev
-	connHandle      uint16
-	nmpSvc          *BleSvc
-	nmpReqChr       *BleChr
-	nmpRspChr       *BleChr
-	attMtu          int
-	connChan        chan error
-	lastStateChange time.Time
-	id              int
-	curErr          error
-	errTimer        *time.Timer
+	peerDev    *BleDev
+	connHandle uint16
+	nmpSvc     *BleSvc
+	nmpReqChr  *BleChr
+	nmpRspChr  *BleChr
+	attMtu     int
+	connChan   chan error
+	bls        map[*BleListener]struct{}
+	state      BleSesnState
+	errFunnel  nmxutil.ErrFunnel
+	id         uint32
 
 	// Protects all accesses to the FSM state variable.
 	stateMtx sync.Mutex
 
 	// Protects all accesses to the bls map.
 	blsMtx sync.Mutex
-
-	// Prevents the session from being opened while it is still being reset
-	// (cleaned up).
-	openMtx sync.Mutex
-
-	// These variables must be protected by the mutex.
-	bls   map[*BleListener]struct{}
-	state BleSesnState
 }
 
 func NewBleFsm(p BleFsmParams) *BleFsm {
@@ -102,10 +99,12 @@ func NewBleFsm(p BleFsmParams) *BleFsm {
 
 		bls:    map[*BleListener]struct{}{},
 		attMtu: DFLT_ATT_MTU,
-		id:     curId,
+		id:     getNextId(),
 	}
 
-	curId++
+	bf.errFunnel.AccumDelay = time.Second
+	bf.errFunnel.LessCb = fsmErrorLess
+	bf.errFunnel.ProcCb = func(err error) { bf.processErr(err) }
 
 	return bf
 }
@@ -118,9 +117,8 @@ func (bf *BleFsm) disconnectError(reason int) error {
 }
 
 func (bf *BleFsm) closedError(msg string) error {
-	return nmxutil.NewSesnClosedError(fmt.Sprintf(
-		"%s; state=%d last-state-change=%s",
-		msg, bf.getState(), bf.lastStateChange))
+	return nmxutil.NewSesnClosedError(
+		fmt.Sprintf("%s; state=%d", msg, bf.getState()))
 }
 
 func (bf *BleFsm) getState() BleSesnState {
@@ -130,16 +128,11 @@ func (bf *BleFsm) getState() BleSesnState {
 	return bf.state
 }
 
-func (bf *BleFsm) setStateNoLock(toState BleSesnState) {
-	bf.state = toState
-	bf.lastStateChange = time.Now()
-}
-
 func (bf *BleFsm) setState(toState BleSesnState) {
 	bf.stateMtx.Lock()
 	defer bf.stateMtx.Unlock()
 
-	bf.setStateNoLock(toState)
+	bf.state = toState
 }
 
 func (bf *BleFsm) addBleListener(name string, base BleMsgBase) (
@@ -218,6 +211,23 @@ func (bf *BleFsm) logConnection() {
 	log.Debugf("BLE connection attempt succeeded; %s", desc.String())
 }
 
+func fsmErrorLess(a error, b error) bool {
+	aIsXport := nmxutil.IsXport(a)
+	bIsXport := nmxutil.IsXport(b)
+	aIsDisc := nmxutil.IsBleSesnDisconnect(a)
+	bIsDisc := nmxutil.IsBleSesnDisconnect(b)
+
+	if aIsXport {
+		return false
+	}
+
+	if aIsDisc {
+		return !bIsXport && !bIsDisc
+	}
+
+	return false
+}
+
 func calcDisconnectType(state BleSesnState) BleFsmDisconnectType {
 	switch state {
 	case SESN_STATE_EXCHANGE_MTU:
@@ -238,14 +248,15 @@ func (bf *BleFsm) errorAll(err error) {
 	bf.blsMtx.Lock()
 	defer bf.blsMtx.Unlock()
 
-	for bl, _ := range bf.bls {
+	bls := bf.bls
+	bf.bls = map[*BleListener]struct{}{}
+
+	for bl, _ := range bls {
 		bl.ErrChan <- err
 	}
-
-	bf.bls = map[*BleListener]struct{}{}
 }
 
-func (bf *BleFsm) processErr() {
+func (bf *BleFsm) processErr(err error) {
 	// Remember some fields before we clear them.
 	dt := calcDisconnectType(bf.state)
 
@@ -254,67 +265,15 @@ func (bf *BleFsm) processErr() {
 		peer = *bf.peerDev
 	}
 
-	err := bf.curErr
-	bf.reset(err)
-
-	bf.openMtx.Unlock()
-
-	bf.params.DisconnectCb(dt, peer, err)
-}
-
-func (bf *BleFsm) onError(err error) {
-	if bf.curErr == nil {
-		// Subsequent start attempts will block until the reset is complete.
-		bf.openMtx.Lock()
-
-		bf.curErr = err
-		bf.errTimer = time.AfterFunc(time.Second, func() {
-			bf.processErr()
-		})
-	} else {
-		var replace bool
-		if nmxutil.IsXport(err) {
-			replace = true
-		} else if !nmxutil.IsXport(bf.curErr) &&
-			nmxutil.IsBleSesnDisconnect(err) {
-
-			replace = true
-		} else if !nmxutil.IsXport(bf.curErr) &&
-			!nmxutil.IsBleSesnDisconnect(bf.curErr) {
-
-			replace = true
-		} else {
-			replace = false
-		}
-
-		if replace {
-			if !bf.errTimer.Stop() {
-				<-bf.errTimer.C
-			}
-			bf.curErr = err
-			bf.errTimer.Reset(time.Second)
-		}
-	}
-}
-
-func (bf *BleFsm) reset(err error) {
 	bf.errorAll(err)
 
 	bf.stateMtx.Lock()
-	defer bf.stateMtx.Unlock()
+	bf.state = SESN_STATE_UNCONNECTED
+	bf.stateMtx.Unlock()
 
-	bf.setStateNoLock(SESN_STATE_UNCONNECTED)
 	bf.peerDev = nil
-	bf.curErr = nil
-}
 
-// Blocks until the current reset is complete.  If there is no reset in
-// progress, this function returns immediately.  The purpose of this function
-// is to prevent the client from opening the session while it is still being
-// closed.
-func (bf *BleFsm) blockUntilReset() {
-	bf.openMtx.Lock()
-	bf.openMtx.Unlock()
+	go bf.params.DisconnectCb(dt, peer, err)
 }
 
 func (bf *BleFsm) connectListen(seq BleSeq) error {
@@ -326,15 +285,12 @@ func (bf *BleFsm) connectListen(seq BleSeq) error {
 	}
 
 	go func() {
-		defer func() {
-			bf.removeBleSeqListener("connect", seq)
-		}()
+		defer bf.removeBleSeqListener("connect", seq)
 		for {
 			select {
 			case err := <-bl.ErrChan:
-				// Transport reported error.  Assume the connection has
-				// dropped.
-				bf.onError(err)
+				bf.connChan <- err
+				bf.errFunnel.Insert(err)
 				return
 
 			case bm := <-bl.BleChan:
@@ -347,7 +303,9 @@ func (bf *BleFsm) connectListen(seq BleSeq) error {
 							ErrCodeToString(msg.Status), msg.Status,
 							bf.peerDev.String())
 						log.Debugf(str)
-						bf.connChan <- nmxutil.NewBleHostError(msg.Status, str)
+						err := nmxutil.NewBleHostError(msg.Status, str)
+						bf.connChan <- err
+						bf.errFunnel.Insert(err)
 						return
 					} else {
 						bf.connChan <- nil
@@ -360,6 +318,7 @@ func (bf *BleFsm) connectListen(seq BleSeq) error {
 						bf.logConnection()
 						if err := bf.nmpRspListen(); err != nil {
 							bf.connChan <- err
+							bf.errFunnel.Insert(err)
 							return
 						}
 						bf.connChan <- nil
@@ -369,7 +328,9 @@ func (bf *BleFsm) connectListen(seq BleSeq) error {
 							ErrCodeToString(msg.Status), msg.Status,
 							bf.peerDev.String())
 						log.Debugf(str)
-						bf.connChan <- nmxutil.NewBleHostError(msg.Status, str)
+						err := nmxutil.NewBleHostError(msg.Status, str)
+						bf.connChan <- err
+						bf.errFunnel.Insert(err)
 						return
 					}
 
@@ -387,14 +348,16 @@ func (bf *BleFsm) connectListen(seq BleSeq) error {
 
 				case *BleDisconnectEvt:
 					err := bf.disconnectError(msg.Reason)
-					bf.onError(err)
+					bf.errFunnel.Insert(err)
 					return
 
 				default:
 				}
 
 			case <-bl.AfterTimeout(bf.params.Bx.RspTimeout()):
-				bf.connChan <- BhdTimeoutError(MSG_TYPE_CONNECT)
+				err := BhdTimeoutError(MSG_TYPE_CONNECT)
+				bf.connChan <- err
+				bf.errFunnel.Insert(err)
 			}
 		}
 	}()
@@ -415,13 +378,13 @@ func (bf *BleFsm) nmpRspListen() error {
 	}
 
 	go func() {
-		defer func() {
-			bf.removeBleBaseListener("nmp-rsp", base)
-		}()
+		defer bf.removeBleBaseListener("nmp-rsp", base)
 		for {
 			select {
 			case <-bl.ErrChan:
-				// The session encountered an error; stop listening.
+				if err != nil {
+					bf.errFunnel.Insert(err)
+				}
 				return
 			case bm := <-bl.BleChan:
 				switch msg := bm.(type) {
@@ -446,6 +409,7 @@ func (bf *BleFsm) connect() error {
 	r.PeerAddrType = bf.peerDev.AddrType
 	r.PeerAddr = bf.peerDev.Addr
 
+	// Initiating a connection requires dedicated master privileges.
 	if err := bf.params.Bx.AcquireMaster(); err != nil {
 		return err
 	}
@@ -455,11 +419,17 @@ func (bf *BleFsm) connect() error {
 		return err
 	}
 
+	// Tell blehostd to initiate connection.
 	if err := connect(bf.params.Bx, bf.connChan, r); err != nil {
-		bf.params.Bx.ReleaseMaster()
+		bhe := nmxutil.ToBleHost(err)
+		if bhe != nil && bhe.Status == ERR_CODE_EDONE {
+			// Already connected.
+			return nil
+		}
 		return err
 	}
 
+	// Connection operation now in progress.
 	bf.state = SESN_STATE_CONNECTING
 
 	err := <-bf.connChan
@@ -488,6 +458,7 @@ func (bf *BleFsm) scan() error {
 	r.Passive = false
 	r.FilterDuplicates = true
 
+	// Scanning requires dedicated master privileges.
 	if err := bf.params.Bx.AcquireMaster(); err != nil {
 		return err
 	}
@@ -497,9 +468,7 @@ func (bf *BleFsm) scan() error {
 	if err != nil {
 		return err
 	}
-	defer func() {
-		bf.removeBleSeqListener("scan", r.Seq)
-	}()
+	defer bf.removeBleSeqListener("scan", r.Seq)
 
 	abortChan := make(chan struct{}, 1)
 
@@ -539,9 +508,7 @@ func (bf *BleFsm) scanCancel() error {
 	if err != nil {
 		return err
 	}
-	defer func() {
-		bf.removeBleSeqListener("scan-cancel", r.Seq)
-	}()
+	defer bf.removeBleSeqListener("scan-cancel", r.Seq)
 
 	if err := scanCancel(bf.params.Bx, bl, r); err != nil {
 		return err
@@ -563,7 +530,7 @@ func (bf *BleFsm) terminateSetState() error {
 		return fmt.Errorf(
 			"BLE terminate failed; session already being closed")
 	default:
-		bf.setStateNoLock(SESN_STATE_TERMINATING)
+		bf.state = SESN_STATE_TERMINATING
 	}
 
 	return nil
@@ -582,9 +549,7 @@ func (bf *BleFsm) terminate() error {
 	if err != nil {
 		return err
 	}
-	defer func() {
-		bf.removeBleSeqListener("terminate", r.Seq)
-	}()
+	defer bf.removeBleSeqListener("terminate", r.Seq)
 
 	if err := terminate(bf.params.Bx, bl, r); err != nil {
 		return err
@@ -600,9 +565,7 @@ func (bf *BleFsm) connCancel() error {
 	if err != nil {
 		return err
 	}
-	defer func() {
-		bf.removeBleSeqListener("conn-cancel", r.Seq)
-	}()
+	defer bf.removeBleSeqListener("conn-cancel", r.Seq)
 
 	if err := connCancel(bf.params.Bx, bl, r); err != nil {
 		return err
@@ -620,9 +583,7 @@ func (bf *BleFsm) discSvcUuid() error {
 	if err != nil {
 		return err
 	}
-	defer func() {
-		bf.removeBleSeqListener("disc-svc-uuid", r.Seq)
-	}()
+	defer bf.removeBleSeqListener("disc-svc-uuid", r.Seq)
 
 	bf.nmpSvc, err = discSvcUuid(bf.params.Bx, bl, r)
 	if err != nil {
@@ -642,9 +603,7 @@ func (bf *BleFsm) discAllChrs() error {
 	if err != nil {
 		return err
 	}
-	defer func() {
-		bf.removeBleSeqListener("disc-all-chrs", r.Seq)
-	}()
+	defer bf.removeBleSeqListener("disc-all-chrs", r.Seq)
 
 	chrs, err := discAllChrs(bf.params.Bx, bl, r)
 	if err != nil {
@@ -683,9 +642,7 @@ func (bf *BleFsm) exchangeMtu() error {
 	if err != nil {
 		return err
 	}
-	defer func() {
-		bf.removeBleSeqListener("exchange-mtu", r.Seq)
-	}()
+	defer bf.removeBleSeqListener("exchange-mtu", r.Seq)
 
 	mtu, err := exchangeMtu(bf.params.Bx, bl, r)
 	if err != nil {
@@ -706,9 +663,7 @@ func (bf *BleFsm) writeCmd(data []byte) error {
 	if err != nil {
 		return err
 	}
-	defer func() {
-		bf.removeBleSeqListener("write-cmd", r.Seq)
-	}()
+	defer bf.removeBleSeqListener("write-cmd", r.Seq)
 
 	if err := writeCmd(bf.params.Bx, bl, r); err != nil {
 		return err
@@ -727,9 +682,7 @@ func (bf *BleFsm) subscribe() error {
 	if err != nil {
 		return err
 	}
-	defer func() {
-		bf.removeBleSeqListener("subscribe", r.Seq)
-	}()
+	defer bf.removeBleSeqListener("subscribe", r.Seq)
 
 	if err := writeCmd(bf.params.Bx, bl, r); err != nil {
 		return err
@@ -820,7 +773,7 @@ func (bf *BleFsm) executeState() (bool, error) {
 }
 
 func (bf *BleFsm) startOnce() (bool, error) {
-	bf.blockUntilReset()
+	bf.errFunnel.BlockUntilReset()
 
 	if !bf.IsClosed() {
 		return false, nmxutil.NewSesnAlreadyOpenError(fmt.Sprintf(
@@ -831,7 +784,7 @@ func (bf *BleFsm) startOnce() (bool, error) {
 	for {
 		retry, err := bf.executeState()
 		if err != nil {
-			bf.onError(err)
+			bf.errFunnel.Insert(err)
 			return retry, err
 		} else if bf.getState() == SESN_STATE_DONE {
 			return false, nil
@@ -870,7 +823,7 @@ func (bf *BleFsm) Stop() (bool, error) {
 			bf.closedError("Attempt to close an unopened BLE session")
 
 	case SESN_STATE_CONNECTING:
-		bf.onError(fmt.Errorf("Connection attempt cancelled"))
+		bf.errFunnel.Insert(fmt.Errorf("Connection attempt cancelled"))
 		return false, nil
 
 	default:

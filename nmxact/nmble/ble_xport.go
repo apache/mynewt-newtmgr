@@ -251,6 +251,7 @@ func (bx *BleXport) shutdown(restart bool, err error) {
 		bx.client.Stop()
 	}
 
+	// Indicate error to all clients who are waiting for the master resource.
 	bx.master.Abort(err)
 
 	// Indicate an error to all of this transport's listeners.  This prevents

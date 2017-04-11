@@ -3,6 +3,7 @@ package nmxutil
 import (
 	"math/rand"
 	"sync"
+	"time"
 )
 
 var nextNmpSeq uint8
@@ -99,4 +100,80 @@ func (s *SingleResource) Abort(err error) {
 	for _, w := range s.waitQueue {
 		w <- err
 	}
+}
+
+type ErrLessFn func(a error, b error) bool
+type ErrProcFn func(err error)
+
+// Aggregates errors that occur close in time.  The most severe error gets
+// reported.
+type ErrFunnel struct {
+	LessCb     ErrLessFn
+	ProcCb     ErrProcFn
+	AccumDelay time.Duration
+
+	mtx      sync.Mutex
+	resetMtx sync.Mutex
+	curErr   error
+	errTimer *time.Timer
+}
+
+func (f *ErrFunnel) Insert(err error) {
+	if err == nil {
+		panic("ErrFunnel nil insert")
+	}
+
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+
+	if f.curErr == nil {
+		// Subsequent use attempts will block until the funnel is inactive.
+		f.resetMtx.Lock()
+
+		f.curErr = err
+		f.errTimer = time.AfterFunc(f.AccumDelay, func() {
+			f.timerExp()
+		})
+	} else {
+		if f.LessCb(f.curErr, err) {
+			if !f.errTimer.Stop() {
+				<-f.errTimer.C
+			}
+			f.curErr = err
+			f.errTimer.Reset(f.AccumDelay)
+		}
+	}
+}
+
+func (f *ErrFunnel) resetNoLock() {
+	if f.curErr != nil {
+		f.curErr = nil
+		f.errTimer.Stop()
+		f.resetMtx.Unlock()
+	}
+}
+
+func (f *ErrFunnel) Reset() {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+
+	f.resetNoLock()
+}
+
+func (f *ErrFunnel) BlockUntilReset() {
+	f.resetMtx.Lock()
+	f.resetMtx.Unlock()
+}
+
+func (f *ErrFunnel) timerExp() {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+
+	if f.curErr == nil {
+		panic("ErrFunnel timer expired but no error")
+	}
+
+	f.ProcCb(f.curErr)
+
+	f.resetNoLock()
 }

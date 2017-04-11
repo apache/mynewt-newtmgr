@@ -25,10 +25,10 @@ import (
 	"os/signal"
 	"syscall"
 
+	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/cli"
 	"mynewt.apache.org/newtmgr/newtmgr/config"
 	"mynewt.apache.org/newtmgr/nmxact/nmserial"
-	"mynewt.apache.org/newt/util"
 )
 
 func main() {
@@ -38,11 +38,6 @@ func main() {
 	}
 
 	onExit := func() {
-		s, err := cli.GetSesnIfOpen()
-		if err == nil {
-			s.Close()
-		}
-
 		x, err := cli.GetXportIfOpen()
 		if err == nil {
 			// Don't attempt to close a serial transport.  Attempting to close

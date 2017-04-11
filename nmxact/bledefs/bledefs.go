@@ -48,7 +48,7 @@ var BleAddrTypeStringMap = map[BleAddrType]string{
 func BleAddrTypeToString(addrType BleAddrType) string {
 	s := BleAddrTypeStringMap[addrType]
 	if s == "" {
-		panic(fmt.Sprintf("Invalid BleAddrType: %d", int(addrType)))
+		return "???"
 	}
 
 	return s
@@ -241,7 +241,7 @@ var BleScanFilterPolicyStringMap = map[BleScanFilterPolicy]string{
 func BleScanFilterPolicyToString(filtPolicy BleScanFilterPolicy) string {
 	s := BleScanFilterPolicyStringMap[filtPolicy]
 	if s == "" {
-		panic(fmt.Sprintf("Invalid BleScanFilterPolicy: %d", int(filtPolicy)))
+		return "???"
 	}
 
 	return s
@@ -295,7 +295,7 @@ var BleAdvEventTypeStringMap = map[BleAdvEventType]string{
 func BleAdvEventTypeToString(advEventType BleAdvEventType) string {
 	s := BleAdvEventTypeStringMap[advEventType]
 	if s == "" {
-		panic(fmt.Sprintf("Invalid BleAdvEventType: %d", int(advEventType)))
+		return "???"
 	}
 
 	return s

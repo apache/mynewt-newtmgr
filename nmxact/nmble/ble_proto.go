@@ -793,7 +793,7 @@ func ErrCodeToString(e int) string {
 func MsgOpToString(op MsgOp) string {
 	s := MsgOpStringMap[op]
 	if s == "" {
-		panic(fmt.Sprintf("Invalid MsgOp: %d", int(op)))
+		return "???"
 	}
 
 	return s
@@ -812,7 +812,7 @@ func MsgOpFromString(s string) (MsgOp, error) {
 func MsgTypeToString(msgType MsgType) string {
 	s := MsgTypeStringMap[msgType]
 	if s == "" {
-		panic(fmt.Sprintf("Invalid MsgType: %d", int(msgType)))
+		return "???"
 	}
 
 	return s

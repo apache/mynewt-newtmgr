@@ -36,10 +36,6 @@ import (
 
 func configExitHandler(x xport.Xport, s sesn.Sesn) {
 	onExit := func() {
-		if s.IsOpen() {
-			s.Close()
-		}
-
 		x.Stop()
 	}
 
@@ -70,8 +66,8 @@ func sendOne(s sesn.Sesn) {
 	if !s.IsOpen() {
 		// Connect to the peer (open the session).
 		if err := s.Open(); err != nil {
-			fmt.Fprintf(os.Stderr, "error starting BLE session: %s\n",
-				err.Error())
+			fmt.Fprintf(os.Stderr, "error starting BLE session: %s (%+v)\n",
+				err.Error(), err)
 			return
 		}
 	}
