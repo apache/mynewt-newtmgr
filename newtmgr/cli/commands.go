@@ -23,8 +23,9 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newt/util"
+	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
+	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 )
 
 var NewtmgrLogLevel log.Level
@@ -45,6 +46,7 @@ func Commands() *cobra.Command {
 			if err != nil {
 				nmUsage(nil, err)
 			}
+			nmxutil.SetLogLevel(NewtmgrLogLevel)
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd.HelpFunc()(cmd, args)

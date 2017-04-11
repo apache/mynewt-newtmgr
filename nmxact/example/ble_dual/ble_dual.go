@@ -99,7 +99,7 @@ func main() {
 	params := nmble.NewXportCfg()
 	params.SockPath = "/tmp/blehostd-uds"
 	params.BlehostdPath = "blehostd.elf"
-	params.DevPath = "/dev/cu.usbmodem141121"
+	params.DevPath = "/dev/cu.usbmodem14221"
 
 	x, err := nmble.NewBleXport(params)
 	if err != nil {

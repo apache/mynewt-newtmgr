@@ -3,7 +3,6 @@ package nmble
 import (
 	"encoding/hex"
 	"fmt"
-	"os"
 	"path"
 	"runtime"
 	"sync"
@@ -22,12 +21,6 @@ var nextId uint32
 
 func getNextId() uint32 {
 	return atomic.AddUint32(&nextId, 1) - 1
-}
-
-var listenLog = &log.Logger{
-	Out:       os.Stderr,
-	Formatter: new(log.TextFormatter),
-	Level:     log.InfoLevel,
 }
 
 const DFLT_ATT_MTU = 23
@@ -140,7 +133,7 @@ func (bf *BleFsm) addBleListener(name string, base BleMsgBase) (
 
 	_, file, line, _ := runtime.Caller(2)
 	file = path.Base(file)
-	listenLog.Debugf("[%d] {add-listener}    [%s:%d] %s: base=%+v",
+	nmxutil.ListenLog.Debugf("[%d] {add-listener}    [%s:%d] %s: base=%+v",
 		bf.id, file, line, name, base)
 
 	bl := NewBleListener()
@@ -177,7 +170,7 @@ func (bf *BleFsm) addBleSeqListener(name string, seq BleSeq) (
 func (bf *BleFsm) removeBleListener(name string, base BleMsgBase) {
 	_, file, line, _ := runtime.Caller(2)
 	file = path.Base(file)
-	listenLog.Debugf("[%d] {remove-listener} [%s:%d] %s: base=%+v",
+	nmxutil.ListenLog.Debugf("[%d] {remove-listener} [%s:%d] %s: base=%+v",
 		bf.id, file, line, name, base)
 
 	bf.blsMtx.Lock()

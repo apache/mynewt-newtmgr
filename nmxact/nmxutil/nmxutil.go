@@ -2,13 +2,27 @@ package nmxutil
 
 import (
 	"math/rand"
+	"os"
 	"sync"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 var nextNmpSeq uint8
 var beenRead bool
 var seqMutex sync.Mutex
+
+var ListenLog = &log.Logger{
+	Out:       os.Stderr,
+	Formatter: new(log.TextFormatter),
+	Level:     log.DebugLevel,
+}
+
+func SetLogLevel(level log.Level) {
+	log.SetLevel(level)
+	ListenLog.Level = level
+}
 
 func NextNmpSeq() uint8 {
 	seqMutex.Lock()
