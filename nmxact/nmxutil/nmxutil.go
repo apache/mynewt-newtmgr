@@ -51,17 +51,6 @@ func NewSingleResource() SingleResource {
 	}
 }
 
-func (s *SingleResource) removeWaiter(waiter chan error) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
-	for i, w := range s.waitQueue {
-		if w == waiter {
-			s.waitQueue = append(s.waitQueue[:i], s.waitQueue[i+1:]...)
-		}
-	}
-}
-
 func (s *SingleResource) Acquire() error {
 	s.mtx.Lock()
 
@@ -78,7 +67,6 @@ func (s *SingleResource) Acquire() error {
 
 	err := <-w
 	if err != nil {
-		s.removeWaiter(w)
 		return err
 	}
 
@@ -89,6 +77,7 @@ func (s *SingleResource) Release() {
 	s.mtx.Lock()
 
 	if !s.acquired {
+		panic("SingleResource release without acquire")
 		s.mtx.Unlock()
 		return
 	}
@@ -114,6 +103,7 @@ func (s *SingleResource) Abort(err error) {
 	for _, w := range s.waitQueue {
 		w <- err
 	}
+	s.waitQueue = [](chan error){}
 }
 
 type ErrLessFn func(a error, b error) bool
@@ -130,6 +120,16 @@ type ErrFunnel struct {
 	resetMtx sync.Mutex
 	curErr   error
 	errTimer *time.Timer
+	started  bool
+}
+
+func (f *ErrFunnel) Start() {
+	f.resetMtx.Lock()
+
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+
+	f.started = true
 }
 
 func (f *ErrFunnel) Insert(err error) {
@@ -140,10 +140,11 @@ func (f *ErrFunnel) Insert(err error) {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
 
-	if f.curErr == nil {
-		// Subsequent use attempts will block until the funnel is inactive.
-		f.resetMtx.Lock()
+	if !f.started {
+		panic("ErrFunnel insert without start")
+	}
 
+	if f.curErr == nil {
 		f.curErr = err
 		f.errTimer = time.AfterFunc(f.AccumDelay, func() {
 			f.timerExp()
@@ -159,35 +160,27 @@ func (f *ErrFunnel) Insert(err error) {
 	}
 }
 
-func (f *ErrFunnel) resetNoLock() {
-	if f.curErr != nil {
+func (f *ErrFunnel) Reset() {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+
+	if f.started {
+		f.started = false
 		f.curErr = nil
 		f.errTimer.Stop()
 		f.resetMtx.Unlock()
 	}
 }
 
-func (f *ErrFunnel) Reset() {
-	f.mtx.Lock()
-	defer f.mtx.Unlock()
-
-	f.resetNoLock()
-}
-
-func (f *ErrFunnel) BlockUntilReset() {
-	f.resetMtx.Lock()
-	f.resetMtx.Unlock()
-}
-
 func (f *ErrFunnel) timerExp() {
 	f.mtx.Lock()
-	defer f.mtx.Unlock()
+	err := f.curErr
+	f.curErr = nil
+	f.mtx.Unlock()
 
-	if f.curErr == nil {
+	if err == nil {
 		panic("ErrFunnel timer expired but no error")
 	}
 
-	f.ProcCb(f.curErr)
-
-	f.resetNoLock()
+	f.ProcCb(err)
 }

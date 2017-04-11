@@ -49,6 +49,11 @@ const (
 	FSM_DISCONNECT_TYPE_REQUESTED
 )
 
+type BleFsmListener struct {
+	bl        *BleListener
+	abortChan chan struct{}
+}
+
 type BleRxNmpFn func(data []byte)
 type BleDisconnectFn func(dt BleFsmDisconnectType, peer BleDev, err error)
 
@@ -78,6 +83,7 @@ type BleFsm struct {
 	state      BleSesnState
 	errFunnel  nmxutil.ErrFunnel
 	id         uint32
+	wg         sync.WaitGroup
 
 	// Protects all accesses to the FSM state variable.
 	stateMtx sync.Mutex
@@ -145,6 +151,7 @@ func (bf *BleFsm) addBleListener(name string, base BleMsgBase) (
 		return nil, err
 	}
 
+	bf.wg.Add(1)
 	bf.bls[bl] = struct{}{}
 	return bl, nil
 }
@@ -178,6 +185,8 @@ func (bf *BleFsm) removeBleListener(name string, base BleMsgBase) {
 
 	bl := bf.params.Bx.Bd.RemoveListener(base)
 	delete(bf.bls, bl)
+
+	bf.wg.Done()
 }
 
 func (bf *BleFsm) removeBleBaseListener(name string, base BleMsgBase) {
@@ -266,7 +275,10 @@ func (bf *BleFsm) processErr(err error) {
 
 	bf.peerDev = nil
 
-	go bf.params.DisconnectCb(dt, peer, err)
+	bf.wg.Wait()
+
+	bf.errFunnel.Reset()
+	bf.params.DisconnectCb(dt, peer, err)
 }
 
 func (bf *BleFsm) connectListen(seq BleSeq) error {
@@ -766,9 +778,10 @@ func (bf *BleFsm) executeState() (bool, error) {
 }
 
 func (bf *BleFsm) startOnce() (bool, error) {
-	bf.errFunnel.BlockUntilReset()
+	bf.errFunnel.Start()
 
 	if !bf.IsClosed() {
+		bf.errFunnel.Reset()
 		return false, nmxutil.NewSesnAlreadyOpenError(fmt.Sprintf(
 			"Attempt to open an already-open BLE session (state=%d)",
 			bf.getState()))

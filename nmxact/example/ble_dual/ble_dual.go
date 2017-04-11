@@ -26,15 +26,18 @@ import (
 	"sync"
 	"syscall"
 
+	log "github.com/Sirupsen/logrus"
+
 	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmble"
+	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 	"mynewt.apache.org/newtmgr/nmxact/xact"
 	"mynewt.apache.org/newtmgr/nmxact/xport"
 )
 
-func configExitHandler(x xport.Xport, s sesn.Sesn) {
+func configExitHandler(x xport.Xport) {
 	onExit := func() {
 		x.Stop()
 	}
@@ -95,6 +98,8 @@ func sendOne(s sesn.Sesn) {
 }
 
 func main() {
+	nmxutil.SetLogLevel(log.InfoLevel)
+
 	// Initialize the BLE transport.
 	params := nmble.NewXportCfg()
 	params.SockPath = "/tmp/blehostd-uds"
@@ -116,48 +121,45 @@ func main() {
 	}
 	defer x.Stop()
 
-	// Prepare a BLE session:
-	//     * Plain NMP (not tunnelled over OIC).
-	//     * We use a random address.
-	//     * Peer has name "nimble-bleprph".
-	sc1 := sesn.NewSesnCfg()
-	sc1.MgmtProto = sesn.MGMT_PROTO_NMP
-	sc1.Ble.OwnAddrType = bledefs.BLE_ADDR_TYPE_RANDOM
-	sc1.Ble.PeerSpec = sesn.BlePeerSpecName("ccollins")
+	configExitHandler(x)
 
-	s1, err := x.BuildSesn(sc1)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error creating BLE session: %s1\n", err.Error())
-		os.Exit(1)
+	peerNames := []string{
+		"ccollins",
+		"ccollins2",
+		"ccollins3",
 	}
 
-	sc2 := sesn.NewSesnCfg()
-	sc2.MgmtProto = sesn.MGMT_PROTO_NMP
-	sc2.Ble.OwnAddrType = bledefs.BLE_ADDR_TYPE_RANDOM
-	sc2.Ble.PeerSpec = sesn.BlePeerSpecName("ccollins2")
+	sesns := []sesn.Sesn{}
+	for _, n := range peerNames {
+		// Prepare a BLE session:
+		//     * Plain NMP (not tunnelled over OIC).
+		//     * We use a random address.
+		//     * Peer has name "nimble-bleprph".
+		sc := sesn.NewSesnCfg()
+		sc.MgmtProto = sesn.MGMT_PROTO_NMP
+		sc.Ble.OwnAddrType = bledefs.BLE_ADDR_TYPE_RANDOM
+		sc.Ble.PeerSpec = sesn.BlePeerSpecName(n)
 
-	s2, err := x.BuildSesn(sc2)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error creating BLE session: %s2\n", err.Error())
-		os.Exit(1)
+		s, err := x.BuildSesn(sc)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error creating BLE session: %s\n",
+				err.Error())
+			os.Exit(1)
+		}
+
+		sesns = append(sesns, s)
 	}
-
-	configExitHandler(x, s1)
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		for {
-			sendOne(s1)
-		}
-	}()
-	wg.Add(1)
 
-	go func() {
-		for {
-			sendOne(s2)
-		}
-	}()
+	for _, s := range sesns {
+		wg.Add(1)
+		go func(x sesn.Sesn) {
+			for {
+				sendOne(x)
+			}
+		}(s)
+	}
 
 	wg.Wait()
 }
