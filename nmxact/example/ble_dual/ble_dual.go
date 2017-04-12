@@ -59,6 +59,91 @@ func configExitHandler(x xport.Xport) {
 	}()
 }
 
+func sendEcho(s sesn.Sesn) error {
+	c := xact.NewEchoCmd()
+	c.Payload = fmt.Sprintf("hello %p", s)
+
+	res, err := c.Run(s)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error executing echo command: %s\n",
+			err.Error())
+		return err
+	}
+
+	if res.Status() != 0 {
+		fmt.Printf("Peer responded negatively to echo command; status=%d\n",
+			res.Status())
+	}
+
+	eres := res.(*xact.EchoResult)
+	fmt.Printf("Peer echoed back: %s\n", eres.Rsp.Payload)
+
+	return nil
+}
+
+func sendImageState(s sesn.Sesn) error {
+	c := xact.NewImageStateReadCmd()
+
+	res, err := c.Run(s)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error executing image state command: %s\n",
+			err.Error())
+		return err
+	}
+
+	if res.Status() != 0 {
+		fmt.Printf("Peer responded negatively to image state command; "+
+			"status=%d\n", res.Status())
+	}
+
+	eres := res.(*xact.ImageStateReadResult)
+	fmt.Printf("Peer responded with image state: %#v\n", eres.Rsp)
+
+	return nil
+}
+
+func sendMpStat(s sesn.Sesn) error {
+	c := xact.NewMempoolStatCmd()
+
+	res, err := c.Run(s)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error executing mempool stat command: %s\n",
+			err.Error())
+		return err
+	}
+
+	if res.Status() != 0 {
+		fmt.Printf("Peer responded negatively to mempool stat command; "+
+			"status=%d\n", res.Status())
+	}
+
+	eres := res.(*xact.MempoolStatResult)
+	fmt.Printf("Peer responded with mempool stat: %#v\n", eres.Rsp)
+
+	return nil
+}
+
+func sendTaskStat(s sesn.Sesn) error {
+	c := xact.NewTaskStatCmd()
+
+	res, err := c.Run(s)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error executing task stat command: %s\n",
+			err.Error())
+		return err
+	}
+
+	if res.Status() != 0 {
+		fmt.Printf("Peer responded negatively to task stat command; "+
+			"status=%d\n", res.Status())
+	}
+
+	eres := res.(*xact.TaskStatResult)
+	fmt.Printf("Peer responded with task stat: %#v\n", eres.Rsp)
+
+	return nil
+}
+
 func sendOne(s sesn.Sesn) {
 	// Repeatedly:
 	//     * Connect to peer if unconnected.
@@ -74,27 +159,27 @@ func sendOne(s sesn.Sesn) {
 			return
 		}
 	}
+	defer s.Close()
 
 	// Send an echo command to the peer.
-	c := xact.NewEchoCmd()
-	c.Payload = fmt.Sprintf("hello %p", s)
-
-	res, err := c.Run(s)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error executing echo command: %s\n",
-			err.Error())
+	if err := sendEcho(s); err != nil {
 		return
 	}
 
-	if res.Status() != 0 {
-		fmt.Printf("Peer responded negatively to echo command; status=%d\n",
-			res.Status())
+	// Image list
+	if err := sendImageState(s); err != nil {
+		return
 	}
 
-	eres := res.(*xact.EchoResult)
-	fmt.Printf("Peer echoed back: %s\n", eres.Rsp.Payload)
+	// MP stat
+	if err := sendMpStat(s); err != nil {
+		return
+	}
 
-	s.Close()
+	// Task stat
+	if err := sendTaskStat(s); err != nil {
+		return
+	}
 }
 
 func main() {
@@ -124,7 +209,7 @@ func main() {
 	configExitHandler(x)
 
 	peerNames := []string{
-		"ccollins",
+		"ccollins1",
 		"ccollins2",
 		"ccollins3",
 	}
