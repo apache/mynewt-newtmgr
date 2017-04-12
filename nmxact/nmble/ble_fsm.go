@@ -139,7 +139,7 @@ func (bf *BleFsm) addBleListener(name string, base BleMsgBase) (
 
 	_, file, line, _ := runtime.Caller(2)
 	file = path.Base(file)
-	nmxutil.ListenLog.Debugf("[%d] {add-listener}    [%s:%d] %s: base=%+v",
+	nmxutil.ListenLog.Debugf("[%d] {add-ble-listener}    [%s:%d] %s: base=%+v",
 		bf.id, file, line, name, base)
 
 	bl := NewBleListener()
@@ -177,7 +177,7 @@ func (bf *BleFsm) addBleSeqListener(name string, seq BleSeq) (
 func (bf *BleFsm) removeBleListener(name string, base BleMsgBase) {
 	_, file, line, _ := runtime.Caller(2)
 	file = path.Base(file)
-	nmxutil.ListenLog.Debugf("[%d] {remove-listener} [%s:%d] %s: base=%+v",
+	nmxutil.ListenLog.Debugf("[%d] {remove-ble-listener} [%s:%d] %s: base=%+v",
 		bf.id, file, line, name, base)
 
 	bf.blsMtx.Lock()
@@ -399,8 +399,6 @@ func (bf *BleFsm) nmpRspListen() error {
 
 						bf.params.RxNmpCb(msg.Data.Bytes)
 					}
-
-				default:
 				}
 			}
 		}
@@ -868,7 +866,12 @@ func (bf *BleFsm) TxNmp(payload []byte, nl *nmp.NmpListener,
 				return rsp, nil
 			}
 		case <-nl.AfterTimeout(timeout):
-			return nil, nmxutil.NewNmpTimeoutError("NMP timeout")
+			msg := fmt.Sprintf(
+				"NMP timeout; op=%d group=%d id=%d seq=%d peer=%#v",
+				payload[0], payload[4]+payload[5]<<8,
+				payload[7], payload[6], bf.peerDev)
+
+			return nil, nmxutil.NewNmpTimeoutError(msg)
 		}
 	}
 }

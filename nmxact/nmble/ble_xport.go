@@ -322,6 +322,7 @@ func (bx *BleXport) setStateFrom(from BleXportState, to BleXportState) bool {
 }
 
 func (bx *BleXport) Stop() error {
+	// XXX: Reset controller to terminate all connections.
 	bx.shutdown(false, nmxutil.NewXportError("xport stopped"))
 	return nil
 }

@@ -2,12 +2,15 @@ package nmble
 
 import (
 	"fmt"
+	"path"
+	"runtime"
 	"sync"
 	"time"
 
 	"mynewt.apache.org/newt/util"
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
+	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
@@ -61,6 +64,11 @@ func (bps *BlePlainSesn) addNmpListener(seq uint8) (*nmp.NmpListener, error) {
 	bps.mtx.Lock()
 	defer bps.mtx.Unlock()
 
+	_, file, line, _ := runtime.Caller(1)
+	file = path.Base(file)
+	nmxutil.ListenLog.Debugf("{add-nmp-listener} [%s:%d] seq=%+v",
+		file, line, seq)
+
 	nl := nmp.NewNmpListener()
 	if err := bps.nd.AddListener(seq, nl); err != nil {
 		return nil, err
@@ -73,6 +81,11 @@ func (bps *BlePlainSesn) addNmpListener(seq uint8) (*nmp.NmpListener, error) {
 func (bps *BlePlainSesn) removeNmpListener(seq uint8) {
 	bps.mtx.Lock()
 	defer bps.mtx.Unlock()
+
+	_, file, line, _ := runtime.Caller(1)
+	file = path.Base(file)
+	nmxutil.ListenLog.Debugf("{remove-nmp-listener} [%s:%d] seq=%+v",
+		file, line, seq)
 
 	listener := bps.nd.RemoveListener(seq)
 	if listener != nil {

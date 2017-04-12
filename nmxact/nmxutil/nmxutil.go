@@ -15,12 +15,13 @@ var seqMutex sync.Mutex
 
 var ListenLog = &log.Logger{
 	Out:       os.Stderr,
-	Formatter: new(log.TextFormatter),
+	Formatter: &log.TextFormatter{ForceColors: true},
 	Level:     log.DebugLevel,
 }
 
 func SetLogLevel(level log.Level) {
 	log.SetLevel(level)
+	log.SetFormatter(&log.TextFormatter{ForceColors: true})
 	ListenLog.Level = level
 }
 
