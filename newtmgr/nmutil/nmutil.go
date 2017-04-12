@@ -28,6 +28,7 @@ import (
 var Timeout float64
 var Tries int
 var ConnProfile string
+var DeviceName string
 
 func TxOptions() sesn.TxOptions {
 	return sesn.TxOptions{

@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"mynewt.apache.org/newt/util"
+	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmble"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
@@ -105,6 +106,10 @@ func ParseBleConnString(cs string) (*BleConfig, error) {
 
 func FillSesnCfg(bc *BleConfig, sc *sesn.SesnCfg) {
 	sc.Ble.OwnAddrType = bc.OwnAddrType
+
+	if nmutil.DeviceName != "" {
+		bc.PeerName = nmutil.DeviceName
+	}
 
 	if bc.PeerName != "" {
 		sc.Ble.PeerSpec = sesn.BlePeerSpecName(bc.PeerName)
