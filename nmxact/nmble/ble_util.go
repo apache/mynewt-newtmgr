@@ -2,7 +2,7 @@ package nmble
 
 import (
 	"fmt"
-	"sync/atomic"
+	"sync"
 
 	log "github.com/Sirupsen/logrus"
 
@@ -19,10 +19,20 @@ const NmpOicRspChrUuid = "E9241982-4580-42C4-8831-95048216B256"
 const WRITE_CMD_BASE_SZ = 3
 const NOTIFY_CMD_BASE_SZ = 3
 
-var nextSeq uint32
+var nextSeq BleSeq = BLE_SEQ_MIN
+var seqMtx sync.Mutex
 
 func NextSeq() BleSeq {
-	return BleSeq(atomic.AddUint32(&nextSeq, 1))
+	seqMtx.Lock()
+	defer seqMtx.Unlock()
+
+	seq := nextSeq
+	nextSeq++
+	if nextSeq >= BLE_SEQ_EVT_MIN {
+		nextSeq = BLE_SEQ_MIN
+	}
+
+	return seq
 }
 
 func BhdTimeoutError(rspType MsgType) error {

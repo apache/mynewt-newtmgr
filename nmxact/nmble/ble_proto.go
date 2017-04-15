@@ -19,6 +19,8 @@ type BleBytes struct {
 	Bytes []byte
 }
 
+const BLE_SEQ_MIN BleSeq = 0
+const BLE_SEQ_EVT_MIN BleSeq = 0xffffff00
 const BLE_SEQ_NONE BleSeq = 0xffffffff
 
 const ERR_CODE_ATT_BASE = 0x100
