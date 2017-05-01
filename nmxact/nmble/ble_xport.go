@@ -12,6 +12,7 @@ import (
 	"mynewt.apache.org/newt/util/unixchild"
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
+	"mynewt.apache.org/newtmgr/nmxact/scan"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
@@ -94,6 +95,7 @@ type BleXport struct {
 	master            nmxutil.SingleResource
 	randAddr          *BleAddr
 	mtx               sync.Mutex
+	scanner           *BleScanner
 
 	cfg XportCfg
 }
@@ -121,6 +123,14 @@ func (bx *BleXport) createUnixChild() {
 	}
 
 	bx.client = unixchild.New(config)
+}
+
+func (bx *BleXport) BuildScanner() (scan.Scanner, error) {
+	if bx.scanner == nil {
+		bx.scanner = NewBleScanner(bx)
+	}
+
+	return bx.scanner, nil
 }
 
 func (bx *BleXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
@@ -533,10 +543,14 @@ func (bx *BleXport) RspTimeout() time.Duration {
 	return bx.cfg.BlehostdRspTimeout
 }
 
-func (bx *BleXport) AcquireMaster() error {
-	return bx.master.Acquire()
+func (bx *BleXport) AcquireMaster(token interface{}) error {
+	return bx.master.Acquire(token)
 }
 
 func (bx *BleXport) ReleaseMaster() {
 	bx.master.Release()
+}
+
+func (bx *BleXport) StopWaitingForMaster(token interface{}, err error) {
+	bx.master.StopWaiting(token, err)
 }

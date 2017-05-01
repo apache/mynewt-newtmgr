@@ -29,6 +29,15 @@ import (
 
 const BLE_ATT_ATTR_MAX_LEN = 512
 
+const NmpPlainSvcUuid = "8D53DC1D-1DB7-4CD3-868B-8A527460AA84"
+const NmpPlainChrUuid = "DA2E7828-FBCE-4E01-AE9E-261174997C48"
+const NmpOicSvcUuid = "ADE3D529-C784-4F63-A987-EB69F70EE816"
+const NmpOicReqChrUuid = "AD7B334F-4637-4B86-90B6-9D787F03D218"
+const NmpOicRspChrUuid = "E9241982-4580-42C4-8831-95048216B256"
+
+// This supersedes the 128-bit UUID above.
+const OmpSvcUuid = 0x9923
+
 type BleAddrType int
 
 const (
@@ -391,3 +400,11 @@ func (d *BleConnDesc) String() string {
 		BleAddrTypeToString(d.PeerOtaAddrType),
 		d.PeerOtaAddr.String())
 }
+
+type BleEncryptWhen int
+
+const (
+	BLE_ENCRYPT_NEVER BleEncryptWhen = iota
+	BLE_ENCRYPT_PRIV_ONLY
+	BLE_ENCRYPT_ALWAYS
+)

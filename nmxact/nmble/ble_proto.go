@@ -93,7 +93,7 @@ const (
 	ERR_CODE_HCI_ACL_CONN_EXISTS         = 11
 	ERR_CODE_HCI_CMD_DISALLOWED          = 12
 	ERR_CODE_HCI_CONN_REJ_RESOURCES      = 13
-	ERR_CODE_HCI_CONN_REJ_SECURITY       = 14
+	ERR_CODE_HCI_CONN_REJ_ENC            = 14
 	ERR_CODE_HCI_CONN_REJ_BD_ADDR        = 15
 	ERR_CODE_HCI_CONN_ACCEPT_TMO         = 16
 	ERR_CODE_HCI_UNSUPPORTED             = 17
@@ -157,7 +157,7 @@ var HciErrCodeStringMap = map[int]string{
 	ERR_CODE_HCI_ACL_CONN_EXISTS:     "acl conn exists",
 	ERR_CODE_HCI_CMD_DISALLOWED:      "cmd disallowed",
 	ERR_CODE_HCI_CONN_REJ_RESOURCES:  "conn rej resources",
-	ERR_CODE_HCI_CONN_REJ_SECURITY:   "conn rej security",
+	ERR_CODE_HCI_CONN_REJ_ENC:        "conn rej security",
 	ERR_CODE_HCI_CONN_REJ_BD_ADDR:    "conn rej bd addr",
 	ERR_CODE_HCI_CONN_ACCEPT_TMO:     "conn accept tmo",
 	ERR_CODE_HCI_UNSUPPORTED:         "unsupported",
@@ -270,6 +270,7 @@ var MsgTypeStringMap = map[MsgType]string{
 	MSG_TYPE_SCAN:              "scan",
 	MSG_TYPE_SCAN_CANCEL:       "scan_cancel",
 	MSG_TYPE_SET_PREFERRED_MTU: "set_preferred_mtu",
+	MSG_TYPE_SECURITY_INITIATE: "security_initiate",
 	MSG_TYPE_CONN_FIND:         "conn_find",
 	MSG_TYPE_RESET:             "reset",
 
@@ -784,6 +785,40 @@ type BleResetRsp struct {
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
 	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status int `json:"status"`
+}
+
+type BleSecurityInitiateReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	ConnHandle uint16 `json:"conn_handle"`
+}
+
+type BleSecurityInitiateRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status int `json:"status"`
+}
+
+type BleEncChangeEvt struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status     int    `json:"status"`
+	ConnHandle uint16 `json:"conn_handle"`
 }
 
 func ErrCodeToString(e int) string {

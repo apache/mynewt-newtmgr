@@ -57,6 +57,7 @@ func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 		SvcUuid:     svcUuid,
 		ReqChrUuid:  reqChrUuid,
 		RspChrUuid:  rspChrUuid,
+		Encrypt:     cfg.Ble.Encrypt,
 		RxNmpCb:     func(d []byte) { bos.onRxNmp(d) },
 		DisconnectCb: func(dt BleFsmDisconnectType, p BleDev, e error) {
 			bos.onDisconnect(dt, p, e)
@@ -244,4 +245,8 @@ func (bos *BleOicSesn) MtuOut() int {
 		omp.OMP_MSG_OVERHEAD -
 		nmp.NMP_HDR_SIZE
 	return util.IntMin(mtu, BLE_ATT_ATTR_MAX_LEN)
+}
+
+func (bos *BleOicSesn) ConnInfo() (BleConnDesc, error) {
+	return bos.bf.connInfo()
 }

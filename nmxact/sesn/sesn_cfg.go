@@ -47,6 +47,8 @@ type SesnCfgBle struct {
 	ConnTries    int
 	CloseTimeout time.Duration
 	OnCloseCb    BleOnCloseFn
+
+	Encrypt bledefs.BleEncryptWhen
 }
 
 type SesnCfg struct {

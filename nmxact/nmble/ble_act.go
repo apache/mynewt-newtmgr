@@ -84,11 +84,11 @@ func connCancel(x *BleXport, bl *BleListener, r *BleConnCancelReq) error {
 			switch msg := bm.(type) {
 			case *BleConnCancelRsp:
 				bl.Acked = true
-				if msg.Status != 0 {
+				if msg.Status != 0 && msg.Status != ERR_CODE_EALREADY {
 					return StatusError(MSG_OP_RSP, rspType, msg.Status)
-				} else {
-					return nil
 				}
+
+				return nil
 
 			default:
 			}
@@ -288,9 +288,8 @@ func exchangeMtu(x *BleXport, bl *BleListener, r *BleExchangeMtuReq) (
 type scanSuccessFn func()
 type advRptFn func(r BleAdvReport)
 
-func scan(x *BleXport, bl *BleListener, r *BleScanReq,
-	abortChan chan struct{},
-	scanSuccessCb scanSuccessFn, advRptCb advRptFn) error {
+func actScan(x *BleXport, bl *BleListener, r *BleScanReq,
+	abortChan chan struct{}, advRptCb advRptFn) error {
 
 	const rspType = MSG_TYPE_SCAN
 
@@ -314,8 +313,6 @@ func scan(x *BleXport, bl *BleListener, r *BleScanReq,
 				bl.Acked = true
 				if msg.Status != 0 {
 					return StatusError(MSG_OP_RSP, rspType, msg.Status)
-				} else {
-					scanSuccessCb()
 				}
 
 			case *BleScanEvt:
@@ -358,7 +355,7 @@ func scanCancel(x *BleXport, bl *BleListener, r *BleScanCancelReq) error {
 			switch msg := bm.(type) {
 			case *BleScanCancelRsp:
 				bl.Acked = true
-				if msg.Status != 0 {
+				if msg.Status != 0 && msg.Status != ERR_CODE_EALREADY {
 					return StatusError(MSG_OP_RSP, rspType, msg.Status)
 				}
 				return nil
@@ -436,6 +433,46 @@ func reset(x *BleXport, bl *BleListener,
 
 			default:
 			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return BhdTimeoutError(rspType, r.Seq)
+		}
+	}
+}
+
+// Blocking
+func encInitiate(x *BleXport, bl *BleListener, encChan chan error,
+	r *BleSecurityInitiateReq) error {
+
+	const rspType = MSG_TYPE_SECURITY_INITIATE
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+
+	if err := x.Tx(j); err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return err
+
+		case bm := <-bl.BleChan:
+			switch msg := bm.(type) {
+			case *BleSecurityInitiateRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return StatusError(MSG_OP_RSP, rspType, msg.Status)
+				}
+
+			default:
+			}
+
+		case err := <-encChan:
+			return err
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
 			return BhdTimeoutError(rspType, r.Seq)

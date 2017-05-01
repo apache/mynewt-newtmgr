@@ -217,3 +217,7 @@ func (bps *BlePlainSesn) MtuOut() int {
 	mtu := bps.bf.attMtu - WRITE_CMD_BASE_SZ - nmp.NMP_HDR_SIZE
 	return util.IntMin(mtu, BLE_ATT_ATTR_MAX_LEN)
 }
+
+func (bps *BlePlainSesn) ConnInfo() (BleConnDesc, error) {
+	return bps.bf.connInfo()
+}

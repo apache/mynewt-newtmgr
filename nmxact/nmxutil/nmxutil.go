@@ -1,6 +1,7 @@
 package nmxutil
 
 import (
+	"fmt"
 	"math/rand"
 	"os"
 	"sync"
@@ -40,19 +41,22 @@ func NextNmpSeq() uint8 {
 	return val
 }
 
+type SRWaiter struct {
+	c     chan error
+	token interface{}
+}
+
 type SingleResource struct {
 	acquired  bool
-	waitQueue [](chan error)
+	waitQueue []SRWaiter
 	mtx       sync.Mutex
 }
 
 func NewSingleResource() SingleResource {
-	return SingleResource{
-		waitQueue: [](chan error){},
-	}
+	return SingleResource{}
 }
 
-func (s *SingleResource) Acquire() error {
+func (s *SingleResource) Acquire(token interface{}) error {
 	s.mtx.Lock()
 
 	if !s.acquired {
@@ -61,12 +65,17 @@ func (s *SingleResource) Acquire() error {
 		return nil
 	}
 
-	w := make(chan error)
+	// XXX: Verify no duplicates.
+
+	w := SRWaiter{
+		c:     make(chan error),
+		token: token,
+	}
 	s.waitQueue = append(s.waitQueue, w)
 
 	s.mtx.Unlock()
 
-	err := <-w
+	err := <-w.c
 	if err != nil {
 		return err
 	}
@@ -94,7 +103,19 @@ func (s *SingleResource) Release() {
 
 	s.mtx.Unlock()
 
-	w <- nil
+	w.c <- nil
+}
+
+func (s *SingleResource) StopWaiting(token interface{}, err error) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	for _, w := range s.waitQueue {
+		if w.token == token {
+			w.c <- err
+			return
+		}
+	}
 }
 
 func (s *SingleResource) Abort(err error) {
@@ -102,9 +123,9 @@ func (s *SingleResource) Abort(err error) {
 	defer s.mtx.Unlock()
 
 	for _, w := range s.waitQueue {
-		w <- err
+		w.c <- err
 	}
-	s.waitQueue = [](chan error){}
+	s.waitQueue = nil
 }
 
 type ErrLessFn func(a error, b error) bool
@@ -122,6 +143,7 @@ type ErrFunnel struct {
 	curErr   error
 	errTimer *time.Timer
 	started  bool
+	waiters  [](chan error)
 }
 
 func (f *ErrFunnel) Start() {
@@ -175,8 +197,13 @@ func (f *ErrFunnel) Reset() {
 
 func (f *ErrFunnel) timerExp() {
 	f.mtx.Lock()
+
 	err := f.curErr
 	f.curErr = nil
+
+	waiters := f.waiters
+	f.waiters = nil
+
 	f.mtx.Unlock()
 
 	if err == nil {
@@ -184,4 +211,34 @@ func (f *ErrFunnel) timerExp() {
 	}
 
 	f.ProcCb(err)
+
+	for _, w := range waiters {
+		w <- err
+	}
+}
+
+func (f *ErrFunnel) Wait() error {
+	var err error
+	var c chan error
+
+	f.mtx.Lock()
+
+	if !f.started {
+		if f.curErr == nil {
+			err = fmt.Errorf("Wait on unstarted ErrFunnel")
+		} else {
+			err = f.curErr
+		}
+	} else {
+		c = make(chan error)
+		f.waiters = append(f.waiters, c)
+	}
+
+	f.mtx.Unlock()
+
+	if err != nil {
+		return err
+	} else {
+		return <-c
+	}
 }
