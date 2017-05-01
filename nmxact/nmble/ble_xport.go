@@ -39,7 +39,7 @@ type XportCfg struct {
 	BlehostdAcceptTimeout time.Duration
 
 	// How long to wait for a JSON response from the blehostd process.
-	// Default: 1 second.
+	// Default: 10 seconds.
 	BlehostdRspTimeout time.Duration
 
 	// Whether to restart the transport if it goes down or fails to start in
@@ -57,14 +57,14 @@ type XportCfg struct {
 	RandAddr *BleAddr
 
 	// The value to specify during ATT MTU exchange.
-	// Default: 512.
+	// Default: 264.
 	PreferredMtu uint16
 }
 
 func NewXportCfg() XportCfg {
 	return XportCfg{
 		BlehostdAcceptTimeout: time.Second,
-		BlehostdRspTimeout:    time.Second,
+		BlehostdRspTimeout:    10 * time.Second,
 		Restart:               true,
 		SyncTimeout:           10 * time.Second,
 		PreferredMtu:          264,
