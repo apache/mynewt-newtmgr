@@ -58,7 +58,7 @@ func terminate(x *BleXport, bl *BleListener, r *BleTerminateReq) error {
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return BhdTimeoutError(rspType)
+			return BhdTimeoutError(rspType, r.Seq)
 		}
 	}
 }
@@ -94,7 +94,7 @@ func connCancel(x *BleXport, bl *BleListener, r *BleConnCancelReq) error {
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return BhdTimeoutError(rspType)
+			return BhdTimeoutError(rspType, r.Seq)
 		}
 	}
 }
@@ -149,7 +149,7 @@ func discSvcUuid(x *BleXport, bl *BleListener, r *BleDiscSvcUuidReq) (
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return nil, BhdTimeoutError(rspType)
+			return nil, BhdTimeoutError(rspType, r.Seq)
 		}
 	}
 }
@@ -198,7 +198,7 @@ func discAllChrs(x *BleXport, bl *BleListener, r *BleDiscAllChrsReq) (
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return nil, BhdTimeoutError(rspType)
+			return nil, BhdTimeoutError(rspType, r.Seq)
 		}
 	}
 }
@@ -235,7 +235,7 @@ func writeCmd(x *BleXport, bl *BleListener, r *BleWriteCmdReq) error {
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return BhdTimeoutError(rspType)
+			return BhdTimeoutError(rspType, r.Seq)
 		}
 	}
 }
@@ -280,7 +280,7 @@ func exchangeMtu(x *BleXport, bl *BleListener, r *BleExchangeMtuReq) (
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return 0, BhdTimeoutError(rspType)
+			return 0, BhdTimeoutError(rspType, r.Seq)
 		}
 	}
 }
@@ -329,7 +329,7 @@ func scan(x *BleXport, bl *BleListener, r *BleScanReq,
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return BhdTimeoutError(rspType)
+			return BhdTimeoutError(rspType, r.Seq)
 
 		case <-abortChan:
 			return nil
@@ -367,7 +367,7 @@ func scanCancel(x *BleXport, bl *BleListener, r *BleScanCancelReq) error {
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return BhdTimeoutError(rspType)
+			return BhdTimeoutError(rspType, r.Seq)
 		}
 	}
 }
@@ -406,7 +406,7 @@ func connFind(x *BleXport, bl *BleListener, r *BleConnFindReq) (
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return BleConnDesc{}, BhdTimeoutError(rspType)
+			return BleConnDesc{}, BhdTimeoutError(rspType, r.Seq)
 		}
 	}
 }
@@ -444,7 +444,7 @@ func genRandAddr(x *BleXport, bl *BleListener, r *BleGenRandAddrReq) (
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return BleAddr{}, BhdTimeoutError(rspType)
+			return BleAddr{}, BhdTimeoutError(rspType, r.Seq)
 		}
 	}
 }
@@ -479,7 +479,7 @@ func setRandAddr(x *BleXport, bl *BleListener, r *BleSetRandAddrReq) error {
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return BhdTimeoutError(rspType)
+			return BhdTimeoutError(rspType, r.Seq)
 		}
 	}
 }
@@ -516,7 +516,7 @@ func setPreferredMtu(x *BleXport, bl *BleListener,
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return BhdTimeoutError(rspType)
+			return BhdTimeoutError(rspType, r.Seq)
 		}
 	}
 }

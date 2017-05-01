@@ -35,9 +35,10 @@ func NextSeq() BleSeq {
 	return seq
 }
 
-func BhdTimeoutError(rspType MsgType) error {
-	str := fmt.Sprintf("Timeout waiting for blehostd to send %s response",
-		MsgTypeToString(rspType))
+func BhdTimeoutError(rspType MsgType, seq BleSeq) error {
+	str := fmt.Sprintf(
+		"Timeout waiting for blehostd to send %s response (seq=%d)",
+		MsgTypeToString(rspType), seq)
 
 	log.Debug(str)
 	return nmxutil.NewXportError(str)

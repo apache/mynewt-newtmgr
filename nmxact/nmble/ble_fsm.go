@@ -360,7 +360,7 @@ func (bf *BleFsm) connectListen(seq BleSeq) error {
 				}
 
 			case <-bl.AfterTimeout(bf.params.Bx.RspTimeout()):
-				err := BhdTimeoutError(MSG_TYPE_CONNECT)
+				err := BhdTimeoutError(MSG_TYPE_CONNECT, seq)
 				bf.connChan <- err
 				bf.errFunnel.Insert(err)
 			}
