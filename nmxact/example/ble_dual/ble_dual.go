@@ -189,7 +189,7 @@ func main() {
 	params := nmble.NewXportCfg()
 	params.SockPath = "/tmp/blehostd-uds"
 	params.BlehostdPath = "blehostd.elf"
-	params.DevPath = "/dev/cu.usbmodem14221"
+	params.DevPath = "/dev/cu.usbmodem142121"
 
 	x, err := nmble.NewBleXport(params)
 	if err != nil {
@@ -210,8 +210,8 @@ func main() {
 
 	peerNames := []string{
 		"ccollins1",
-		"ccollins2",
-		"ccollins3",
+		//"ccollins2",
+		//"ccollins3",
 	}
 
 	sesns := []sesn.Sesn{}

@@ -275,6 +275,7 @@ func (bf *BleFsm) processErr(err error) {
 
 	bf.peerDev = nil
 
+	// Wait for all listeners to get removed.
 	bf.wg.Wait()
 
 	bf.errFunnel.Reset()
@@ -776,14 +777,13 @@ func (bf *BleFsm) executeState() (bool, error) {
 }
 
 func (bf *BleFsm) startOnce() (bool, error) {
-	bf.errFunnel.Start()
-
 	if !bf.IsClosed() {
-		bf.errFunnel.Reset()
 		return false, nmxutil.NewSesnAlreadyOpenError(fmt.Sprintf(
 			"Attempt to open an already-open BLE session (state=%d)",
 			bf.getState()))
 	}
+
+	bf.errFunnel.Start()
 
 	for {
 		retry, err := bf.executeState()
