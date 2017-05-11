@@ -233,6 +233,7 @@ const (
 	MSG_TYPE_SET_PREFERRED_MTU         = 17
 	MSG_TYPE_SECURITY_INITIATE         = 18
 	MSG_TYPE_CONN_FIND                 = 19
+	MSG_TYPE_RESET                     = 20
 
 	MSG_TYPE_SYNC_EVT       = 2049
 	MSG_TYPE_CONNECT_EVT    = 2050
@@ -270,6 +271,7 @@ var MsgTypeStringMap = map[MsgType]string{
 	MSG_TYPE_SCAN_CANCEL:       "scan_cancel",
 	MSG_TYPE_SET_PREFERRED_MTU: "set_preferred_mtu",
 	MSG_TYPE_CONN_FIND:         "conn_find",
+	MSG_TYPE_RESET:             "reset",
 
 	MSG_TYPE_SYNC_EVT:       "sync_evt",
 	MSG_TYPE_CONNECT_EVT:    "connect_evt",
@@ -768,6 +770,20 @@ type BleConnFindRsp struct {
 	PeerIdAddr      BleAddr     `json:"peer_id_addr"`
 	PeerOtaAddrType BleAddrType `json:"peer_ota_addr_type"`
 	PeerOtaAddr     BleAddr     `json:"peer_ota_addr"`
+}
+
+type BleResetReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+}
+
+type BleResetRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
 }
 
 func ErrCodeToString(e int) string {

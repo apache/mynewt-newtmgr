@@ -243,6 +243,14 @@ func NewBleConnFindReq() *BleConnFindReq {
 	}
 }
 
+func NewResetReq() *BleResetReq {
+	return &BleResetReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_RESET,
+		Seq:  NextSeq(),
+	}
+}
+
 func ConnFindXact(x *BleXport, connHandle uint16) (BleConnDesc, error) {
 	r := NewBleConnFindReq()
 	r.ConnHandle = connHandle
@@ -319,4 +327,23 @@ func SetPreferredMtuXact(x *BleXport, mtu uint16) error {
 	defer x.Bd.RemoveListener(base)
 
 	return setPreferredMtu(x, bl, r)
+}
+
+func ResetXact(x *BleXport) error {
+	r := NewResetReq()
+
+	base := BleMsgBase{
+		Op:         -1,
+		Type:       -1,
+		Seq:        r.Seq,
+		ConnHandle: -1,
+	}
+
+	bl := NewBleListener()
+	if err := x.Bd.AddListener(base, bl); err != nil {
+		return err
+	}
+	defer x.Bd.RemoveListener(base)
+
+	return reset(x, bl, r)
 }

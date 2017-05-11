@@ -100,6 +100,7 @@ func scanRspCtor() BleMsg            { return &BleScanRsp{} }
 func scanCancelRspCtor() BleMsg      { return &BleScanCancelRsp{} }
 func setPreferredMtuRspCtor() BleMsg { return &BleSetPreferredMtuRsp{} }
 func connFindRspCtor() BleMsg        { return &BleConnFindRsp{} }
+func resetRspCtor() BleMsg           { return &BleResetRsp{} }
 
 func syncEvtCtor() BleMsg       { return &BleSyncEvt{} }
 func connectEvtCtor() BleMsg    { return &BleConnectEvt{} }
@@ -128,6 +129,7 @@ var msgCtorMap = map[OpTypePair]msgCtor{
 	{MSG_OP_RSP, MSG_TYPE_SCAN_CANCEL}:       scanCancelRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_SET_PREFERRED_MTU}: setPreferredMtuRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_CONN_FIND}:         connFindRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_RESET}:             resetRspCtor,
 
 	{MSG_OP_EVT, MSG_TYPE_SYNC_EVT}:       syncEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_CONNECT_EVT}:    connectEvtCtor,

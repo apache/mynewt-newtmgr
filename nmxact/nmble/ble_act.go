@@ -411,6 +411,38 @@ func connFind(x *BleXport, bl *BleListener, r *BleConnFindReq) (
 	}
 }
 
+// Tells the host to reset the controller.
+func reset(x *BleXport, bl *BleListener,
+	r *BleResetReq) error {
+
+	const rspType = MSG_TYPE_RESET
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+
+	x.txNoSync(j)
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return err
+
+		case bm := <-bl.BleChan:
+			switch bm.(type) {
+			case *BleResetRsp:
+				bl.Acked = true
+				return nil
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return BhdTimeoutError(rspType, r.Seq)
+		}
+	}
+}
+
 // Asks the controller to generate a random address.  This is done when the
 // transport is starting up, and therefore does not require the transport to be
 // synced.  Only the transport should call this function.
