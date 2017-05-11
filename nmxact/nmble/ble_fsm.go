@@ -85,6 +85,9 @@ type BleFsm struct {
 	id         uint32
 	wg         sync.WaitGroup
 
+	// Gets notified when the FSM has stopped due to an error.
+	errChan chan error
+
 	// Protects all accesses to the FSM state variable.
 	stateMtx sync.Mutex
 
@@ -280,6 +283,8 @@ func (bf *BleFsm) processErr(err error) {
 
 	bf.errFunnel.Reset()
 	bf.params.DisconnectCb(dt, peer, err)
+
+	bf.errChan <- err
 }
 
 func (bf *BleFsm) connectListen(seq BleSeq) error {
@@ -784,12 +789,13 @@ func (bf *BleFsm) startOnce() (bool, error) {
 	}
 
 	bf.errFunnel.Start()
+	bf.errChan = make(chan error, 1)
 
 	for {
 		retry, err := bf.executeState()
 		if err != nil {
 			bf.errFunnel.Insert(err)
-			bf.errFunnel.BlockUntilExp()
+			err = <-bf.errChan
 			return retry, err
 		} else if bf.getState() == SESN_STATE_DONE {
 			return false, nil

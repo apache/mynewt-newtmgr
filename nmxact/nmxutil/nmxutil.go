@@ -173,16 +173,6 @@ func (f *ErrFunnel) Reset() {
 	}
 }
 
-func (f *ErrFunnel) BlockUntilExp() {
-	f.mtx.Lock()
-	defer f.mtx.Unlock()
-
-	if f.started {
-		f.resetMtx.Lock()
-		f.resetMtx.Unlock()
-	}
-}
-
 func (f *ErrFunnel) timerExp() {
 	f.mtx.Lock()
 	err := f.curErr

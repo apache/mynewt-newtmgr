@@ -185,7 +185,9 @@ func (bx *BleXport) querySyncStatus() (bool, error) {
 	}
 	defer bx.Bd.RemoveListener(base)
 
-	bx.txNoSync(j)
+	if err := bx.txNoSync(j); err != nil {
+		return false, err
+	}
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -514,9 +516,9 @@ func (bx *BleXport) Start() error {
 	return nil
 }
 
-func (bx *BleXport) txNoSync(data []byte) {
+func (bx *BleXport) txNoSync(data []byte) error {
 	log.Debugf("Tx to blehostd:\n%s", hex.Dump(data))
-	bx.client.ToChild <- data
+	return bx.client.TxToChild(data)
 }
 
 func (bx *BleXport) Tx(data []byte) error {
@@ -524,8 +526,7 @@ func (bx *BleXport) Tx(data []byte) error {
 		return err
 	}
 
-	bx.txNoSync(data)
-	return nil
+	return bx.txNoSync(data)
 }
 
 func (bx *BleXport) RspTimeout() time.Duration {
