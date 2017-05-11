@@ -789,6 +789,7 @@ func (bf *BleFsm) startOnce() (bool, error) {
 		retry, err := bf.executeState()
 		if err != nil {
 			bf.errFunnel.Insert(err)
+			bf.errFunnel.BlockUntilExp()
 			return retry, err
 		} else if bf.getState() == SESN_STATE_DONE {
 			return false, nil
