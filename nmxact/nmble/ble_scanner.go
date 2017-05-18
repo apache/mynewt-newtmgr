@@ -1,8 +1,10 @@
 package nmble
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
+	"sync"
 
 	log "github.com/Sirupsen/logrus"
 
@@ -21,6 +23,9 @@ type BleScanner struct {
 	bos          *BleOicSesn
 	od           *omp.OmpDispatcher
 	enabled      bool
+
+	// Protects accesses to the reported devices map.
+	devMapMtx sync.Mutex
 }
 
 func NewBleScanner(bx *BleXport) *BleScanner {
@@ -36,8 +41,8 @@ func (s *BleScanner) scan() (scan.ScanPeer, error) {
 	}
 	defer s.bos.Close()
 
-	// Now we are connected and paired.  Read the peer's hardware ID and report
-	// it upstream.
+	// Now we are connected (and paired if required).  Read the peer's hardware
+	// ID and report it upstream.
 
 	desc, err := s.bos.ConnInfo()
 	if err != nil {
@@ -85,10 +90,15 @@ func (s *BleScanner) Start(cfg scan.Cfg) error {
 	innerPred := cfg.SesnCfg.Ble.PeerSpec.ScanPred
 	cfg.SesnCfg.Ble.PeerSpec.ScanPred = func(adv BleAdvReport) bool {
 		// Filter devices that have already been reported.
-		if s.reportedDevs[adv.Sender] != nil {
+		s.devMapMtx.Lock()
+		seen := s.reportedDevs[adv.Sender] != nil
+		s.devMapMtx.Unlock()
+
+		if seen {
 			return false
+		} else {
+			return innerPred(adv)
 		}
-		return innerPred(adv)
 	}
 
 	session, err := s.bx.BuildSesn(cfg.SesnCfg)
@@ -107,7 +117,10 @@ func (s *BleScanner) Start(cfg scan.Cfg) error {
 			if err != nil {
 				log.Debugf("Scan error: %s", err.Error())
 			} else {
+				s.devMapMtx.Lock()
 				s.reportedDevs[p.Opaque.(BleDev)] = p.HwId
+				s.devMapMtx.Unlock()
+
 				s.cfg.ScanCb(p)
 			}
 		}
@@ -124,4 +137,30 @@ func (s *BleScanner) Stop() error {
 
 	s.bos.Close()
 	return nil
+}
+
+// @return                      true if the specified device was found and
+//                                  forgetten;
+//                              false if the specified device is unknown.
+func (s *BleScanner) ForgetDevice(hwid []byte) bool {
+	s.devMapMtx.Lock()
+	defer s.devMapMtx.Unlock()
+
+	for d, h := range s.reportedDevs {
+		if bytes.Compare(h, hwid) == 0 {
+			delete(s.reportedDevs, d)
+			return true
+		}
+	}
+
+	return false
+}
+
+func (s *BleScanner) ForgetAllDevices() {
+	s.devMapMtx.Lock()
+	defer s.devMapMtx.Unlock()
+
+	for d, _ := range s.reportedDevs {
+		delete(s.reportedDevs, d)
+	}
 }

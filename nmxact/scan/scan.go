@@ -22,6 +22,8 @@ type Scanner interface {
 	Stop() error
 }
 
+// Constructs a scan configuration suitable for discovery of OMP
+// (Newtmgr-over-CoAP) Mynewt devices.
 func BleOmpScanCfg(ScanCb ScanFn) Cfg {
 	sc := sesn.NewSesnCfg()
 	sc.MgmtProto = sesn.MGMT_PROTO_OMP

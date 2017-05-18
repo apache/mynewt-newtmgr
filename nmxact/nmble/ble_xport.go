@@ -126,6 +126,9 @@ func (bx *BleXport) createUnixChild() {
 }
 
 func (bx *BleXport) BuildScanner() (scan.Scanner, error) {
+	// The transport only allows a single scanner.  This is because the
+	// master privileges need to managed among the scanner and the
+	// sessions.
 	if bx.scanner == nil {
 		bx.scanner = NewBleScanner(bx)
 	}
