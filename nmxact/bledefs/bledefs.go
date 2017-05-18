@@ -157,16 +157,23 @@ func (bd *BleDev) String() string {
 }
 
 type BleUuid struct {
-	Bytes [16]byte
+	// Set to 0 if the 128-bit UUID should be used.
+	Uuid16 uint16
+
+	Uuid128 [16]byte
 }
 
 func (bu *BleUuid) String() string {
+	if bu.Uuid16 != 0 {
+		return fmt.Sprintf("0x%04x", bu.Uuid16)
+	}
+
 	var buf bytes.Buffer
-	buf.Grow(len(bu.Bytes)*2 + 3)
+	buf.Grow(len(bu.Uuid128)*2 + 3)
 
 	// XXX: For now, only support 128-bit UUIDs.
 
-	for i, b := range bu.Bytes {
+	for i, b := range bu.Uuid128 {
 		switch i {
 		case 4, 6, 8, 10:
 			buf.WriteString("-")
@@ -181,6 +188,14 @@ func (bu *BleUuid) String() string {
 func ParseUuid(uuidStr string) (BleUuid, error) {
 	bu := BleUuid{}
 
+	// First, try to parse as a 16-bit UUID.
+	val, err := strconv.ParseUint(uuidStr, 0, 16)
+	if err == nil {
+		bu.Uuid16 = uint16(val)
+		return bu, nil
+	}
+
+	// Try to parse as a 128-bit UUID.
 	if len(uuidStr) != 36 {
 		return bu, fmt.Errorf("Invalid UUID: %s", uuidStr)
 	}
@@ -199,7 +214,7 @@ func ParseUuid(uuidStr string) (BleUuid, error) {
 			if err != nil {
 				return bu, fmt.Errorf("Invalid UUID: %s", uuidStr)
 			}
-			bu.Bytes[boff] = byte(u64)
+			bu.Uuid128[boff] = byte(u64)
 			i += 2
 			boff++
 		}
@@ -209,10 +224,20 @@ func ParseUuid(uuidStr string) (BleUuid, error) {
 }
 
 func (bu *BleUuid) MarshalJSON() ([]byte, error) {
-	return json.Marshal(bu.String())
+	if bu.Uuid16 != 0 {
+		return json.Marshal(bu.Uuid16)
+	} else {
+		return json.Marshal(bu.String())
+	}
 }
 
 func (bu *BleUuid) UnmarshalJSON(data []byte) error {
+	// First, try a 16-bit UUID.
+	if err := json.Unmarshal(data, &bu.Uuid16); err == nil {
+		return nil
+	}
+
+	// Next, try a 128-bit UUID.
 	var s string
 	if err := json.Unmarshal(data, &s); err != nil {
 		return err
@@ -228,7 +253,11 @@ func (bu *BleUuid) UnmarshalJSON(data []byte) error {
 }
 
 func CompareUuids(a BleUuid, b BleUuid) int {
-	return bytes.Compare(a.Bytes[:], b.Bytes[:])
+	if a.Uuid16 != 0 || b.Uuid16 != 0 {
+		return int(a.Uuid16) - int(b.Uuid16)
+	} else {
+		return bytes.Compare(a.Uuid128[:], b.Uuid128[:])
+	}
 }
 
 type BleScanFilterPolicy int
