@@ -31,7 +31,8 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 )
 
-// OIC wrapping adds this many bytes to an NMP message.
+// OIC wrapping adds this many bytes to an NMP message.  Calculated by
+// comparing an OMP message with its NMP equivalent.
 const OMP_MSG_OVERHEAD = 13
 
 type OicMsg struct {

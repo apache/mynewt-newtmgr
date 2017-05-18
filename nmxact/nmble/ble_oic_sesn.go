@@ -34,17 +34,14 @@ func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 		onCloseCb:    cfg.Ble.OnCloseCb,
 	}
 
-	svcUuid, err := ParseUuid(NmpOicSvcUuid)
+	svcUuid := BleUuid{Uuid16: OmpSvcUuid}
+
+	reqChrUuid, err := ParseUuid(OmpReqChrUuid)
 	if err != nil {
 		panic(err.Error())
 	}
 
-	reqChrUuid, err := ParseUuid(NmpOicReqChrUuid)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	rspChrUuid, err := ParseUuid(NmpOicRspChrUuid)
+	rspChrUuid, err := ParseUuid(OmpRspChrUuid)
 	if err != nil {
 		panic(err.Error())
 	}
