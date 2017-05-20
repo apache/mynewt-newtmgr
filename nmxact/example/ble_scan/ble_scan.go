@@ -105,6 +105,9 @@ func main() {
 
 	for {
 		sc := scan.BleOmpScanCfg(scanCb)
+		sc.Ble.ScanPred = func(adv bledefs.BleAdvReport) bool {
+			return adv.Name == "ccollins"
+		}
 		if err := scanner.Start(sc); err != nil {
 			fmt.Fprintf(os.Stderr, "error starting scan: %s\n", err.Error())
 			os.Exit(1)
@@ -122,7 +125,7 @@ func main() {
 		c := sesn.NewSesnCfg()
 		c.MgmtProto = sesn.MGMT_PROTO_OMP
 		c.Ble.OwnAddrType = bledefs.BLE_ADDR_TYPE_RANDOM
-		c.Ble.PeerSpec = sesn.BlePeerSpecDev(p.Opaque.(bledefs.BleDev))
+		c.PeerSpec = p.PeerSpec
 
 		s, err := x.BuildSesn(c)
 		if err != nil {

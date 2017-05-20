@@ -104,7 +104,7 @@ func ParseBleConnString(cs string) (*BleConfig, error) {
 	return bc, nil
 }
 
-func FillSesnCfg(bc *BleConfig, sc *sesn.SesnCfg) {
+func FillSesnCfg(bx *nmble.BleXport, bc *BleConfig, sc *sesn.SesnCfg) error {
 	sc.Ble.OwnAddrType = bc.OwnAddrType
 
 	if nmutil.DeviceName != "" {
@@ -112,16 +112,32 @@ func FillSesnCfg(bc *BleConfig, sc *sesn.SesnCfg) {
 	}
 
 	if bc.PeerName != "" {
-		sc.Ble.PeerSpec = sesn.BlePeerSpecName(bc.PeerName)
+		scanPred := func(r bledefs.BleAdvReport) bool {
+			return r.Name == bc.PeerName
+		}
+		dev, err := nmble.DiscoverDevice(
+			bx, bc.OwnAddrType, 15*time.Second, scanPred)
+
+		if err != nil {
+			return err
+		}
+		if dev == nil {
+			return util.FmtNewtError(
+				"Unable to discover device with name \"%s\"", bc.PeerName)
+		}
+
+		sc.PeerSpec.Ble = *dev
 	} else {
-		sc.Ble.PeerSpec = sesn.BlePeerSpecDev(bledefs.BleDev{
+		sc.PeerSpec.Ble = bledefs.BleDev{
 			AddrType: bc.PeerAddrType,
 			Addr:     bc.PeerAddr,
-		})
+		}
 	}
 
 	// We don't need to stick around until a connection closes.
 	sc.Ble.CloseTimeout = 10000 * time.Millisecond
+
+	return nil
 }
 
 func BuildBleXport(bc *BleConfig) (*nmble.BleXport, error) {

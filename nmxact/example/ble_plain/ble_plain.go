@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmble"
@@ -51,14 +52,27 @@ func main() {
 	}
 	defer x.Stop()
 
+	// Find a device to connect to:
+	//     * Peer has name "nimble-bleprph"
+	//     * We use a random address.
+	dev, err := nmble.DiscoverDeviceWithName(
+		x, bledefs.BLE_ADDR_TYPE_RANDOM, 10*time.Second, "nimble-bleprph")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error discovering device: %s\n", err.Error())
+		os.Exit(1)
+	}
+	if dev == nil {
+		fmt.Fprintf(os.Stderr, "couldn't find device")
+		os.Exit(1)
+	}
+
 	// Prepare a BLE session:
 	//     * Plain NMP (not tunnelled over OIC).
 	//     * We use a random address.
-	//     * Peer has name "nimble-bleprph".
 	sc := sesn.NewSesnCfg()
 	sc.MgmtProto = sesn.MGMT_PROTO_NMP
 	sc.Ble.OwnAddrType = bledefs.BLE_ADDR_TYPE_RANDOM
-	sc.Ble.PeerSpec = sesn.BlePeerSpecName("nimble-bleprph")
+	sc.PeerSpec.Ble = *dev
 
 	s, err := x.BuildSesn(sc)
 	if err != nil {

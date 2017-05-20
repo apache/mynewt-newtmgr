@@ -285,11 +285,8 @@ func exchangeMtu(x *BleXport, bl *BleListener, r *BleExchangeMtuReq) (
 	}
 }
 
-type scanSuccessFn func()
-type advRptFn func(r BleAdvReport)
-
 func actScan(x *BleXport, bl *BleListener, r *BleScanReq,
-	abortChan chan struct{}, advRptCb advRptFn) error {
+	abortChan chan struct{}, advRptCb BleAdvRptFn) error {
 
 	const rspType = MSG_TYPE_SCAN
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"runtime"
 	"sync"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 
@@ -348,4 +349,17 @@ func ResetXact(x *BleXport) error {
 	defer x.Bd.RemoveListener(base)
 
 	return reset(x, bl, r)
+}
+
+func DiscoverDeviceWithName(
+	bx *BleXport,
+	ownAddrType BleAddrType,
+	timeout time.Duration,
+	name string) (*BleDev, error) {
+
+	advPred := func(r BleAdvReport) bool {
+		return r.Name == name
+	}
+
+	return DiscoverDevice(bx, ownAddrType, timeout, advPred)
 }

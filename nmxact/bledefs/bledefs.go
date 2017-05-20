@@ -398,6 +398,7 @@ type BleAdvReport struct {
 	MfgData             []byte    // false if not present
 }
 
+type BleAdvRptFn func(r BleAdvReport)
 type BleAdvPredicate func(adv BleAdvReport) bool
 
 type BleConnDesc struct {

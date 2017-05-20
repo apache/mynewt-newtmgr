@@ -20,7 +20,7 @@ type BleOicSesn struct {
 	nls          map[*nmp.NmpListener]struct{}
 	od           *omp.OmpDispatcher
 	closeTimeout time.Duration
-	onCloseCb    sesn.BleOnCloseFn
+	onCloseCb    sesn.OnCloseFn
 
 	closeChan chan error
 	mtx       sync.Mutex
@@ -31,7 +31,7 @@ func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 		nls:          map[*nmp.NmpListener]struct{}{},
 		od:           omp.NewOmpDispatcher(),
 		closeTimeout: cfg.Ble.CloseTimeout,
-		onCloseCb:    cfg.Ble.OnCloseCb,
+		onCloseCb:    cfg.OnCloseCb,
 	}
 
 	svcUuid := BleUuid{Uuid16: OmpSvcUuid}
@@ -49,12 +49,12 @@ func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 	bos.bf = NewBleFsm(BleFsmParams{
 		Bx:          bx,
 		OwnAddrType: cfg.Ble.OwnAddrType,
-		PeerSpec:    cfg.Ble.PeerSpec,
+		PeerDev:     cfg.PeerSpec.Ble,
 		ConnTries:   cfg.Ble.ConnTries,
 		SvcUuid:     svcUuid,
 		ReqChrUuid:  reqChrUuid,
 		RspChrUuid:  rspChrUuid,
-		Encrypt:     cfg.Ble.Encrypt,
+		EncryptWhen: cfg.Ble.EncryptWhen,
 		RxNmpCb:     func(d []byte) { bos.onRxNmp(d) },
 		DisconnectCb: func(dt BleFsmDisconnectType, p BleDev, e error) {
 			bos.onDisconnect(dt, p, e)
@@ -198,7 +198,7 @@ func (bos *BleOicSesn) onDisconnect(dt BleFsmDisconnectType, peer BleDev,
 	// Only execute client's disconnect callback if the disconnect was
 	// unsolicited and the session was fully open.
 	if dt == FSM_DISCONNECT_TYPE_OPENED && bos.onCloseCb != nil {
-		bos.onCloseCb(bos, peer, err)
+		bos.onCloseCb(bos, err)
 	}
 }
 

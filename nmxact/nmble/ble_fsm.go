@@ -14,7 +14,6 @@ import (
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
-	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
 var nextId uint32
@@ -29,16 +28,15 @@ type BleSesnState int32
 
 const (
 	SESN_STATE_UNCONNECTED     BleSesnState = 0
-	SESN_STATE_SCANNING                     = 1
-	SESN_STATE_CONNECTING                   = 2
-	SESN_STATE_EXCHANGE_MTU                 = 3
-	SESN_STATE_DISCOVER_SVC                 = 4
-	SESN_STATE_DISCOVER_CHR                 = 5
-	SESN_STATE_SECURITY                     = 6
-	SESN_STATE_SUBSCRIBE                    = 7
-	SESN_STATE_DONE                         = 8
-	SESN_STATE_TERMINATING                  = 9
-	SESN_STATE_CONN_CANCELLING              = 10
+	SESN_STATE_CONNECTING                   = 1
+	SESN_STATE_EXCHANGE_MTU                 = 2
+	SESN_STATE_DISCOVER_SVC                 = 3
+	SESN_STATE_DISCOVER_CHR                 = 4
+	SESN_STATE_SECURITY                     = 5
+	SESN_STATE_SUBSCRIBE                    = 6
+	SESN_STATE_DONE                         = 7
+	SESN_STATE_TERMINATING                  = 8
+	SESN_STATE_CONN_CANCELLING              = 9
 )
 
 type BleFsmDisconnectType int
@@ -61,20 +59,19 @@ type BleDisconnectFn func(dt BleFsmDisconnectType, peer BleDev, err error)
 type BleFsmParams struct {
 	Bx           *BleXport
 	OwnAddrType  BleAddrType
-	PeerSpec     sesn.BlePeerSpec
+	PeerDev      BleDev
 	ConnTries    int
 	SvcUuid      BleUuid
 	ReqChrUuid   BleUuid
 	RspChrUuid   BleUuid
 	RxNmpCb      BleRxNmpFn
 	DisconnectCb BleDisconnectFn
-	Encrypt      BleEncryptWhen
+	EncryptWhen  BleEncryptWhen
 }
 
 type BleFsm struct {
 	params BleFsmParams
 
-	peerDev    *BleDev
 	connHandle uint16
 	nmpSvc     *BleSvc
 	nmpReqChr  *BleChr
@@ -114,7 +111,8 @@ func NewBleFsm(p BleFsmParams) *BleFsm {
 func (bf *BleFsm) disconnectError(reason int) error {
 	str := fmt.Sprintf("BLE peer disconnected; "+
 		"reason=\"%s\" (%d) peer=%s handle=%d",
-		ErrCodeToString(reason), reason, bf.peerDev.String(), bf.connHandle)
+		ErrCodeToString(reason), reason, bf.params.PeerDev.String(),
+		bf.connHandle)
 	return nmxutil.NewBleSesnDisconnectError(reason, str)
 }
 
@@ -269,22 +267,16 @@ func (bf *BleFsm) processErr(err error) {
 	// Remember some fields before we clear them.
 	dt := calcDisconnectType(bf.getState())
 
-	var peer BleDev
-	if bf.peerDev != nil {
-		peer = *bf.peerDev
-	}
-
 	bf.params.Bx.StopWaitingForMaster(bf, err)
 	bf.errorAll(err)
 
 	bf.setState(SESN_STATE_UNCONNECTED)
-	bf.peerDev = nil
 
 	// Wait for all listeners to get removed.
 	bf.wg.Wait()
 
 	bf.errFunnel.Reset()
-	bf.params.DisconnectCb(dt, peer, err)
+	bf.params.DisconnectCb(dt, bf.params.PeerDev, err)
 }
 
 func (bf *BleFsm) connectListen(seq BleSeq) error {
@@ -312,7 +304,7 @@ func (bf *BleFsm) connectListen(seq BleSeq) error {
 						str := fmt.Sprintf("BLE connection attempt failed; "+
 							"status=%s (%d) peer=%s",
 							ErrCodeToString(msg.Status), msg.Status,
-							bf.peerDev.String())
+							bf.params.PeerDev.String())
 						log.Debugf(str)
 						err := nmxutil.NewBleHostError(msg.Status, str)
 						bf.connChan <- err
@@ -337,7 +329,7 @@ func (bf *BleFsm) connectListen(seq BleSeq) error {
 						str := fmt.Sprintf("BLE connection attempt failed; "+
 							"status=%s (%d) peer=%s",
 							ErrCodeToString(msg.Status), msg.Status,
-							bf.peerDev.String())
+							bf.params.PeerDev.String())
 						log.Debugf(str)
 						err := nmxutil.NewBleHostError(msg.Status, str)
 						bf.connChan <- err
@@ -430,8 +422,8 @@ func (bf *BleFsm) nmpRspListen() error {
 func (bf *BleFsm) connect() error {
 	r := NewBleConnectReq()
 	r.OwnAddrType = bf.params.OwnAddrType
-	r.PeerAddrType = bf.peerDev.AddrType
-	r.PeerAddr = bf.peerDev.Addr
+	r.PeerAddrType = bf.params.PeerDev.AddrType
+	r.PeerAddr = bf.params.PeerDev.Addr
 
 	// Initiating a connection requires dedicated master privileges.
 	if err := bf.params.Bx.AcquireMaster(bf); err != nil {
@@ -468,68 +460,6 @@ func (bf *BleFsm) connect() error {
 	}
 
 	return err
-}
-
-func (bf *BleFsm) scan() error {
-	r := NewBleScanReq()
-	r.OwnAddrType = bf.params.OwnAddrType
-	r.DurationMs = 15000
-	r.FilterPolicy = BLE_SCAN_FILT_NO_WL
-	r.Limited = false
-	r.Passive = false
-	r.FilterDuplicates = true
-
-	// Scanning requires dedicated master privileges.
-	if err := bf.params.Bx.AcquireMaster(bf); err != nil {
-		return err
-	}
-	defer bf.params.Bx.ReleaseMaster()
-
-	bl, err := bf.addBleSeqListener("scan", r.Seq)
-	if err != nil {
-		return err
-	}
-	defer bf.removeBleSeqListener("scan", r.Seq)
-
-	abortChan := make(chan struct{}, 1)
-
-	// This function gets called for each incoming advertisement.
-	advRptCb := func(r BleAdvReport) {
-		// Ask client if we should connect to this advertiser.
-		if bf.params.PeerSpec.ScanPred(r) {
-			bf.peerDev = &r.Sender
-			abortChan <- struct{}{}
-		}
-	}
-
-	err = actScan(bf.params.Bx, bl, r, abortChan, advRptCb)
-	if !nmxutil.IsXport(err) {
-		// The transport did not restart; always attempt to cancel the scan
-		// operation.  In most cases, the host has already stopped scanning
-		// and will respond with an "ealready" error that can be ignored.
-		if err := bf.scanCancel(); err != nil {
-			log.Errorf("Failed to cancel scan in progress: %s",
-				err.Error())
-		}
-	}
-
-	return err
-}
-
-func (bf *BleFsm) scanCancel() error {
-	r := NewBleScanCancelReq()
-
-	bl, err := bf.addBleSeqListener("scan-cancel", r.Seq)
-	if err != nil {
-		return err
-	}
-	defer bf.removeBleSeqListener("scan-cancel", r.Seq)
-
-	if err := scanCancel(bf.params.Bx, bl, r); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (bf *BleFsm) terminateSetState() error {
@@ -724,7 +654,7 @@ func (bf *BleFsm) subscribe() error {
 }
 
 func (bf *BleFsm) shouldEncrypt() bool {
-	switch bf.params.Encrypt {
+	switch bf.params.EncryptWhen {
 	case BLE_ENCRYPT_NEVER:
 		return false
 
@@ -732,56 +662,22 @@ func (bf *BleFsm) shouldEncrypt() bool {
 		return true
 
 	case BLE_ENCRYPT_PRIV_ONLY:
-		return bf.peerDev.AddrType == BLE_ADDR_TYPE_RPA_PUB ||
-			bf.peerDev.AddrType == BLE_ADDR_TYPE_RPA_RND
+		return bf.params.PeerDev.AddrType == BLE_ADDR_TYPE_RPA_PUB ||
+			bf.params.PeerDev.AddrType == BLE_ADDR_TYPE_RPA_RND
 
 	default:
 		panic(fmt.Sprintf("Invalid BleEncryptWhen value: %d",
-			bf.params.Encrypt))
+			bf.params.EncryptWhen))
 	}
-}
-
-// Tries to populate the FSM's peerDev field.  This function succeeds if the
-// client specified the address of the peer to connect to.
-func (bf *BleFsm) tryFillPeerDev() bool {
-	// The peer spec contains one of:
-	//     * Peer address;
-	//     * Predicate function to call during scanning.
-	// If a peer address is specified, fill in the peer field now so the
-	// scanning step can be skipped.  Otherwise, the peer field gets populated
-	// during scanning.
-	if bf.params.PeerSpec.ScanPred == nil {
-		bf.peerDev = &bf.params.PeerSpec.Dev
-		return true
-	}
-
-	return false
 }
 
 func (bf *BleFsm) executeState() (bool, error) {
 	switch bf.getState() {
 	case SESN_STATE_UNCONNECTED:
-		// Determine if we can immediately initiate a connection, or if we
-		// need to scan for a peer first.  If the client specified a peer
-		// address, or if we have already successfully scanned, we initiate
-		// a connection now.  Otherwise, we need to scan to determine which
-		// peer meets the specified scan criteria.
-		bf.tryFillPeerDev()
-		if bf.peerDev == nil {
-			// Peer not inferred yet.  Initiate scan.
-			bf.setState(SESN_STATE_SCANNING)
-			if err := bf.scan(); err != nil {
-				return false, err
-			}
-			bf.setState(SESN_STATE_UNCONNECTED)
-		} else {
-			// We already know the address we want to connect to.  Initiate
-			// a connection.
-			if err := bf.connect(); err != nil {
-				return false, err
-			}
-			bf.setState(SESN_STATE_EXCHANGE_MTU)
+		if err := bf.connect(); err != nil {
+			return false, err
 		}
+		bf.setState(SESN_STATE_EXCHANGE_MTU)
 
 	case SESN_STATE_EXCHANGE_MTU:
 		if err := bf.exchangeMtu(); err != nil {
@@ -885,10 +781,6 @@ func (bf *BleFsm) Stop() (bool, error) {
 		bf.errFunnel.Insert(fmt.Errorf("Connection attempt cancelled"))
 		return false, nil
 
-	case SESN_STATE_SCANNING:
-		bf.errFunnel.Insert(fmt.Errorf("Scan cancelled"))
-		return false, nil
-
 	default:
 		if err := bf.terminate(); err != nil {
 			return false, err
@@ -928,7 +820,7 @@ func (bf *BleFsm) TxNmp(payload []byte, nl *nmp.NmpListener,
 			msg := fmt.Sprintf(
 				"NMP timeout; op=%d group=%d id=%d seq=%d peer=%#v",
 				payload[0], payload[4]+payload[5]<<8,
-				payload[7], payload[6], bf.peerDev)
+				payload[7], payload[6], bf.params.PeerDev)
 
 			return nil, nmxutil.NewNmpTimeoutError(msg)
 		}

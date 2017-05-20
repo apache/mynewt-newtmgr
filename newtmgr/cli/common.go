@@ -22,12 +22,13 @@ package cli
 import (
 	"fmt"
 
+	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/config"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
+	"mynewt.apache.org/newtmgr/nmxact/nmble"
 	"mynewt.apache.org/newtmgr/nmxact/nmserial"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 	"mynewt.apache.org/newtmgr/nmxact/xport"
-	"mynewt.apache.org/newt/util"
 )
 
 var globalSesn sesn.Sesn
@@ -109,8 +110,17 @@ func buildSesnCfg() (sesn.SesnCfg, error) {
 			return sc, err
 		}
 
+		x, err := GetXport()
+		if err != nil {
+			return sc, err
+		}
+		bx := x.(*nmble.BleXport)
+
 		sc.MgmtProto = sesn.MGMT_PROTO_NMP
-		config.FillSesnCfg(bc, &sc)
+		if err := config.FillSesnCfg(bx, bc, &sc); err != nil {
+			return sc, err
+		}
+
 		return sc, nil
 
 	case config.CONN_TYPE_BLE_OIC:
@@ -119,8 +129,17 @@ func buildSesnCfg() (sesn.SesnCfg, error) {
 			return sc, err
 		}
 
+		x, err := GetXport()
+		if err != nil {
+			return sc, err
+		}
+		bx := x.(*nmble.BleXport)
+
 		sc.MgmtProto = sesn.MGMT_PROTO_OMP
-		config.FillSesnCfg(bc, &sc)
+		if err := config.FillSesnCfg(bx, bc, &sc); err != nil {
+			return sc, err
+		}
+
 		return sc, nil
 
 	default:

@@ -13,55 +13,37 @@ const (
 	MGMT_PROTO_OMP
 )
 
-type BleOnCloseFn func(s Sesn, peer bledefs.BleDev, err error)
+type OnCloseFn func(s Sesn, err error)
 
-// Specifies the BLE peer to connect to.
-type BlePeerSpec struct {
-	// This is filled in if you know the address of the peer to connect to.
-	Dev bledefs.BleDev
-
-	// Otherwise, we must scan for a peer to connect to.  This points to a
-	// function that indicates whether we should connect to the sender of the
-	// specified advertisement.  This function gets called each time an
-	// incoming advertisement is received.  If it returns true, the session
-	// will connect to the sender of the corresponding advertisement.  Set this
-	// to nil if you populate the Dev field.
-	ScanPred bledefs.BleAdvPredicate
-}
-
-func BlePeerSpecDev(dev bledefs.BleDev) BlePeerSpec {
-	return BlePeerSpec{Dev: dev}
-}
-
-func BlePeerSpecName(name string) BlePeerSpec {
-	return BlePeerSpec{
-		ScanPred: func(r bledefs.BleAdvReport) bool {
-			return r.Name == name
-		},
-	}
+type PeerSpec struct {
+	Ble bledefs.BleDev
 }
 
 type SesnCfgBle struct {
 	OwnAddrType  bledefs.BleAddrType
-	PeerSpec     BlePeerSpec
 	ConnTries    int
 	CloseTimeout time.Duration
-	OnCloseCb    BleOnCloseFn
 
-	Encrypt bledefs.BleEncryptWhen
+	EncryptWhen bledefs.BleEncryptWhen
 }
 
 type SesnCfg struct {
-	// Used with all transport types.
+	// General configuration.
 	MgmtProto MgmtProto
+	PeerSpec  PeerSpec
+	OnCloseCb OnCloseFn
 
-	// Only used with BLE transports.
+	// Transport-specific configuration.
 	Ble SesnCfgBle
 }
 
 func NewSesnCfg() SesnCfg {
 	return SesnCfg{
+		// XXX: For now, assume an own address type of random static.  In the
+		// future, there will need to be some global default, or something that
+		// gets read from blehostd.
 		Ble: SesnCfgBle{
+			OwnAddrType:  bledefs.BLE_ADDR_TYPE_RANDOM,
 			ConnTries:    3,
 			CloseTimeout: 30 * time.Second,
 		},
