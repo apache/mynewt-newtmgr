@@ -44,7 +44,8 @@ type ConnProfile struct {
 }
 
 const (
-	CONN_TYPE_SERIAL ConnType = iota
+	CONN_TYPE_NONE ConnType = iota
+	CONN_TYPE_SERIAL
 	CONN_TYPE_BLE_PLAIN
 	CONN_TYPE_BLE_OIC
 	CONN_TYPE_UDP

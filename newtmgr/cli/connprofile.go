@@ -23,8 +23,8 @@ import (
 	"fmt"
 	"strings"
 
-	"mynewt.apache.org/newtmgr/newtmgr/config"
 	"mynewt.apache.org/newt/util"
+	"mynewt.apache.org/newtmgr/newtmgr/config"
 
 	"github.com/spf13/cobra"
 )
@@ -40,6 +40,7 @@ func connProfileAddCmd(cmd *cobra.Command, args []string) {
 	name := args[0]
 	cp := config.NewConnProfile()
 	cp.Name = name
+	cp.Type = config.CONN_TYPE_NONE
 
 	for _, vdef := range args[1:] {
 		s := strings.SplitN(vdef, "=", 2)
@@ -59,6 +60,16 @@ func connProfileAddCmd(cmd *cobra.Command, args []string) {
 		}
 	}
 
+	// Check that a type is specified.
+
+	if cp.Type == config.CONN_TYPE_NONE {
+		nmUsage(cmd, util.NewNewtError("Must specify a connection type"))
+	}
+
+	// Check that a connstring is specified.
+	if len(cp.ConnString) == 0 {
+		nmUsage(cmd, util.NewNewtError("Must specify a connection string"))
+	}
 	if err := cpm.AddConnProfile(cp); err != nil {
 		nmUsage(cmd, err)
 	}
