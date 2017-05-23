@@ -164,3 +164,25 @@ func ToBleHost(err error) *BleHostError {
 		return nil
 	}
 }
+
+// Indicates an attempt to transition to the already-current state.
+type AlreadyError struct {
+	Text string
+}
+
+func NewAlreadyError(text string) *AlreadyError {
+	return &AlreadyError{text}
+}
+
+func (err *AlreadyError) Error() string {
+	return err.Text
+}
+
+func IsAlready(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	_, ok := err.(*AlreadyError)
+	return ok
+}

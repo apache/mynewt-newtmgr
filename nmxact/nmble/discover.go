@@ -1,7 +1,6 @@
 package nmble
 
 import (
-	"fmt"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -54,6 +53,10 @@ func (d *Discoverer) scanCancel() error {
 }
 
 func (d *Discoverer) Start(advRptCb BleAdvRptFn) error {
+	if d.abortChan != nil {
+		return nmxutil.NewAlreadyError("Attempt to start BLE discoverer twice")
+	}
+
 	// Scanning requires dedicated master privileges.
 	if err := d.params.Bx.AcquireMaster(d); err != nil {
 		return err
@@ -102,7 +105,7 @@ func (d *Discoverer) Stop() error {
 	ch := d.abortChan
 
 	if ch == nil {
-		return fmt.Errorf("Attempt to stop inactive discoverer")
+		return nmxutil.NewAlreadyError("Attempt to stop inactive discoverer")
 	}
 
 	ch <- struct{}{}

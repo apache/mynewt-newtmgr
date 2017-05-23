@@ -261,6 +261,10 @@ func (bx *BleXport) shutdown(restart bool, err error) {
 		return
 	}
 
+	if bx.scanner != nil {
+		bx.scanner.Stop()
+	}
+
 	// Stop the unixchild instance (blehostd + socket).
 	if bx.client != nil {
 		bx.client.Stop()

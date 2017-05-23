@@ -8,6 +8,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
+	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/omp"
 	"mynewt.apache.org/newtmgr/nmxact/scan"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
@@ -26,7 +27,7 @@ type BleScanner struct {
 	enabled      bool
 
 	// Protects accesses to the reported devices map.
-	devMapMtx sync.Mutex
+	mtx sync.Mutex
 }
 
 func NewBleScanner(bx *BleXport) *BleScanner {
@@ -37,13 +38,20 @@ func NewBleScanner(bx *BleXport) *BleScanner {
 }
 
 func (s *BleScanner) discover() (*BleDev, error) {
+	s.mtx.Lock()
 	s.discoverer = NewDiscoverer(DiscovererParams{
 		Bx:          s.bx,
 		OwnAddrType: s.cfg.SesnCfg.Ble.OwnAddrType,
 		Passive:     false,
 		Duration:    15 * time.Second,
 	})
-	defer func() { s.discoverer = nil }()
+	s.mtx.Unlock()
+
+	defer func() {
+		s.mtx.Lock()
+		defer s.mtx.Unlock()
+		s.discoverer = nil
+	}()
 
 	var dev *BleDev
 	advRptCb := func(r BleAdvReport) {
@@ -65,7 +73,10 @@ func (s *BleScanner) connect(dev BleDev) error {
 	if err != nil {
 		return err
 	}
+
+	s.mtx.Lock()
 	s.bos = session.(*BleOicSesn)
+	s.mtx.Unlock()
 
 	if err := s.bos.Open(); err != nil {
 		return err
@@ -131,16 +142,16 @@ func (s *BleScanner) scan() (*scan.ScanPeer, error) {
 
 func (s *BleScanner) Start(cfg scan.Cfg) error {
 	if s.enabled {
-		return fmt.Errorf("Attempt to start BLE scanner twice")
+		return nmxutil.NewAlreadyError("Attempt to start BLE scanner twice")
 	}
 
 	// Wrap predicate with logic that discards duplicates.
 	innerPred := cfg.Ble.ScanPred
 	cfg.Ble.ScanPred = func(adv BleAdvReport) bool {
 		// Filter devices that have already been reported.
-		s.devMapMtx.Lock()
+		s.mtx.Lock()
 		seen := s.reportedDevs[adv.Sender] != ""
-		s.devMapMtx.Unlock()
+		s.mtx.Unlock()
 
 		if seen {
 			return false
@@ -159,9 +170,9 @@ func (s *BleScanner) Start(cfg scan.Cfg) error {
 			if err != nil {
 				log.Debugf("Scan error: %s", err.Error())
 			} else if p != nil {
-				s.devMapMtx.Lock()
+				s.mtx.Lock()
 				s.reportedDevs[p.PeerSpec.Ble] = p.HwId
-				s.devMapMtx.Unlock()
+				s.mtx.Unlock()
 
 				s.cfg.ScanCb(*p)
 			}
@@ -173,15 +184,23 @@ func (s *BleScanner) Start(cfg scan.Cfg) error {
 
 func (s *BleScanner) Stop() error {
 	if !s.enabled {
-		return fmt.Errorf("Attempt to stop BLE scanner twice")
+		return nmxutil.NewAlreadyError("Attempt to stop BLE scanner twice")
 	}
 	s.enabled = false
 
+	s.mtx.Lock()
 	discoverer := s.discoverer
+	bos := s.bos
+	s.mtx.Unlock()
+
 	if discoverer != nil {
 		discoverer.Stop()
 	}
-	s.bos.Close()
+
+	if bos != nil {
+		bos.Close()
+	}
+
 	return nil
 }
 
@@ -189,8 +208,8 @@ func (s *BleScanner) Stop() error {
 //                                  forgetten;
 //                              false if the specified device is unknown.
 func (s *BleScanner) ForgetDevice(hwId string) bool {
-	s.devMapMtx.Lock()
-	defer s.devMapMtx.Unlock()
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
 
 	for discoverer, h := range s.reportedDevs {
 		if h == hwId {
@@ -203,8 +222,8 @@ func (s *BleScanner) ForgetDevice(hwId string) bool {
 }
 
 func (s *BleScanner) ForgetAllDevices() {
-	s.devMapMtx.Lock()
-	defer s.devMapMtx.Unlock()
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
 
 	for discoverer, _ := range s.reportedDevs {
 		delete(s.reportedDevs, discoverer)
