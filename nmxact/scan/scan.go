@@ -28,6 +28,13 @@ type Cfg struct {
 type Scanner interface {
 	Start(cfg Cfg) error
 	Stop() error
+
+	// @return                      true if the specified device was found and
+	//                                  forgetten;
+	//                              false if the specified device is unknown.
+	ForgetDevice(hwId string) bool
+
+	ForgetAllDevices()
 }
 
 // Constructs a scan configuration suitable for discovery of OMP
