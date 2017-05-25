@@ -236,6 +236,8 @@ func (bx *BleXport) shutdown(restart bool, err error) {
 			err))
 	}
 
+	log.Debugf("Shutting down BLE transport")
+
 	bx.mtx.Lock()
 
 	var fullyStarted bool
@@ -245,13 +247,15 @@ func (bx *BleXport) shutdown(restart bool, err error) {
 	case BLE_XPORT_STATE_STARTED:
 		already = false
 		fullyStarted = true
-		bx.state = BLE_XPORT_STATE_STOPPING
 	case BLE_XPORT_STATE_STARTING:
 		already = false
 		fullyStarted = false
-		bx.state = BLE_XPORT_STATE_STOPPING
 	default:
 		already = true
+	}
+
+	if !already {
+		bx.state = BLE_XPORT_STATE_STOPPING
 	}
 
 	bx.mtx.Unlock()
@@ -261,28 +265,34 @@ func (bx *BleXport) shutdown(restart bool, err error) {
 		return
 	}
 
-	if bx.scanner != nil {
-		bx.scanner.Stop()
-	}
-
-	// Stop the unixchild instance (blehostd + socket).
-	if bx.client != nil {
-		bx.client.Stop()
-	}
-
 	// Indicate error to all clients who are waiting for the master resource.
+	log.Debugf("Aborting BLE master")
 	bx.master.Abort(err)
 
 	// Indicate an error to all of this transport's listeners.  This prevents
 	// them from blocking endlessly while awaiting a BLE message.
+	log.Debugf("Stopping BLE dispatcher")
 	bx.Bd.ErrorAll(err)
 
 	// Stop all of this transport's go routines.
+	log.Debugf("Waiting for BLE transport goroutines to complete")
 	for i := 0; i < bx.numStopListeners; i++ {
 		bx.stopChan <- struct{}{}
 	}
 
+	// Stop the unixchild instance (blehostd + socket).
+	if bx.client != nil {
+		log.Debugf("Stopping unixchild")
+		bx.client.Stop()
+	}
+
 	bx.setStateFrom(BLE_XPORT_STATE_STOPPING, BLE_XPORT_STATE_STOPPED)
+
+	synced, err := bx.querySyncStatus()
+	if err == nil && synced {
+		// Reset controller so that all outstanding connections terminate.
+		ResetXact(bx)
+	}
 
 	// Indicate that the shutdown is complete.  If restarts are enabled on this
 	// transport, this signals that the transport should be started again.
@@ -341,12 +351,6 @@ func (bx *BleXport) setStateFrom(from BleXportState, to BleXportState) bool {
 }
 
 func (bx *BleXport) Stop() error {
-	synced, err := bx.querySyncStatus()
-	if err == nil && synced {
-		// Reset controller so that all outstanding connections terminate.
-		ResetXact(bx)
-	}
-
 	bx.shutdown(false, nmxutil.NewXportError("xport stopped"))
 	return nil
 }

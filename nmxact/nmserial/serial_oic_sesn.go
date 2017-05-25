@@ -4,15 +4,18 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/runtimeco/go-coap"
+
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
+	"mynewt.apache.org/newtmgr/nmxact/oic"
 	"mynewt.apache.org/newtmgr/nmxact/omp"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
 type SerialOicSesn struct {
 	sx     *SerialXport
-	od     *omp.OmpDispatcher
+	rxer   *omp.Receiver
 	isOpen bool
 
 	// This mutex ensures:
@@ -23,116 +26,137 @@ type SerialOicSesn struct {
 
 func NewSerialOicSesn(sx *SerialXport) *SerialOicSesn {
 	return &SerialOicSesn{
-		sx: sx,
-		od: omp.NewOmpDispatcher(false),
+		sx:   sx,
+		rxer: omp.NewReceiver(false),
 	}
 }
 
-func (sps *SerialOicSesn) Open() error {
-	sps.m.Lock()
-	defer sps.m.Unlock()
+func (sos *SerialOicSesn) Open() error {
+	sos.m.Lock()
+	defer sos.m.Unlock()
 
-	if sps.isOpen {
+	if sos.isOpen {
 		return nmxutil.NewSesnAlreadyOpenError(
 			"Attempt to open an already-open serial session")
 	}
 
-	sps.isOpen = true
+	sos.isOpen = true
 	return nil
 }
 
-func (sps *SerialOicSesn) Close() error {
-	sps.m.Lock()
-	defer sps.m.Unlock()
+func (sos *SerialOicSesn) Close() error {
+	sos.m.Lock()
+	defer sos.m.Unlock()
 
-	if !sps.isOpen {
+	if !sos.isOpen {
 		return nmxutil.NewSesnClosedError(
 			"Attempt to close an unopened serial session")
 	}
-	sps.isOpen = false
+	sos.isOpen = false
 	return nil
 }
 
-func (sps *SerialOicSesn) IsOpen() bool {
-	sps.m.Lock()
-	defer sps.m.Unlock()
+func (sos *SerialOicSesn) IsOpen() bool {
+	sos.m.Lock()
+	defer sos.m.Unlock()
 
-	return sps.isOpen
+	return sos.isOpen
 }
 
-func (sps *SerialOicSesn) MtuIn() int {
+func (sos *SerialOicSesn) MtuIn() int {
 	return 1024 - omp.OMP_MSG_OVERHEAD
 }
 
-func (sps *SerialOicSesn) MtuOut() int {
+func (sos *SerialOicSesn) MtuOut() int {
 	// Mynewt commands have a default chunk buffer size of 512.  Account for
 	// base64 encoding.
 	return 512*3/4 - omp.OMP_MSG_OVERHEAD
 }
 
-func (sps *SerialOicSesn) AbortRx(seq uint8) error {
-	return sps.od.FakeRxError(seq, fmt.Errorf("Rx aborted"))
+func (sos *SerialOicSesn) AbortRx(seq uint8) error {
+	sos.rxer.ErrorAll(fmt.Errorf("Rx aborted"))
+	return nil
 }
 
-func (sps *SerialOicSesn) addNmpListener(seq uint8) (
-	*nmp.NmpListener, error) {
-
-	nl := nmp.NewNmpListener()
-	if err := sps.od.AddListener(seq, nl); err != nil {
-		return nil, err
-	}
-
-	return nl, nil
-}
-
-func (sps *SerialOicSesn) removeNmpListener(seq uint8) {
-	sps.od.RemoveListener(seq)
-}
-
-func (sps *SerialOicSesn) EncodeNmpMsg(m *nmp.NmpMsg) ([]byte, error) {
+func (sos *SerialOicSesn) EncodeNmpMsg(m *nmp.NmpMsg) ([]byte, error) {
 	return omp.EncodeOmpDgram(m)
 }
 
-func (sps *SerialOicSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
+func (sos *SerialOicSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 	nmp.NmpRsp, error) {
 
-	sps.m.Lock()
-	defer sps.m.Unlock()
+	sos.m.Lock()
+	defer sos.m.Unlock()
 
-	if !sps.isOpen {
+	if !sos.isOpen {
 		return nil, nmxutil.NewSesnClosedError(
 			"Attempt to transmit over closed serial session")
 	}
 
-	nl, err := sps.addNmpListener(m.Hdr.Seq)
+	nl, err := sos.rxer.AddNmpListener(m.Hdr.Seq)
 	if err != nil {
 		return nil, err
 	}
-	defer sps.removeNmpListener(m.Hdr.Seq)
+	defer sos.rxer.RemoveNmpListener(m.Hdr.Seq)
 
-	reqb, err := sps.EncodeNmpMsg(m)
+	reqb, err := sos.EncodeNmpMsg(m)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := sps.sx.Tx(reqb); err != nil {
+	if err := sos.sx.Tx(reqb); err != nil {
 		return nil, err
 	}
 
 	for {
-		rspb, err := sps.sx.Rx()
+		rspb, err := sos.sx.Rx()
 		if err != nil {
 			return nil, err
 		}
 
 		// Now wait for newtmgr response.
-		if sps.od.Dispatch(rspb) {
+		if sos.rxer.Rx(rspb) {
 			select {
 			case err := <-nl.ErrChan:
 				return nil, err
 			case rsp := <-nl.RspChan:
 				return rsp, nil
 			}
+		}
+	}
+}
+
+func (sos *SerialOicSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
+	[]byte, error) {
+
+	token := nmxutil.NextOicToken()
+
+	ol, err := sos.rxer.AddOicListener(token)
+	if err != nil {
+		return nil, err
+	}
+	defer sos.rxer.RemoveOicListener(token)
+
+	req, err := oic.EncodeGet(uri, token)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := sos.sx.Tx(req); err != nil {
+		return nil, err
+	}
+
+	for {
+		select {
+		case err := <-ol.ErrChan:
+			return nil, err
+		case rsp := <-ol.RspChan:
+			if rsp.Code != coap.Content {
+				return nil, fmt.Errorf("UNEXPECTED OIC ACK: %#v", rsp)
+			}
+			return rsp.Payload, nil
+		case <-ol.AfterTimeout(opt.Timeout):
+			return nil, nmxutil.NewRspTimeoutError("OIC timeout")
 		}
 	}
 }

@@ -3,18 +3,18 @@ package nmble
 import (
 	"encoding/hex"
 	"fmt"
-	"path"
-	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/runtimeco/go-coap"
 
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
+	"mynewt.apache.org/newtmgr/nmxact/oic"
 )
 
 var nextId uint32
@@ -54,7 +54,7 @@ type BleFsmListener struct {
 	abortChan chan struct{}
 }
 
-type BleRxNmpFn func(data []byte)
+type BleRxDataFn func(data []byte)
 type BleDisconnectFn func(dt BleFsmDisconnectType, peer BleDev, err error)
 
 type BleFsmParams struct {
@@ -65,7 +65,7 @@ type BleFsmParams struct {
 	SvcUuids     []BleUuid
 	ReqChrUuid   BleUuid
 	RspChrUuid   BleUuid
-	RxNmpCb      BleRxNmpFn
+	RxDataCb     BleRxDataFn
 	DisconnectCb BleDisconnectFn
 	EncryptWhen  BleEncryptWhen
 }
@@ -139,10 +139,7 @@ func (bf *BleFsm) setState(toState BleSesnState) {
 func (bf *BleFsm) addBleListener(name string, base BleMsgBase) (
 	*BleListener, error) {
 
-	_, file, line, _ := runtime.Caller(2)
-	file = path.Base(file)
-	nmxutil.ListenLog.Debugf("[%d] {add-ble-listener}    [%s:%d] %s: base=%+v",
-		bf.id, file, line, name, base)
+	nmxutil.LogAddBleListener(2, base, bf.id, name)
 
 	bl := NewBleListener()
 
@@ -177,10 +174,7 @@ func (bf *BleFsm) addBleSeqListener(name string, seq BleSeq) (
 }
 
 func (bf *BleFsm) removeBleListener(name string, base BleMsgBase) {
-	_, file, line, _ := runtime.Caller(2)
-	file = path.Base(file)
-	nmxutil.ListenLog.Debugf("[%d] {remove-ble-listener} [%s:%d] %s: base=%+v",
-		bf.id, file, line, name, base)
+	nmxutil.LogAddBleListener(2, base, bf.id, name)
 
 	bf.blsMtx.Lock()
 	defer bf.blsMtx.Unlock()
@@ -411,7 +405,7 @@ func (bf *BleFsm) nmpRspListen() error {
 					if bf.nmpRspChr != nil &&
 						msg.AttrHandle == bf.nmpRspChr.ValHandle {
 
-						bf.params.RxNmpCb(msg.Data.Bytes)
+						bf.params.RxDataCb(msg.Data.Bytes)
 					}
 				}
 			}
@@ -850,7 +844,36 @@ func (bf *BleFsm) TxNmp(payload []byte, nl *nmp.NmpListener,
 				payload[0], payload[4]+payload[5]<<8,
 				payload[7], payload[6], bf.params.PeerDev)
 
-			return nil, nmxutil.NewNmpTimeoutError(msg)
+			return nil, nmxutil.NewRspTimeoutError(msg)
+		}
+	}
+}
+
+func (bf *BleFsm) TxOic(payload []byte, ol *oic.OicListener,
+	timeout time.Duration) (*coap.Message, error) {
+
+	log.Debugf("Tx OIC request: %s", hex.Dump(payload))
+	if err := bf.writeCmd(payload); err != nil {
+		return nil, err
+	}
+
+	// Don't wait for a response if no listener was provided.
+	if ol == nil {
+		return nil, nil
+	}
+
+	for {
+		select {
+		case err := <-ol.ErrChan:
+			return nil, err
+		case m := <-ol.RspChan:
+			// Only accept messages if the session is still open.  This is
+			// to help prevent race conditions in client code.
+			if bf.IsOpen() {
+				return m, nil
+			}
+		case <-ol.AfterTimeout(timeout):
+			return nil, nmxutil.NewRspTimeoutError("OIC timeout")
 		}
 	}
 }

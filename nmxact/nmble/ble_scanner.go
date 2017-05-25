@@ -9,10 +9,8 @@ import (
 
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
-	"mynewt.apache.org/newtmgr/nmxact/omp"
 	"mynewt.apache.org/newtmgr/nmxact/scan"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
-	"mynewt.apache.org/newtmgr/nmxact/xact"
 )
 
 // Implements scan.Scanner.
@@ -23,7 +21,6 @@ type BleScanner struct {
 	discoverer   *Discoverer
 	reportedDevs map[BleDev]string
 	bos          *BleOicSesn
-	od           *omp.OmpDispatcher
 	enabled      bool
 
 	// Protects accesses to the reported devices map.
@@ -86,20 +83,22 @@ func (s *BleScanner) connect(dev BleDev) error {
 }
 
 func (s *BleScanner) readHwId() (string, error) {
-	c := xact.NewConfigReadCmd()
-	c.Name = "id/hwid"
-
-	res, err := c.Run(s.bos)
+	rsp, err := sesn.GetResource(s.bos, "/mynewt/hwid", sesn.NewTxOptions())
 	if err != nil {
 		return "", err
 	}
-	if res.Status() != 0 {
-		return "",
-			fmt.Errorf("failed to read hardware ID; NMP status=%discoverer",
-				res.Status())
+
+	m, err := nmxutil.DecodeCborMap(rsp)
+	if err != nil {
+		return "", err
 	}
-	cres := res.(*xact.ConfigReadResult)
-	return cres.Rsp.Val, nil
+
+	hwid, ok := m["hwid"].(string)
+	if !ok {
+		return "", fmt.Errorf("device reports invalid hwid: %#v", hwid)
+	}
+
+	return hwid, nil
 }
 
 func (s *BleScanner) scan() (*scan.ScanPeer, error) {
@@ -169,6 +168,10 @@ func (s *BleScanner) Start(cfg scan.Cfg) error {
 			p, err := s.scan()
 			if err != nil {
 				log.Debugf("Scan error: %s", err.Error())
+				if nmxutil.IsXport(err) {
+					// Transport stopped; abort the scan.
+					s.enabled = false
+				}
 			} else if p != nil {
 				s.mtx.Lock()
 				s.reportedDevs[p.PeerSpec.Ble] = p.HwId
@@ -189,8 +192,13 @@ func (s *BleScanner) Stop() error {
 	s.enabled = false
 
 	s.mtx.Lock()
+
 	discoverer := s.discoverer
+	s.discoverer = nil
+
 	bos := s.bos
+	s.bos = nil
+
 	s.mtx.Unlock()
 
 	if discoverer != nil {

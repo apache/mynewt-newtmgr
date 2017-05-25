@@ -4,27 +4,28 @@ import (
 	"fmt"
 )
 
-// Represents an NMP timeout; request sent, but no response received.
-type NmpTimeoutError struct {
+// Represents a application-layer timeout (e.g., NMP or CoAP); request sent,
+// but no response received.
+type RspTimeoutError struct {
 	Text string
 }
 
-func NewNmpTimeoutError(text string) *NmpTimeoutError {
-	return &NmpTimeoutError{
+func NewRspTimeoutError(text string) *RspTimeoutError {
+	return &RspTimeoutError{
 		Text: text,
 	}
 }
 
-func FmtNmpTimeoutError(format string, args ...interface{}) *NmpTimeoutError {
-	return NewNmpTimeoutError(fmt.Sprintf(format, args...))
+func FmtRspTimeoutError(format string, args ...interface{}) *RspTimeoutError {
+	return NewRspTimeoutError(fmt.Sprintf(format, args...))
 }
 
-func (e *NmpTimeoutError) Error() string {
+func (e *RspTimeoutError) Error() string {
 	return e.Text
 }
 
-func IsNmpTimeout(err error) bool {
-	_, ok := err.(*NmpTimeoutError)
+func IsRspTimeout(err error) bool {
+	_, ok := err.(*RspTimeoutError)
 	return ok
 }
 

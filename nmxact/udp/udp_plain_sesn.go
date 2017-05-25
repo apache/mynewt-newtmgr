@@ -105,10 +105,16 @@ func (ups *UdpPlainSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 			"NMP timeout; op=%d group=%d id=%d seq=%d peer=%#v",
 			b[0], b[4]+b[5]<<8, b[7], b[6], ups.addr)
 
-		return nil, nmxutil.NewNmpTimeoutError(msg)
+		return nil, nmxutil.NewRspTimeoutError(msg)
 	}
 }
 
 func (ups *UdpPlainSesn) AbortRx(seq uint8) error {
 	return ups.nd.FakeRxError(seq, fmt.Errorf("Rx aborted"))
+}
+
+func (ups *UdpPlainSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
+	[]byte, error) {
+
+	return nil, fmt.Errorf("UdpPlainSesn.GetResourceOnce() unsupported")
 }

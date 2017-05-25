@@ -2,23 +2,23 @@ package nmble
 
 import (
 	"fmt"
-	"path"
-	"runtime"
 	"sync"
 	"time"
+
+	"github.com/runtimeco/go-coap"
 
 	"mynewt.apache.org/newt/util"
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
+	"mynewt.apache.org/newtmgr/nmxact/oic"
 	"mynewt.apache.org/newtmgr/nmxact/omp"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
 type BleOicSesn struct {
 	bf           *BleFsm
-	nls          map[*nmp.NmpListener]struct{}
-	od           *omp.OmpDispatcher
+	rxer         *omp.Receiver
 	closeTimeout time.Duration
 	onCloseCb    sesn.OnCloseFn
 
@@ -28,8 +28,7 @@ type BleOicSesn struct {
 
 func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 	bos := &BleOicSesn{
-		nls:          map[*nmp.NmpListener]struct{}{},
-		od:           omp.NewOmpDispatcher(true),
+		rxer:         omp.NewReceiver(true),
 		closeTimeout: cfg.Ble.CloseTimeout,
 		onCloseCb:    cfg.OnCloseCb,
 	}
@@ -59,46 +58,13 @@ func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 		ReqChrUuid:  reqChrUuid,
 		RspChrUuid:  rspChrUuid,
 		EncryptWhen: cfg.Ble.EncryptWhen,
-		RxNmpCb:     func(d []byte) { bos.onRxNmp(d) },
+		RxDataCb:    func(d []byte) { bos.onRxNmp(d) },
 		DisconnectCb: func(dt BleFsmDisconnectType, p BleDev, e error) {
 			bos.onDisconnect(dt, p, e)
 		},
 	})
 
 	return bos
-}
-
-func (bos *BleOicSesn) addNmpListener(seq uint8) (*nmp.NmpListener, error) {
-	bos.mtx.Lock()
-	defer bos.mtx.Unlock()
-
-	_, file, line, _ := runtime.Caller(1)
-	file = path.Base(file)
-	nmxutil.ListenLog.Debugf("{add-nmp-listener} [%s:%d] seq=%+v",
-		file, line, seq)
-
-	nl := nmp.NewNmpListener()
-	if err := bos.od.AddListener(seq, nl); err != nil {
-		return nil, err
-	}
-
-	bos.nls[nl] = struct{}{}
-	return nl, nil
-}
-
-func (bos *BleOicSesn) removeNmpListener(seq uint8) {
-	bos.mtx.Lock()
-	defer bos.mtx.Unlock()
-
-	_, file, line, _ := runtime.Caller(1)
-	file = path.Base(file)
-	nmxutil.ListenLog.Debugf("{remove-nmp-listener} [%s:%d] seq=%+v",
-		file, line, seq)
-
-	listener := bos.od.RemoveListener(seq)
-	if listener != nil {
-		delete(bos.nls, listener)
-	}
 }
 
 // Returns true if a new channel was assigned.
@@ -147,7 +113,7 @@ func (bos *BleOicSesn) blockUntilClosed(timeout time.Duration) error {
 }
 
 func (bos *BleOicSesn) AbortRx(seq uint8) error {
-	return bos.od.FakeRxError(seq, fmt.Errorf("Rx aborted"))
+	return bos.rxer.FakeNmpError(seq, fmt.Errorf("Rx aborted"))
 }
 
 func (bos *BleOicSesn) Open() error {
@@ -179,18 +145,16 @@ func (bos *BleOicSesn) IsOpen() bool {
 }
 
 func (bos *BleOicSesn) onRxNmp(data []byte) {
-	bos.od.Dispatch(data)
+	bos.rxer.Rx(data)
 }
 
 // Called by the FSM when a blehostd disconnect event is received.
 func (bos *BleOicSesn) onDisconnect(dt BleFsmDisconnectType, peer BleDev,
 	err error) {
 
-	bos.mtx.Lock()
+	bos.rxer.ErrorAll(err)
 
-	for nl, _ := range bos.nls {
-		nl.ErrChan <- err
-	}
+	bos.mtx.Lock()
 
 	// If the session is being closed, unblock the close() call.
 	if bos.closeChan != nil {
@@ -219,11 +183,11 @@ func (bos *BleOicSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 			"Attempt to transmit over closed BLE session")
 	}
 
-	nl, err := bos.addNmpListener(m.Hdr.Seq)
+	nl, err := bos.rxer.AddNmpListener(m.Hdr.Seq)
 	if err != nil {
 		return nil, err
 	}
-	defer bos.removeNmpListener(m.Hdr.Seq)
+	defer bos.rxer.RemoveNmpListener(m.Hdr.Seq)
 
 	b, err := bos.EncodeNmpMsg(m)
 	if err != nil {
@@ -250,4 +214,32 @@ func (bos *BleOicSesn) MtuOut() int {
 
 func (bos *BleOicSesn) ConnInfo() (BleConnDesc, error) {
 	return bos.bf.connInfo()
+}
+
+func (bos *BleOicSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
+	[]byte, error) {
+
+	token := nmxutil.NextOicToken()
+
+	ol, err := bos.rxer.AddOicListener(token)
+	if err != nil {
+		return nil, err
+	}
+	defer bos.rxer.RemoveOicListener(token)
+
+	req, err := oic.EncodeGet(uri, token)
+	if err != nil {
+		return nil, err
+	}
+
+	rsp, err := bos.bf.TxOic(req, ol, opt.Timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	if rsp.Code != coap.Content {
+		return nil, fmt.Errorf("UNEXPECTED OIC ACK: %#v", rsp)
+	}
+
+	return rsp.Payload, nil
 }

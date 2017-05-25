@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package omp
+package oic
 
 import (
 	log "github.com/Sirupsen/logrus"

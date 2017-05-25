@@ -2,8 +2,6 @@ package nmble
 
 import (
 	"fmt"
-	"path"
-	"runtime"
 	"sync"
 	"time"
 
@@ -52,7 +50,7 @@ func NewBlePlainSesn(bx *BleXport, cfg sesn.SesnCfg) *BlePlainSesn {
 		ReqChrUuid:  chrUuid,
 		RspChrUuid:  chrUuid,
 		EncryptWhen: cfg.Ble.EncryptWhen,
-		RxNmpCb:     func(d []byte) { bps.onRxNmp(d) },
+		RxDataCb:    func(d []byte) { bps.onRxNmp(d) },
 		DisconnectCb: func(dt BleFsmDisconnectType, p BleDev, e error) {
 			bps.onDisconnect(dt, p, e)
 		},
@@ -65,10 +63,7 @@ func (bps *BlePlainSesn) addNmpListener(seq uint8) (*nmp.NmpListener, error) {
 	bps.mtx.Lock()
 	defer bps.mtx.Unlock()
 
-	_, file, line, _ := runtime.Caller(1)
-	file = path.Base(file)
-	nmxutil.ListenLog.Debugf("{add-nmp-listener} [%s:%d] seq=%+v",
-		file, line, seq)
+	nmxutil.LogAddNmpListener(2, seq)
 
 	nl := nmp.NewNmpListener()
 	if err := bps.nd.AddListener(seq, nl); err != nil {
@@ -83,10 +78,7 @@ func (bps *BlePlainSesn) removeNmpListener(seq uint8) {
 	bps.mtx.Lock()
 	defer bps.mtx.Unlock()
 
-	_, file, line, _ := runtime.Caller(1)
-	file = path.Base(file)
-	nmxutil.ListenLog.Debugf("{remove-nmp-listener} [%s:%d] seq=%+v",
-		file, line, seq)
+	nmxutil.LogRemoveNmpListener(2, seq)
 
 	listener := bps.nd.RemoveListener(seq)
 	if listener != nil {
@@ -221,4 +213,10 @@ func (bps *BlePlainSesn) MtuOut() int {
 
 func (bps *BlePlainSesn) ConnInfo() (BleConnDesc, error) {
 	return bps.bf.connInfo()
+}
+
+func (bps *BlePlainSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
+	[]byte, error) {
+
+	return nil, fmt.Errorf("BlePlainSesn.GetResourceOnce() unsupported")
 }

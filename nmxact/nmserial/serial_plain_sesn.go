@@ -135,3 +135,9 @@ func (sps *SerialPlainSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 		}
 	}
 }
+
+func (sps *SerialPlainSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
+	[]byte, error) {
+
+	return nil, fmt.Errorf("SerialPlainSesn.GetResourceOnce() unsupported")
+}

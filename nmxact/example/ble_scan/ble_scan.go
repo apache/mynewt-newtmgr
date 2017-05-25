@@ -106,7 +106,7 @@ func main() {
 	for {
 		sc := scan.BleOmpScanCfg(scanCb)
 		sc.Ble.ScanPred = func(adv bledefs.BleAdvReport) bool {
-			return adv.Name == "ccollins"
+			return adv.Name == "c5"
 		}
 		if err := scanner.Start(sc); err != nil {
 			fmt.Fprintf(os.Stderr, "error starting scan: %s\n", err.Error())
