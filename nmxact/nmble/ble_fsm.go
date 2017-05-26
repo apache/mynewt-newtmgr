@@ -57,23 +57,28 @@ type BleFsmListener struct {
 type BleRxDataFn func(data []byte)
 type BleDisconnectFn func(dt BleFsmDisconnectType, peer BleDev, err error)
 
+type BleFsmParamsCentral struct {
+	PeerDev   BleDev
+	ConnTries int
+}
+
 type BleFsmParams struct {
 	Bx           *BleXport
 	OwnAddrType  BleAddrType
-	PeerDev      BleDev
-	ConnTries    int
+	EncryptWhen  BleEncryptWhen
+	Central      BleFsmParamsCentral
 	SvcUuids     []BleUuid
 	ReqChrUuid   BleUuid
 	RspChrUuid   BleUuid
 	RxDataCb     BleRxDataFn
 	DisconnectCb BleDisconnectFn
-	EncryptWhen  BleEncryptWhen
 }
 
 type BleFsm struct {
 	params BleFsmParams
 
 	connHandle uint16
+	peerDev    BleDev
 	nmpSvc     *BleSvc
 	nmpReqChr  *BleChr
 	nmpRspChr  *BleChr
@@ -112,7 +117,7 @@ func NewBleFsm(p BleFsmParams) *BleFsm {
 func (bf *BleFsm) disconnectError(reason int) error {
 	str := fmt.Sprintf("BLE peer disconnected; "+
 		"reason=\"%s\" (%d) peer=%s handle=%d",
-		ErrCodeToString(reason), reason, bf.params.PeerDev.String(),
+		ErrCodeToString(reason), reason, bf.peerDev.String(),
 		bf.connHandle)
 	return nmxutil.NewBleSesnDisconnectError(reason, str)
 }
@@ -271,7 +276,7 @@ func (bf *BleFsm) processErr(err error) {
 	bf.wg.Wait()
 
 	bf.errFunnel.Reset()
-	bf.params.DisconnectCb(dt, bf.params.PeerDev, err)
+	bf.params.DisconnectCb(dt, bf.peerDev, err)
 }
 
 func (bf *BleFsm) connectListen(seq BleSeq) error {
@@ -299,7 +304,7 @@ func (bf *BleFsm) connectListen(seq BleSeq) error {
 						str := fmt.Sprintf("BLE connection attempt failed; "+
 							"status=%s (%d) peer=%s",
 							ErrCodeToString(msg.Status), msg.Status,
-							bf.params.PeerDev.String())
+							bf.peerDev.String())
 						log.Debugf(str)
 						err := nmxutil.NewBleHostError(msg.Status, str)
 						bf.connChan <- err
@@ -324,7 +329,7 @@ func (bf *BleFsm) connectListen(seq BleSeq) error {
 						str := fmt.Sprintf("BLE connection attempt failed; "+
 							"status=%s (%d) peer=%s",
 							ErrCodeToString(msg.Status), msg.Status,
-							bf.params.PeerDev.String())
+							bf.peerDev.String())
 						log.Debugf(str)
 						err := nmxutil.NewBleHostError(msg.Status, str)
 						bf.connChan <- err
@@ -415,10 +420,12 @@ func (bf *BleFsm) nmpRspListen() error {
 }
 
 func (bf *BleFsm) connect() error {
+	bf.peerDev = bf.params.Central.PeerDev
+
 	r := NewBleConnectReq()
 	r.OwnAddrType = bf.params.OwnAddrType
-	r.PeerAddrType = bf.params.PeerDev.AddrType
-	r.PeerAddr = bf.params.PeerDev.Addr
+	r.PeerAddrType = bf.peerDev.AddrType
+	r.PeerAddr = bf.peerDev.Addr
 
 	// Initiating a connection requires dedicated master privileges.
 	if err := bf.params.Bx.AcquireMaster(bf); err != nil {
@@ -684,8 +691,8 @@ func (bf *BleFsm) shouldEncrypt() bool {
 		return true
 
 	case BLE_ENCRYPT_PRIV_ONLY:
-		return bf.params.PeerDev.AddrType == BLE_ADDR_TYPE_RPA_PUB ||
-			bf.params.PeerDev.AddrType == BLE_ADDR_TYPE_RPA_RND
+		return bf.peerDev.AddrType == BLE_ADDR_TYPE_RPA_PUB ||
+			bf.peerDev.AddrType == BLE_ADDR_TYPE_RPA_RND
 
 	default:
 		panic(fmt.Sprintf("Invalid BleEncryptWhen value: %d",
@@ -775,7 +782,7 @@ func (bf *BleFsm) startOnce() (bool, error) {
 func (bf *BleFsm) Start() error {
 	var err error
 
-	for i := 0; i < bf.params.ConnTries; i++ {
+	for i := 0; i < bf.params.Central.ConnTries; i++ {
 		var retry bool
 		retry, err = bf.startOnce()
 		if !retry {
@@ -842,7 +849,7 @@ func (bf *BleFsm) TxNmp(payload []byte, nl *nmp.NmpListener,
 			msg := fmt.Sprintf(
 				"NMP timeout; op=%d group=%d id=%d seq=%d peer=%#v",
 				payload[0], payload[4]+payload[5]<<8,
-				payload[7], payload[6], bf.params.PeerDev)
+				payload[7], payload[6], bf.peerDev)
 
 			return nil, nmxutil.NewRspTimeoutError(msg)
 		}

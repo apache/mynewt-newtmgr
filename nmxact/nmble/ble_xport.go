@@ -93,6 +93,7 @@ type BleXport struct {
 	readyChan         chan error
 	numReadyListeners int
 	master            nmxutil.SingleResource
+	slave             nmxutil.SingleResource
 	randAddr          *BleAddr
 	mtx               sync.Mutex
 	scanner           *BleScanner
@@ -106,6 +107,7 @@ func NewBleXport(cfg XportCfg) (*BleXport, error) {
 		shutdownChan: make(chan bool),
 		readyChan:    make(chan error),
 		master:       nmxutil.NewSingleResource(),
+		slave:        nmxutil.NewSingleResource(),
 		cfg:          cfg,
 	}
 
@@ -564,4 +566,16 @@ func (bx *BleXport) ReleaseMaster() {
 
 func (bx *BleXport) StopWaitingForMaster(token interface{}, err error) {
 	bx.master.StopWaiting(token, err)
+}
+
+func (bx *BleXport) AcquireSlave(token interface{}) error {
+	return bx.slave.Acquire(token)
+}
+
+func (bx *BleXport) ReleaseSlave() {
+	bx.slave.Release()
+}
+
+func (bx *BleXport) StopWaitingForSlave(token interface{}, err error) {
+	bx.slave.StopWaiting(token, err)
 }

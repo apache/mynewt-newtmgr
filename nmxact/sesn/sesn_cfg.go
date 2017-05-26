@@ -20,12 +20,36 @@ type PeerSpec struct {
 	Udp string
 }
 
+type SesnCfgBleCentral struct {
+	ConnTries int
+	// XXX: Missing fields.
+}
+
+type SesnCfgBlePeriph struct {
+	Duration      time.Duration
+	ConnMode      bledefs.BleAdvConnMode
+	DiscMode      bledefs.BleAdvDiscMode
+	ItvlMin       uint16
+	ItvlMax       uint16
+	ChannelMap    uint8
+	FilterPolicy  bledefs.BleAdvFilterPolicy
+	HighDutyCycle bool
+	AdvFields     bledefs.BleAdvFields
+	RspFields     bledefs.BleAdvFields
+}
+
 type SesnCfgBle struct {
+	// General configuration.
+	IsCentral    bool
 	OwnAddrType  bledefs.BleAddrType
-	ConnTries    int
+	EncryptWhen  bledefs.BleEncryptWhen
 	CloseTimeout time.Duration
 
-	EncryptWhen bledefs.BleEncryptWhen
+	// Central configuration.
+	Central SesnCfgBleCentral
+
+	// Peripheral configuration.
+	Periph SesnCfgBlePeriph
 }
 
 type SesnCfg struct {
@@ -44,9 +68,14 @@ func NewSesnCfg() SesnCfg {
 		// future, there will need to be some global default, or something that
 		// gets read from blehostd.
 		Ble: SesnCfgBle{
+			IsCentral:    true,
 			OwnAddrType:  bledefs.BLE_ADDR_TYPE_RANDOM,
-			ConnTries:    3,
 			CloseTimeout: 30 * time.Second,
+
+			Central: SesnCfgBleCentral{
+				ConnTries: 3,
+			},
+			Periph: SesnCfgBlePeriph{},
 		},
 	}
 }

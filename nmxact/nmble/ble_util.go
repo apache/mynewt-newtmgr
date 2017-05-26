@@ -79,32 +79,31 @@ func BleAdvReportFromScanEvt(e *BleScanEvt) BleAdvReport {
 			Addr:     e.Addr,
 		},
 		Rssi: e.Rssi,
-		Data: e.Data.Bytes,
 
-		Flags:               e.DataFlags,
-		Uuids16:             e.DataUuids16,
-		Uuids16IsComplete:   e.DataUuids16IsComplete,
-		Uuids32:             e.DataUuids32,
-		Uuids32IsComplete:   e.DataUuids32IsComplete,
-		Uuids128:            e.DataUuids128,
-		Uuids128IsComplete:  e.DataUuids128IsComplete,
-		Name:                e.DataName,
-		NameIsComplete:      e.DataNameIsComplete,
-		TxPwrLvl:            e.DataTxPwrLvl,
-		TxPwrLvlIsPresent:   e.DataTxPwrLvlIsPresent,
-		SlaveItvlMin:        e.DataSlaveItvlMin,
-		SlaveItvlMax:        e.DataSlaveItvlMax,
-		SlaveItvlIsPresent:  e.DataSlaveItvlIsPresent,
-		SvcDataUuid16:       e.DataSvcDataUuid16.Bytes,
-		PublicTgtAddrs:      e.DataPublicTgtAddrs,
-		Appearance:          e.DataAppearance,
-		AppearanceIsPresent: e.DataAppearanceIsPresent,
-		AdvItvl:             e.DataAdvItvl,
-		AdvItvlIsPresent:    e.DataAdvItvlIsPresent,
-		SvcDataUuid32:       e.DataSvcDataUuid32.Bytes,
-		SvcDataUuid128:      e.DataSvcDataUuid128.Bytes,
-		Uri:                 e.DataUri.Bytes,
-		MfgData:             e.DataMfgData.Bytes,
+		Fields: BleAdvFields{
+			Data: e.Data.Bytes,
+
+			Flags:              e.DataFlags,
+			Uuids16:            e.DataUuids16,
+			Uuids16IsComplete:  e.DataUuids16IsComplete,
+			Uuids32:            e.DataUuids32,
+			Uuids32IsComplete:  e.DataUuids32IsComplete,
+			Uuids128:           e.DataUuids128,
+			Uuids128IsComplete: e.DataUuids128IsComplete,
+			Name:               e.DataName,
+			NameIsComplete:     e.DataNameIsComplete,
+			TxPwrLvl:           e.DataTxPwrLvl,
+			SlaveItvlMin:       e.DataSlaveItvlMin,
+			SlaveItvlMax:       e.DataSlaveItvlMax,
+			SvcDataUuid16:      e.DataSvcDataUuid16.Bytes,
+			PublicTgtAddrs:     e.DataPublicTgtAddrs,
+			Appearance:         e.DataAppearance,
+			AdvItvl:            e.DataAdvItvl,
+			SvcDataUuid32:      e.DataSvcDataUuid32.Bytes,
+			SvcDataUuid128:     e.DataSvcDataUuid128.Bytes,
+			Uri:                e.DataUri,
+			MfgData:            e.DataMfgData.Bytes,
+		},
 	}
 }
 
@@ -254,6 +253,46 @@ func NewBleSecurityInitiateReq() *BleSecurityInitiateReq {
 	}
 }
 
+func NewBleAdvFieldsReq() *BleAdvFieldsReq {
+	return &BleAdvFieldsReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_ADV_FIELDS,
+		Seq:  NextSeq(),
+	}
+}
+
+func NewBleAdvSetDataReq() *BleAdvSetDataReq {
+	return &BleAdvSetDataReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_ADV_SET_DATA,
+		Seq:  NextSeq(),
+	}
+}
+
+func NewBleAdvRspSetDataReq() *BleAdvRspSetDataReq {
+	return &BleAdvRspSetDataReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_ADV_RSP_SET_DATA,
+		Seq:  NextSeq(),
+	}
+}
+
+func NewBleAdvStartReq() *BleAdvStartReq {
+	return &BleAdvStartReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_ADV_START,
+		Seq:  NextSeq(),
+	}
+}
+
+func NewBleAdvStopReq() *BleAdvStopReq {
+	return &BleAdvStopReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_ADV_STOP,
+		Seq:  NextSeq(),
+	}
+}
+
 func ConnFindXact(x *BleXport, connHandle uint16) (BleConnDesc, error) {
 	r := NewBleConnFindReq()
 	r.ConnHandle = connHandle
@@ -358,7 +397,7 @@ func DiscoverDeviceWithName(
 	name string) (*BleDev, error) {
 
 	advPred := func(r BleAdvReport) bool {
-		return r.Name == name
+		return r.Fields.Name != nil && *r.Fields.Name == name
 	}
 
 	return DiscoverDevice(bx, ownAddrType, timeout, advPred)

@@ -33,9 +33,9 @@ func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 		onCloseCb:    cfg.OnCloseCb,
 	}
 
-	iotUuid, _ := ParseUuid(IotivitySvcUuid)
+	iotUuid, err := ParseUuid(IotivitySvcUuid)
 	svcUuids := []BleUuid{
-		{Uuid16: OmpSvcUuid},
+		{U16: OmpSvcUuid},
 		iotUuid,
 	}
 
@@ -52,8 +52,10 @@ func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 	bos.bf = NewBleFsm(BleFsmParams{
 		Bx:          bx,
 		OwnAddrType: cfg.Ble.OwnAddrType,
-		PeerDev:     cfg.PeerSpec.Ble,
-		ConnTries:   cfg.Ble.ConnTries,
+		Central: BleFsmParamsCentral{
+			PeerDev:   cfg.PeerSpec.Ble,
+			ConnTries: cfg.Ble.Central.ConnTries,
+		},
 		SvcUuids:    svcUuids,
 		ReqChrUuid:  reqChrUuid,
 		RspChrUuid:  rspChrUuid,

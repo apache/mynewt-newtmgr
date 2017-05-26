@@ -2,16 +2,20 @@ package nmxutil
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"os"
 	"path"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/ugorji/go/codec"
 
 	log "github.com/Sirupsen/logrus"
 )
+
+const DURATION_FOREVER time.Duration = math.MaxInt64
 
 var nextNmpSeq uint8
 var nmpSeqBeenRead bool

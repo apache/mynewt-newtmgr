@@ -113,7 +113,7 @@ func FillSesnCfg(bx *nmble.BleXport, bc *BleConfig, sc *sesn.SesnCfg) error {
 
 	if bc.PeerName != "" {
 		scanPred := func(r bledefs.BleAdvReport) bool {
-			return r.Name == bc.PeerName
+			return r.Fields.Name != nil && *r.Fields.Name == bc.PeerName
 		}
 		dev, err := nmble.DiscoverDevice(
 			bx, bc.OwnAddrType, 15*time.Second, scanPred)

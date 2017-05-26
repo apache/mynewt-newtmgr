@@ -44,8 +44,10 @@ func NewBlePlainSesn(bx *BleXport, cfg sesn.SesnCfg) *BlePlainSesn {
 	bps.bf = NewBleFsm(BleFsmParams{
 		Bx:          bx,
 		OwnAddrType: cfg.Ble.OwnAddrType,
-		PeerDev:     cfg.PeerSpec.Ble,
-		ConnTries:   cfg.Ble.ConnTries,
+		Central: BleFsmParamsCentral{
+			PeerDev:   cfg.PeerSpec.Ble,
+			ConnTries: cfg.Ble.Central.ConnTries,
+		},
 		SvcUuids:    []BleUuid{svcUuid},
 		ReqChrUuid:  chrUuid,
 		RspChrUuid:  chrUuid,

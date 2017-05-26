@@ -42,22 +42,24 @@ type Scanner interface {
 func BleOmpScanCfg(ScanCb ScanFn) Cfg {
 	sc := sesn.NewSesnCfg()
 	sc.MgmtProto = sesn.MGMT_PROTO_OMP
-	sc.Ble.OwnAddrType = bledefs.BLE_ADDR_TYPE_RANDOM
+	sc.Ble.IsCentral = true
 	sc.Ble.EncryptWhen = bledefs.BLE_ENCRYPT_PRIV_ONLY
+	sc.Ble.OwnAddrType = bledefs.BLE_ADDR_TYPE_RANDOM
 
 	cfg := Cfg{
 		ScanCb:  ScanCb,
 		SesnCfg: sc,
 		Ble: CfgBle{
 			ScanPred: func(adv bledefs.BleAdvReport) bool {
-				for _, u := range adv.Uuids16 {
+				for _, u := range adv.Fields.Uuids16 {
 					if u == bledefs.OmpSvcUuid {
 						return true
 					}
 				}
 
 				iotUuid, _ := bledefs.ParseUuid(bledefs.IotivitySvcUuid)
-				for _, u := range adv.Uuids128 {
+				for _, u128 := range adv.Fields.Uuids128 {
+					u := bledefs.BleUuid{U128: u128}
 					if bledefs.CompareUuids(u, iotUuid) == 0 {
 						return true
 					}

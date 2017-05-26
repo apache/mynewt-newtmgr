@@ -207,12 +207,16 @@ var HciErrCodeStringMap = map[int]string{
 	ERR_CODE_HCI_COARSE_CLK_ADJ:      "coarse clk adj",
 }
 
+// These values never get transmitted or received, so their precise values
+// don't matter.  We specify them explicitly here to match the blehostd source.
 const (
 	MSG_OP_REQ MsgOp = 0
 	MSG_OP_RSP       = 1
 	MSG_OP_EVT       = 2
 )
 
+// These values never get transmitted or received, so their precise values
+// don't matter.  We specify them explicitly here to match the blehostd source.
 const (
 	MSG_TYPE_ERR               MsgType = 1
 	MSG_TYPE_SYNC                      = 2
@@ -234,6 +238,11 @@ const (
 	MSG_TYPE_SECURITY_INITIATE         = 18
 	MSG_TYPE_CONN_FIND                 = 19
 	MSG_TYPE_RESET                     = 20
+	MSG_TYPE_ADV_START                 = 21
+	MSG_TYPE_ADV_STOP                  = 22
+	MSG_TYPE_ADV_SET_DATA              = 23
+	MSG_TYPE_ADV_RSP_SET_DATA          = 24
+	MSG_TYPE_ADV_FIELDS                = 25
 
 	MSG_TYPE_SYNC_EVT       = 2049
 	MSG_TYPE_CONNECT_EVT    = 2050
@@ -273,6 +282,11 @@ var MsgTypeStringMap = map[MsgType]string{
 	MSG_TYPE_SECURITY_INITIATE: "security_initiate",
 	MSG_TYPE_CONN_FIND:         "conn_find",
 	MSG_TYPE_RESET:             "reset",
+	MSG_TYPE_ADV_START:         "adv_start",
+	MSG_TYPE_ADV_STOP:          "adv_stop",
+	MSG_TYPE_ADV_SET_DATA:      "adv_set_data",
+	MSG_TYPE_ADV_RSP_SET_DATA:  "adv_rsp_set_data",
+	MSG_TYPE_ADV_FIELDS:        "adv_fields",
 
 	MSG_TYPE_SYNC_EVT:       "sync_evt",
 	MSG_TYPE_CONNECT_EVT:    "connect_evt",
@@ -674,30 +688,26 @@ type BleScanEvt struct {
 	Data      BleBytes        `json:"data"`
 
 	// Optional
-	DataFlags               uint8     `json:"data_flags"`
-	DataUuids16             []uint16  `json:"data_uuids16"`
-	DataUuids16IsComplete   bool      `json:"data_uuids16_is_complete"`
-	DataUuids32             []uint32  `json:"data_uuids32"`
-	DataUuids32IsComplete   bool      `json:"data_uuids32_is_complete"`
-	DataUuids128            []BleUuid `json:"data_uuids128"`
-	DataUuids128IsComplete  bool      `json:"data_uuids128_is_complete"`
-	DataName                string    `json:"data_name"`
-	DataNameIsComplete      bool      `json:"data_name_is_complete"`
-	DataTxPwrLvl            int8      `json:"data_tx_pwr_lvl"`
-	DataTxPwrLvlIsPresent   bool
-	DataSlaveItvlMin        uint16 `json:"data_slave_itvl_min"`
-	DataSlaveItvlMax        uint16 `json:"data_slave_itvl_max"`
-	DataSlaveItvlIsPresent  bool
-	DataSvcDataUuid16       BleBytes  `json:"data_svc_data_uuid16"`
-	DataPublicTgtAddrs      []BleAddr `json:"data_public_tgt_addrs"`
-	DataAppearance          uint16    `json:"data_appearance"`
-	DataAppearanceIsPresent bool
-	DataAdvItvl             uint16 `json:"data_adv_itvl"`
-	DataAdvItvlIsPresent    bool
-	DataSvcDataUuid32       BleBytes `json:"data_svc_data_uuid32"`
-	DataSvcDataUuid128      BleBytes `json:"data_svc_data_uuid128"`
-	DataUri                 BleBytes `json:"data_uri"`
-	DataMfgData             BleBytes `json:"data_mfg_data"`
+	DataFlags              *uint8       `json:"data_flags"`
+	DataUuids16            []BleUuid16  `json:"data_uuids16"`
+	DataUuids16IsComplete  bool         `json:"data_uuids16_is_complete"`
+	DataUuids32            []uint32     `json:"data_uuids32"`
+	DataUuids32IsComplete  bool         `json:"data_uuids32_is_complete"`
+	DataUuids128           []BleUuid128 `json:"data_uuids128"`
+	DataUuids128IsComplete bool         `json:"data_uuids128_is_complete"`
+	DataName               *string      `json:"data_name"`
+	DataNameIsComplete     bool         `json:"data_name_is_complete"`
+	DataTxPwrLvl           *int8        `json:"data_tx_pwr_lvl"`
+	DataSlaveItvlMin       *uint16      `json:"data_slave_itvl_min"`
+	DataSlaveItvlMax       *uint16      `json:"data_slave_itvl_max"`
+	DataSvcDataUuid16      BleBytes     `json:"data_svc_data_uuid16"`
+	DataPublicTgtAddrs     []BleAddr    `json:"data_public_tgt_addrs"`
+	DataAppearance         *uint16      `json:"data_appearance"`
+	DataAdvItvl            *uint16      `json:"data_adv_itvl"`
+	DataSvcDataUuid32      BleBytes     `json:"data_svc_data_uuid32"`
+	DataSvcDataUuid128     BleBytes     `json:"data_svc_data_uuid128"`
+	DataUri                *string      `json:"data_uri"`
+	DataMfgData            BleBytes     `json:"data_mfg_data"`
 }
 
 type BleScanTmoEvt struct {
@@ -819,6 +829,162 @@ type BleEncChangeEvt struct {
 	// Mandatory
 	Status     int    `json:"status"`
 	ConnHandle uint16 `json:"conn_handle"`
+}
+
+type BleAdvStartReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	OwnAddrType   BleAddrType        `json:"own_addr_type"`
+	DurationMs    int                `json:"duration_ms"`
+	ConnMode      BleAdvConnMode     `json:"conn_mode"`
+	DiscMode      BleAdvDiscMode     `json:"disc_mode"`
+	ItvlMin       uint16             `json:"itvl_min"`
+	ItvlMax       uint16             `json:"itvl_max"`
+	ChannelMap    uint8              `json:"channel_map"`
+	FilterPolicy  BleAdvFilterPolicy `json:"filter_policy"`
+	HighDutyCycle bool               `json:"high_duty_cycle"`
+
+	// Only required for direct advertisements
+	PeerAddr *BleAddr `json:"peer_addr"`
+}
+
+type BleAdvStartRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status int `json:"status"`
+}
+
+type BleAdvStopReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+}
+
+type BleAdvStopRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status int `json:"status"`
+}
+
+type BleAdvSetDataReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Data []byte `json:"data"`
+}
+
+type BleAdvSetDataRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status int `json:"status"`
+}
+
+type BleAdvRspSetDataReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Data []byte `json:"data"`
+}
+
+type BleAdvRspSetDataRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status int `json:"status"`
+}
+
+type BleAdvFieldsReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Optional
+	Flags *uint8 `json:"flags,omitempty"`
+
+	/*** 0x02,0x03 - 16-bit service class UUIDs. */
+	Uuids16           []BleUuid16 `json:"uuids16"`
+	Uuids16IsComplete bool        `json:"uuids16_is_complete"`
+
+	/*** 0x04,0x05 - 32-bit service class UUIDs. */
+	Uuids32           []uint32 `json:"uuids32"`
+	Uuids32IsComplete bool     `json:"uuids32_is_complete"`
+
+	/*** 0x06,0x07 - 128-bit service class UUIDs. */
+	Uuids128           []BleUuid128 `json:"uuids128"`
+	Uuids128IsComplete bool         `json:"uuids128_is_complete"`
+
+	/*** 0x08,0x09 - Local name. */
+	Name           *string `json:"name,omitempty"`
+	NameIsComplete bool    `json:"name_is_complete"`
+
+	/*** 0x0a - Tx power level. */
+	TxPwrLvl *int8 `json:"tx_pwr_lvl"`
+
+	/*** 0x0d - Slave connection interval range. */
+	SlaveItvlMin *uint16 `json:"slave_itvl_min"`
+	SlaveItvlMax *uint16 `json:"slave_itvl_max"`
+
+	/*** 0x16 - Service data - 16-bit UUID. */
+	SvcDataUuid16 []byte `json:"svc_data_uuid16"`
+
+	/*** 0x17 - Public target address. */
+	PublicTgtAddrs []BleAddr `json:"public_tgt_addrs"`
+
+	/*** 0x19 - Appearance. */
+	Appearance *uint16 `json:"appearance"`
+
+	/*** 0x1a - Advertising interval. */
+	AdvItvl *uint16 `json:"adv_itvl"`
+
+	/*** 0x20 - Service data - 32-bit UUID. */
+	SvcDataUuid32 []byte `json:"svc_data_uuid32"`
+
+	/*** 0x21 - Service data - 128-bit UUID. */
+	SvcDataUuid128 []byte `json:"svc_data_uuid128"`
+
+	/*** 0x24 - URI. */
+	Uri *string `json:"uri,omitempty"`
+
+	/*** 0xff - Manufacturer specific data. */
+	MfgData []byte `json:"mfg_data"`
+}
+
+type BleAdvFieldsRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status int    `json:"status"`
+	Data   []byte `json:"data"`
 }
 
 func ErrCodeToString(e int) string {

@@ -477,6 +477,189 @@ func encInitiate(x *BleXport, bl *BleListener, encChan chan error,
 	}
 }
 
+// Blocking
+func advStart(x *BleXport, bl *BleListener, r *BleAdvStartReq) error {
+	const rspType = MSG_TYPE_ADV_START
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+
+	if err := x.Tx(j); err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return err
+
+		case bm := <-bl.BleChan:
+			switch msg := bm.(type) {
+			case *BleAdvStartRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return StatusError(MSG_OP_RSP, rspType, msg.Status)
+				}
+				return nil
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return BhdTimeoutError(rspType, r.Seq)
+		}
+	}
+}
+
+// Blocking
+func advStop(x *BleXport, bl *BleListener, r *BleAdvStopReq) error {
+	const rspType = MSG_TYPE_ADV_STOP
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+
+	if err := x.Tx(j); err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return err
+
+		case bm := <-bl.BleChan:
+			switch msg := bm.(type) {
+			case *BleAdvStopRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return StatusError(MSG_OP_RSP, rspType, msg.Status)
+				}
+				return nil
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return BhdTimeoutError(rspType, r.Seq)
+		}
+	}
+}
+
+// Blocking
+func advSetData(x *BleXport, bl *BleListener, r *BleAdvSetDataReq) error {
+	const rspType = MSG_TYPE_ADV_SET_DATA
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+
+	if err := x.Tx(j); err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return err
+
+		case bm := <-bl.BleChan:
+			switch msg := bm.(type) {
+			case *BleAdvSetDataRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return StatusError(MSG_OP_RSP, rspType, msg.Status)
+				}
+				return nil
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return BhdTimeoutError(rspType, r.Seq)
+		}
+	}
+}
+
+// Blocking
+func advRspSetData(x *BleXport, bl *BleListener, r *BleAdvRspSetDataReq) error {
+	const rspType = MSG_TYPE_ADV_RSP_SET_DATA
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+
+	if err := x.Tx(j); err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return err
+
+		case bm := <-bl.BleChan:
+			switch msg := bm.(type) {
+			case *BleAdvRspSetDataRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return StatusError(MSG_OP_RSP, rspType, msg.Status)
+				}
+				return nil
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return BhdTimeoutError(rspType, r.Seq)
+		}
+	}
+}
+
+// Blocking
+func advFields(x *BleXport, bl *BleListener, r *BleAdvFieldsReq) (
+	[]byte, error) {
+
+	const rspType = MSG_TYPE_ADV_FIELDS
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := x.Tx(j); err != nil {
+		return nil, err
+	}
+
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return nil, err
+
+		case bm := <-bl.BleChan:
+			switch msg := bm.(type) {
+			case *BleAdvFieldsRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return nil, StatusError(MSG_OP_RSP, rspType, msg.Status)
+				}
+
+				return msg.Data, nil
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return nil, BhdTimeoutError(rspType, r.Seq)
+		}
+	}
+}
+
 // Asks the controller to generate a random address.  This is done when the
 // transport is starting up, and therefore does not require the transport to be
 // synced.  Only the transport should call this function.

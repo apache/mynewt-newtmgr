@@ -154,24 +154,28 @@ func (bd *BleDev) String() string {
 		bd.Addr.String())
 }
 
-type BleUuid struct {
-	// Set to 0 if the 128-bit UUID should be used.
-	Uuid16 uint16
+type BleUuid16 uint16
 
-	Uuid128 [16]byte
+func (bu16 *BleUuid16) String() string {
+	return fmt.Sprintf("0x%04x", *bu16)
 }
 
-func (bu *BleUuid) String() string {
-	if bu.Uuid16 != 0 {
-		return fmt.Sprintf("0x%04x", bu.Uuid16)
+func ParseUuid16(s string) (BleUuid16, error) {
+	val, err := strconv.ParseUint(s, 0, 16)
+	if err != nil {
+		return BleUuid16(0), fmt.Errorf("Invalid UUID: %s", s)
 	}
 
+	return BleUuid16(val), nil
+}
+
+type BleUuid128 [16]byte
+
+func (bu128 *BleUuid128) String() string {
 	var buf bytes.Buffer
-	buf.Grow(len(bu.Uuid128)*2 + 3)
+	buf.Grow(len(bu128)*2 + 3)
 
-	// XXX: For now, only support 128-bit UUIDs.
-
-	for i, b := range bu.Uuid128 {
+	for i, b := range bu128 {
 		switch i {
 		case 4, 6, 8, 10:
 			buf.WriteString("-")
@@ -183,66 +187,48 @@ func (bu *BleUuid) String() string {
 	return buf.String()
 }
 
-func ParseUuid(uuidStr string) (BleUuid, error) {
-	bu := BleUuid{}
+func ParseUuid128(s string) (BleUuid128, error) {
+	var bu128 BleUuid128
 
-	// First, try to parse as a 16-bit UUID.
-	val, err := strconv.ParseUint(uuidStr, 0, 16)
-	if err == nil {
-		bu.Uuid16 = uint16(val)
-		return bu, nil
-	}
-
-	// Try to parse as a 128-bit UUID.
-	if len(uuidStr) != 36 {
-		return bu, fmt.Errorf("Invalid UUID: %s", uuidStr)
+	if len(s) != 36 {
+		return bu128, fmt.Errorf("Invalid UUID: %s", s)
 	}
 
 	boff := 0
 	for i := 0; i < 36; {
 		switch i {
 		case 8, 13, 18, 23:
-			if uuidStr[i] != '-' {
-				return bu, fmt.Errorf("Invalid UUID: %s", uuidStr)
+			if s[i] != '-' {
+				return bu128, fmt.Errorf("Invalid UUID: %s", s)
 			}
 			i++
 
 		default:
-			u64, err := strconv.ParseUint(uuidStr[i:i+2], 16, 8)
+			u64, err := strconv.ParseUint(s[i:i+2], 16, 8)
 			if err != nil {
-				return bu, fmt.Errorf("Invalid UUID: %s", uuidStr)
+				return bu128, fmt.Errorf("Invalid UUID: %s", s)
 			}
-			bu.Uuid128[boff] = byte(u64)
+			bu128[boff] = byte(u64)
 			i += 2
 			boff++
 		}
 	}
 
-	return bu, nil
+	return bu128, nil
 }
 
-func (bu *BleUuid) MarshalJSON() ([]byte, error) {
-	if bu.Uuid16 != 0 {
-		return json.Marshal(bu.Uuid16)
-	} else {
-		return json.Marshal(bu.String())
-	}
+func (bu128 *BleUuid128) MarshalJSON() ([]byte, error) {
+	return json.Marshal(bu128.String())
 }
 
-func (bu *BleUuid) UnmarshalJSON(data []byte) error {
-	// First, try a 16-bit UUID.
-	if err := json.Unmarshal(data, &bu.Uuid16); err == nil {
-		return nil
-	}
-
-	// Next, try a 128-bit UUID.
+func (bu128 *BleUuid128) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err != nil {
 		return err
 	}
 
 	var err error
-	*bu, err = ParseUuid(s)
+	*bu128, err = ParseUuid128(s)
 	if err != nil {
 		return err
 	}
@@ -250,11 +236,72 @@ func (bu *BleUuid) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func CompareUuids(a BleUuid, b BleUuid) int {
-	if a.Uuid16 != 0 || b.Uuid16 != 0 {
-		return int(a.Uuid16) - int(b.Uuid16)
+type BleUuid struct {
+	// Set to 0 if the 128-bit UUID should be used.
+	U16 BleUuid16
+
+	// Set to nil if the 16-bit UUID should be used.
+	U128 BleUuid128
+}
+
+func (bu *BleUuid) String() string {
+	if bu.U16 != 0 {
+		return bu.U16.String()
 	} else {
-		return bytes.Compare(a.Uuid128[:], b.Uuid128[:])
+		return bu.U128.String()
+	}
+}
+
+func ParseUuid(uuidStr string) (BleUuid, error) {
+	bu := BleUuid{}
+	var err error
+
+	// First, try to parse as a 16-bit UUID.
+	bu.U16, err = ParseUuid16(uuidStr)
+	if err == nil {
+		return bu, nil
+	}
+
+	// Try to parse as a 128-bit UUID.
+	bu.U128, err = ParseUuid128(uuidStr)
+	if err == nil {
+		return bu, nil
+	}
+
+	return bu, err
+}
+
+func (bu *BleUuid) MarshalJSON() ([]byte, error) {
+	if bu.U16 != 0 {
+		return json.Marshal(bu.U16)
+	} else {
+		return json.Marshal(bu.U128.String())
+	}
+}
+
+func (bu *BleUuid) UnmarshalJSON(data []byte) error {
+	var err error
+
+	// If the value is a string, try to parse a UUID from it. */
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		*bu, err = ParseUuid(s)
+		return err
+	}
+
+	// Not a string; maybe it's a raw 16-bit number.
+	if err = json.Unmarshal(data, &bu.U16); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func CompareUuids(a BleUuid, b BleUuid) int {
+	if a.U16 != 0 || b.U16 != 0 {
+		return int(a.U16) - int(b.U16)
+	} else {
+		return bytes.Compare(a.U128[:], b.U128[:])
 	}
 }
 
@@ -364,39 +411,190 @@ func (a *BleAdvEventType) UnmarshalJSON(data []byte) error {
 	return err
 }
 
+type BleAdvConnMode int
+
+const (
+	BLE_ADV_CONN_MODE_NON BleAdvConnMode = iota
+	BLE_ADV_CONN_MODE_DIR
+	BLE_ADV_CONN_MODE_UND
+)
+
+var BleAdvConnModeStringMap = map[BleAdvConnMode]string{
+	BLE_ADV_CONN_MODE_NON: "non",
+	BLE_ADV_CONN_MODE_DIR: "dir",
+	BLE_ADV_CONN_MODE_UND: "und",
+}
+
+func BleAdvConnModeToString(connMode BleAdvConnMode) string {
+	s := BleAdvConnModeStringMap[connMode]
+	if s == "" {
+		return "???"
+	}
+
+	return s
+}
+
+func BleAdvConnModeFromString(s string) (BleAdvConnMode, error) {
+	for advConnMode, name := range BleAdvConnModeStringMap {
+		if s == name {
+			return advConnMode, nil
+		}
+	}
+
+	return BleAdvConnMode(0),
+		fmt.Errorf("Invalid BleAdvConnMode string: %s", s)
+}
+
+func (a BleAdvConnMode) MarshalJSON() ([]byte, error) {
+	return json.Marshal(BleAdvConnModeToString(a))
+}
+
+func (a *BleAdvConnMode) UnmarshalJSON(data []byte) error {
+	var err error
+
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	*a, err = BleAdvConnModeFromString(s)
+	return err
+}
+
+type BleAdvDiscMode int
+
+const (
+	BLE_ADV_DISC_MODE_NON BleAdvDiscMode = iota
+	BLE_ADV_DISC_MODE_LTD
+	BLE_ADV_DISC_MODE_GEN
+)
+
+var BleAdvDiscModeStringMap = map[BleAdvDiscMode]string{
+	BLE_ADV_DISC_MODE_NON: "non",
+	BLE_ADV_DISC_MODE_LTD: "ltd",
+	BLE_ADV_DISC_MODE_GEN: "gen",
+}
+
+func BleAdvDiscModeToString(discMode BleAdvDiscMode) string {
+	s := BleAdvDiscModeStringMap[discMode]
+	if s == "" {
+		return "???"
+	}
+
+	return s
+}
+
+func BleAdvDiscModeFromString(s string) (BleAdvDiscMode, error) {
+	for advDiscMode, name := range BleAdvDiscModeStringMap {
+		if s == name {
+			return advDiscMode, nil
+		}
+	}
+
+	return BleAdvDiscMode(0),
+		fmt.Errorf("Invalid BleAdvDiscMode string: %s", s)
+}
+
+func (a BleAdvDiscMode) MarshalJSON() ([]byte, error) {
+	return json.Marshal(BleAdvDiscModeToString(a))
+}
+
+func (a *BleAdvDiscMode) UnmarshalJSON(data []byte) error {
+	var err error
+
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	*a, err = BleAdvDiscModeFromString(s)
+	return err
+}
+
+type BleAdvFilterPolicy int
+
+const (
+	BLE_ADV_FILTER_POLICY_NON BleAdvFilterPolicy = iota
+	BLE_ADV_FILTER_POLICY_LTD
+	BLE_ADV_FILTER_POLICY_GEN
+)
+
+var BleAdvFilterPolicyStringMap = map[BleAdvFilterPolicy]string{
+	BLE_ADV_FILTER_POLICY_NON: "non",
+	BLE_ADV_FILTER_POLICY_LTD: "ltd",
+	BLE_ADV_FILTER_POLICY_GEN: "gen",
+}
+
+func BleAdvFilterPolicyToString(discMode BleAdvFilterPolicy) string {
+	s := BleAdvFilterPolicyStringMap[discMode]
+	if s == "" {
+		return "???"
+	}
+
+	return s
+}
+
+func BleAdvFilterPolicyFromString(s string) (BleAdvFilterPolicy, error) {
+	for advFilterPolicy, name := range BleAdvFilterPolicyStringMap {
+		if s == name {
+			return advFilterPolicy, nil
+		}
+	}
+
+	return BleAdvFilterPolicy(0),
+		fmt.Errorf("Invalid BleAdvFilterPolicy string: %s", s)
+}
+
+func (a BleAdvFilterPolicy) MarshalJSON() ([]byte, error) {
+	return json.Marshal(BleAdvFilterPolicyToString(a))
+}
+
+func (a *BleAdvFilterPolicy) UnmarshalJSON(data []byte) error {
+	var err error
+
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	*a, err = BleAdvFilterPolicyFromString(s)
+	return err
+}
+
+type BleAdvFields struct {
+	Data []byte
+
+	// Each field is only present if the sender included it in its
+	// advertisement.
+	Flags              *uint8
+	Uuids16            []BleUuid16
+	Uuids16IsComplete  bool
+	Uuids32            []uint32
+	Uuids32IsComplete  bool
+	Uuids128           []BleUuid128
+	Uuids128IsComplete bool
+	Name               *string
+	NameIsComplete     bool
+	TxPwrLvl           *int8
+	SlaveItvlMin       *uint16
+	SlaveItvlMax       *uint16
+	SvcDataUuid16      []byte
+	PublicTgtAddrs     []BleAddr
+	Appearance         *uint16
+	AdvItvl            *uint16
+	SvcDataUuid32      []byte
+	SvcDataUuid128     []byte
+	Uri                *string
+	MfgData            []byte
+}
+
 type BleAdvReport struct {
 	// These fields are always present.
 	EventType BleAdvEventType
 	Sender    BleDev
 	Rssi      int8
-	Data      []byte
 
-	// These fields are only present if the sender included them in its
-	// advertisement.
-	Flags               uint8     // 0 if not present.
-	Uuids16             []uint16  // nil if not present
-	Uuids16IsComplete   bool      // false if not present
-	Uuids32             []uint32  // false if not present
-	Uuids32IsComplete   bool      // false if not present
-	Uuids128            []BleUuid // false if not present
-	Uuids128IsComplete  bool      // false if not present
-	Name                string    // "" if not present.
-	NameIsComplete      bool      // false if not present.
-	TxPwrLvl            int8      // Check TxPwrLvlIsPresent
-	TxPwrLvlIsPresent   bool      // false if not present
-	SlaveItvlMin        uint16    // Check SlaveItvlIsPresent
-	SlaveItvlMax        uint16    // Check SlaveItvlIsPresent
-	SlaveItvlIsPresent  bool      // false if not present
-	SvcDataUuid16       []byte    // false if not present
-	PublicTgtAddrs      []BleAddr // false if not present
-	Appearance          uint16    // Check AppearanceIsPresent
-	AppearanceIsPresent bool      // false if not present
-	AdvItvl             uint16    // Check AdvItvlIsPresent
-	AdvItvlIsPresent    bool      // false if not present
-	SvcDataUuid32       []byte    // false if not present
-	SvcDataUuid128      []byte    // false if not present
-	Uri                 []byte    // false if not present
-	MfgData             []byte    // false if not present
+	Fields BleAdvFields
 }
 
 type BleAdvRptFn func(r BleAdvReport)
