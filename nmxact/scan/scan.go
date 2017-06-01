@@ -56,6 +56,13 @@ func BleOmpScanCfg(ScanCb ScanFn) Cfg {
 					}
 				}
 
+				iotUuid, _ := bledefs.ParseUuid(bledefs.IotivitySvcUuid)
+				for _, u := range adv.Uuids128 {
+					if bledefs.CompareUuids(u, iotUuid) == 0 {
+						return true
+					}
+				}
+
 				return false
 			},
 		},

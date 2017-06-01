@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -61,7 +62,7 @@ type BleFsmParams struct {
 	OwnAddrType  BleAddrType
 	PeerDev      BleDev
 	ConnTries    int
-	SvcUuid      BleUuid
+	SvcUuids     []BleUuid
 	ReqChrUuid   BleUuid
 	RspChrUuid   BleUuid
 	RxNmpCb      BleRxNmpFn
@@ -516,23 +517,50 @@ func (bf *BleFsm) connCancel() error {
 	return nil
 }
 
-func (bf *BleFsm) discSvcUuid() error {
+func (bf *BleFsm) discSvcUuidOnce(uuid BleUuid) (*BleSvc, error) {
 	r := NewBleDiscSvcUuidReq()
 	r.ConnHandle = bf.connHandle
-	r.Uuid = bf.params.SvcUuid
+	r.Uuid = uuid
 
 	bl, err := bf.addBleSeqListener("disc-svc-uuid", r.Seq)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer bf.removeBleSeqListener("disc-svc-uuid", r.Seq)
 
-	bf.nmpSvc, err = discSvcUuid(bf.params.Bx, bl, r)
+	svc, err := discSvcUuid(bf.params.Bx, bl, r)
 	if err != nil {
-		return err
+		bhe := nmxutil.ToBleHost(err)
+		if bhe != nil && bhe.Status == ERR_CODE_EDONE {
+			return nil, nil
+		} else {
+			return nil, err
+		}
 	}
 
-	return nil
+	return svc, nil
+}
+
+func (bf *BleFsm) discSvcUuid() error {
+	for _, uuid := range bf.params.SvcUuids {
+		svc, err := bf.discSvcUuidOnce(uuid)
+		if err != nil {
+			return err
+		}
+
+		if svc != nil {
+			bf.nmpSvc = svc
+			return nil
+		}
+	}
+
+	strs := []string{}
+	for _, uuid := range bf.params.SvcUuids {
+		strs = append(strs, uuid.String())
+	}
+
+	return fmt.Errorf("Peer does not support any required services: %s",
+		strings.Join(strs, ", "))
 }
 
 func (bf *BleFsm) encInitiate() error {
