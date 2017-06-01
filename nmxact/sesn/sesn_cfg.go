@@ -17,6 +17,7 @@ type OnCloseFn func(s Sesn, err error)
 
 type PeerSpec struct {
 	Ble bledefs.BleDev
+	Udp string
 }
 
 type SesnCfgBle struct {

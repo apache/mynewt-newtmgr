@@ -29,7 +29,7 @@ type BleOicSesn struct {
 func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 	bos := &BleOicSesn{
 		nls:          map[*nmp.NmpListener]struct{}{},
-		od:           omp.NewOmpDispatcher(),
+		od:           omp.NewOmpDispatcher(true),
 		closeTimeout: cfg.Ble.CloseTimeout,
 		onCloseCb:    cfg.OnCloseCb,
 	}

@@ -28,6 +28,7 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/nmble"
 	"mynewt.apache.org/newtmgr/nmxact/nmserial"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
+	"mynewt.apache.org/newtmgr/nmxact/udp"
 	"mynewt.apache.org/newtmgr/nmxact/xport"
 )
 
@@ -60,6 +61,7 @@ func GetXport() (xport.Xport, error) {
 		}
 
 		globalXport = nmserial.NewSerialXport(sc)
+
 	case config.CONN_TYPE_BLE_PLAIN, config.CONN_TYPE_BLE_OIC:
 		bc, err := config.ParseBleConnString(cp.ConnString)
 		if err != nil {
@@ -69,6 +71,10 @@ func GetXport() (xport.Xport, error) {
 		if err != nil {
 			return nil, err
 		}
+
+	case config.CONN_TYPE_UDP_PLAIN, config.CONN_TYPE_UDP_OIC:
+		globalXport = udp.NewUdpXport()
+
 	default:
 		return nil, util.FmtNewtError("Unknown connection type: %s (%d)",
 			config.ConnTypeToString(cp.Type), int(cp.Type))
@@ -139,6 +145,18 @@ func buildSesnCfg() (sesn.SesnCfg, error) {
 		if err := config.FillSesnCfg(bx, bc, &sc); err != nil {
 			return sc, err
 		}
+
+		return sc, nil
+
+	case config.CONN_TYPE_UDP_PLAIN:
+		sc.MgmtProto = sesn.MGMT_PROTO_NMP
+		sc.PeerSpec.Udp = cp.ConnString
+
+		return sc, nil
+
+	case config.CONN_TYPE_UDP_OIC:
+		sc.MgmtProto = sesn.MGMT_PROTO_OMP
+		sc.PeerSpec.Udp = cp.ConnString
 
 		return sc, nil
 

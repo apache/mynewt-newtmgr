@@ -21,6 +21,7 @@ package omp
 
 import (
 	log "github.com/Sirupsen/logrus"
+	"github.com/runtimeco/go-coap"
 
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 )
@@ -30,11 +31,16 @@ type OmpDispatcher struct {
 	reassembler *Reassembler
 }
 
-func NewOmpDispatcher() *OmpDispatcher {
-	return &OmpDispatcher{
-		nd:          nmp.NewNmpDispatcher(),
-		reassembler: NewReassembler(),
+func NewOmpDispatcher(isTcp bool) *OmpDispatcher {
+	om := &OmpDispatcher{
+		nd: nmp.NewNmpDispatcher(),
 	}
+
+	if isTcp {
+		om.reassembler = NewReassembler()
+	}
+
+	return om
 }
 
 func (od *OmpDispatcher) AddListener(seq uint8, rl *nmp.NmpListener) error {
@@ -51,12 +57,27 @@ func (od *OmpDispatcher) FakeRxError(seq uint8, err error) error {
 
 // Returns true if the response was dispatched.
 func (om *OmpDispatcher) Dispatch(data []byte) bool {
-	tm := om.reassembler.RxFrag(data)
-	if tm == nil {
-		return false
+	var m *coap.Message
+
+	if om.reassembler != nil {
+		// TCP.
+		tm := om.reassembler.RxFrag(data)
+		if tm == nil {
+			return false
+		}
+
+		m = &tm.Message
+	} else {
+		// UDP.
+		msg, err := coap.ParseMessage(data)
+		if err != nil {
+			log.Printf("CoAP parse failure: %s", err.Error())
+			return false
+		}
+		m = &msg
 	}
 
-	r, err := DecodeOmpTcp(tm)
+	r, err := DecodeOmp(m)
 	if err != nil {
 		log.Printf("OMP decode failure: %s", err.Error())
 		return false

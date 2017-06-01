@@ -48,14 +48,16 @@ const (
 	CONN_TYPE_SERIAL
 	CONN_TYPE_BLE_PLAIN
 	CONN_TYPE_BLE_OIC
-	CONN_TYPE_UDP
+	CONN_TYPE_UDP_PLAIN
+	CONN_TYPE_UDP_OIC
 )
 
 var connTypeNameMap = map[ConnType]string{
 	CONN_TYPE_SERIAL:    "serial",
 	CONN_TYPE_BLE_PLAIN: "ble",
 	CONN_TYPE_BLE_OIC:   "oic_ble",
-	CONN_TYPE_UDP:       "udp",
+	CONN_TYPE_UDP_PLAIN: "udp",
+	CONN_TYPE_UDP_OIC:   "oic_udp",
 }
 
 func ConnTypeToString(ct ConnType) string {

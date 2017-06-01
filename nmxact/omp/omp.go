@@ -44,7 +44,7 @@ type OicMsg struct {
  * codec.  So we need to decode the whole response, and then re-encode the
  * newtmgr response part.
  */
-func DecodeOmpTcp(tm *coap.TcpMessage) (nmp.NmpRsp, error) {
+func DecodeOmp(tm *coap.Message) (nmp.NmpRsp, error) {
 	// Ignore non-responses.
 	if tm.Code == coap.GET || tm.Code == coap.PUT {
 		return nil, nil
@@ -84,43 +84,80 @@ func DecodeOmpTcp(tm *coap.TcpMessage) (nmp.NmpRsp, error) {
 	return rsp, nil
 }
 
-func EncodeOmpTcp(nmr *nmp.NmpMsg) ([]byte, error) {
-	req := coap.TcpMessage{
-		Message: coap.Message{
+type encodeRecord struct {
+	m        coap.Message
+	hdrBytes []byte
+	fieldMap map[string]interface{}
+}
+
+func encodeOmpBase(nmr *nmp.NmpMsg) (encodeRecord, error) {
+	er := encodeRecord{
+		m: coap.Message{
 			Type: coap.Confirmable,
 			Code: coap.PUT,
 		},
 	}
-	req.SetPathString("/omgr")
+	er.m.SetPathString("/omgr")
 
 	payload := []byte{}
 	enc := codec.NewEncoderBytes(&payload, new(codec.CborHandle))
 
 	fields := structs.Fields(nmr.Body)
-	m := make(map[string]interface{}, len(fields))
+	er.fieldMap = make(map[string]interface{}, len(fields))
 	for _, f := range fields {
 		if cname := f.Tag("codec"); cname != "" {
-			m[cname] = f.Value()
+			er.fieldMap[cname] = f.Value()
 		}
 	}
 
 	// Add the NMP heder to the OMP response map.
-	hbytes := nmr.Hdr.Bytes()
-	m["_h"] = hbytes
+	er.hdrBytes = nmr.Hdr.Bytes()
+	er.fieldMap["_h"] = er.hdrBytes
 
-	if err := enc.Encode(m); err != nil {
+	if err := enc.Encode(er.fieldMap); err != nil {
+		return er, err
+	}
+	er.m.Payload = payload
+
+	return er, nil
+}
+
+func EncodeOmpTcp(nmr *nmp.NmpMsg) ([]byte, error) {
+	er, err := encodeOmpBase(nmr)
+	if err != nil {
 		return nil, err
 	}
-	req.Payload = payload
 
-	data, err := req.MarshalBinary()
+	tm := coap.TcpMessage{er.m}
+
+	data, err := tm.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("Failed to encode: %s\n", err.Error())
 	}
 
-	log.Debugf("Serialized OMP request:\n"+
+	log.Debugf("Serialized OMP TCP request:\n"+
 		"Hdr %+v:\n%s\nPayload:%s\nData:\n%s",
-		nmr.Hdr, hex.Dump(hbytes), hex.Dump(req.Payload), hex.Dump(data))
+		nmr.Hdr, hex.Dump(er.hdrBytes), hex.Dump(tm.Payload),
+		hex.Dump(data))
+
+	return data, nil
+}
+
+func EncodeOmpDgram(nmr *nmp.NmpMsg) ([]byte, error) {
+	er, err := encodeOmpBase(nmr)
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := er.m.MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to encode: %s\n", err.Error())
+	}
+
+	log.Debugf("Serialized OMP datagram request:\n"+
+		"Hdr %+v:\n%s\nPayload:%s\nData:\n%s",
+		nmr.Hdr, hex.Dump(er.hdrBytes), hex.Dump(er.m.Payload),
+		hex.Dump(data))
 
 	return data, nil
 }
