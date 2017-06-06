@@ -45,7 +45,8 @@ type ConnProfile struct {
 
 const (
 	CONN_TYPE_NONE ConnType = iota
-	CONN_TYPE_SERIAL
+	CONN_TYPE_SERIAL_PLAIN
+	CONN_TYPE_SERIAL_OIC
 	CONN_TYPE_BLE_PLAIN
 	CONN_TYPE_BLE_OIC
 	CONN_TYPE_UDP_PLAIN
@@ -53,11 +54,12 @@ const (
 )
 
 var connTypeNameMap = map[ConnType]string{
-	CONN_TYPE_SERIAL:    "serial",
-	CONN_TYPE_BLE_PLAIN: "ble",
-	CONN_TYPE_BLE_OIC:   "oic_ble",
-	CONN_TYPE_UDP_PLAIN: "udp",
-	CONN_TYPE_UDP_OIC:   "oic_udp",
+	CONN_TYPE_SERIAL_PLAIN: "serial",
+	CONN_TYPE_SERIAL_OIC:   "oic_serial",
+	CONN_TYPE_BLE_PLAIN:    "ble",
+	CONN_TYPE_BLE_OIC:      "oic_ble",
+	CONN_TYPE_UDP_PLAIN:    "udp",
+	CONN_TYPE_UDP_OIC:      "oic_udp",
 }
 
 func ConnTypeToString(ct ConnType) string {

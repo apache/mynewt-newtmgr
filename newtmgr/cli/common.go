@@ -54,7 +54,7 @@ func GetXport() (xport.Xport, error) {
 	}
 
 	switch cp.Type {
-	case config.CONN_TYPE_SERIAL:
+	case config.CONN_TYPE_SERIAL_PLAIN, config.CONN_TYPE_SERIAL_OIC:
 		sc, err := config.ParseSerialConnString(cp.ConnString)
 		if err != nil {
 			return nil, err
@@ -106,8 +106,12 @@ func buildSesnCfg() (sesn.SesnCfg, error) {
 	}
 
 	switch cp.Type {
-	case config.CONN_TYPE_SERIAL:
+	case config.CONN_TYPE_SERIAL_PLAIN:
 		sc.MgmtProto = sesn.MGMT_PROTO_NMP
+		return sc, nil
+
+	case config.CONN_TYPE_SERIAL_OIC:
+		sc.MgmtProto = sesn.MGMT_PROTO_OMP
 		return sc, nil
 
 	case config.CONN_TYPE_BLE_PLAIN:

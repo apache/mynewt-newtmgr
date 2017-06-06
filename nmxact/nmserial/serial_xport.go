@@ -49,7 +49,7 @@ func (sx *SerialXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
 	case sesn.MGMT_PROTO_NMP:
 		return NewSerialPlainSesn(sx), nil
 	case sesn.MGMT_PROTO_OMP:
-		return nil, fmt.Errorf("OMP over serial currently unsupported")
+		return NewSerialOicSesn(sx), nil
 	default:
 		return nil, fmt.Errorf(
 			"Invalid management protocol: %d; expected NMP or OMP",
