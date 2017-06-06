@@ -48,6 +48,7 @@ const (
 	NMP_ID_IMAGE_UPLOAD   = 1
 	NMP_ID_IMAGE_CORELIST = 3
 	NMP_ID_IMAGE_CORELOAD = 4
+	NMP_ID_IMAGE_ERASE    = 5
 )
 
 // Stat group (2).

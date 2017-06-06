@@ -57,6 +57,7 @@ func imageStateRspCtor() NmpRsp    { return NewImageStateRsp() }
 func coreListRspCtor() NmpRsp      { return NewCoreListRsp() }
 func coreLoadRspCtor() NmpRsp      { return NewCoreLoadRsp() }
 func coreEraseRspCtor() NmpRsp     { return NewCoreEraseRsp() }
+func imageEraseRspCtor() NmpRsp    { return NewImageEraseRsp() }
 func statReadRspCtor() NmpRsp      { return NewStatReadRsp() }
 func statListRspCtor() NmpRsp      { return NewStatListRsp() }
 func logReadRspCtor() NmpRsp       { return NewLogShowRsp() }
@@ -85,6 +86,7 @@ var rspCtorMap = map[Ogi]rspCtor{
 	{op_rr, gr_img, NMP_ID_IMAGE_CORELIST}:   coreListRspCtor,
 	{op_rr, gr_img, NMP_ID_IMAGE_CORELOAD}:   coreLoadRspCtor,
 	{op_wr, gr_img, NMP_ID_IMAGE_CORELOAD}:   coreEraseRspCtor,
+	{op_wr, gr_img, NMP_ID_IMAGE_ERASE}:      imageEraseRspCtor,
 	{op_rr, gr_sta, NMP_ID_STAT_READ}:        statReadRspCtor,
 	{op_rr, gr_sta, NMP_ID_STAT_LIST}:        statListRspCtor,
 	{op_rr, gr_log, NMP_ID_LOG_SHOW}:         logReadRspCtor,

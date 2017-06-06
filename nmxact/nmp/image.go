@@ -214,3 +214,30 @@ func NewCoreEraseRsp() *CoreEraseRsp {
 }
 
 func (r *CoreEraseRsp) Msg() *NmpMsg { return MsgFromReq(r) }
+
+//////////////////////////////////////////////////////////////////////////////
+// $erase                                                                   //
+//////////////////////////////////////////////////////////////////////////////
+
+type ImageEraseReq struct {
+	NmpBase
+}
+
+type ImageEraseRsp struct {
+	NmpBase
+	Rc int `codec:"rc"`
+}
+
+func NewImageEraseReq() *ImageEraseReq {
+	r := &ImageEraseReq{}
+	fillNmpReq(r, NMP_OP_WRITE, NMP_GROUP_IMAGE, NMP_ID_IMAGE_ERASE)
+	return r
+}
+
+func (r *ImageEraseReq) Msg() *NmpMsg { return MsgFromReq(r) }
+
+func NewImageEraseRsp() *ImageEraseRsp {
+	return &ImageEraseRsp{}
+}
+
+func (r *ImageEraseRsp) Msg() *NmpMsg { return MsgFromReq(r) }

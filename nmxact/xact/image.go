@@ -246,6 +246,46 @@ func (c *CoreListCmd) Run(s sesn.Sesn) (Result, error) {
 }
 
 //////////////////////////////////////////////////////////////////////////////
+// $erase                                                                   //
+//////////////////////////////////////////////////////////////////////////////
+
+type ImageEraseCmd struct {
+	CmdBase
+}
+
+type ImageEraseResult struct {
+	Rsp *nmp.ImageEraseRsp
+}
+
+func NewImageEraseCmd() *ImageEraseCmd {
+	return &ImageEraseCmd{
+		CmdBase: NewCmdBase(),
+	}
+}
+
+func newImageEraseResult() *ImageEraseResult {
+	return &ImageEraseResult{}
+}
+
+func (r *ImageEraseResult) Status() int {
+	return r.Rsp.Rc
+}
+
+func (c *ImageEraseCmd) Run(s sesn.Sesn) (Result, error) {
+	r := nmp.NewImageEraseReq()
+
+	rsp, err := txReq(s, r.Msg(), &c.CmdBase)
+	if err != nil {
+		return nil, err
+	}
+	srsp := rsp.(*nmp.ImageEraseRsp)
+
+	res := newImageEraseResult()
+	res.Rsp = srsp
+	return res, nil
+}
+
+//////////////////////////////////////////////////////////////////////////////
 // $coreload                                                                //
 //////////////////////////////////////////////////////////////////////////////
 

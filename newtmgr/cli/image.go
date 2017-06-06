@@ -303,6 +303,29 @@ func coreEraseCmd(cmd *cobra.Command, args []string) {
 	fmt.Printf("Done\n")
 }
 
+func imageEraseCmd(cmd *cobra.Command, args []string) {
+	s, err := GetSesn()
+	if err != nil {
+		nmUsage(nil, err)
+	}
+
+	c := xact.NewImageEraseCmd()
+	c.SetTxOptions(nmutil.TxOptions())
+
+	res, err := c.Run(s)
+	if err != nil {
+		nmUsage(nil, util.ChildNewtError(err))
+	}
+	ires := res.(*xact.ImageEraseResult)
+
+	if ires.Status() != 0 {
+		fmt.Printf("Error: %d\n", ires.Status())
+		return
+	}
+
+	fmt.Printf("Done\n")
+}
+
 func coreConvertCmd(cmd *cobra.Command, args []string) {
 	if len(args) < 2 {
 		nmUsage(cmd, nil)
@@ -397,6 +420,16 @@ func imageCmd() *cobra.Command {
 		Run:     coreEraseCmd,
 	}
 	imageCmd.AddCommand(coreEraseCmd)
+
+	imageEraseEx := "  newtmgr -c olimex image erase\n"
+
+	imageEraseCmd := &cobra.Command{
+		Use:     "erase",
+		Short:   "Erase unused image on target",
+		Example: imageEraseEx,
+		Run:     imageEraseCmd,
+	}
+	imageCmd.AddCommand(imageEraseCmd)
 
 	coreConvertCmd := &cobra.Command{
 		Use:   "coreconvert <core-filename> <elf-filename>",
