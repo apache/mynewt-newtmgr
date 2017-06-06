@@ -170,6 +170,7 @@ type CoreLoadRsp struct {
 	NmpBase
 	Rc   int    `codec:"rc"`
 	Off  uint32 `codec:"off"`
+	Len  uint32 `codec:"len"`
 	Data []byte `codec:"data"`
 }
 
