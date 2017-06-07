@@ -65,7 +65,7 @@ func Commands() *cobra.Command {
 	nmCmd.PersistentFlags().StringVarP(&logLevelStr, "loglevel", "l", "info",
 		"log level to use")
 
-	nmCmd.PersistentFlags().StringVarP(&nmutil.DeviceName, "devicename", "n",
+	nmCmd.PersistentFlags().StringVar(&nmutil.DeviceName, "name",
 		"", "name of target BLE device; overrides profile setting")
 
 	nmCmd.AddCommand(crashCmd())
