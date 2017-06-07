@@ -28,11 +28,11 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/core"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/xact"
-	"mynewt.apache.org/newt/util"
 )
 
 var (
@@ -194,7 +194,7 @@ func imageUploadCmd(cmd *cobra.Command, args []string) {
 	ires := res.(*xact.ImageUploadResult)
 
 	if ires.Status() != 0 {
-		fmt.Printf("Error: %d\n", ires.Status)
+		fmt.Printf("Error: %d\n", ires.Status())
 		return
 	}
 
