@@ -421,11 +421,16 @@ func imageCmd() *cobra.Command {
 	}
 	imageCmd.AddCommand(coreEraseCmd)
 
+	imageEraseHelpText := "Erases an unused image from the secondary image slot on a device.\n"
+	imageEraseHelpText += "The image cannot be erased if the image is a confirmed image, is marked\n"
+	imageEraseHelpText += "for test on the next reboot, or is an active image for a split image setup.\n"
+
 	imageEraseEx := "  newtmgr -c olimex image erase\n"
 
 	imageEraseCmd := &cobra.Command{
 		Use:     "erase",
 		Short:   "Erase unused image on target",
+		Long:    imageEraseHelpText,
 		Example: imageEraseEx,
 		Run:     imageEraseCmd,
 	}
