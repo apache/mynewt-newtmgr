@@ -152,6 +152,7 @@ func (od *OicDispatcher) Dispatch(data []byte) bool {
 	od.mtx.Unlock()
 
 	if ol == nil {
+		log.Printf("No listener for incoming OIC message; token=%#v", ot)
 		return false
 	}
 

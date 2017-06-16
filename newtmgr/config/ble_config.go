@@ -29,6 +29,7 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmble"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
+	"mynewt.apache.org/newtmgr/nmxact/xport"
 )
 
 type BleConfig struct {
@@ -140,7 +141,7 @@ func FillSesnCfg(bx *nmble.BleXport, bc *BleConfig, sc *sesn.SesnCfg) error {
 	return nil
 }
 
-func BuildBleXport(bc *BleConfig) (*nmble.BleXport, error) {
+func BuildBleXport(bc *BleConfig) (xport.Xport, error) {
 	params := nmble.NewXportCfg()
 	params.SockPath = "/tmp/blehostd-uds"
 	params.BlehostdPath = bc.BlehostdPath

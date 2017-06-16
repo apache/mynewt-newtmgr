@@ -134,6 +134,7 @@ func (nd *NmpDispatcher) DispatchRsp(r NmpRsp) bool {
 
 	nl := nd.seqListenerMap[r.Hdr().Seq]
 	if nl == nil {
+		log.Printf("No listener for incoming NMP message")
 		return false
 	}
 

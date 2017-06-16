@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"mynewt.apache.org/newt/util"
+	"mynewt.apache.org/newtmgr/newtmgr/bll"
 	"mynewt.apache.org/newtmgr/newtmgr/config"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/nmble"
@@ -61,6 +62,18 @@ func GetXport() (xport.Xport, error) {
 		}
 
 		globalXport = nmserial.NewSerialXport(sc)
+
+	case config.CONN_TYPE_BLL_PLAIN, config.CONN_TYPE_BLL_OIC:
+		bc, err := config.ParseBllConnString(cp.ConnString)
+		if err != nil {
+			return nil, err
+		}
+
+		cfg := bll.NewXportCfg()
+		if bc.CtlrName != "" {
+			cfg.CtlrName = bc.CtlrName
+		}
+		globalXport = bll.NewBllXport(cfg)
 
 	case config.CONN_TYPE_BLE_PLAIN, config.CONN_TYPE_BLE_OIC:
 		bc, err := config.ParseBleConnString(cp.ConnString)
@@ -171,12 +184,8 @@ func buildSesnCfg() (sesn.SesnCfg, error) {
 
 }
 
-func GetSesn() (sesn.Sesn, error) {
-	if globalSesn != nil {
-		return globalSesn, nil
-	}
-
-	sc, err := buildSesnCfg()
+func buildBllSesn(cp *config.ConnProfile) (sesn.Sesn, error) {
+	bc, err := config.ParseBllConnString(cp.ConnString)
 	if err != nil {
 		return nil, err
 	}
@@ -185,10 +194,65 @@ func GetSesn() (sesn.Sesn, error) {
 	if err != nil {
 		return nil, err
 	}
+	bx := x.(*bll.BllXport)
 
-	s, err := x.BuildSesn(sc)
+	sc, err := config.BuildBllSesnCfg(bc)
+	if err != nil {
+		return nil, err
+	}
+
+	switch cp.Type {
+	case config.CONN_TYPE_BLL_PLAIN:
+		sc.MgmtProto = sesn.MGMT_PROTO_NMP
+
+	case config.CONN_TYPE_BLL_OIC:
+		sc.MgmtProto = sesn.MGMT_PROTO_OMP
+
+	default:
+		return nil, util.NewNewtError("ERROR")
+	}
+
+	s, err := bx.BuildBllSesn(sc)
 	if err != nil {
 		return nil, util.ChildNewtError(err)
+	}
+
+	return s, nil
+}
+
+func GetSesn() (sesn.Sesn, error) {
+	if globalSesn != nil {
+		return globalSesn, nil
+	}
+
+	cp, err := getConnProfile()
+	if err != nil {
+		return nil, err
+	}
+
+	var s sesn.Sesn
+	if cp.Type == config.CONN_TYPE_BLL_PLAIN ||
+		cp.Type == config.CONN_TYPE_BLL_OIC {
+
+		s, err = buildBllSesn(cp)
+		if err != nil {
+			return nil, util.ChildNewtError(err)
+		}
+	} else {
+		sc, err := buildSesnCfg()
+		if err != nil {
+			return nil, err
+		}
+
+		x, err := GetXport()
+		if err != nil {
+			return nil, err
+		}
+
+		s, err = x.BuildSesn(sc)
+		if err != nil {
+			return nil, util.ChildNewtError(err)
+		}
 	}
 
 	globalSesn = s
