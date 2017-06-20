@@ -45,7 +45,10 @@ type BleConfig struct {
 }
 
 func NewBleConfig() *BleConfig {
-	return &BleConfig{}
+	return &BleConfig{
+		OwnAddrType:  bledefs.BLE_ADDR_TYPE_RANDOM,
+		BlehostdPath: "blehostd",
+	}
 }
 
 func einvalBleConnString(f string, args ...interface{}) error {
