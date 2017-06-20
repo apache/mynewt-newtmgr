@@ -48,11 +48,10 @@ func NewOicToken(rawToken []byte) (OicToken, error) {
 }
 
 type OicListener struct {
-	RspChan   chan *coap.Message
-	ErrChan   chan error
-	tmoChan   chan time.Time
-	timer     *time.Timer
-	permanent bool
+	RspChan chan *coap.Message
+	ErrChan chan error
+	tmoChan chan time.Time
+	timer   *time.Timer
 }
 
 func NewOicListener() *OicListener {
@@ -150,9 +149,6 @@ func (od *OicDispatcher) Dispatch(data []byte) bool {
 
 	od.mtx.Lock()
 	ol := od.tokenListenerMap[ot]
-	if ol != nil && !ol.permanent {
-		delete(od.tokenListenerMap, ot)
-	}
 	od.mtx.Unlock()
 
 	if ol == nil {
