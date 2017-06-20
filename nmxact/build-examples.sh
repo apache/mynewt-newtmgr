@@ -3,6 +3,7 @@
 read -r -d '' exdirs <<-'EOS'
     ble_loop
     ble_plain
+    ble_scan
     serial_plain
 EOS
 
