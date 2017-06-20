@@ -37,7 +37,11 @@ func NmSetOnExit(cb func()) {
 
 func nmUsage(cmd *cobra.Command, err error) {
 	if err != nil {
-		sErr := err.(*util.NewtError)
+		sErr, ok := err.(*util.NewtError)
+		if !ok {
+			sErr = util.ChildNewtError(err)
+		}
+
 		log.Debugf("%s", sErr.StackTrace)
 		fmt.Fprintf(os.Stderr, "Error: %s\n", sErr.Text)
 	}
