@@ -26,15 +26,17 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/runtimeco/go-coap"
+
+	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 )
 
-type OicToken struct {
+type Token struct {
 	Len  int
 	Data [8]byte
 }
 
-func NewOicToken(rawToken []byte) (OicToken, error) {
-	ot := OicToken{}
+func NewToken(rawToken []byte) (Token, error) {
+	ot := Token{}
 
 	if len(rawToken) > 8 {
 		return ot, fmt.Errorf("Invalid CoAP token: too long (%d bytes)",
@@ -47,22 +49,22 @@ func NewOicToken(rawToken []byte) (OicToken, error) {
 	return ot, nil
 }
 
-type OicListener struct {
+type Listener struct {
 	RspChan chan *coap.Message
 	ErrChan chan error
 	tmoChan chan time.Time
 	timer   *time.Timer
 }
 
-func NewOicListener() *OicListener {
-	return &OicListener{
+func NewListener() *Listener {
+	return &Listener{
 		RspChan: make(chan *coap.Message, 1),
 		ErrChan: make(chan error, 1),
 		tmoChan: make(chan time.Time, 1),
 	}
 }
 
-func (ol *OicListener) AfterTimeout(tmo time.Duration) <-chan time.Time {
+func (ol *Listener) AfterTimeout(tmo time.Duration) <-chan time.Time {
 	fn := func() {
 		ol.tmoChan <- time.Now()
 	}
@@ -70,63 +72,70 @@ func (ol *OicListener) AfterTimeout(tmo time.Duration) <-chan time.Time {
 	return ol.tmoChan
 }
 
-type OicDispatcher struct {
-	tokenListenerMap map[OicToken]*OicListener
-	mtx              sync.Mutex
+type Dispatcher struct {
+	tokenListenerMap map[Token]*Listener
 	reassembler      *Reassembler
+	logDepth         int
+	mtx              sync.Mutex
 }
 
-func NewOicDispatcher(isTcp bool) *OicDispatcher {
-	od := &OicDispatcher{
-		tokenListenerMap: map[OicToken]*OicListener{},
+func NewDispatcher(isTcp bool, logDepth int) *Dispatcher {
+	d := &Dispatcher{
+		tokenListenerMap: map[Token]*Listener{},
+		logDepth:         logDepth + 2,
 	}
 
 	if isTcp {
-		od.reassembler = NewReassembler()
+		d.reassembler = NewReassembler()
 	}
 
-	return od
+	return d
 }
 
-func (od *OicDispatcher) AddListener(token []byte, ol *OicListener) error {
-	od.mtx.Lock()
-	defer od.mtx.Unlock()
+func (d *Dispatcher) AddListener(token []byte) (*Listener, error) {
+	nmxutil.LogAddOicListener(d.logDepth, token)
 
-	ot, err := NewOicToken(token)
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
+	ot, err := NewToken(token)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	if _, ok := od.tokenListenerMap[ot]; ok {
-		return fmt.Errorf("Duplicate OIC listener; token=%#v", token)
+	if _, ok := d.tokenListenerMap[ot]; ok {
+		return nil, fmt.Errorf("Duplicate OIC listener; token=%#v", token)
 	}
 
-	od.tokenListenerMap[ot] = ol
-	return nil
+	ol := NewListener()
+	d.tokenListenerMap[ot] = ol
+	return ol, nil
 }
 
-func (od *OicDispatcher) RemoveListener(token []byte) *OicListener {
-	od.mtx.Lock()
-	defer od.mtx.Unlock()
+func (d *Dispatcher) RemoveListener(token []byte) *Listener {
+	nmxutil.LogRemoveOicListener(d.logDepth, token)
 
-	ot, err := NewOicToken(token)
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
+	ot, err := NewToken(token)
 	if err != nil {
 		return nil
 	}
 
-	ol := od.tokenListenerMap[ot]
-	delete(od.tokenListenerMap, ot)
+	ol := d.tokenListenerMap[ot]
+	delete(d.tokenListenerMap, ot)
 
 	return ol
 }
 
 // Returns true if the response was dispatched.
-func (od *OicDispatcher) Dispatch(data []byte) bool {
+func (d *Dispatcher) Dispatch(data []byte) bool {
 	var msg *coap.Message
 
-	if od.reassembler != nil {
+	if d.reassembler != nil {
 		// TCP.
-		tm := od.reassembler.RxFrag(data)
+		tm := d.reassembler.RxFrag(data)
 		if tm == nil {
 			return false
 		}
@@ -142,14 +151,14 @@ func (od *OicDispatcher) Dispatch(data []byte) bool {
 		msg = &m
 	}
 
-	ot, err := NewOicToken(msg.Token)
+	ot, err := NewToken(msg.Token)
 	if err != nil {
 		return false
 	}
 
-	od.mtx.Lock()
-	ol := od.tokenListenerMap[ot]
-	od.mtx.Unlock()
+	d.mtx.Lock()
+	ol := d.tokenListenerMap[ot]
+	d.mtx.Unlock()
 
 	if ol == nil {
 		log.Printf("No listener for incoming OIC message; token=%#v", ot)
@@ -158,4 +167,27 @@ func (od *OicDispatcher) Dispatch(data []byte) bool {
 
 	ol.RspChan <- msg
 	return true
+}
+
+func (d *Dispatcher) ErrorOne(token Token, err error) error {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
+	ol := d.tokenListenerMap[token]
+	if ol == nil {
+		return fmt.Errorf("No OIC listener for token %#v", token)
+	}
+
+	ol.ErrChan <- err
+
+	return nil
+}
+
+func (d *Dispatcher) ErrorAll(err error) {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
+	for _, ol := range d.tokenListenerMap {
+		ol.ErrChan <- err
+	}
 }

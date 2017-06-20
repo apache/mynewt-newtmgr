@@ -297,14 +297,14 @@ func ConnFindXact(x *BleXport, connHandle uint16) (BleConnDesc, error) {
 	r := NewBleConnFindReq()
 	r.ConnHandle = connHandle
 
-	base := BleMsgBase{
+	base := MsgBase{
 		Op:         -1,
 		Type:       -1,
 		Seq:        r.Seq,
 		ConnHandle: -1,
 	}
 
-	bl := NewBleListener()
+	bl := NewListener()
 	if err := x.Bd.AddListener(base, bl); err != nil {
 		return BleConnDesc{}, err
 	}
@@ -315,14 +315,14 @@ func ConnFindXact(x *BleXport, connHandle uint16) (BleConnDesc, error) {
 
 func GenRandAddrXact(x *BleXport) (BleAddr, error) {
 	r := NewBleGenRandAddrReq()
-	base := BleMsgBase{
+	base := MsgBase{
 		Op:         -1,
 		Type:       -1,
 		Seq:        r.Seq,
 		ConnHandle: -1,
 	}
 
-	bl := NewBleListener()
+	bl := NewListener()
 	if err := x.Bd.AddListener(base, bl); err != nil {
 		return BleAddr{}, err
 	}
@@ -335,14 +335,14 @@ func SetRandAddrXact(x *BleXport, addr BleAddr) error {
 	r := NewBleSetRandAddrReq()
 	r.Addr = addr
 
-	base := BleMsgBase{
+	base := MsgBase{
 		Op:         -1,
 		Type:       -1,
 		Seq:        r.Seq,
 		ConnHandle: -1,
 	}
 
-	bl := NewBleListener()
+	bl := NewListener()
 	if err := x.Bd.AddListener(base, bl); err != nil {
 		return err
 	}
@@ -355,14 +355,14 @@ func SetPreferredMtuXact(x *BleXport, mtu uint16) error {
 	r := NewBleSetPreferredMtuReq()
 	r.Mtu = mtu
 
-	base := BleMsgBase{
+	base := MsgBase{
 		Op:         -1,
 		Type:       -1,
 		Seq:        r.Seq,
 		ConnHandle: -1,
 	}
 
-	bl := NewBleListener()
+	bl := NewListener()
 	if err := x.Bd.AddListener(base, bl); err != nil {
 		return err
 	}
@@ -374,14 +374,14 @@ func SetPreferredMtuXact(x *BleXport, mtu uint16) error {
 func ResetXact(x *BleXport) error {
 	r := NewResetReq()
 
-	base := BleMsgBase{
+	base := MsgBase{
 		Op:         -1,
 		Type:       -1,
 		Seq:        r.Seq,
 		ConnHandle: -1,
 	}
 
-	bl := NewBleListener()
+	bl := NewListener()
 	if err := x.Bd.AddListener(base, bl); err != nil {
 		return err
 	}

@@ -26,24 +26,26 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+
+	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 )
 
-type NmpListener struct {
+type Listener struct {
 	RspChan chan NmpRsp
 	ErrChan chan error
 	tmoChan chan time.Time
 	timer   *time.Timer
 }
 
-func NewNmpListener() *NmpListener {
-	return &NmpListener{
+func NewListener() *Listener {
+	return &Listener{
 		RspChan: make(chan NmpRsp, 1),
 		ErrChan: make(chan error, 1),
 		tmoChan: make(chan time.Time, 1),
 	}
 }
 
-func (nl *NmpListener) AfterTimeout(tmo time.Duration) <-chan time.Time {
+func (nl *Listener) AfterTimeout(tmo time.Duration) <-chan time.Time {
 	fn := func() {
 		nl.tmoChan <- time.Now()
 	}
@@ -51,65 +53,54 @@ func (nl *NmpListener) AfterTimeout(tmo time.Duration) <-chan time.Time {
 	return nl.tmoChan
 }
 
-func (nl *NmpListener) Stop() {
+func (nl *Listener) Stop() {
 	if nl.timer != nil {
 		nl.timer.Stop()
 	}
 }
 
-type NmpDispatcher struct {
-	seqListenerMap map[uint8]*NmpListener
+type Dispatcher struct {
+	seqListenerMap map[uint8]*Listener
 	reassembler    *Reassembler
-	mutex          sync.Mutex
+	logDepth       int
+	mtx            sync.Mutex
 }
 
-func NewNmpDispatcher() *NmpDispatcher {
-	return &NmpDispatcher{
-		seqListenerMap: map[uint8]*NmpListener{},
+func NewDispatcher(logDepth int) *Dispatcher {
+	return &Dispatcher{
+		seqListenerMap: map[uint8]*Listener{},
 		reassembler:    NewReassembler(),
+		logDepth:       logDepth + 2,
 	}
 }
 
-func (nd *NmpDispatcher) AddListener(seq uint8, nl *NmpListener) error {
-	nd.mutex.Lock()
-	defer nd.mutex.Unlock()
+func (d *Dispatcher) AddListener(seq uint8) (*Listener, error) {
+	nmxutil.LogAddNmpListener(d.logDepth, seq)
 
-	if _, ok := nd.seqListenerMap[seq]; ok {
-		return fmt.Errorf("Duplicate NMP listener; seq=%d", seq)
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
+	if _, ok := d.seqListenerMap[seq]; ok {
+		return nil, fmt.Errorf("Duplicate NMP listener; seq=%d", seq)
 	}
 
-	nd.seqListenerMap[seq] = nl
-	return nil
+	nl := NewListener()
+	d.seqListenerMap[seq] = nl
+	return nl, nil
 }
 
-func (nd *NmpDispatcher) removeListenerNoLock(seq uint8) *NmpListener {
-	nl := nd.seqListenerMap[seq]
+func (d *Dispatcher) RemoveListener(seq uint8) *Listener {
+	nmxutil.LogRemoveNmpListener(d.logDepth, seq)
+
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
+	nl := d.seqListenerMap[seq]
 	if nl != nil {
 		nl.Stop()
-		delete(nd.seqListenerMap, seq)
+		delete(d.seqListenerMap, seq)
 	}
 	return nl
-}
-
-func (nd *NmpDispatcher) RemoveListener(seq uint8) *NmpListener {
-	nd.mutex.Lock()
-	defer nd.mutex.Unlock()
-
-	return nd.removeListenerNoLock(seq)
-}
-
-func (nd *NmpDispatcher) FakeRxError(seq uint8, err error) error {
-	nd.mutex.Lock()
-	defer nd.mutex.Unlock()
-
-	nl := nd.seqListenerMap[seq]
-	if nl == nil {
-		return fmt.Errorf("No NMP listener for seq %d", seq)
-	}
-
-	nl.ErrChan <- err
-
-	return nil
 }
 
 func decodeRsp(pkt []byte) (NmpRsp, error) {
@@ -129,10 +120,10 @@ func decodeRsp(pkt []byte) (NmpRsp, error) {
 }
 
 // Returns true if the response was dispatched.
-func (nd *NmpDispatcher) DispatchRsp(r NmpRsp) bool {
+func (d *Dispatcher) DispatchRsp(r NmpRsp) bool {
 	log.Debugf("Received nmp rsp: %+v", r)
 
-	nl := nd.seqListenerMap[r.Hdr().Seq]
+	nl := d.seqListenerMap[r.Hdr().Seq]
 	if nl == nil {
 		log.Printf("No listener for incoming NMP message")
 		return false
@@ -144,11 +135,11 @@ func (nd *NmpDispatcher) DispatchRsp(r NmpRsp) bool {
 }
 
 // Returns true if the response was dispatched.
-func (nd *NmpDispatcher) Dispatch(data []byte) bool {
-	nd.mutex.Lock()
-	defer nd.mutex.Unlock()
+func (d *Dispatcher) Dispatch(data []byte) bool {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
 
-	pkt := nd.reassembler.RxFrag(data)
+	pkt := d.reassembler.RxFrag(data)
 	if pkt == nil {
 		return false
 	}
@@ -165,5 +156,28 @@ func (nd *NmpDispatcher) Dispatch(data []byte) bool {
 		return false
 	}
 
-	return nd.DispatchRsp(rsp)
+	return d.DispatchRsp(rsp)
+}
+
+func (d *Dispatcher) ErrorOne(seq uint8, err error) error {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
+	nl := d.seqListenerMap[seq]
+	if nl == nil {
+		return fmt.Errorf("No NMP listener for seq %d", seq)
+	}
+
+	nl.ErrChan <- err
+
+	return nil
+}
+
+func (d *Dispatcher) ErrorAll(err error) {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
+	for _, nl := range d.seqListenerMap {
+		nl.ErrChan <- err
+	}
 }

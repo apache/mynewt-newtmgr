@@ -2,31 +2,26 @@ package nmble
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	"mynewt.apache.org/newt/util"
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
-	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
 type BlePlainSesn struct {
 	bf           *BleFsm
-	nls          map[*nmp.NmpListener]struct{}
-	nd           *nmp.NmpDispatcher
+	d            *nmp.Dispatcher
 	closeTimeout time.Duration
 	onCloseCb    sesn.OnCloseFn
 
 	closeChan chan error
-	mtx       sync.Mutex
 }
 
 func NewBlePlainSesn(bx *BleXport, cfg sesn.SesnCfg) *BlePlainSesn {
 	bps := &BlePlainSesn{
-		nls:          map[*nmp.NmpListener]struct{}{},
-		nd:           nmp.NewNmpDispatcher(),
+		d:            nmp.NewDispatcher(1),
 		closeTimeout: cfg.Ble.CloseTimeout,
 		onCloseCb:    cfg.OnCloseCb,
 	}
@@ -61,37 +56,7 @@ func NewBlePlainSesn(bx *BleXport, cfg sesn.SesnCfg) *BlePlainSesn {
 	return bps
 }
 
-func (bps *BlePlainSesn) addNmpListener(seq uint8) (*nmp.NmpListener, error) {
-	bps.mtx.Lock()
-	defer bps.mtx.Unlock()
-
-	nmxutil.LogAddNmpListener(2, seq)
-
-	nl := nmp.NewNmpListener()
-	if err := bps.nd.AddListener(seq, nl); err != nil {
-		return nil, err
-	}
-
-	bps.nls[nl] = struct{}{}
-	return nl, nil
-}
-
-func (bps *BlePlainSesn) removeNmpListener(seq uint8) {
-	bps.mtx.Lock()
-	defer bps.mtx.Unlock()
-
-	nmxutil.LogRemoveNmpListener(2, seq)
-
-	listener := bps.nd.RemoveListener(seq)
-	if listener != nil {
-		delete(bps.nls, listener)
-	}
-}
-
 func (bps *BlePlainSesn) setCloseChan() error {
-	bps.mtx.Lock()
-	defer bps.mtx.Unlock()
-
 	if bps.closeChan != nil {
 		return fmt.Errorf("Multiple listeners waiting for session to close")
 	}
@@ -101,9 +66,6 @@ func (bps *BlePlainSesn) setCloseChan() error {
 }
 
 func (bps *BlePlainSesn) clearCloseChan() {
-	bps.mtx.Lock()
-	defer bps.mtx.Unlock()
-
 	bps.closeChan = nil
 }
 
@@ -118,7 +80,7 @@ func (bps *BlePlainSesn) listenForClose(timeout time.Duration) error {
 }
 
 func (bps *BlePlainSesn) AbortRx(seq uint8) error {
-	return bps.nd.FakeRxError(seq, fmt.Errorf("Rx aborted"))
+	return bps.d.ErrorOne(seq, fmt.Errorf("Rx aborted"))
 }
 
 func (bps *BlePlainSesn) Open() error {
@@ -150,25 +112,19 @@ func (bps *BlePlainSesn) IsOpen() bool {
 }
 
 func (bps *BlePlainSesn) onRxNmp(data []byte) {
-	bps.nd.Dispatch(data)
+	bps.d.Dispatch(data)
 }
 
 // Called by the FSM when a blehostd disconnect event is received.
 func (bps *BlePlainSesn) onDisconnect(dt BleFsmDisconnectType, peer BleDev,
 	err error) {
 
-	bps.mtx.Lock()
-
-	for nl, _ := range bps.nls {
-		nl.ErrChan <- err
-	}
+	bps.d.ErrorAll(err)
 
 	// If someone is waiting for the session to close, unblock them.
 	if bps.closeChan != nil {
 		bps.closeChan <- err
 	}
-
-	bps.mtx.Unlock()
 
 	// Only execute client's disconnect callback if the disconnect was
 	// unsolicited and the session was fully open.
@@ -190,11 +146,11 @@ func (bps *BlePlainSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 			"Attempt to transmit over closed BLE session")
 	}
 
-	nl, err := bps.addNmpListener(msg.Hdr.Seq)
+	nl, err := bps.d.AddListener(msg.Hdr.Seq)
 	if err != nil {
 		return nil, err
 	}
-	defer bps.removeNmpListener(msg.Hdr.Seq)
+	defer bps.d.RemoveListener(msg.Hdr.Seq)
 
 	b, err := bps.EncodeNmpMsg(msg)
 	if err != nil {

@@ -33,7 +33,7 @@ type OpTypePair struct {
 	Type MsgType
 }
 
-type BleMsgBase struct {
+type MsgBase struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
@@ -43,8 +43,8 @@ type BleMsgBase struct {
 	ConnHandle int `json:"conn_handle" json:",omitempty"`
 }
 
-type BleListener struct {
-	BleChan chan BleMsg
+type Listener struct {
+	MsgChan chan Msg
 	ErrChan chan error
 	TmoChan chan time.Time
 	Acked   bool
@@ -52,15 +52,15 @@ type BleListener struct {
 	timer *time.Timer
 }
 
-func NewBleListener() *BleListener {
-	return &BleListener{
-		BleChan: make(chan BleMsg, 16),
+func NewListener() *Listener {
+	return &Listener{
+		MsgChan: make(chan Msg, 16),
 		ErrChan: make(chan error, 4),
 		TmoChan: make(chan time.Time, 1),
 	}
 }
 
-func (bl *BleListener) AfterTimeout(tmo time.Duration) <-chan time.Time {
+func (bl *Listener) AfterTimeout(tmo time.Duration) <-chan time.Time {
 	fn := func() {
 		if !bl.Acked {
 			bl.TmoChan <- time.Now()
@@ -70,49 +70,49 @@ func (bl *BleListener) AfterTimeout(tmo time.Duration) <-chan time.Time {
 	return bl.TmoChan
 }
 
-func (bl *BleListener) Stop() {
+func (bl *Listener) Stop() {
 	if bl.timer != nil {
 		bl.timer.Stop()
 	}
 }
 
-type BleDispatcher struct {
-	seqMap  map[BleSeq]*BleListener
-	baseMap map[BleMsgBase]*BleListener
-	mutex   sync.Mutex
+type Dispatcher struct {
+	seqMap  map[BleSeq]*Listener
+	baseMap map[MsgBase]*Listener
+	mtx     sync.Mutex
 }
 
-type msgCtor func() BleMsg
+type msgCtor func() Msg
 
-func errRspCtor() BleMsg              { return &BleErrRsp{} }
-func syncRspCtor() BleMsg             { return &BleSyncRsp{} }
-func connectRspCtor() BleMsg          { return &BleConnectRsp{} }
-func terminateRspCtor() BleMsg        { return &BleTerminateRsp{} }
-func discSvcUuidRspCtor() BleMsg      { return &BleDiscSvcUuidRsp{} }
-func discAllChrsRspCtor() BleMsg      { return &BleDiscAllChrsRsp{} }
-func discChrUuidRspCtor() BleMsg      { return &BleDiscChrUuidRsp{} }
-func writeCmdRspCtor() BleMsg         { return &BleWriteCmdRsp{} }
-func exchangeMtuRspCtor() BleMsg      { return &BleExchangeMtuRsp{} }
-func genRandAddrRspCtor() BleMsg      { return &BleGenRandAddrRsp{} }
-func setRandAddrRspCtor() BleMsg      { return &BleSetRandAddrRsp{} }
-func connCancelRspCtor() BleMsg       { return &BleConnCancelRsp{} }
-func scanRspCtor() BleMsg             { return &BleScanRsp{} }
-func scanCancelRspCtor() BleMsg       { return &BleScanCancelRsp{} }
-func setPreferredMtuRspCtor() BleMsg  { return &BleSetPreferredMtuRsp{} }
-func securityInitiateRspCtor() BleMsg { return &BleSecurityInitiateRsp{} }
-func connFindRspCtor() BleMsg         { return &BleConnFindRsp{} }
-func resetRspCtor() BleMsg            { return &BleResetRsp{} }
+func errRspCtor() Msg              { return &BleErrRsp{} }
+func syncRspCtor() Msg             { return &BleSyncRsp{} }
+func connectRspCtor() Msg          { return &BleConnectRsp{} }
+func terminateRspCtor() Msg        { return &BleTerminateRsp{} }
+func discSvcUuidRspCtor() Msg      { return &BleDiscSvcUuidRsp{} }
+func discAllChrsRspCtor() Msg      { return &BleDiscAllChrsRsp{} }
+func discChrUuidRspCtor() Msg      { return &BleDiscChrUuidRsp{} }
+func writeCmdRspCtor() Msg         { return &BleWriteCmdRsp{} }
+func exchangeMtuRspCtor() Msg      { return &BleExchangeMtuRsp{} }
+func genRandAddrRspCtor() Msg      { return &BleGenRandAddrRsp{} }
+func setRandAddrRspCtor() Msg      { return &BleSetRandAddrRsp{} }
+func connCancelRspCtor() Msg       { return &BleConnCancelRsp{} }
+func scanRspCtor() Msg             { return &BleScanRsp{} }
+func scanCancelRspCtor() Msg       { return &BleScanCancelRsp{} }
+func setPreferredMtuRspCtor() Msg  { return &BleSetPreferredMtuRsp{} }
+func securityInitiateRspCtor() Msg { return &BleSecurityInitiateRsp{} }
+func connFindRspCtor() Msg         { return &BleConnFindRsp{} }
+func resetRspCtor() Msg            { return &BleResetRsp{} }
 
-func syncEvtCtor() BleMsg       { return &BleSyncEvt{} }
-func connectEvtCtor() BleMsg    { return &BleConnectEvt{} }
-func disconnectEvtCtor() BleMsg { return &BleDisconnectEvt{} }
-func discSvcEvtCtor() BleMsg    { return &BleDiscSvcEvt{} }
-func discChrEvtCtor() BleMsg    { return &BleDiscChrEvt{} }
-func notifyRxEvtCtor() BleMsg   { return &BleNotifyRxEvt{} }
-func mtuChangeEvtCtor() BleMsg  { return &BleMtuChangeEvt{} }
-func scanEvtCtor() BleMsg       { return &BleScanEvt{} }
-func scanTmoEvtCtor() BleMsg    { return &BleScanTmoEvt{} }
-func encChangeEvtCtor() BleMsg  { return &BleEncChangeEvt{} }
+func syncEvtCtor() Msg       { return &BleSyncEvt{} }
+func connectEvtCtor() Msg    { return &BleConnectEvt{} }
+func disconnectEvtCtor() Msg { return &BleDisconnectEvt{} }
+func discSvcEvtCtor() Msg    { return &BleDiscSvcEvt{} }
+func discChrEvtCtor() Msg    { return &BleDiscChrEvt{} }
+func notifyRxEvtCtor() Msg   { return &BleNotifyRxEvt{} }
+func mtuChangeEvtCtor() Msg  { return &BleMtuChangeEvt{} }
+func scanEvtCtor() Msg       { return &BleScanEvt{} }
+func scanTmoEvtCtor() Msg    { return &BleScanTmoEvt{} }
+func encChangeEvtCtor() Msg  { return &BleEncChangeEvt{} }
 
 var msgCtorMap = map[OpTypePair]msgCtor{
 	{MSG_OP_RSP, MSG_TYPE_ERR}:               errRspCtor,
@@ -146,17 +146,17 @@ var msgCtorMap = map[OpTypePair]msgCtor{
 	{MSG_OP_EVT, MSG_TYPE_ENC_CHANGE_EVT}: encChangeEvtCtor,
 }
 
-func NewBleDispatcher() *BleDispatcher {
-	return &BleDispatcher{
-		seqMap:  map[BleSeq]*BleListener{},
-		baseMap: map[BleMsgBase]*BleListener{},
+func NewDispatcher() *Dispatcher {
+	return &Dispatcher{
+		seqMap:  map[BleSeq]*Listener{},
+		baseMap: map[MsgBase]*Listener{},
 	}
 }
 
-func (bd *BleDispatcher) findBaseListener(base BleMsgBase) (
-	BleMsgBase, *BleListener) {
+func (d *Dispatcher) findBaseListener(base MsgBase) (
+	MsgBase, *Listener) {
 
-	for k, v := range bd.baseMap {
+	for k, v := range d.baseMap {
 		if k.Op != -1 && base.Op != -1 && k.Op != base.Op {
 			continue
 		}
@@ -175,35 +175,35 @@ func (bd *BleDispatcher) findBaseListener(base BleMsgBase) (
 	return base, nil
 }
 
-func (bd *BleDispatcher) findDupListener(base BleMsgBase) (
-	BleMsgBase, *BleListener) {
+func (d *Dispatcher) findDupListener(base MsgBase) (
+	MsgBase, *Listener) {
 
 	if base.Seq != BLE_SEQ_NONE {
-		return base, bd.seqMap[base.Seq]
+		return base, d.seqMap[base.Seq]
 	}
 
-	return bd.findBaseListener(base)
+	return d.findBaseListener(base)
 }
 
-func (bd *BleDispatcher) findListener(base BleMsgBase) (
-	BleMsgBase, *BleListener) {
+func (d *Dispatcher) findListener(base MsgBase) (
+	MsgBase, *Listener) {
 
 	if base.Seq != BLE_SEQ_NONE {
-		if bl := bd.seqMap[base.Seq]; bl != nil {
+		if bl := d.seqMap[base.Seq]; bl != nil {
 			return base, bl
 		}
 	}
 
-	return bd.findBaseListener(base)
+	return d.findBaseListener(base)
 }
 
-func (bd *BleDispatcher) AddListener(base BleMsgBase,
-	listener *BleListener) error {
+func (d *Dispatcher) AddListener(base MsgBase,
+	listener *Listener) error {
 
-	bd.mutex.Lock()
-	defer bd.mutex.Unlock()
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
 
-	if ob, old := bd.findDupListener(base); old != nil {
+	if ob, old := d.findDupListener(base); old != nil {
 		return fmt.Errorf(
 			"Duplicate BLE listener;\n"+
 				"    old=op=%d type=%d seq=%d connHandle=%d\n"+
@@ -220,33 +220,33 @@ func (bd *BleDispatcher) AddListener(base BleMsgBase,
 				"Invalid listener base; non-wild seq with wild fields")
 		}
 
-		bd.seqMap[base.Seq] = listener
+		d.seqMap[base.Seq] = listener
 	} else {
-		bd.baseMap[base] = listener
+		d.baseMap[base] = listener
 	}
 
 	return nil
 }
 
-func (bd *BleDispatcher) RemoveListener(base BleMsgBase) *BleListener {
-	bd.mutex.Lock()
-	defer bd.mutex.Unlock()
+func (d *Dispatcher) RemoveListener(base MsgBase) *Listener {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
 
-	base, bl := bd.findListener(base)
+	base, bl := d.findListener(base)
 	if bl != nil {
 		bl.Stop()
 		if base.Seq != BLE_SEQ_NONE {
-			delete(bd.seqMap, base.Seq)
+			delete(d.seqMap, base.Seq)
 		} else {
-			delete(bd.baseMap, base)
+			delete(d.baseMap, base)
 		}
 	}
 
 	return bl
 }
 
-func decodeBleBase(data []byte) (BleMsgBase, error) {
-	base := BleMsgBase{}
+func decodeBleBase(data []byte) (MsgBase, error) {
+	base := MsgBase{}
 	if err := json.Unmarshal(data, &base); err != nil {
 		return base, err
 	}
@@ -254,7 +254,7 @@ func decodeBleBase(data []byte) (BleMsgBase, error) {
 	return base, nil
 }
 
-func decodeBleMsg(data []byte) (BleMsgBase, BleMsg, error) {
+func decodeMsg(data []byte) (MsgBase, Msg, error) {
 	base, err := decodeBleBase(data)
 	if err != nil {
 		return base, nil, err
@@ -276,16 +276,16 @@ func decodeBleMsg(data []byte) (BleMsgBase, BleMsg, error) {
 	return base, msg, nil
 }
 
-func (bd *BleDispatcher) Dispatch(data []byte) {
-	base, msg, err := decodeBleMsg(data)
+func (d *Dispatcher) Dispatch(data []byte) {
+	base, msg, err := decodeMsg(data)
 	if err != nil {
 		log.Warnf("BLE dispatch error: %s", err.Error())
 		return
 	}
 
-	bd.mutex.Lock()
-	_, listener := bd.findListener(base)
-	bd.mutex.Unlock()
+	d.mtx.Lock()
+	_, listener := d.findListener(base)
+	d.mtx.Unlock()
 
 	if listener == nil {
 		log.Debugf(
@@ -294,35 +294,24 @@ func (bd *BleDispatcher) Dispatch(data []byte) {
 		return
 	}
 
-	listener.BleChan <- msg
+	listener.MsgChan <- msg
 }
 
-func (bd *BleDispatcher) ErrorAll(err error) {
-	bd.mutex.Lock()
+func (d *Dispatcher) ErrorAll(err error) {
+	d.mtx.Lock()
 
-	listeners := make([]*BleListener, 0, len(bd.seqMap)+len(bd.baseMap))
-	for _, v := range bd.seqMap {
-		listeners = append(listeners, v)
+	m1 := d.seqMap
+	d.seqMap = map[BleSeq]*Listener{}
+
+	m2 := d.baseMap
+	d.baseMap = map[MsgBase]*Listener{}
+
+	d.mtx.Unlock()
+
+	for _, bl := range m1 {
+		bl.ErrChan <- err
 	}
-	for _, v := range bd.baseMap {
-		listeners = append(listeners, v)
-	}
-
-	bd.clear()
-
-	bd.mutex.Unlock()
-
-	for _, listener := range listeners {
-		listener.ErrChan <- err
-	}
-}
-
-// The caller must lock the mutex.
-func (bd *BleDispatcher) clear() {
-	for s, _ := range bd.seqMap {
-		delete(bd.seqMap, s)
-	}
-	for b, _ := range bd.baseMap {
-		delete(bd.baseMap, b)
+	for _, bl := range m2 {
+		bl.ErrChan <- err
 	}
 }

@@ -15,7 +15,7 @@ import (
 
 type SerialOicSesn struct {
 	sx     *SerialXport
-	rxer   *omp.Receiver
+	d      *omp.Dispatcher
 	isOpen bool
 
 	// This mutex ensures:
@@ -26,8 +26,8 @@ type SerialOicSesn struct {
 
 func NewSerialOicSesn(sx *SerialXport) *SerialOicSesn {
 	return &SerialOicSesn{
-		sx:   sx,
-		rxer: omp.NewReceiver(false),
+		sx: sx,
+		d:  omp.NewDispatcher(false, 3),
 	}
 }
 
@@ -74,7 +74,7 @@ func (sos *SerialOicSesn) MtuOut() int {
 }
 
 func (sos *SerialOicSesn) AbortRx(seq uint8) error {
-	sos.rxer.ErrorAll(fmt.Errorf("Rx aborted"))
+	sos.d.ErrorAll(fmt.Errorf("Rx aborted"))
 	return nil
 }
 
@@ -93,11 +93,11 @@ func (sos *SerialOicSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 			"Attempt to transmit over closed serial session")
 	}
 
-	nl, err := sos.rxer.AddNmpListener(m.Hdr.Seq)
+	nl, err := sos.d.AddNmpListener(m.Hdr.Seq)
 	if err != nil {
 		return nil, err
 	}
-	defer sos.rxer.RemoveNmpListener(m.Hdr.Seq)
+	defer sos.d.RemoveNmpListener(m.Hdr.Seq)
 
 	reqb, err := sos.EncodeNmpMsg(m)
 	if err != nil {
@@ -115,7 +115,7 @@ func (sos *SerialOicSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 		}
 
 		// Now wait for newtmgr response.
-		if sos.rxer.Rx(rspb) {
+		if sos.d.Dispatch(rspb) {
 			select {
 			case err := <-nl.ErrChan:
 				return nil, err
@@ -129,13 +129,13 @@ func (sos *SerialOicSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 func (sos *SerialOicSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
 	[]byte, error) {
 
-	token := nmxutil.NextOicToken()
+	token := nmxutil.NextToken()
 
-	ol, err := sos.rxer.AddOicListener(token)
+	ol, err := sos.d.AddOicListener(token)
 	if err != nil {
 		return nil, err
 	}
-	defer sos.rxer.RemoveOicListener(token)
+	defer sos.d.RemoveOicListener(token)
 
 	req, err := oic.EncodeGet(uri, token)
 	if err != nil {

@@ -84,7 +84,7 @@ const (
 
 // Implements xport.Xport.
 type BleXport struct {
-	Bd                *BleDispatcher
+	Bd                *Dispatcher
 	client            *unixchild.Client
 	state             BleXportState
 	stopChan          chan struct{}
@@ -103,7 +103,7 @@ type BleXport struct {
 
 func NewBleXport(cfg XportCfg) (*BleXport, error) {
 	bx := &BleXport{
-		Bd:           NewBleDispatcher(),
+		Bd:           NewDispatcher(),
 		shutdownChan: make(chan bool),
 		readyChan:    make(chan error),
 		master:       nmxutil.NewSingleResource(),
@@ -151,9 +151,9 @@ func (bx *BleXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
 	}
 }
 
-func (bx *BleXport) addSyncListener() (*BleListener, error) {
-	bl := NewBleListener()
-	base := BleMsgBase{
+func (bx *BleXport) addSyncListener() (*Listener, error) {
+	bl := NewListener()
+	base := MsgBase{
 		Op:         MSG_OP_EVT,
 		Type:       MSG_TYPE_SYNC_EVT,
 		Seq:        BLE_SEQ_NONE,
@@ -167,7 +167,7 @@ func (bx *BleXport) addSyncListener() (*BleListener, error) {
 }
 
 func (bx *BleXport) removeSyncListener() {
-	base := BleMsgBase{
+	base := MsgBase{
 		Op:         MSG_OP_EVT,
 		Type:       MSG_TYPE_SYNC_EVT,
 		Seq:        BLE_SEQ_NONE,
@@ -188,8 +188,8 @@ func (bx *BleXport) querySyncStatus() (bool, error) {
 		return false, err
 	}
 
-	bl := NewBleListener()
-	base := BleMsgBase{
+	bl := NewListener()
+	base := MsgBase{
 		Op:         -1,
 		Type:       -1,
 		Seq:        req.Seq,
@@ -207,7 +207,7 @@ func (bx *BleXport) querySyncStatus() (bool, error) {
 		select {
 		case err := <-bl.ErrChan:
 			return false, err
-		case bm := <-bl.BleChan:
+		case bm := <-bl.MsgChan:
 			switch msg := bm.(type) {
 			case *BleSyncRsp:
 				return msg.Synced, nil
@@ -216,7 +216,7 @@ func (bx *BleXport) querySyncStatus() (bool, error) {
 	}
 }
 
-func (bx *BleXport) initialSyncCheck() (bool, *BleListener, error) {
+func (bx *BleXport) initialSyncCheck() (bool, *Listener, error) {
 	bl, err := bx.addSyncListener()
 	if err != nil {
 		return false, nil, err
@@ -379,6 +379,7 @@ func (bx *BleXport) startOnce() error {
 		return err
 	}
 
+	// Listen for errors and data from the blehostd process.
 	go func() {
 		bx.numStopListeners++
 		for {
@@ -388,16 +389,6 @@ func (bx *BleXport) startOnce() error {
 					err.Error())
 				go bx.shutdown(true, err)
 
-			case <-bx.stopChan:
-				return
-			}
-		}
-	}()
-
-	go func() {
-		bx.numStopListeners++
-		for {
-			select {
 			case buf := <-bx.client.FromChild:
 				if len(buf) != 0 {
 					log.Debugf("Receive from blehostd:\n%s", hex.Dump(buf))
@@ -416,16 +407,15 @@ func (bx *BleXport) startOnce() error {
 		return err
 	}
 
+	// Block until host and controller are synced.
 	if !synced {
-		// Not synced yet.  Wait for sync event.
-
 	SyncLoop:
 		for {
 			select {
 			case err := <-bl.ErrChan:
 				bx.shutdown(true, err)
 				return err
-			case bm := <-bl.BleChan:
+			case bm := <-bl.MsgChan:
 				switch msg := bm.(type) {
 				case *BleSyncEvt:
 					if msg.Synced {
@@ -448,7 +438,7 @@ func (bx *BleXport) startOnce() error {
 			select {
 			case err := <-bl.ErrChan:
 				go bx.shutdown(true, err)
-			case bm := <-bl.BleChan:
+			case bm := <-bl.MsgChan:
 				switch msg := bm.(type) {
 				case *BleSyncEvt:
 					if !msg.Synced {
@@ -462,6 +452,7 @@ func (bx *BleXport) startOnce() error {
 		}
 	}()
 
+	// Generate a new random address is none was specified.
 	if bx.randAddr == nil {
 		addr, err := GenRandAddrXact(bx)
 		if err != nil {
@@ -472,11 +463,13 @@ func (bx *BleXport) startOnce() error {
 		bx.randAddr = &addr
 	}
 
+	// Set the random address on the controller.
 	if err := SetRandAddrXact(bx, *bx.randAddr); err != nil {
 		bx.shutdown(true, err)
 		return err
 	}
 
+	// Set the preferred ATT MTU in the host.
 	if err := SetPreferredMtuXact(bx, bx.cfg.PreferredMtu); err != nil {
 		bx.shutdown(true, err)
 		return err
@@ -539,11 +532,14 @@ func (bx *BleXport) Start() error {
 	return nil
 }
 
+// Transmit data to blehostd; host-controller sync not required.
 func (bx *BleXport) txNoSync(data []byte) error {
 	log.Debugf("Tx to blehostd:\n%s", hex.Dump(data))
 	return bx.client.TxToChild(data)
 }
 
+// Transmit data to blehostd.  If the host and controller are not synced, this
+// function blocks until they are (or until the sync fails).
 func (bx *BleXport) Tx(data []byte) error {
 	if err := bx.blockUntilReady(); err != nil {
 		return err

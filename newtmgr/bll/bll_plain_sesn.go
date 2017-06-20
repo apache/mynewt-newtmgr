@@ -2,7 +2,6 @@ package bll
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -21,17 +20,14 @@ type BllPlainSesn struct {
 
 	cln    ble.Client
 	nmpChr *ble.Characteristic
-	nd     *nmp.NmpDispatcher
-	nls    map[*nmp.NmpListener]struct{}
-	mtx    sync.Mutex
+	d      *nmp.Dispatcher
 	attMtu int
 }
 
 func NewBllPlainSesn(cfg BllSesnCfg) *BllPlainSesn {
 	return &BllPlainSesn{
 		cfg: cfg,
-		nd:  nmp.NewNmpDispatcher(),
-		nls: map[*nmp.NmpListener]struct{}{},
+		d:   nmp.NewDispatcher(1),
 	}
 }
 
@@ -39,12 +35,7 @@ func (bps *BllPlainSesn) listenDisconnect() {
 	go func() {
 		<-bps.cln.Disconnected()
 
-		bps.mtx.Lock()
-		for nl, _ := range bps.nls {
-			nl.ErrChan <- fmt.Errorf("Disconnected")
-		}
-		bps.mtx.Unlock()
-
+		bps.d.ErrorAll(fmt.Errorf("Disconnected"))
 		bps.cln = nil
 	}()
 }
@@ -104,7 +95,7 @@ func (bps *BllPlainSesn) discoverAll() error {
 func (bps *BllPlainSesn) subscribe() error {
 	log.Debugf("Subscribing to NMP response characteristic")
 	onNotify := func(data []byte) {
-		bps.nd.Dispatch(data)
+		bps.d.Dispatch(data)
 	}
 
 	if err := bps.cln.Subscribe(bps.nmpChr, false, onNotify); err != nil {
@@ -184,38 +175,11 @@ func (bps *BllPlainSesn) MtuIn() int {
 // Stops a receive operation in progress.  This must be called from a
 // separate thread, as sesn receive operations are blocking.
 func (bps *BllPlainSesn) AbortRx(nmpSeq uint8) error {
-	return bps.nd.FakeRxError(nmpSeq, fmt.Errorf("Rx aborted"))
+	return bps.d.ErrorOne(nmpSeq, fmt.Errorf("Rx aborted"))
 }
 
 func (bps *BllPlainSesn) EncodeNmpMsg(msg *nmp.NmpMsg) ([]byte, error) {
 	return nmp.EncodeNmpPlain(msg)
-}
-
-func (bps *BllPlainSesn) addNmpListener(seq uint8) (*nmp.NmpListener, error) {
-	bps.mtx.Lock()
-	defer bps.mtx.Unlock()
-
-	nmxutil.LogAddNmpListener(2, seq)
-
-	nl := nmp.NewNmpListener()
-	if err := bps.nd.AddListener(seq, nl); err != nil {
-		return nil, err
-	}
-
-	bps.nls[nl] = struct{}{}
-	return nl, nil
-}
-
-func (bps *BllPlainSesn) removeNmpListener(seq uint8) {
-	bps.mtx.Lock()
-	defer bps.mtx.Unlock()
-
-	nmxutil.LogRemoveNmpListener(2, seq)
-
-	listener := bps.nd.RemoveListener(seq)
-	if listener != nil {
-		delete(bps.nls, listener)
-	}
 }
 
 // Performs a blocking transmit a single NMP message and listens for the
@@ -236,11 +200,11 @@ func (bps *BllPlainSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 		return nil, err
 	}
 
-	nl, err := bps.addNmpListener(msg.Hdr.Seq)
+	nl, err := bps.d.AddListener(msg.Hdr.Seq)
 	if err != nil {
 		return nil, err
 	}
-	defer bps.removeNmpListener(msg.Hdr.Seq)
+	defer bps.d.RemoveListener(msg.Hdr.Seq)
 
 	// Send request.
 	if err := bps.cln.WriteCharacteristic(bps.nmpChr, b, true); err != nil {

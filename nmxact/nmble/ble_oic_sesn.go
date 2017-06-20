@@ -18,7 +18,7 @@ import (
 
 type BleOicSesn struct {
 	bf           *BleFsm
-	rxer         *omp.Receiver
+	d            *omp.Dispatcher
 	closeTimeout time.Duration
 	onCloseCb    sesn.OnCloseFn
 
@@ -28,7 +28,7 @@ type BleOicSesn struct {
 
 func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 	bos := &BleOicSesn{
-		rxer:         omp.NewReceiver(true),
+		d:            omp.NewDispatcher(true, 3),
 		closeTimeout: cfg.Ble.CloseTimeout,
 		onCloseCb:    cfg.OnCloseCb,
 	}
@@ -115,7 +115,7 @@ func (bos *BleOicSesn) blockUntilClosed(timeout time.Duration) error {
 }
 
 func (bos *BleOicSesn) AbortRx(seq uint8) error {
-	return bos.rxer.FakeNmpError(seq, fmt.Errorf("Rx aborted"))
+	return bos.d.ErrorOneNmp(seq, fmt.Errorf("Rx aborted"))
 }
 
 func (bos *BleOicSesn) Open() error {
@@ -147,14 +147,14 @@ func (bos *BleOicSesn) IsOpen() bool {
 }
 
 func (bos *BleOicSesn) onRxNmp(data []byte) {
-	bos.rxer.Rx(data)
+	bos.d.Dispatch(data)
 }
 
 // Called by the FSM when a blehostd disconnect event is received.
 func (bos *BleOicSesn) onDisconnect(dt BleFsmDisconnectType, peer BleDev,
 	err error) {
 
-	bos.rxer.ErrorAll(err)
+	bos.d.ErrorAll(err)
 
 	bos.mtx.Lock()
 
@@ -185,11 +185,11 @@ func (bos *BleOicSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 			"Attempt to transmit over closed BLE session")
 	}
 
-	nl, err := bos.rxer.AddNmpListener(m.Hdr.Seq)
+	nl, err := bos.d.AddNmpListener(m.Hdr.Seq)
 	if err != nil {
 		return nil, err
 	}
-	defer bos.rxer.RemoveNmpListener(m.Hdr.Seq)
+	defer bos.d.RemoveNmpListener(m.Hdr.Seq)
 
 	b, err := bos.EncodeNmpMsg(m)
 	if err != nil {
@@ -221,13 +221,13 @@ func (bos *BleOicSesn) ConnInfo() (BleConnDesc, error) {
 func (bos *BleOicSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
 	[]byte, error) {
 
-	token := nmxutil.NextOicToken()
+	token := nmxutil.NextToken()
 
-	ol, err := bos.rxer.AddOicListener(token)
+	ol, err := bos.d.AddOicListener(token)
 	if err != nil {
 		return nil, err
 	}
-	defer bos.rxer.RemoveOicListener(token)
+	defer bos.d.RemoveOicListener(token)
 
 	req, err := oic.EncodeGet(uri, token)
 	if err != nil {

@@ -17,13 +17,13 @@ type UdpOicSesn struct {
 	cfg  sesn.SesnCfg
 	addr *net.UDPAddr
 	conn *net.UDPConn
-	rxer *omp.Receiver
+	d    *omp.Dispatcher
 }
 
 func NewUdpOicSesn(cfg sesn.SesnCfg) *UdpOicSesn {
 	uos := &UdpOicSesn{
-		cfg:  cfg,
-		rxer: omp.NewReceiver(false),
+		cfg: cfg,
+		d:   omp.NewDispatcher(false, 3),
 	}
 
 	return uos
@@ -37,7 +37,7 @@ func (uos *UdpOicSesn) Open() error {
 
 	conn, addr, err := Listen(uos.cfg.PeerSpec.Udp,
 		func(data []byte) {
-			uos.rxer.Rx(data)
+			uos.d.Dispatch(data)
 		})
 	if err != nil {
 		return err
@@ -87,11 +87,11 @@ func (uos *UdpOicSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 		return nil, fmt.Errorf("Attempt to transmit over closed UDP session")
 	}
 
-	nl, err := uos.rxer.AddNmpListener(m.Hdr.Seq)
+	nl, err := uos.d.AddNmpListener(m.Hdr.Seq)
 	if err != nil {
 		return nil, err
 	}
-	defer uos.rxer.RemoveNmpListener(m.Hdr.Seq)
+	defer uos.d.RemoveNmpListener(m.Hdr.Seq)
 
 	b, err := uos.EncodeNmpMsg(m)
 	if err != nil {
@@ -117,20 +117,20 @@ func (uos *UdpOicSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 }
 
 func (uos *UdpOicSesn) AbortRx(seq uint8) error {
-	uos.rxer.ErrorAll(fmt.Errorf("Rx aborted"))
+	uos.d.ErrorAll(fmt.Errorf("Rx aborted"))
 	return nil
 }
 
 func (uos *UdpOicSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
 	[]byte, error) {
 
-	token := nmxutil.NextOicToken()
+	token := nmxutil.NextToken()
 
-	ol, err := uos.rxer.AddOicListener(token)
+	ol, err := uos.d.AddOicListener(token)
 	if err != nil {
 		return nil, err
 	}
-	defer uos.rxer.RemoveOicListener(token)
+	defer uos.d.RemoveOicListener(token)
 
 	req, err := oic.EncodeGet(uri, token)
 	if err != nil {

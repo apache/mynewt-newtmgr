@@ -23,7 +23,7 @@ type BllOicSesn struct {
 	cln       ble.Client
 	nmpReqChr *ble.Characteristic
 	nmpRspChr *ble.Characteristic
-	rxer      *omp.Receiver
+	d         *omp.Dispatcher
 	mtx       sync.Mutex
 	attMtu    int
 }
@@ -39,7 +39,7 @@ func (bps *BllOicSesn) listenDisconnect() {
 		<-bps.cln.Disconnected()
 
 		bps.mtx.Lock()
-		bps.rxer.ErrorAll(fmt.Errorf("Disconnected"))
+		bps.d.ErrorAll(fmt.Errorf("Disconnected"))
 		bps.mtx.Unlock()
 
 		bps.cln = nil
@@ -110,7 +110,7 @@ func (bps *BllOicSesn) discoverAll() error {
 func (bps *BllOicSesn) subscribe() error {
 	log.Debugf("Subscribing to NMP response characteristic")
 	onNotify := func(data []byte) {
-		bps.rxer.Rx(data)
+		bps.d.Dispatch(data)
 	}
 
 	if err := bps.cln.Subscribe(bps.nmpRspChr, false, onNotify); err != nil {
@@ -138,7 +138,7 @@ func (bps *BllOicSesn) Open() error {
 			"Attempt to open an already-open bll session")
 	}
 
-	bps.rxer = omp.NewReceiver(true)
+	bps.d = omp.NewDispatcher(true, 3)
 
 	if err := bps.connect(); err != nil {
 		return err
@@ -192,7 +192,7 @@ func (bps *BllOicSesn) MtuIn() int {
 // Stops a receive operation in progress.  This must be called from a
 // separate thread, as sesn receive operations are blocking.
 func (bps *BllOicSesn) AbortRx(nmpSeq uint8) error {
-	return bps.rxer.FakeNmpError(nmpSeq, fmt.Errorf("Rx aborted"))
+	return bps.d.ErrorOneNmp(nmpSeq, fmt.Errorf("Rx aborted"))
 }
 
 func (bps *BllOicSesn) EncodeNmpMsg(msg *nmp.NmpMsg) ([]byte, error) {
@@ -217,11 +217,11 @@ func (bps *BllOicSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 		return nil, err
 	}
 
-	nl, err := bps.rxer.AddNmpListener(msg.Hdr.Seq)
+	nl, err := bps.d.AddNmpListener(msg.Hdr.Seq)
 	if err != nil {
 		return nil, err
 	}
-	defer bps.rxer.RemoveNmpListener(msg.Hdr.Seq)
+	defer bps.d.RemoveNmpListener(msg.Hdr.Seq)
 
 	// Send request.
 	if err := bps.cln.WriteCharacteristic(bps.nmpReqChr, b, true); err != nil {

@@ -306,7 +306,7 @@ type BleHdr struct {
 	Seq  BleSeq  `json:"seq"`
 }
 
-type BleMsg interface{}
+type Msg interface{}
 
 type BleSvc struct {
 	StartHandle int     `json:"start_handle"`

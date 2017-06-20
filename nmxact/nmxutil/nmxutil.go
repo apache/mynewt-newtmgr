@@ -50,7 +50,7 @@ func NextNmpSeq() uint8 {
 	return val
 }
 
-func NextOicToken() []byte {
+func NextToken() []byte {
 	seqMutex.Lock()
 	defer seqMutex.Unlock()
 
@@ -101,14 +101,14 @@ func LogRemoveOicListener(parentLevel int, token []byte) {
 		fmt.Sprintf("token=%+v", token))
 }
 
-func LogAddBleListener(parentLevel int, base interface{}, id uint32,
+func LogAddListener(parentLevel int, base interface{}, id uint32,
 	name string) {
 
 	LogListener(parentLevel, "add-ble-listener",
 		fmt.Sprintf("[%d] %s: base=%+v", id, name, base))
 }
 
-func LogRemoveBleListener(parentLevel int, base interface{}, id uint32,
+func LogRemoveListener(parentLevel int, base interface{}, id uint32,
 	name string) {
 
 	LogListener(parentLevel, "remove-ble-listener",

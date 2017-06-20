@@ -11,7 +11,7 @@ import (
 
 type SerialPlainSesn struct {
 	sx     *SerialXport
-	nd     *nmp.NmpDispatcher
+	d      *nmp.Dispatcher
 	isOpen bool
 
 	// This mutex ensures:
@@ -23,7 +23,7 @@ type SerialPlainSesn struct {
 func NewSerialPlainSesn(sx *SerialXport) *SerialPlainSesn {
 	return &SerialPlainSesn{
 		sx: sx,
-		nd: nmp.NewNmpDispatcher(),
+		d:  nmp.NewDispatcher(1),
 	}
 }
 
@@ -70,22 +70,22 @@ func (sps *SerialPlainSesn) MtuOut() int {
 }
 
 func (sps *SerialPlainSesn) AbortRx(seq uint8) error {
-	return sps.nd.FakeRxError(seq, fmt.Errorf("Rx aborted"))
+	return sps.d.ErrorOne(seq, fmt.Errorf("Rx aborted"))
 }
 
-func (sps *SerialPlainSesn) addNmpListener(seq uint8) (
-	*nmp.NmpListener, error) {
+func (sps *SerialPlainSesn) addListener(seq uint8) (
+	*nmp.Listener, error) {
 
-	nl := nmp.NewNmpListener()
-	if err := sps.nd.AddListener(seq, nl); err != nil {
+	nl, err := sps.d.AddListener(seq)
+	if err != nil {
 		return nil, err
 	}
 
 	return nl, nil
 }
 
-func (sps *SerialPlainSesn) removeNmpListener(seq uint8) {
-	sps.nd.RemoveListener(seq)
+func (sps *SerialPlainSesn) removeListener(seq uint8) {
+	sps.d.RemoveListener(seq)
 }
 
 func (sps *SerialPlainSesn) EncodeNmpMsg(m *nmp.NmpMsg) ([]byte, error) {
@@ -103,11 +103,11 @@ func (sps *SerialPlainSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 			"Attempt to transmit over closed serial session")
 	}
 
-	nl, err := sps.addNmpListener(m.Hdr.Seq)
+	nl, err := sps.addListener(m.Hdr.Seq)
 	if err != nil {
 		return nil, err
 	}
-	defer sps.removeNmpListener(m.Hdr.Seq)
+	defer sps.removeListener(m.Hdr.Seq)
 
 	reqb, err := sps.EncodeNmpMsg(m)
 	if err != nil {
@@ -125,7 +125,7 @@ func (sps *SerialPlainSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 		}
 
 		// Now wait for newtmgr response.
-		if sps.nd.Dispatch(rspb) {
+		if sps.d.Dispatch(rspb) {
 			select {
 			case err := <-nl.ErrChan:
 				return nil, err

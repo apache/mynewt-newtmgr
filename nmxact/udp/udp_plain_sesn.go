@@ -14,13 +14,13 @@ type UdpPlainSesn struct {
 	cfg  sesn.SesnCfg
 	addr *net.UDPAddr
 	conn *net.UDPConn
-	nd   *nmp.NmpDispatcher
+	d    *nmp.Dispatcher
 }
 
 func NewUdpPlainSesn(cfg sesn.SesnCfg) *UdpPlainSesn {
 	ups := &UdpPlainSesn{
 		cfg: cfg,
-		nd:  nmp.NewNmpDispatcher(),
+		d:   nmp.NewDispatcher(1),
 	}
 
 	return ups
@@ -34,7 +34,7 @@ func (ups *UdpPlainSesn) Open() error {
 
 	conn, addr, err := Listen(ups.cfg.PeerSpec.Udp,
 		func(data []byte) {
-			ups.nd.Dispatch(data)
+			ups.d.Dispatch(data)
 		})
 	if err != nil {
 		return err
@@ -80,11 +80,11 @@ func (ups *UdpPlainSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 		return nil, fmt.Errorf("Attempt to transmit over closed UDP session")
 	}
 
-	nl := nmp.NewNmpListener()
-	if err := ups.nd.AddListener(m.Hdr.Seq, nl); err != nil {
+	nl, err := ups.d.AddListener(m.Hdr.Seq)
+	if err != nil {
 		return nil, err
 	}
-	defer ups.nd.RemoveListener(m.Hdr.Seq)
+	defer ups.d.RemoveListener(m.Hdr.Seq)
 
 	b, err := ups.EncodeNmpMsg(m)
 	if err != nil {
@@ -110,7 +110,7 @@ func (ups *UdpPlainSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 }
 
 func (ups *UdpPlainSesn) AbortRx(seq uint8) error {
-	return ups.nd.FakeRxError(seq, fmt.Errorf("Rx aborted"))
+	return ups.d.ErrorOne(seq, fmt.Errorf("Rx aborted"))
 }
 
 func (ups *UdpPlainSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (

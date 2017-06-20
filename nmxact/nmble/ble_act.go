@@ -2,32 +2,64 @@ package nmble
 
 import (
 	"encoding/json"
+	"fmt"
+
+	log "github.com/Sirupsen/logrus"
 
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 )
 
 // Blocking
-func connect(x *BleXport, connChan chan error, r *BleConnectReq) error {
+func connect(x *BleXport, bl *Listener, r *BleConnectReq) (uint16, error) {
 	j, err := json.Marshal(r)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	if err := x.Tx(j); err != nil {
-		return err
+		return 0, err
 	}
 
-	err = <-connChan
-	if err != nil {
-		return err
-	}
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return 0, err
 
-	return nil
+		case bm := <-bl.MsgChan:
+			switch msg := bm.(type) {
+			case *BleConnectRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					str := fmt.Sprintf("BLE connection attempt failed; "+
+						"status=%s (%d)",
+						ErrCodeToString(msg.Status), msg.Status)
+					log.Debugf(str)
+					return 0, nmxutil.NewBleHostError(msg.Status, str)
+				}
+
+			case *BleConnectEvt:
+				if msg.Status == 0 {
+					return msg.ConnHandle, nil
+				} else {
+					str := fmt.Sprintf("BLE connection attempt failed; "+
+						"status=%s (%d)",
+						ErrCodeToString(msg.Status), msg.Status)
+					log.Debugf(str)
+					return 0, nmxutil.NewBleHostError(msg.Status, str)
+				}
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return 0, BhdTimeoutError(MSG_TYPE_CONNECT, r.Seq)
+		}
+	}
 }
 
 // Blocking
-func terminate(x *BleXport, bl *BleListener, r *BleTerminateReq) error {
+func terminate(x *BleXport, bl *Listener, r *BleTerminateReq) error {
 	const rspType = MSG_TYPE_TERMINATE
 
 	j, err := json.Marshal(r)
@@ -44,7 +76,7 @@ func terminate(x *BleXport, bl *BleListener, r *BleTerminateReq) error {
 		case err := <-bl.ErrChan:
 			return err
 
-		case bm := <-bl.BleChan:
+		case bm := <-bl.MsgChan:
 			switch msg := bm.(type) {
 			case *BleTerminateRsp:
 				bl.Acked = true
@@ -63,7 +95,7 @@ func terminate(x *BleXport, bl *BleListener, r *BleTerminateReq) error {
 	}
 }
 
-func connCancel(x *BleXport, bl *BleListener, r *BleConnCancelReq) error {
+func connCancel(x *BleXport, bl *Listener, r *BleConnCancelReq) error {
 	const rspType = MSG_TYPE_CONN_CANCEL
 
 	j, err := json.Marshal(r)
@@ -80,7 +112,7 @@ func connCancel(x *BleXport, bl *BleListener, r *BleConnCancelReq) error {
 		case err := <-bl.ErrChan:
 			return err
 
-		case bm := <-bl.BleChan:
+		case bm := <-bl.MsgChan:
 			switch msg := bm.(type) {
 			case *BleConnCancelRsp:
 				bl.Acked = true
@@ -100,7 +132,7 @@ func connCancel(x *BleXport, bl *BleListener, r *BleConnCancelReq) error {
 }
 
 // Blocking.
-func discSvcUuid(x *BleXport, bl *BleListener, r *BleDiscSvcUuidReq) (
+func discSvcUuid(x *BleXport, bl *Listener, r *BleDiscSvcUuidReq) (
 	*BleSvc, error) {
 
 	const rspType = MSG_TYPE_DISC_SVC_UUID
@@ -121,7 +153,7 @@ func discSvcUuid(x *BleXport, bl *BleListener, r *BleDiscSvcUuidReq) (
 		case err := <-bl.ErrChan:
 			return nil, err
 
-		case bm := <-bl.BleChan:
+		case bm := <-bl.MsgChan:
 			switch msg := bm.(type) {
 			case *BleDiscSvcUuidRsp:
 				bl.Acked = true
@@ -155,7 +187,7 @@ func discSvcUuid(x *BleXport, bl *BleListener, r *BleDiscSvcUuidReq) (
 }
 
 // Blocking.
-func discAllChrs(x *BleXport, bl *BleListener, r *BleDiscAllChrsReq) (
+func discAllChrs(x *BleXport, bl *Listener, r *BleDiscAllChrsReq) (
 	[]*BleChr, error) {
 
 	const rspType = MSG_TYPE_DISC_ALL_CHRS
@@ -176,7 +208,7 @@ func discAllChrs(x *BleXport, bl *BleListener, r *BleDiscAllChrsReq) (
 		case err := <-bl.ErrChan:
 			return nil, err
 
-		case bm := <-bl.BleChan:
+		case bm := <-bl.MsgChan:
 			switch msg := bm.(type) {
 			case *BleDiscAllChrsRsp:
 				bl.Acked = true
@@ -204,7 +236,7 @@ func discAllChrs(x *BleXport, bl *BleListener, r *BleDiscAllChrsReq) (
 }
 
 // Blocking.
-func writeCmd(x *BleXport, bl *BleListener, r *BleWriteCmdReq) error {
+func writeCmd(x *BleXport, bl *Listener, r *BleWriteCmdReq) error {
 	const rspType = MSG_TYPE_WRITE_CMD
 
 	j, err := json.Marshal(r)
@@ -221,7 +253,7 @@ func writeCmd(x *BleXport, bl *BleListener, r *BleWriteCmdReq) error {
 		case err := <-bl.ErrChan:
 			return err
 
-		case bm := <-bl.BleChan:
+		case bm := <-bl.MsgChan:
 			switch msg := bm.(type) {
 			case *BleWriteCmdRsp:
 				bl.Acked = true
@@ -241,7 +273,7 @@ func writeCmd(x *BleXport, bl *BleListener, r *BleWriteCmdReq) error {
 }
 
 // Blocking.
-func exchangeMtu(x *BleXport, bl *BleListener, r *BleExchangeMtuReq) (
+func exchangeMtu(x *BleXport, bl *Listener, r *BleExchangeMtuReq) (
 	int, error) {
 
 	const rspType = MSG_TYPE_EXCHANGE_MTU
@@ -261,7 +293,7 @@ func exchangeMtu(x *BleXport, bl *BleListener, r *BleExchangeMtuReq) (
 		case err := <-bl.ErrChan:
 			return 0, err
 
-		case bm := <-bl.BleChan:
+		case bm := <-bl.MsgChan:
 			switch msg := bm.(type) {
 			case *BleExchangeMtuRsp:
 				bl.Acked = true
@@ -285,7 +317,7 @@ func exchangeMtu(x *BleXport, bl *BleListener, r *BleExchangeMtuReq) (
 	}
 }
 
-func actScan(x *BleXport, bl *BleListener, r *BleScanReq,
+func actScan(x *BleXport, bl *Listener, r *BleScanReq,
 	abortChan chan struct{}, advRptCb BleAdvRptFn) error {
 
 	const rspType = MSG_TYPE_SCAN
@@ -304,7 +336,7 @@ func actScan(x *BleXport, bl *BleListener, r *BleScanReq,
 		case err := <-bl.ErrChan:
 			return err
 
-		case bm := <-bl.BleChan:
+		case bm := <-bl.MsgChan:
 			switch msg := bm.(type) {
 			case *BleScanRsp:
 				bl.Acked = true
@@ -331,7 +363,7 @@ func actScan(x *BleXport, bl *BleListener, r *BleScanReq,
 	}
 }
 
-func scanCancel(x *BleXport, bl *BleListener, r *BleScanCancelReq) error {
+func scanCancel(x *BleXport, bl *Listener, r *BleScanCancelReq) error {
 	const rspType = MSG_TYPE_SCAN_CANCEL
 
 	j, err := json.Marshal(r)
@@ -348,7 +380,7 @@ func scanCancel(x *BleXport, bl *BleListener, r *BleScanCancelReq) error {
 		case err := <-bl.ErrChan:
 			return err
 
-		case bm := <-bl.BleChan:
+		case bm := <-bl.MsgChan:
 			switch msg := bm.(type) {
 			case *BleScanCancelRsp:
 				bl.Acked = true
@@ -366,7 +398,7 @@ func scanCancel(x *BleXport, bl *BleListener, r *BleScanCancelReq) error {
 	}
 }
 
-func connFind(x *BleXport, bl *BleListener, r *BleConnFindReq) (
+func connFind(x *BleXport, bl *Listener, r *BleConnFindReq) (
 	BleConnDesc, error) {
 
 	const rspType = MSG_TYPE_CONN_FIND
@@ -385,7 +417,7 @@ func connFind(x *BleXport, bl *BleListener, r *BleConnFindReq) (
 		case err := <-bl.ErrChan:
 			return BleConnDesc{}, err
 
-		case bm := <-bl.BleChan:
+		case bm := <-bl.MsgChan:
 			switch msg := bm.(type) {
 			case *BleConnFindRsp:
 				bl.Acked = true
@@ -406,7 +438,7 @@ func connFind(x *BleXport, bl *BleListener, r *BleConnFindReq) (
 }
 
 // Tells the host to reset the controller.
-func reset(x *BleXport, bl *BleListener,
+func reset(x *BleXport, bl *Listener,
 	r *BleResetReq) error {
 
 	const rspType = MSG_TYPE_RESET
@@ -422,7 +454,7 @@ func reset(x *BleXport, bl *BleListener,
 		case err := <-bl.ErrChan:
 			return err
 
-		case bm := <-bl.BleChan:
+		case bm := <-bl.MsgChan:
 			switch bm.(type) {
 			case *BleResetRsp:
 				bl.Acked = true
@@ -438,7 +470,7 @@ func reset(x *BleXport, bl *BleListener,
 }
 
 // Blocking
-func encInitiate(x *BleXport, bl *BleListener, encChan chan error,
+func encInitiate(x *BleXport, bl *Listener,
 	r *BleSecurityInitiateReq) error {
 
 	const rspType = MSG_TYPE_SECURITY_INITIATE
@@ -457,7 +489,7 @@ func encInitiate(x *BleXport, bl *BleListener, encChan chan error,
 		case err := <-bl.ErrChan:
 			return err
 
-		case bm := <-bl.BleChan:
+		case bm := <-bl.MsgChan:
 			switch msg := bm.(type) {
 			case *BleSecurityInitiateRsp:
 				bl.Acked = true
@@ -468,9 +500,6 @@ func encInitiate(x *BleXport, bl *BleListener, encChan chan error,
 			default:
 			}
 
-		case err := <-encChan:
-			return err
-
 		case <-bl.AfterTimeout(x.RspTimeout()):
 			return BhdTimeoutError(rspType, r.Seq)
 		}
@@ -478,7 +507,7 @@ func encInitiate(x *BleXport, bl *BleListener, encChan chan error,
 }
 
 // Blocking
-func advStart(x *BleXport, bl *BleListener, r *BleAdvStartReq) error {
+func advStart(x *BleXport, bl *Listener, r *BleAdvStartReq) error {
 	const rspType = MSG_TYPE_ADV_START
 
 	j, err := json.Marshal(r)
@@ -495,7 +524,7 @@ func advStart(x *BleXport, bl *BleListener, r *BleAdvStartReq) error {
 		case err := <-bl.ErrChan:
 			return err
 
-		case bm := <-bl.BleChan:
+		case bm := <-bl.MsgChan:
 			switch msg := bm.(type) {
 			case *BleAdvStartRsp:
 				bl.Acked = true
@@ -514,7 +543,7 @@ func advStart(x *BleXport, bl *BleListener, r *BleAdvStartReq) error {
 }
 
 // Blocking
-func advStop(x *BleXport, bl *BleListener, r *BleAdvStopReq) error {
+func advStop(x *BleXport, bl *Listener, r *BleAdvStopReq) error {
 	const rspType = MSG_TYPE_ADV_STOP
 
 	j, err := json.Marshal(r)
@@ -531,7 +560,7 @@ func advStop(x *BleXport, bl *BleListener, r *BleAdvStopReq) error {
 		case err := <-bl.ErrChan:
 			return err
 
-		case bm := <-bl.BleChan:
+		case bm := <-bl.MsgChan:
 			switch msg := bm.(type) {
 			case *BleAdvStopRsp:
 				bl.Acked = true
@@ -550,7 +579,7 @@ func advStop(x *BleXport, bl *BleListener, r *BleAdvStopReq) error {
 }
 
 // Blocking
-func advSetData(x *BleXport, bl *BleListener, r *BleAdvSetDataReq) error {
+func advSetData(x *BleXport, bl *Listener, r *BleAdvSetDataReq) error {
 	const rspType = MSG_TYPE_ADV_SET_DATA
 
 	j, err := json.Marshal(r)
@@ -567,7 +596,7 @@ func advSetData(x *BleXport, bl *BleListener, r *BleAdvSetDataReq) error {
 		case err := <-bl.ErrChan:
 			return err
 
-		case bm := <-bl.BleChan:
+		case bm := <-bl.MsgChan:
 			switch msg := bm.(type) {
 			case *BleAdvSetDataRsp:
 				bl.Acked = true
@@ -586,7 +615,7 @@ func advSetData(x *BleXport, bl *BleListener, r *BleAdvSetDataReq) error {
 }
 
 // Blocking
-func advRspSetData(x *BleXport, bl *BleListener, r *BleAdvRspSetDataReq) error {
+func advRspSetData(x *BleXport, bl *Listener, r *BleAdvRspSetDataReq) error {
 	const rspType = MSG_TYPE_ADV_RSP_SET_DATA
 
 	j, err := json.Marshal(r)
@@ -603,7 +632,7 @@ func advRspSetData(x *BleXport, bl *BleListener, r *BleAdvRspSetDataReq) error {
 		case err := <-bl.ErrChan:
 			return err
 
-		case bm := <-bl.BleChan:
+		case bm := <-bl.MsgChan:
 			switch msg := bm.(type) {
 			case *BleAdvRspSetDataRsp:
 				bl.Acked = true
@@ -622,7 +651,7 @@ func advRspSetData(x *BleXport, bl *BleListener, r *BleAdvRspSetDataReq) error {
 }
 
 // Blocking
-func advFields(x *BleXport, bl *BleListener, r *BleAdvFieldsReq) (
+func advFields(x *BleXport, bl *Listener, r *BleAdvFieldsReq) (
 	[]byte, error) {
 
 	const rspType = MSG_TYPE_ADV_FIELDS
@@ -641,7 +670,7 @@ func advFields(x *BleXport, bl *BleListener, r *BleAdvFieldsReq) (
 		case err := <-bl.ErrChan:
 			return nil, err
 
-		case bm := <-bl.BleChan:
+		case bm := <-bl.MsgChan:
 			switch msg := bm.(type) {
 			case *BleAdvFieldsRsp:
 				bl.Acked = true
@@ -663,7 +692,7 @@ func advFields(x *BleXport, bl *BleListener, r *BleAdvFieldsReq) (
 // Asks the controller to generate a random address.  This is done when the
 // transport is starting up, and therefore does not require the transport to be
 // synced.  Only the transport should call this function.
-func genRandAddr(x *BleXport, bl *BleListener, r *BleGenRandAddrReq) (
+func genRandAddr(x *BleXport, bl *Listener, r *BleGenRandAddrReq) (
 	BleAddr, error) {
 
 	const rspType = MSG_TYPE_GEN_RAND_ADDR
@@ -679,7 +708,7 @@ func genRandAddr(x *BleXport, bl *BleListener, r *BleGenRandAddrReq) (
 		case err := <-bl.ErrChan:
 			return BleAddr{}, err
 
-		case bm := <-bl.BleChan:
+		case bm := <-bl.MsgChan:
 			switch msg := bm.(type) {
 			case *BleGenRandAddrRsp:
 				bl.Acked = true
@@ -701,7 +730,7 @@ func genRandAddr(x *BleXport, bl *BleListener, r *BleGenRandAddrReq) (
 // Configures the controller with the specified random address.  This is done
 // when the transport is starting up, and therefore does not require the
 // transport to be synced.  Only the transport should call this function.
-func setRandAddr(x *BleXport, bl *BleListener, r *BleSetRandAddrReq) error {
+func setRandAddr(x *BleXport, bl *Listener, r *BleSetRandAddrReq) error {
 	const rspType = MSG_TYPE_SET_RAND_ADDR
 
 	j, err := json.Marshal(r)
@@ -715,7 +744,7 @@ func setRandAddr(x *BleXport, bl *BleListener, r *BleSetRandAddrReq) error {
 		case err := <-bl.ErrChan:
 			return err
 
-		case bm := <-bl.BleChan:
+		case bm := <-bl.MsgChan:
 			switch msg := bm.(type) {
 			case *BleSetRandAddrRsp:
 				bl.Acked = true
@@ -736,7 +765,7 @@ func setRandAddr(x *BleXport, bl *BleListener, r *BleSetRandAddrReq) error {
 // Configures the host with the specified preferred ATT MTU.  This is done
 // when the transport is starting up, and therefore does not require the
 // transport to be synced.  Only the transport should call this function.
-func setPreferredMtu(x *BleXport, bl *BleListener,
+func setPreferredMtu(x *BleXport, bl *Listener,
 	r *BleSetPreferredMtuReq) error {
 
 	const rspType = MSG_TYPE_SET_PREFERRED_MTU
@@ -752,7 +781,7 @@ func setPreferredMtu(x *BleXport, bl *BleListener,
 		case err := <-bl.ErrChan:
 			return err
 
-		case bm := <-bl.BleChan:
+		case bm := <-bl.MsgChan:
 			switch msg := bm.(type) {
 			case *BleSetPreferredMtuRsp:
 				bl.Acked = true

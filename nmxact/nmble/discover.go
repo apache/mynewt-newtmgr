@@ -32,14 +32,14 @@ func NewDiscoverer(params DiscovererParams) *Discoverer {
 func (d *Discoverer) scanCancel() error {
 	r := NewBleScanCancelReq()
 
-	base := BleMsgBase{
+	base := MsgBase{
 		Op:         -1,
 		Type:       -1,
 		Seq:        r.Seq,
 		ConnHandle: -1,
 	}
 
-	bl := NewBleListener()
+	bl := NewListener()
 	if err := d.params.Bx.Bd.AddListener(base, bl); err != nil {
 		return err
 	}
@@ -71,14 +71,14 @@ func (d *Discoverer) Start(advRptCb BleAdvRptFn) error {
 	r.Passive = d.params.Passive
 	r.FilterDuplicates = true
 
-	base := BleMsgBase{
+	base := MsgBase{
 		Op:         -1,
 		Type:       -1,
 		Seq:        r.Seq,
 		ConnHandle: -1,
 	}
 
-	bl := NewBleListener()
+	bl := NewListener()
 	if err := d.params.Bx.Bd.AddListener(base, bl); err != nil {
 		return err
 	}
