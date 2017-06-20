@@ -180,7 +180,7 @@ func imageUploadCmd(cmd *cobra.Command, args []string) {
 		nmUsage(nil, err)
 	}
 
-	c := xact.NewImageUploadCmd()
+	c := xact.NewImageUpgradeCmd()
 	c.SetTxOptions(nmutil.TxOptions())
 	c.Data = imageFile
 	c.ProgressCb = func(c *xact.ImageUploadCmd, rsp *nmp.ImageUploadRsp) {
@@ -191,10 +191,9 @@ func imageUploadCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		nmUsage(nil, util.ChildNewtError(err))
 	}
-	ires := res.(*xact.ImageUploadResult)
 
-	if ires.Status() != 0 {
-		fmt.Printf("Error: %d\n", ires.Status())
+	if res.Status() != 0 {
+		fmt.Printf("Error: %d\n", res.Status())
 		return
 	}
 

@@ -33,8 +33,11 @@ func newImageUploadResult() *ImageUploadResult {
 }
 
 func (r *ImageUploadResult) Status() int {
-	rsp := r.Rsps[len(r.Rsps)-1]
-	return rsp.Rc
+	if len(r.Rsps) > 0 {
+		return r.Rsps[len(r.Rsps)-1].Rc
+	} else {
+		return nmp.NMP_ERR_EUNKNOWN
+	}
 }
 
 func buildImageUploadReq(imageSz int, chunk []byte,
@@ -119,6 +122,86 @@ func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 	}
 
 	return res, nil
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// $upgrade                                                                 //
+//////////////////////////////////////////////////////////////////////////////
+
+// Image upgrade combines the image erase and image upload commands into a
+// single command.  Some hardware and / or BLE connection settings cause the
+// connection to drop during the initial erase.  The image upgrade command
+// addresses this issue with the following sequence:
+// 1. Send image erase command.
+// 2. If the image erase command succeeded, proceed to step 5.
+// 3. Else if the peer is disconnected, attempt to reconnect to the peer.  If
+//    the reconnect attempt fails, abort the command and report the error.  If
+//    the reconnect attempt succeeded, proceed to step 5.
+// 4. Else (the erase command failed and the peer is still connected), proceed
+//    to step 5.
+// 5. Execute the upload command.
+
+type ImageUpgradeCmd struct {
+	CmdBase
+	Data       []byte
+	ProgressCb ImageUploadProgressFn
+}
+
+type ImageUpgradeResult struct {
+	EraseRes  *ImageEraseResult
+	UploadRes *ImageUploadResult
+}
+
+func NewImageUpgradeCmd() *ImageUpgradeCmd {
+	return &ImageUpgradeCmd{
+		CmdBase: NewCmdBase(),
+	}
+}
+
+func newImageUpgradeResult() *ImageUpgradeResult {
+	return &ImageUpgradeResult{}
+}
+
+func (r *ImageUpgradeResult) Status() int {
+	if r.UploadRes != nil {
+		return r.UploadRes.Status()
+	} else if r.EraseRes != nil {
+		return r.EraseRes.Status()
+	} else {
+		return nmp.NMP_ERR_EUNKNOWN
+	}
+}
+
+func (c *ImageUpgradeCmd) Run(s sesn.Sesn) (Result, error) {
+	upgradeRes := newImageUpgradeResult()
+
+	eraseCmd := NewImageEraseCmd()
+	res, err := eraseCmd.Run(s)
+
+	if res != nil {
+		upgradeRes.EraseRes = res.(*ImageEraseResult)
+	}
+	if err != nil || res.Status() != 0 {
+		// If the erase command failed and the peer is no longer connected, the
+		// disconnect could have been caused by a stall in the destination
+		// device's processor.  In this case, the erase command succeeded.  Try
+		// to recover by reconnecting.
+		if !s.IsOpen() {
+			if err := s.Open(); err != nil {
+				return upgradeRes, err
+			}
+		}
+	}
+
+	uploadCmd := NewImageUploadCmd()
+	uploadCmd.Data = c.Data
+	uploadCmd.ProgressCb = c.ProgressCb
+	res, err = uploadCmd.Run(s)
+
+	if res != nil {
+		upgradeRes.UploadRes = res.(*ImageUploadResult)
+	}
+	return upgradeRes, err
 }
 
 //////////////////////////////////////////////////////////////////////////////
