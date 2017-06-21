@@ -97,7 +97,7 @@ func NewBleFsm(p BleFsmParams) *BleFsm {
 
 	bf.rxer = NewReceiver(bf.id, p.Bx, 1)
 
-	bf.errFunnel.AccumDelay = time.Second
+	bf.errFunnel.AccumDelay = 250 * time.Millisecond
 	bf.errFunnel.LessCb = fsmErrorLess
 	bf.errFunnel.ProcCb = func(err error) { bf.processErr(err) }
 

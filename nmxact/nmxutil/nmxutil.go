@@ -23,15 +23,21 @@ var nextOicSeq uint8
 var oicSeqBeenRead bool
 var seqMutex sync.Mutex
 
+var logFormatter = log.TextFormatter{
+	FullTimestamp:   true,
+	TimestampFormat: "2006-01-02 15:04:05.999",
+	ForceColors:     true,
+}
+
 var ListenLog = &log.Logger{
 	Out:       os.Stderr,
-	Formatter: &log.TextFormatter{ForceColors: true},
+	Formatter: &logFormatter,
 	Level:     log.DebugLevel,
 }
 
 func SetLogLevel(level log.Level) {
 	log.SetLevel(level)
-	log.SetFormatter(&log.TextFormatter{ForceColors: true})
+	log.SetFormatter(&logFormatter)
 	ListenLog.Level = level
 }
 

@@ -44,14 +44,26 @@ func stopXport() {
 	}
 }
 
+func closeSesn() {
+	s, err := cli.GetSesnIfOpen()
+	if err == nil {
+		s.Close()
+	}
+}
+
+func cleanup() {
+	closeSesn()
+	stopXport()
+}
+
 func main() {
 	if err := config.InitGlobalConnProfileMgr(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
 		os.Exit(1)
 	}
 
-	defer stopXport()
-	cli.NmSetOnExit(stopXport)
+	defer cleanup()
+	cli.NmSetOnExit(cleanup)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan)
@@ -61,9 +73,7 @@ func main() {
 			s := <-sigChan
 			switch s {
 			case os.Interrupt, syscall.SIGTERM:
-				// Do a quick shutdown; just reset the transport.
-				stopXport()
-				os.Exit(0)
+				cli.NmExit(1)
 
 			case syscall.SIGQUIT:
 				util.PrintStacks()

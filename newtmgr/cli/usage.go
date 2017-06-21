@@ -22,6 +22,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"sync/atomic"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -30,9 +31,24 @@ import (
 )
 
 var nmOnExit func()
+var nmExiting int32
 
 func NmSetOnExit(cb func()) {
 	nmOnExit = cb
+}
+
+// Performs some cleanup and terminates the application.
+func NmExit(status int) {
+	// If we are already exiting, just block forever.  We don't want to perform
+	// a second round of cleanup or quit before the current one completes.
+	if !atomic.CompareAndSwapInt32(&nmExiting, 0, 1) {
+		select {}
+	}
+
+	if nmOnExit != nil {
+		nmOnExit()
+	}
+	os.Exit(status)
 }
 
 func nmUsage(cmd *cobra.Command, err error) {
@@ -52,8 +68,5 @@ func nmUsage(cmd *cobra.Command, err error) {
 		cmd.Help()
 	}
 
-	if nmOnExit != nil {
-		nmOnExit()
-	}
-	os.Exit(1)
+	NmExit(1)
 }
