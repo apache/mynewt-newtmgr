@@ -22,6 +22,8 @@ package nmutil
 import (
 	"time"
 
+	"github.com/pkg/errors"
+
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
@@ -34,5 +36,21 @@ func TxOptions() sesn.TxOptions {
 	return sesn.TxOptions{
 		Timeout: time.Duration(Timeout * float64(time.Second)),
 		Tries:   Tries,
+	}
+}
+
+func ErrorCausedBy(err error, cause error) bool {
+	cur := err
+	for {
+		if cur == cause {
+			return true
+		}
+
+		child := errors.Cause(cur)
+		if child == cur {
+			return false
+		}
+
+		cur = child
 	}
 }

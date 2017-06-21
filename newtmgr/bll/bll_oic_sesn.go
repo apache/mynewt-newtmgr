@@ -3,12 +3,12 @@ package bll
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/currantlabs/ble"
 	"golang.org/x/net/context"
 
+	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmble"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
@@ -49,12 +49,17 @@ func (bps *BllOicSesn) listenDisconnect() {
 func (bps *BllOicSesn) connect() error {
 	log.Debugf("Connecting to peer")
 	ctx := ble.WithSigHandler(context.WithTimeout(context.Background(),
-		10*time.Second))
+		bps.cfg.ConnTimeout))
 
 	var err error
 	bps.cln, err = ble.Connect(ctx, bps.cfg.AdvFilter)
 	if err != nil {
-		return err
+		if nmutil.ErrorCausedBy(err, context.DeadlineExceeded) {
+			return fmt.Errorf("Failed to connect to peer after %s",
+				bps.cfg.ConnTimeout.String())
+		} else {
+			return err
+		}
 	}
 
 	bps.listenDisconnect()
