@@ -31,26 +31,27 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/nmserial"
 )
 
+func stopXport() {
+	x, err := cli.GetXportIfOpen()
+	if err == nil {
+		// Don't attempt to close a serial transport.  Attempting to close
+		// the serial port while a read is in progress (in MacOS) just
+		// blocks until the read completes.  Instead, let the OS close the
+		// port on termination.
+		if _, ok := x.(*nmserial.SerialXport); !ok {
+			x.Stop()
+		}
+	}
+}
+
 func main() {
 	if err := config.InitGlobalConnProfileMgr(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
 		os.Exit(1)
 	}
 
-	onExit := func() {
-		x, err := cli.GetXportIfOpen()
-		if err == nil {
-			// Don't attempt to close a serial transport.  Attempting to close
-			// the serial port while a read is in progress (in MacOS) just
-			// blocks until the read completes.  Instead, let the OS close the
-			// port on termination.
-			if _, ok := x.(*nmserial.SerialXport); !ok {
-				x.Stop()
-			}
-		}
-	}
-	defer onExit()
-	cli.NmSetOnExit(onExit)
+	defer stopXport()
+	cli.NmSetOnExit(cleanShutdown)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan)
@@ -60,7 +61,8 @@ func main() {
 			s := <-sigChan
 			switch s {
 			case os.Interrupt, syscall.SIGTERM:
-				onExit()
+				// Do a quick shutdown; just reset the transport.
+				stopXport()
 				os.Exit(0)
 
 			case syscall.SIGQUIT:

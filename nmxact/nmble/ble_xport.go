@@ -276,6 +276,12 @@ func (bx *BleXport) shutdown(restart bool, err error) {
 	log.Debugf("Stopping BLE dispatcher")
 	bx.Bd.ErrorAll(err)
 
+	synced, err := bx.querySyncStatus()
+	if err == nil && synced {
+		// Reset controller so that all outstanding connections terminate.
+		ResetXact(bx)
+	}
+
 	// Stop all of this transport's go routines.
 	log.Debugf("Waiting for BLE transport goroutines to complete")
 	for i := 0; i < bx.numStopListeners; i++ {
@@ -289,12 +295,6 @@ func (bx *BleXport) shutdown(restart bool, err error) {
 	}
 
 	bx.setStateFrom(BLE_XPORT_STATE_STOPPING, BLE_XPORT_STATE_STOPPED)
-
-	synced, err := bx.querySyncStatus()
-	if err == nil && synced {
-		// Reset controller so that all outstanding connections terminate.
-		ResetXact(bx)
-	}
 
 	// Indicate that the shutdown is complete.  If restarts are enabled on this
 	// transport, this signals that the transport should be started again.
