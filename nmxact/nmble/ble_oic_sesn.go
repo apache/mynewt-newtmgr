@@ -53,8 +53,9 @@ func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 		Bx:          bx,
 		OwnAddrType: cfg.Ble.OwnAddrType,
 		Central: BleFsmParamsCentral{
-			PeerDev:   cfg.PeerSpec.Ble,
-			ConnTries: cfg.Ble.Central.ConnTries,
+			PeerDev:     cfg.PeerSpec.Ble,
+			ConnTries:   cfg.Ble.Central.ConnTries,
+			ConnTimeout: cfg.Ble.Central.ConnTimeout,
 		},
 		SvcUuids:    svcUuids,
 		ReqChrUuid:  reqChrUuid,

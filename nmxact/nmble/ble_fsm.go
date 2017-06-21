@@ -52,8 +52,9 @@ type BleRxDataFn func(data []byte)
 type BleDisconnectFn func(dt BleFsmDisconnectType, peer BleDev, err error)
 
 type BleFsmParamsCentral struct {
-	PeerDev   BleDev
-	ConnTries int
+	PeerDev     BleDev
+	ConnTries   int
+	ConnTimeout time.Duration
 }
 
 type BleFsmParams struct {
@@ -290,7 +291,9 @@ func (bf *BleFsm) connect() error {
 	bf.state = SESN_STATE_CONNECTING
 
 	// Tell blehostd to initiate connection.
-	if bf.connHandle, err = connect(bf.params.Bx, bl, r); err != nil {
+	if bf.connHandle, err = connect(bf.params.Bx, bl, r,
+		bf.params.Central.ConnTimeout); err != nil {
+
 		bhe := nmxutil.ToBleHost(err)
 		if bhe != nil && bhe.Status == ERR_CODE_EDONE {
 			// Already connected.
@@ -305,10 +308,10 @@ func (bf *BleFsm) connect() error {
 				log.Errorf("Failed to cancel connect in progress: %s",
 					err.Error())
 			}
-		} else {
-			bf.rxer.RemoveSeqListener("connect", r.Seq)
-			return err
 		}
+
+		bf.rxer.RemoveSeqListener("connect", r.Seq)
+		return err
 	}
 
 	// Listen for events in the background.

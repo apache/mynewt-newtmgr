@@ -3,6 +3,7 @@ package nmble
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 
@@ -11,7 +12,9 @@ import (
 )
 
 // Blocking
-func connect(x *BleXport, bl *Listener, r *BleConnectReq) (uint16, error) {
+func connect(x *BleXport, bl *Listener, r *BleConnectReq,
+	timeout time.Duration) (uint16, error) {
+
 	j, err := json.Marshal(r)
 	if err != nil {
 		return 0, err
@@ -54,6 +57,10 @@ func connect(x *BleXport, bl *Listener, r *BleConnectReq) (uint16, error) {
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
 			return 0, BhdTimeoutError(MSG_TYPE_CONNECT, r.Seq)
+
+		case <-time.After(timeout):
+			return 0, fmt.Errorf("Failed to connect to peer after %s",
+				timeout.String())
 		}
 	}
 }

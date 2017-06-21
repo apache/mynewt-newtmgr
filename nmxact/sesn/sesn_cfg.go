@@ -21,7 +21,8 @@ type PeerSpec struct {
 }
 
 type SesnCfgBleCentral struct {
-	ConnTries int
+	ConnTries   int
+	ConnTimeout time.Duration
 	// XXX: Missing fields.
 }
 
@@ -73,7 +74,8 @@ func NewSesnCfg() SesnCfg {
 			CloseTimeout: 30 * time.Second,
 
 			Central: SesnCfgBleCentral{
-				ConnTries: 3,
+				ConnTries:   3,
+				ConnTimeout: 10 * time.Second,
 			},
 			Periph: SesnCfgBlePeriph{},
 		},
