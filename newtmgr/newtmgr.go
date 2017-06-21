@@ -51,7 +51,7 @@ func main() {
 	}
 
 	defer stopXport()
-	cli.NmSetOnExit(cleanShutdown)
+	cli.NmSetOnExit(stopXport)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan)
