@@ -63,7 +63,7 @@ func main() {
 	}
 
 	defer cleanup()
-	cli.NmSetOnExit(cleanup)
+	cli.SetOnExit(cleanup)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan)
@@ -73,6 +73,7 @@ func main() {
 			s := <-sigChan
 			switch s {
 			case os.Interrupt, syscall.SIGTERM:
+				cli.SilenceErrors()
 				cli.NmExit(1)
 
 			case syscall.SIGQUIT:

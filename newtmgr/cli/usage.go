@@ -30,42 +30,49 @@ import (
 	"mynewt.apache.org/newt/util"
 )
 
-var nmOnExit func()
-var nmExiting int32
+var onExit func()
+var exiting int32
+var silenceErrors bool
 
-func NmSetOnExit(cb func()) {
-	nmOnExit = cb
+func SetOnExit(cb func()) {
+	onExit = cb
+}
+
+func SilenceErrors() {
+	silenceErrors = true
 }
 
 // Performs some cleanup and terminates the application.
 func NmExit(status int) {
 	// If we are already exiting, just block forever.  We don't want to perform
 	// a second round of cleanup or quit before the current one completes.
-	if !atomic.CompareAndSwapInt32(&nmExiting, 0, 1) {
+	if !atomic.CompareAndSwapInt32(&exiting, 0, 1) {
 		select {}
 	}
 
-	if nmOnExit != nil {
-		nmOnExit()
+	if onExit != nil {
+		onExit()
 	}
 	os.Exit(status)
 }
 
 func nmUsage(cmd *cobra.Command, err error) {
-	if err != nil {
-		sErr, ok := err.(*util.NewtError)
-		if !ok {
-			sErr = util.ChildNewtError(err)
+	if !silenceErrors {
+		if err != nil {
+			sErr, ok := err.(*util.NewtError)
+			if !ok {
+				sErr = util.ChildNewtError(err)
+			}
+
+			log.Debugf("%s", sErr.StackTrace)
+			fmt.Fprintf(os.Stderr, "Error: %s\n", sErr.Text)
 		}
 
-		log.Debugf("%s", sErr.StackTrace)
-		fmt.Fprintf(os.Stderr, "Error: %s\n", sErr.Text)
-	}
-
-	if cmd != nil {
-		fmt.Printf("\n")
-		fmt.Printf("%s - ", cmd.Name())
-		cmd.Help()
+		if cmd != nil {
+			fmt.Printf("\n")
+			fmt.Printf("%s - ", cmd.Name())
+			cmd.Help()
+		}
 	}
 
 	NmExit(1)
