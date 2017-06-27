@@ -34,42 +34,42 @@ func NewBllOicSesn(cfg BllSesnCfg) *BllOicSesn {
 	}
 }
 
-func (bps *BllOicSesn) listenDisconnect() {
+func (bos *BllOicSesn) listenDisconnect() {
 	go func() {
-		<-bps.cln.Disconnected()
+		<-bos.cln.Disconnected()
 
-		bps.mtx.Lock()
-		bps.d.ErrorAll(fmt.Errorf("Disconnected"))
-		bps.mtx.Unlock()
+		bos.mtx.Lock()
+		bos.d.ErrorAll(fmt.Errorf("Disconnected"))
+		bos.mtx.Unlock()
 
-		bps.cln = nil
+		bos.cln = nil
 	}()
 }
 
-func (bps *BllOicSesn) connect() error {
+func (bos *BllOicSesn) connect() error {
 	log.Debugf("Connecting to peer")
 	ctx := ble.WithSigHandler(context.WithTimeout(context.Background(),
-		bps.cfg.ConnTimeout))
+		bos.cfg.ConnTimeout))
 
 	var err error
-	bps.cln, err = ble.Connect(ctx, bps.cfg.AdvFilter)
+	bos.cln, err = ble.Connect(ctx, bos.cfg.AdvFilter)
 	if err != nil {
 		if nmutil.ErrorCausedBy(err, context.DeadlineExceeded) {
 			return fmt.Errorf("Failed to connect to peer after %s",
-				bps.cfg.ConnTimeout.String())
+				bos.cfg.ConnTimeout.String())
 		} else {
 			return err
 		}
 	}
 
-	bps.listenDisconnect()
+	bos.listenDisconnect()
 
 	return nil
 }
 
-func (bps *BllOicSesn) discoverAll() error {
+func (bos *BllOicSesn) discoverAll() error {
 	log.Debugf("Discovering profile")
-	p, err := bps.cln.DiscoverProfile(true)
+	p, err := bos.cln.DiscoverProfile(true)
 	if err != nil {
 		return err
 	}
@@ -95,15 +95,15 @@ func (bps *BllOicSesn) discoverAll() error {
 				}
 
 				if bledefs.CompareUuids(uuid, reqChrUuid) == 0 {
-					bps.nmpReqChr = c
+					bos.nmpReqChr = c
 				} else if bledefs.CompareUuids(uuid, rspChrUuid) == 0 {
-					bps.nmpRspChr = c
+					bos.nmpRspChr = c
 				}
 			}
 		}
 	}
 
-	if bps.nmpReqChr == nil || bps.nmpRspChr == nil {
+	if bos.nmpReqChr == nil || bos.nmpRspChr == nil {
 		return fmt.Errorf(
 			"Peer doesn't support a suitable service / characteristic")
 	}
@@ -112,93 +112,93 @@ func (bps *BllOicSesn) discoverAll() error {
 }
 
 // Subscribes to the peer's characteristic implementing NMP.
-func (bps *BllOicSesn) subscribe() error {
+func (bos *BllOicSesn) subscribe() error {
 	log.Debugf("Subscribing to NMP response characteristic")
 	onNotify := func(data []byte) {
-		bps.d.Dispatch(data)
+		bos.d.Dispatch(data)
 	}
 
-	if err := bps.cln.Subscribe(bps.nmpRspChr, false, onNotify); err != nil {
+	if err := bos.cln.Subscribe(bos.nmpRspChr, false, onNotify); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (bps *BllOicSesn) exchangeMtu() error {
-	mtu, err := exchangeMtu(bps.cln, bps.cfg.PreferredMtu)
+func (bos *BllOicSesn) exchangeMtu() error {
+	mtu, err := exchangeMtu(bos.cln, bos.cfg.PreferredMtu)
 	if err != nil {
 		return err
 	}
 
-	bps.attMtu = mtu
+	bos.attMtu = mtu
 	return nil
 }
 
-func (bps *BllOicSesn) Open() error {
-	if bps.IsOpen() {
+func (bos *BllOicSesn) Open() error {
+	if bos.IsOpen() {
 		return nmxutil.NewSesnAlreadyOpenError(
 			"Attempt to open an already-open bll session")
 	}
 
-	bps.d = omp.NewDispatcher(true, 3)
+	bos.d = omp.NewDispatcher(true, 3)
 
-	if err := bps.connect(); err != nil {
+	if err := bos.connect(); err != nil {
 		return err
 	}
 
-	if err := bps.exchangeMtu(); err != nil {
+	if err := bos.exchangeMtu(); err != nil {
 		return err
 	}
 
-	if err := bps.discoverAll(); err != nil {
+	if err := bos.discoverAll(); err != nil {
 		return err
 	}
 
-	if err := bps.subscribe(); err != nil {
+	if err := bos.subscribe(); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (bps *BllOicSesn) Close() error {
-	if !bps.IsOpen() {
+func (bos *BllOicSesn) Close() error {
+	if !bos.IsOpen() {
 		return nmxutil.NewSesnClosedError(
 			"Attempt to close an unopened bll session")
 	}
 
-	if err := bps.cln.CancelConnection(); err != nil {
+	if err := bos.cln.CancelConnection(); err != nil {
 		return err
 	}
 
-	bps.cln = nil
+	bos.cln = nil
 
 	return nil
 }
 
 // Indicates whether the session is currently open.
-func (bps *BllOicSesn) IsOpen() bool {
-	return bps.cln != nil
+func (bos *BllOicSesn) IsOpen() bool {
+	return bos.cln != nil
 }
 
 // Retrieves the maximum data payload for outgoing NMP requests.
-func (bps *BllOicSesn) MtuOut() int {
-	return bps.attMtu - nmble.NOTIFY_CMD_BASE_SZ - nmp.NMP_HDR_SIZE
+func (bos *BllOicSesn) MtuOut() int {
+	return bos.attMtu - nmble.NOTIFY_CMD_BASE_SZ - nmp.NMP_HDR_SIZE
 }
 
 // Retrieves the maximum data payload for incoming NMP responses.
-func (bps *BllOicSesn) MtuIn() int {
-	return bps.attMtu - nmble.NOTIFY_CMD_BASE_SZ - nmp.NMP_HDR_SIZE
+func (bos *BllOicSesn) MtuIn() int {
+	return bos.attMtu - nmble.NOTIFY_CMD_BASE_SZ - nmp.NMP_HDR_SIZE
 }
 
 // Stops a receive operation in progress.  This must be called from a
 // separate thread, as sesn receive operations are blocking.
-func (bps *BllOicSesn) AbortRx(nmpSeq uint8) error {
-	return bps.d.ErrorOneNmp(nmpSeq, fmt.Errorf("Rx aborted"))
+func (bos *BllOicSesn) AbortRx(nmpSeq uint8) error {
+	return bos.d.ErrorOneNmp(nmpSeq, fmt.Errorf("Rx aborted"))
 }
 
-func (bps *BllOicSesn) EncodeNmpMsg(msg *nmp.NmpMsg) ([]byte, error) {
+func (bos *BllOicSesn) EncodeNmpMsg(msg *nmp.NmpMsg) ([]byte, error) {
 	return omp.EncodeOmpTcp(msg)
 }
 
@@ -207,27 +207,27 @@ func (bps *BllOicSesn) EncodeNmpMsg(msg *nmp.NmpMsg) ([]byte, error) {
 //     * nil: success.
 //     * nmxutil.SesnClosedError: session not open.
 //     * other error
-func (bps *BllOicSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
+func (bos *BllOicSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 	nmp.NmpRsp, error) {
 
-	if !bps.IsOpen() {
+	if !bos.IsOpen() {
 		return nil, nmxutil.NewSesnClosedError(
 			"Attempt to transmit over closed BLE session")
 	}
 
-	b, err := bps.EncodeNmpMsg(msg)
+	b, err := bos.EncodeNmpMsg(msg)
 	if err != nil {
 		return nil, err
 	}
 
-	nl, err := bps.d.AddNmpListener(msg.Hdr.Seq)
+	nl, err := bos.d.AddNmpListener(msg.Hdr.Seq)
 	if err != nil {
 		return nil, err
 	}
-	defer bps.d.RemoveNmpListener(msg.Hdr.Seq)
+	defer bos.d.RemoveNmpListener(msg.Hdr.Seq)
 
 	// Send request.
-	if err := bps.cln.WriteCharacteristic(bps.nmpReqChr, b, true); err != nil {
+	if err := bos.cln.WriteCharacteristic(bos.nmpReqChr, b, true); err != nil {
 		return nil, err
 	}
 
@@ -241,14 +241,14 @@ func (bps *BllOicSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 		case <-nl.AfterTimeout(opt.Timeout):
 			msg := fmt.Sprintf(
 				"NMP timeout; op=%d group=%d id=%d seq=%d",
-				b[0], b[4]+b[5]<<8, b[7], b[6])
+				msg.Hdr.Op, msg.Hdr.Group, msg.Hdr.Id, msg.Hdr.Seq)
 
 			return nil, nmxutil.NewRspTimeoutError(msg)
 		}
 	}
 }
 
-func (bps *BllOicSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
+func (bos *BllOicSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
 	[]byte, error) {
 
 	return nil, fmt.Errorf("BllOicSesn.GetResourceOnce() unimplemented")
