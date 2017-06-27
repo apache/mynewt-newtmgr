@@ -67,8 +67,9 @@ func nextImageUploadReq(s sesn.Sesn, data []byte, off int) (
 
 	room := s.MtuOut() - len(emptyEnc)
 	if room <= 0 {
-		return nil, fmt.Errorf("Cannot create image upload request; " +
-			"MTU too low to fit any image data")
+		return nil, fmt.Errorf("Cannot create image upload request; "+
+			"MTU too low to fit any image data; max-payload-size=%d",
+			s.MtuOut())
 	}
 
 	if off+room > len(data) {

@@ -111,13 +111,11 @@ func (bps *BllPlainSesn) subscribe() error {
 }
 
 func (bps *BllPlainSesn) exchangeMtu() error {
-	log.Debugf("Exchanging MTU")
-	mtu, err := bps.cln.ExchangeMTU(bps.cfg.PreferredMtu)
+	mtu, err := exchangeMtu(bps.cln, bps.cfg.PreferredMtu)
 	if err != nil {
 		return err
 	}
 
-	log.Debugf("Exchanged MTU; ATT MTU = %d", mtu)
 	bps.attMtu = mtu
 	return nil
 }
