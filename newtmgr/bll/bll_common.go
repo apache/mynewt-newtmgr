@@ -1,11 +1,11 @@
 package bll
 
 import (
+	"runtime"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/currantlabs/ble"
-	"github.com/currantlabs/ble/darwin"
 
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
 )
@@ -27,8 +27,8 @@ func exchangeMtu(cln ble.Client, preferredMtu int) (int, error) {
 			return 0, err
 		}
 
-		// If this isn't macOS, or
-		if _, ok := cln.(*darwin.Client); !ok {
+		// If this isn't macOS, accept the MTU the library reported.
+		if runtime.GOOS != "darwin" {
 			break
 		}
 
