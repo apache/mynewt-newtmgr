@@ -9,50 +9,6 @@
 			"Rev": "7dd06bf38e1e13df288d471a57d5adbac106be9e"
 		},
 		{
-			"ImportPath": "github.com/currantlabs/ble",
-			"Rev": "54a939021a2707c8e3d5b45ec49bb773e3f4b420"
-		},
-		{
-			"ImportPath": "github.com/currantlabs/ble/darwin",
-			"Rev": "54a939021a2707c8e3d5b45ec49bb773e3f4b420"
-		},
-		{
-			"ImportPath": "github.com/currantlabs/ble/examples/lib/dev",
-			"Rev": "54a939021a2707c8e3d5b45ec49bb773e3f4b420"
-		},
-		{
-			"ImportPath": "github.com/currantlabs/ble/linux",
-			"Rev": "54a939021a2707c8e3d5b45ec49bb773e3f4b420"
-		},
-		{
-			"ImportPath": "github.com/currantlabs/ble/linux/adv",
-			"Rev": "54a939021a2707c8e3d5b45ec49bb773e3f4b420"
-		},
-		{
-			"ImportPath": "github.com/currantlabs/ble/linux/att",
-			"Rev": "54a939021a2707c8e3d5b45ec49bb773e3f4b420"
-		},
-		{
-			"ImportPath": "github.com/currantlabs/ble/linux/gatt",
-			"Rev": "54a939021a2707c8e3d5b45ec49bb773e3f4b420"
-		},
-		{
-			"ImportPath": "github.com/currantlabs/ble/linux/hci",
-			"Rev": "54a939021a2707c8e3d5b45ec49bb773e3f4b420"
-		},
-		{
-			"ImportPath": "github.com/currantlabs/ble/linux/hci/cmd",
-			"Rev": "54a939021a2707c8e3d5b45ec49bb773e3f4b420"
-		},
-		{
-			"ImportPath": "github.com/currantlabs/ble/linux/hci/evt",
-			"Rev": "54a939021a2707c8e3d5b45ec49bb773e3f4b420"
-		},
-		{
-			"ImportPath": "github.com/currantlabs/ble/linux/hci/socket",
-			"Rev": "54a939021a2707c8e3d5b45ec49bb773e3f4b420"
-		},
-		{
 			"ImportPath": "github.com/fatih/structs",
 			"Comment": "v1.0-4-g7e5a8ee",
 			"Rev": "7e5a8eef611ee84dd359503f3969f80df4c50723"
