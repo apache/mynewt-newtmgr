@@ -107,10 +107,6 @@
 			"Rev": "c605e284fe17294bda444b34710735b29d1a9d90"
 		},
 		{
-			"ImportPath": "github.com/raff/goble/xpc",
-			"Rev": "f6ecf99ef03749e4914b6f23547fbd7e4d363858"
-		},
-		{
 			"ImportPath": "github.com/runtimeco/go-coap",
 			"Rev": "69c7d16d97310edddc3bde6da452b684051549a7"
 		},
