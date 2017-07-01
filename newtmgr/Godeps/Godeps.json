@@ -1,0 +1,236 @@
+{
+	"ImportPath": "mynewt.apache.org/newtmgr/newtmgr",
+	"GoVersion": "go1.8",
+	"GodepVersion": "v79",
+	"Deps": [
+		{
+			"ImportPath": "github.com/Sirupsen/logrus",
+			"Comment": "v1.0.0-3-g7dd06bf",
+			"Rev": "7dd06bf38e1e13df288d471a57d5adbac106be9e"
+		},
+		{
+			"ImportPath": "github.com/currantlabs/ble",
+			"Rev": "54a939021a2707c8e3d5b45ec49bb773e3f4b420"
+		},
+		{
+			"ImportPath": "github.com/currantlabs/ble/darwin",
+			"Rev": "54a939021a2707c8e3d5b45ec49bb773e3f4b420"
+		},
+		{
+			"ImportPath": "github.com/currantlabs/ble/examples/lib/dev",
+			"Rev": "54a939021a2707c8e3d5b45ec49bb773e3f4b420"
+		},
+		{
+			"ImportPath": "github.com/currantlabs/ble/linux",
+			"Rev": "54a939021a2707c8e3d5b45ec49bb773e3f4b420"
+		},
+		{
+			"ImportPath": "github.com/currantlabs/ble/linux/adv",
+			"Rev": "54a939021a2707c8e3d5b45ec49bb773e3f4b420"
+		},
+		{
+			"ImportPath": "github.com/currantlabs/ble/linux/att",
+			"Rev": "54a939021a2707c8e3d5b45ec49bb773e3f4b420"
+		},
+		{
+			"ImportPath": "github.com/currantlabs/ble/linux/gatt",
+			"Rev": "54a939021a2707c8e3d5b45ec49bb773e3f4b420"
+		},
+		{
+			"ImportPath": "github.com/currantlabs/ble/linux/hci",
+			"Rev": "54a939021a2707c8e3d5b45ec49bb773e3f4b420"
+		},
+		{
+			"ImportPath": "github.com/currantlabs/ble/linux/hci/cmd",
+			"Rev": "54a939021a2707c8e3d5b45ec49bb773e3f4b420"
+		},
+		{
+			"ImportPath": "github.com/currantlabs/ble/linux/hci/evt",
+			"Rev": "54a939021a2707c8e3d5b45ec49bb773e3f4b420"
+		},
+		{
+			"ImportPath": "github.com/currantlabs/ble/linux/hci/socket",
+			"Rev": "54a939021a2707c8e3d5b45ec49bb773e3f4b420"
+		},
+		{
+			"ImportPath": "github.com/fatih/structs",
+			"Comment": "v1.0-4-g7e5a8ee",
+			"Rev": "7e5a8eef611ee84dd359503f3969f80df4c50723"
+		},
+		{
+			"ImportPath": "github.com/inconshreveable/mousetrap",
+			"Rev": "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75"
+		},
+		{
+			"ImportPath": "github.com/joaojeronimo/go-crc16",
+			"Rev": "59bd0194935ecff6f47039ee12efd09ff894a14a"
+		},
+		{
+			"ImportPath": "github.com/kr/pretty",
+			"Comment": "go.weekly.2011-12-22-36-gcfb55aa",
+			"Rev": "cfb55aafdaf3ec08f0db22699ab822c50091b1c4"
+		},
+		{
+			"ImportPath": "github.com/kr/text",
+			"Rev": "7cafcd837844e784b526369c9bce262804aebc60"
+		},
+		{
+			"ImportPath": "github.com/mattn/go-colorable",
+			"Comment": "v0.0.8",
+			"Rev": "941b50ebc6efddf4c41c8e4537a5f68a4e686b24"
+		},
+		{
+			"ImportPath": "github.com/mattn/go-isatty",
+			"Comment": "v0.0.2",
+			"Rev": "fc9e8d8ef48496124e79ae0df75490096eccf6fe"
+		},
+		{
+			"ImportPath": "github.com/mgutz/ansi",
+			"Rev": "9520e82c474b0a04dd04f8a40959027271bab992"
+		},
+		{
+			"ImportPath": "github.com/mgutz/logxi/v1",
+			"Comment": "v1",
+			"Rev": "aebf8a7d67ab4625e0fd4a665766fef9a709161b"
+		},
+		{
+			"ImportPath": "github.com/mitchellh/go-homedir",
+			"Rev": "b8bc1bf767474819792c23f32d8286a45736f1c6"
+		},
+		{
+			"ImportPath": "github.com/mitchellh/mapstructure",
+			"Rev": "d0303fe809921458f417bcf828397a65db30a7e4"
+		},
+		{
+			"ImportPath": "github.com/pkg/errors",
+			"Comment": "v0.8.0-5-gc605e28",
+			"Rev": "c605e284fe17294bda444b34710735b29d1a9d90"
+		},
+		{
+			"ImportPath": "github.com/raff/goble/xpc",
+			"Rev": "f6ecf99ef03749e4914b6f23547fbd7e4d363858"
+		},
+		{
+			"ImportPath": "github.com/runtimeco/go-coap",
+			"Rev": "69c7d16d97310edddc3bde6da452b684051549a7"
+		},
+		{
+			"ImportPath": "github.com/spf13/cast",
+			"Comment": "v1.1.0",
+			"Rev": "acbeb36b902d72a7a4c18e8f3241075e7ab763e4"
+		},
+		{
+			"ImportPath": "github.com/spf13/cobra",
+			"Rev": "8c6fa02d2225de0f9bdcb7ca912556f68d172d8c"
+		},
+		{
+			"ImportPath": "github.com/spf13/jwalterweatherman",
+			"Rev": "0efa5202c04663c757d84f90f5219c1250baf94f"
+		},
+		{
+			"ImportPath": "github.com/spf13/pflag",
+			"Rev": "e57e3eeb33f795204c1ca35f56c44f83227c6e66"
+		},
+		{
+			"ImportPath": "github.com/tarm/serial",
+			"Rev": "e50d7d20b1f68657808356d33b4404890487ceee"
+		},
+		{
+			"ImportPath": "github.com/ugorji/go/codec",
+			"Rev": "5efa3251c7f7d05e5d9704a69a984ec9f1386a40"
+		},
+		{
+			"ImportPath": "golang.org/x/net/context",
+			"Rev": "1f9224279e98554b6a6432d4dd998a739f8b2b7c"
+		},
+		{
+			"ImportPath": "golang.org/x/sys/unix",
+			"Rev": "4ed4d404df456f81e878683a0363ed3013a59003"
+		},
+		{
+			"ImportPath": "gopkg.in/fsnotify.v1",
+			"Comment": "v1.4.2",
+			"Rev": "629574ca2a5df945712d3079857300b5e4da0236"
+		},
+		{
+			"ImportPath": "mynewt.apache.org/newt/util",
+			"Comment": "mynewt_1_0_1_tag-3-g90ec8e3",
+			"Rev": "90ec8e3772eaf622b5d98f6bf71531a87dcbc853"
+		},
+		{
+			"ImportPath": "mynewt.apache.org/newt/util/unixchild",
+			"Comment": "mynewt_1_0_1_tag-3-g90ec8e3",
+			"Rev": "90ec8e3772eaf622b5d98f6bf71531a87dcbc853"
+		},
+		{
+			"ImportPath": "mynewt.apache.org/newt/viper",
+			"Comment": "mynewt_1_0_1_tag-3-g90ec8e3",
+			"Rev": "90ec8e3772eaf622b5d98f6bf71531a87dcbc853"
+		},
+		{
+			"ImportPath": "mynewt.apache.org/newt/yaml",
+			"Comment": "mynewt_1_0_1_tag-3-g90ec8e3",
+			"Rev": "90ec8e3772eaf622b5d98f6bf71531a87dcbc853"
+		},
+		{
+			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/bledefs",
+			"Comment": "mynewt_0_9_0_tag-526-ge20e599",
+			"Rev": "e20e599f956cb7caf13eebf41e6f572284339439"
+		},
+		{
+			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/nmble",
+			"Comment": "mynewt_0_9_0_tag-526-ge20e599",
+			"Rev": "e20e599f956cb7caf13eebf41e6f572284339439"
+		},
+		{
+			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/nmp",
+			"Comment": "mynewt_0_9_0_tag-526-ge20e599",
+			"Rev": "e20e599f956cb7caf13eebf41e6f572284339439"
+		},
+		{
+			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/nmserial",
+			"Comment": "mynewt_0_9_0_tag-526-ge20e599",
+			"Rev": "e20e599f956cb7caf13eebf41e6f572284339439"
+		},
+		{
+			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/nmxutil",
+			"Comment": "mynewt_0_9_0_tag-526-ge20e599",
+			"Rev": "e20e599f956cb7caf13eebf41e6f572284339439"
+		},
+		{
+			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/oic",
+			"Comment": "mynewt_0_9_0_tag-526-ge20e599",
+			"Rev": "e20e599f956cb7caf13eebf41e6f572284339439"
+		},
+		{
+			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/omp",
+			"Comment": "mynewt_0_9_0_tag-526-ge20e599",
+			"Rev": "e20e599f956cb7caf13eebf41e6f572284339439"
+		},
+		{
+			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/scan",
+			"Comment": "mynewt_0_9_0_tag-526-ge20e599",
+			"Rev": "e20e599f956cb7caf13eebf41e6f572284339439"
+		},
+		{
+			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/sesn",
+			"Comment": "mynewt_0_9_0_tag-526-ge20e599",
+			"Rev": "e20e599f956cb7caf13eebf41e6f572284339439"
+		},
+		{
+			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/udp",
+			"Comment": "mynewt_0_9_0_tag-526-ge20e599",
+			"Rev": "e20e599f956cb7caf13eebf41e6f572284339439"
+		},
+		{
+			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/xact",
+			"Comment": "mynewt_0_9_0_tag-526-ge20e599",
+			"Rev": "e20e599f956cb7caf13eebf41e6f572284339439"
+		},
+		{
+			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/xport",
+			"Comment": "mynewt_0_9_0_tag-526-ge20e599",
+			"Rev": "e20e599f956cb7caf13eebf41e6f572284339439"
+		}
+	]
+}
