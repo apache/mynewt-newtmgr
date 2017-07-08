@@ -45,8 +45,6 @@ func connProfileAddCmd(cmd *cobra.Command, args []string) {
 	for _, vdef := range args[1:] {
 		s := strings.SplitN(vdef, "=", 2)
 		switch s[0] {
-		case "name":
-			cp.Name = s[1]
 		case "type":
 			var err error
 			cp.Type, err = config.ConnTypeFromString(s[1])
