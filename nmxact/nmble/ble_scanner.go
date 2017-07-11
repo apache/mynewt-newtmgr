@@ -54,8 +54,12 @@ func (s *BleScanner) discover() (*BleDev, error) {
 	var dev *BleDev
 	advRptCb := func(r BleAdvReport) {
 		if s.cfg.Ble.ScanPred(r) {
+			s.mtx.Lock()
+
 			dev = &r.Sender
 			s.discoverer.Stop()
+
+			s.mtx.Unlock()
 		}
 	}
 	if err := s.discoverer.Start(advRptCb); err != nil {
@@ -191,21 +195,19 @@ func (s *BleScanner) Stop() error {
 	s.enabled = false
 
 	s.mtx.Lock()
+	defer s.mtx.Unlock()
 
 	discoverer := s.discoverer
-	s.discoverer = nil
-
 	bos := s.bos
-	s.bos = nil
-
-	s.mtx.Unlock()
 
 	if discoverer != nil {
 		discoverer.Stop()
+		s.discoverer = nil
 	}
 
 	if bos != nil {
 		bos.Close()
+		s.bos = nil
 	}
 
 	return nil
