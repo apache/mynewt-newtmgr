@@ -11,6 +11,7 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/scan"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
+	"mynewt.apache.org/newtmgr/nmxact/xact"
 )
 
 // Implements scan.Scanner.
@@ -53,8 +54,12 @@ func (s *BleScanner) discover() (*BleDev, error) {
 	var dev *BleDev
 	advRptCb := func(r BleAdvReport) {
 		if s.cfg.Ble.ScanPred(r) {
+			s.mtx.Lock()
+
 			dev = &r.Sender
 			s.discoverer.Stop()
+
+			s.mtx.Unlock()
 		}
 	}
 	if err := s.discoverer.Start(advRptCb); err != nil {
@@ -83,22 +88,20 @@ func (s *BleScanner) connect(dev BleDev) error {
 }
 
 func (s *BleScanner) readHwId() (string, error) {
-	rsp, err := sesn.GetResource(s.bos, "/mynewt/hwid", sesn.NewTxOptions())
+	c := xact.NewConfigReadCmd()
+	c.Name = "id/hwid"
+
+	res, err := c.Run(s.bos)
 	if err != nil {
 		return "", err
 	}
-
-	m, err := nmxutil.DecodeCborMap(rsp)
-	if err != nil {
-		return "", err
+	if res.Status() != 0 {
+		return "",
+			fmt.Errorf("failed to read hardware ID; NMP status=%discoverer",
+				res.Status())
 	}
-
-	hwid, ok := m["hwid"].(string)
-	if !ok {
-		return "", fmt.Errorf("device reports invalid hwid: %#v", hwid)
-	}
-
-	return hwid, nil
+	cres := res.(*xact.ConfigReadResult)
+	return cres.Rsp.Val, nil
 }
 
 func (s *BleScanner) scan() (*scan.ScanPeer, error) {
@@ -192,21 +195,19 @@ func (s *BleScanner) Stop() error {
 	s.enabled = false
 
 	s.mtx.Lock()
+	defer s.mtx.Unlock()
 
 	discoverer := s.discoverer
-	s.discoverer = nil
-
 	bos := s.bos
-	s.bos = nil
-
-	s.mtx.Unlock()
 
 	if discoverer != nil {
 		discoverer.Stop()
+		s.discoverer = nil
 	}
 
 	if bos != nil {
 		bos.Close()
+		s.bos = nil
 	}
 
 	return nil
