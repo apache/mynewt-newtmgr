@@ -179,8 +179,11 @@ func (bos *BleOicSesn) onDisconnect(dt BleFsmDisconnectType, peer BleDev,
 	// disconnect was unsolicited and the session was fully open.  If the
 	// session wasn't fully open, the dispatcher will get stopped when the fsm
 	// start function returns an error (right after this function returns).
-	if dt == FSM_DISCONNECT_TYPE_OPENED {
+	if dt == FSM_DISCONNECT_TYPE_OPENED || dt == FSM_DISCONNECT_TYPE_REQUESTED {
 		bos.d.Stop()
+	}
+
+	if dt == FSM_DISCONNECT_TYPE_OPENED {
 		if bos.onCloseCb != nil {
 			bos.onCloseCb(bos, err)
 		}
