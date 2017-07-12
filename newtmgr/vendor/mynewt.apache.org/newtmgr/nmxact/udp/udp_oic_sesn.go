@@ -23,7 +23,6 @@ type UdpOicSesn struct {
 func NewUdpOicSesn(cfg sesn.SesnCfg) *UdpOicSesn {
 	uos := &UdpOicSesn{
 		cfg: cfg,
-		d:   omp.NewDispatcher(false, 3),
 	}
 
 	return uos
@@ -43,6 +42,7 @@ func (uos *UdpOicSesn) Open() error {
 		return err
 	}
 
+	uos.d = omp.NewDispatcher(false, 3)
 	uos.addr = addr
 	uos.conn = conn
 	return nil
@@ -55,6 +55,7 @@ func (uos *UdpOicSesn) Close() error {
 	}
 
 	uos.conn.Close()
+	uos.d.Stop()
 	uos.conn = nil
 	uos.addr = nil
 	return nil

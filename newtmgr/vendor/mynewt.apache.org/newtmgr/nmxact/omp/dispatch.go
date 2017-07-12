@@ -27,14 +27,16 @@ import (
 )
 
 type Dispatcher struct {
-	nmpd *nmp.Dispatcher
-	oicd *oic.Dispatcher
+	nmpd   *nmp.Dispatcher
+	oicd   *oic.Dispatcher
+	stopCh chan struct{}
 }
 
 func NewDispatcher(isTcp bool, logDepth int) *Dispatcher {
 	r := &Dispatcher{
-		nmpd: nmp.NewDispatcher(logDepth + 1),
-		oicd: oic.NewDispatcher(isTcp, logDepth+1),
+		nmpd:   nmp.NewDispatcher(logDepth + 1),
+		oicd:   oic.NewDispatcher(isTcp, logDepth+1),
+		stopCh: make(chan struct{}),
 	}
 
 	// Listen for OMP responses.  This should never fail.
@@ -68,12 +70,18 @@ func (r *Dispatcher) addOmpListener() error {
 
 			case err := <-ol.ErrChan:
 				log.Debugf("OIC error: %s", err.Error())
+
+			case <-r.stopCh:
 				return
 			}
 		}
 	}()
 
 	return nil
+}
+
+func (r *Dispatcher) Stop() {
+	r.stopCh <- struct{}{}
 }
 
 func (r *Dispatcher) Dispatch(data []byte) bool {

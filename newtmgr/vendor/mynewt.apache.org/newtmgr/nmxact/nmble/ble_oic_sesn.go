@@ -28,7 +28,6 @@ type BleOicSesn struct {
 
 func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 	bos := &BleOicSesn{
-		d:            omp.NewDispatcher(true, 3),
 		closeTimeout: cfg.Ble.CloseTimeout,
 		onCloseCb:    cfg.OnCloseCb,
 	}
@@ -120,7 +119,11 @@ func (bos *BleOicSesn) AbortRx(seq uint8) error {
 }
 
 func (bos *BleOicSesn) Open() error {
-	return bos.bf.Start()
+	if err := bos.bf.Start(); err != nil {
+		return err
+	}
+	bos.d = omp.NewDispatcher(true, 3)
+	return nil
 }
 
 func (bos *BleOicSesn) Close() error {
@@ -163,6 +166,8 @@ func (bos *BleOicSesn) onDisconnect(dt BleFsmDisconnectType, peer BleDev,
 	if bos.closeChan != nil {
 		bos.closeChan <- err
 	}
+
+	bos.d.Stop()
 
 	bos.mtx.Unlock()
 
