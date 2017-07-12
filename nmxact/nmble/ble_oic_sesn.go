@@ -164,6 +164,8 @@ func (bos *BleOicSesn) onDisconnect(dt BleFsmDisconnectType, peer BleDev,
 		bos.closeChan <- err
 	}
 
+	bos.d.Stop()
+
 	bos.mtx.Unlock()
 
 	// Only execute client's disconnect callback if the disconnect was

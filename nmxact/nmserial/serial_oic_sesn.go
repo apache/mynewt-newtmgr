@@ -52,7 +52,10 @@ func (sos *SerialOicSesn) Close() error {
 		return nmxutil.NewSesnClosedError(
 			"Attempt to close an unopened serial session")
 	}
+
+	sos.d.Stop()
 	sos.isOpen = false
+
 	return nil
 }
 

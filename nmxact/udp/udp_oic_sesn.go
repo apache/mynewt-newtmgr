@@ -55,6 +55,7 @@ func (uos *UdpOicSesn) Close() error {
 	}
 
 	uos.conn.Close()
+	uos.d.Stop()
 	uos.conn = nil
 	uos.addr = nil
 	return nil
