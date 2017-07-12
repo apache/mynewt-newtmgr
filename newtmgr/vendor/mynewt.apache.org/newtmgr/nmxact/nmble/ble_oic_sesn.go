@@ -119,10 +119,11 @@ func (bos *BleOicSesn) AbortRx(seq uint8) error {
 }
 
 func (bos *BleOicSesn) Open() error {
+	bos.d = omp.NewDispatcher(true, 3)
 	if err := bos.bf.Start(); err != nil {
+		bos.d.Stop()
 		return err
 	}
-	bos.d = omp.NewDispatcher(true, 3)
 	return nil
 }
 
