@@ -27,7 +27,6 @@ type SerialOicSesn struct {
 func NewSerialOicSesn(sx *SerialXport) *SerialOicSesn {
 	return &SerialOicSesn{
 		sx: sx,
-		d:  omp.NewDispatcher(false, 3),
 	}
 }
 
@@ -40,6 +39,7 @@ func (sos *SerialOicSesn) Open() error {
 			"Attempt to open an already-open serial session")
 	}
 
+	sos.d = omp.NewDispatcher(false, 3)
 	sos.isOpen = true
 	return nil
 }
