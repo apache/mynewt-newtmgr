@@ -39,7 +39,11 @@ func (sos *SerialOicSesn) Open() error {
 			"Attempt to open an already-open serial session")
 	}
 
-	sos.d = omp.NewDispatcher(false, 3)
+	d, err := omp.NewDispatcher(false, 3)
+	if err != nil {
+		return err
+	}
+	sos.d = d
 	sos.isOpen = true
 	return nil
 }

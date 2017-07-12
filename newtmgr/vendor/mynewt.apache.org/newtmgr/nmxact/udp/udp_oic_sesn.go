@@ -42,7 +42,11 @@ func (uos *UdpOicSesn) Open() error {
 		return err
 	}
 
-	uos.d = omp.NewDispatcher(false, 3)
+	d, err := omp.NewDispatcher(false, 3)
+	if err != nil {
+		return err
+	}
+	uos.d = d
 	uos.addr = addr
 	uos.conn = conn
 	return nil
