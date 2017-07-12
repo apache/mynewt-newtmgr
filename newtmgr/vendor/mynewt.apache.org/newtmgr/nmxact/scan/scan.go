@@ -52,12 +52,12 @@ func BleOmpScanCfg(ScanCb ScanFn) Cfg {
 		Ble: CfgBle{
 			ScanPred: func(adv bledefs.BleAdvReport) bool {
 				for _, u := range adv.Fields.Uuids16 {
-					if u == bledefs.OmpSvcUuid {
+					if u == bledefs.OmpSecSvcUuid {
 						return true
 					}
 				}
 
-				iotUuid, _ := bledefs.ParseUuid(bledefs.IotivitySvcUuid)
+				iotUuid, _ := bledefs.ParseUuid(bledefs.OmpUnsecSvcUuid)
 				for _, u128 := range adv.Fields.Uuids128 {
 					u := bledefs.BleUuid{U128: u128}
 					if bledefs.CompareUuids(u, iotUuid) == 0 {

@@ -32,21 +32,13 @@ func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 		onCloseCb:    cfg.OnCloseCb,
 	}
 
-	iotUuid, err := ParseUuid(IotivitySvcUuid)
+	iotUuid, _ := ParseUuid(OmpUnsecSvcUuid)
 	svcUuids := []BleUuid{
-		{U16: OmpSvcUuid},
 		iotUuid,
 	}
 
-	reqChrUuid, err := ParseUuid(OmpReqChrUuid)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	rspChrUuid, err := ParseUuid(OmpRspChrUuid)
-	if err != nil {
-		panic(err.Error())
-	}
+	reqChrUuid, _ := ParseUuid(OmpUnsecReqChrUuid)
+	rspChrUuid, _ := ParseUuid(OmpUnsecRspChrUuid)
 
 	bos.bf = NewBleFsm(BleFsmParams{
 		Bx:          bx,

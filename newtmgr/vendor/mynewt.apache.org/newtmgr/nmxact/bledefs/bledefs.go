@@ -33,10 +33,14 @@ const BLE_ATT_MTU_DFLT = 23
 
 const NmpPlainSvcUuid = "8D53DC1D-1DB7-4CD3-868B-8A527460AA84"
 const NmpPlainChrUuid = "DA2E7828-FBCE-4E01-AE9E-261174997C48"
-const IotivitySvcUuid = "ADE3D529-C784-4F63-A987-EB69F70EE816"
-const OmpSvcUuid = 0x9923
-const OmpReqChrUuid = "AD7B334F-4637-4B86-90B6-9D787F03D218"
-const OmpRspChrUuid = "E9241982-4580-42C4-8831-95048216B256"
+
+const OmpUnsecSvcUuid = "ADE3D529-C784-4F63-A987-EB69F70EE816"
+const OmpUnsecReqChrUuid = "AD7B334F-4637-4B86-90B6-9D787F03D218"
+const OmpUnsecRspChrUuid = "E9241982-4580-42C4-8831-95048216B256"
+
+const OmpSecSvcUuid = 0xfe18
+const OmpSecReqChrUuid = 0x1000
+const OmpSecRspChrUuid = 0x1001
 
 type BleAddrType int
 
