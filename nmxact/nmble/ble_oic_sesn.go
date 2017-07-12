@@ -119,7 +119,12 @@ func (bos *BleOicSesn) AbortRx(seq uint8) error {
 }
 
 func (bos *BleOicSesn) Open() error {
-	bos.d = omp.NewDispatcher(true, 3)
+	d, err := omp.NewDispatcher(true, 3)
+	if err != nil {
+		return err
+	}
+	bos.d = d
+
 	if err := bos.bf.Start(); err != nil {
 		bos.d.Stop()
 		return err
@@ -168,14 +173,17 @@ func (bos *BleOicSesn) onDisconnect(dt BleFsmDisconnectType, peer BleDev,
 		bos.closeChan <- err
 	}
 
-	bos.d.Stop()
-
 	bos.mtx.Unlock()
 
-	// Only execute client's disconnect callback if the disconnect was
-	// unsolicited and the session was fully open.
-	if dt == FSM_DISCONNECT_TYPE_OPENED && bos.onCloseCb != nil {
-		bos.onCloseCb(bos, err)
+	// Only stop the dispatcher and execute client's disconnect callback if the
+	// disconnect was unsolicited and the session was fully open.  If the
+	// session wasn't fully open, the dispatcher will get stopped when the fsm
+	// start function returns an error (right after this function returns).
+	if dt == FSM_DISCONNECT_TYPE_OPENED {
+		bos.d.Stop()
+		if bos.onCloseCb != nil {
+			bos.onCloseCb(bos, err)
+		}
 	}
 }
 

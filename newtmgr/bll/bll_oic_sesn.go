@@ -40,6 +40,7 @@ func (bos *BllOicSesn) listenDisconnect() {
 
 		bos.mtx.Lock()
 		bos.d.ErrorAll(fmt.Errorf("Disconnected"))
+		bos.d.Stop()
 		bos.mtx.Unlock()
 
 		bos.cln = nil
@@ -141,7 +142,11 @@ func (bos *BllOicSesn) Open() error {
 			"Attempt to open an already-open bll session")
 	}
 
-	bos.d = omp.NewDispatcher(true, 3)
+	d, err := omp.NewDispatcher(true, 3)
+	if err != nil {
+		return err
+	}
+	bos.d = d
 
 	if err := bos.connect(); err != nil {
 		return err

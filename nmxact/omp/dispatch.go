@@ -32,7 +32,7 @@ type Dispatcher struct {
 	stopCh chan struct{}
 }
 
-func NewDispatcher(isTcp bool, logDepth int) *Dispatcher {
+func NewDispatcher(isTcp bool, logDepth int) (*Dispatcher, error) {
 	r := &Dispatcher{
 		nmpd:   nmp.NewDispatcher(logDepth + 1),
 		oicd:   oic.NewDispatcher(isTcp, logDepth+1),
@@ -42,9 +42,10 @@ func NewDispatcher(isTcp bool, logDepth int) *Dispatcher {
 	// Listen for OMP responses.  This should never fail.
 	if err := r.addOmpListener(); err != nil {
 		log.Errorf("Unexpected failure to add OMP listener: " + err.Error())
+		return nil, err
 	}
 
-	return r
+	return r, nil
 }
 
 func (r *Dispatcher) addOmpListener() error {
