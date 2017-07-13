@@ -57,7 +57,7 @@ func dateTimeWrite(s sesn.Sesn, args []string) error {
 
 	sres := res.(*xact.DateTimeWriteResult)
 	if sres.Rsp.Rc != 0 {
-		fmt.Printf("Error: %c\n", sres.Rsp.Rc)
+		fmt.Printf("Error: %d\n", sres.Rsp.Rc)
 	} else {
 		fmt.Printf("Done\n")
 	}
