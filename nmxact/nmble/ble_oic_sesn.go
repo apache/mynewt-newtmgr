@@ -2,7 +2,6 @@ package nmble
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/runtimeco/go-coap"
@@ -22,8 +21,7 @@ type BleOicSesn struct {
 	closeTimeout time.Duration
 	onCloseCb    sesn.OnCloseFn
 
-	closeChan chan error
-	mtx       sync.Mutex
+	closeChan chan struct{}
 }
 
 func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
@@ -52,58 +50,9 @@ func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 		ReqChrUuid:  reqChrUuid,
 		RspChrUuid:  rspChrUuid,
 		EncryptWhen: cfg.Ble.EncryptWhen,
-		RxDataCb:    func(d []byte) { bos.onRxNmp(d) },
-		DisconnectCb: func(dt BleFsmDisconnectType, p BleDev, e error) {
-			bos.onDisconnect(dt, p, e)
-		},
 	})
 
 	return bos
-}
-
-// Returns true if a new channel was assigned.
-func (bos *BleOicSesn) setCloseChan() error {
-	bos.mtx.Lock()
-	defer bos.mtx.Unlock()
-
-	if bos.closeChan != nil {
-		return fmt.Errorf("Multiple listeners waiting for session to close")
-	}
-
-	bos.closeChan = make(chan error, 1)
-	return nil
-}
-
-func (bos *BleOicSesn) clearCloseChan() {
-	bos.mtx.Lock()
-	defer bos.mtx.Unlock()
-
-	bos.closeChan = nil
-}
-
-func (bos *BleOicSesn) listenForClose(timeout time.Duration) error {
-	select {
-	case <-bos.closeChan:
-		return nil
-	case <-time.After(timeout):
-		// Session never closed.
-		return fmt.Errorf("Timeout while waiting for session to close")
-	}
-}
-
-func (bos *BleOicSesn) blockUntilClosed(timeout time.Duration) error {
-	if err := bos.setCloseChan(); err != nil {
-		return err
-	}
-	defer bos.clearCloseChan()
-
-	// If the session is already closed, we're done.
-	if bos.bf.IsClosed() {
-		return nil
-	}
-
-	// Block until close completes or times out.
-	return bos.listenForClose(timeout)
 }
 
 func (bos *BleOicSesn) AbortRx(seq uint8) error {
@@ -111,75 +60,69 @@ func (bos *BleOicSesn) AbortRx(seq uint8) error {
 }
 
 func (bos *BleOicSesn) Open() error {
+	// This channel gets closed when the session closes.
+	bos.closeChan = make(chan struct{})
+
+	if err := bos.bf.Start(); err != nil {
+		close(bos.closeChan)
+		return err
+	}
+
 	d, err := omp.NewDispatcher(true, 3)
 	if err != nil {
+		close(bos.closeChan)
 		return err
 	}
 	bos.d = d
 
-	if err := bos.bf.Start(); err != nil {
+	// Listen for disconnect in the background.
+	go func() {
+		// Block until disconnect.
+		entry := <-bos.bf.DisconnectChan()
+
+		// Signal error to all listeners.
+		bos.d.ErrorAll(entry.Err)
 		bos.d.Stop()
-		return err
-	}
+
+		// If the session is being closed, unblock the close() call.
+		close(bos.closeChan)
+
+		// Only execute the client's disconnect callback if the disconnect was
+		// unsolicited.
+		if entry.Dt != FSM_DISCONNECT_TYPE_REQUESTED && bos.onCloseCb != nil {
+			bos.onCloseCb(bos, entry.Err)
+		}
+	}()
+
+	// Listen for NMP responses in the background.
+	go func() {
+		for {
+			data, ok := <-bos.bf.RxNmpChan()
+			if !ok {
+				// Disconnected.
+				return
+			} else {
+				bos.d.Dispatch(data)
+			}
+		}
+	}()
+
 	return nil
 }
 
 func (bos *BleOicSesn) Close() error {
-	if err := bos.setCloseChan(); err != nil {
-		return err
-	}
-	defer bos.clearCloseChan()
-
-	done, err := bos.bf.Stop()
+	err := bos.bf.Stop()
 	if err != nil {
 		return err
 	}
 
-	if done {
-		// Close complete.
-		return nil
-	}
-
-	// Block until close completes or times out.
-	return bos.listenForClose(bos.closeTimeout)
+	// Block until close completes.
+	<-bos.closeChan
+	return nil
 }
 
 func (bos *BleOicSesn) IsOpen() bool {
 	return bos.bf.IsOpen()
-}
-
-func (bos *BleOicSesn) onRxNmp(data []byte) {
-	bos.d.Dispatch(data)
-}
-
-// Called by the FSM when a blehostd disconnect event is received.
-func (bos *BleOicSesn) onDisconnect(dt BleFsmDisconnectType, peer BleDev,
-	err error) {
-
-	bos.d.ErrorAll(err)
-
-	bos.mtx.Lock()
-
-	// If the session is being closed, unblock the close() call.
-	if bos.closeChan != nil {
-		bos.closeChan <- err
-	}
-
-	bos.mtx.Unlock()
-
-	// Only stop the dispatcher and execute client's disconnect callback if the
-	// disconnect was unsolicited and the session was fully open.  If the
-	// session wasn't fully open, the dispatcher will get stopped when the fsm
-	// start function returns an error (right after this function returns).
-	if dt == FSM_DISCONNECT_TYPE_OPENED || dt == FSM_DISCONNECT_TYPE_REQUESTED {
-		bos.d.Stop()
-	}
-
-	if dt == FSM_DISCONNECT_TYPE_OPENED {
-		if bos.onCloseCb != nil {
-			bos.onCloseCb(bos, err)
-		}
-	}
 }
 
 func (bos *BleOicSesn) EncodeNmpMsg(m *nmp.NmpMsg) ([]byte, error) {

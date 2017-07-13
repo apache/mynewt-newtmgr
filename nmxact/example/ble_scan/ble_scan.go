@@ -70,8 +70,8 @@ func main() {
 	// Initialize the BLE transport.
 	params := nmble.NewXportCfg()
 	params.SockPath = "/tmp/blehostd-uds"
-	params.BlehostdPath = "blehostd.elf"
-	params.DevPath = "/dev/cu.usbmodem14221"
+	params.BlehostdPath = "blehostd"
+	params.DevPath = "/dev/cu.usbmodem142121"
 
 	x, err := nmble.NewBleXport(params)
 	if err != nil {
@@ -105,9 +105,6 @@ func main() {
 
 	for {
 		sc := scan.BleOmpScanCfg(scanCb)
-		sc.Ble.ScanPred = func(adv bledefs.BleAdvReport) bool {
-			return adv.Fields.Name != nil && *adv.Fields.Name == "c5"
-		}
 		if err := scanner.Start(sc); err != nil {
 			fmt.Fprintf(os.Stderr, "error starting scan: %s\n", err.Error())
 			os.Exit(1)

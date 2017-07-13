@@ -84,19 +84,17 @@ const (
 
 // Implements xport.Xport.
 type BleXport struct {
-	Bd                *Dispatcher
-	client            *unixchild.Client
-	state             BleXportState
-	stopChan          chan struct{}
-	numStopListeners  int
-	shutdownChan      chan bool
-	readyChan         chan error
-	numReadyListeners int
-	master            nmxutil.SingleResource
-	slave             nmxutil.SingleResource
-	randAddr          *BleAddr
-	mtx               sync.Mutex
-	scanner           *BleScanner
+	Bd           *Dispatcher
+	client       *unixchild.Client
+	state        BleXportState
+	stopChan     chan struct{}
+	shutdownChan chan bool
+	readyBcast   nmxutil.Bcaster
+	master       nmxutil.SingleResource
+	slave        nmxutil.SingleResource
+	randAddr     *BleAddr
+	stateMtx     sync.Mutex
+	scanner      *BleScanner
 
 	cfg XportCfg
 }
@@ -105,7 +103,7 @@ func NewBleXport(cfg XportCfg) (*BleXport, error) {
 	bx := &BleXport{
 		Bd:           NewDispatcher(),
 		shutdownChan: make(chan bool),
-		readyChan:    make(chan error),
+		readyBcast:   nmxutil.Bcaster{},
 		master:       nmxutil.NewSingleResource(),
 		slave:        nmxutil.NewSingleResource(),
 		cfg:          cfg,
@@ -114,7 +112,7 @@ func NewBleXport(cfg XportCfg) (*BleXport, error) {
 	return bx, nil
 }
 
-func (bx *BleXport) createUnixChild() {
+func (bx *BleXport) startUnixChild() error {
 	config := unixchild.Config{
 		SockPath:      bx.cfg.SockPath,
 		ChildPath:     bx.cfg.BlehostdPath,
@@ -125,6 +123,20 @@ func (bx *BleXport) createUnixChild() {
 	}
 
 	bx.client = unixchild.New(config)
+
+	if err := bx.client.Start(); err != nil {
+		if unixchild.IsUcAcceptError(err) {
+			err = nmxutil.NewXportError(
+				"blehostd did not connect to socket; " +
+					"controller not attached?")
+		} else {
+			err = nmxutil.NewXportError(
+				"Failed to start child process: " + err.Error())
+		}
+		return err
+	}
+
+	return nil
 }
 
 func (bx *BleXport) BuildScanner() (scan.Scanner, error) {
@@ -240,7 +252,7 @@ func (bx *BleXport) shutdown(restart bool, err error) {
 
 	log.Debugf("Shutting down BLE transport")
 
-	bx.mtx.Lock()
+	bx.stateMtx.Lock()
 
 	var fullyStarted bool
 	var already bool
@@ -260,7 +272,7 @@ func (bx *BleXport) shutdown(restart bool, err error) {
 		bx.state = BLE_XPORT_STATE_STOPPING
 	}
 
-	bx.mtx.Unlock()
+	bx.stateMtx.Unlock()
 
 	if already {
 		// Shutdown already in progress.
@@ -283,10 +295,7 @@ func (bx *BleXport) shutdown(restart bool, err error) {
 	}
 
 	// Stop all of this transport's go routines.
-	log.Debugf("Waiting for BLE transport goroutines to complete")
-	for i := 0; i < bx.numStopListeners; i++ {
-		bx.stopChan <- struct{}{}
-	}
+	close(bx.stopChan)
 
 	// Stop the unixchild instance (blehostd + socket).
 	if bx.client != nil {
@@ -304,37 +313,32 @@ func (bx *BleXport) shutdown(restart bool, err error) {
 }
 
 func (bx *BleXport) blockUntilReady() error {
-	bx.mtx.Lock()
+	var ch chan interface{}
+
+	bx.stateMtx.Lock()
 	switch bx.state {
 	case BLE_XPORT_STATE_STARTED:
 		// Already started; don't block.
-		bx.mtx.Unlock()
+		bx.stateMtx.Unlock()
 		return nil
 
 	case BLE_XPORT_STATE_DORMANT:
 		// Not in the process of starting; the user will be waiting forever.
-		bx.mtx.Unlock()
+		bx.stateMtx.Unlock()
 		return fmt.Errorf("Attempt to use BLE transport without starting it")
 
 	default:
+		ch = bx.readyBcast.Listen()
 	}
+	bx.stateMtx.Unlock()
 
-	bx.numReadyListeners++
-	bx.mtx.Unlock()
-
-	return <-bx.readyChan
-}
-
-func (bx *BleXport) notifyReadyListeners(err error) {
-	for i := 0; i < bx.numReadyListeners; i++ {
-		bx.readyChan <- err
-	}
-	bx.numReadyListeners = 0
+	itf := <-ch
+	return itf.(error)
 }
 
 func (bx *BleXport) setStateFrom(from BleXportState, to BleXportState) bool {
-	bx.mtx.Lock()
-	defer bx.mtx.Unlock()
+	bx.stateMtx.Lock()
+	defer bx.stateMtx.Unlock()
 
 	if bx.state != from {
 		return false
@@ -343,9 +347,10 @@ func (bx *BleXport) setStateFrom(from BleXportState, to BleXportState) bool {
 	bx.state = to
 	switch bx.state {
 	case BLE_XPORT_STATE_STARTED:
-		bx.notifyReadyListeners(nil)
+		bx.readyBcast.SendAndClear(nil)
 	case BLE_XPORT_STATE_STOPPED, BLE_XPORT_STATE_DORMANT:
-		bx.notifyReadyListeners(nmxutil.NewXportError("BLE transport stopped"))
+		bx.readyBcast.SendAndClear(
+			nmxutil.NewXportError("BLE transport stopped"))
 	default:
 	}
 
@@ -362,32 +367,21 @@ func (bx *BleXport) startOnce() error {
 		return nmxutil.NewXportError("BLE xport started twice")
 	}
 
-	bx.stopChan = make(chan struct{})
-	bx.numStopListeners = 0
-
-	bx.createUnixChild()
-	if err := bx.client.Start(); err != nil {
-		if unixchild.IsUcAcceptError(err) {
-			err = nmxutil.NewXportError(
-				"blehostd did not connect to socket; " +
-					"controller not attached?")
-		} else {
-			err = nmxutil.NewXportError(
-				"Failed to start child process: " + err.Error())
-		}
+	if err := bx.startUnixChild(); err != nil {
 		bx.shutdown(true, err)
 		return err
 	}
 
+	bx.stopChan = make(chan struct{})
+
 	// Listen for errors and data from the blehostd process.
 	go func() {
-		bx.numStopListeners++
 		for {
 			select {
 			case err := <-bx.client.ErrChild:
 				err = nmxutil.NewXportError("BLE transport error: " +
 					err.Error())
-				go bx.shutdown(true, err)
+				bx.shutdown(true, err)
 
 			case buf := <-bx.client.FromChild:
 				if len(buf) != 0 {
@@ -433,16 +427,16 @@ func (bx *BleXport) startOnce() error {
 
 	// Host and controller are synced.  Listen for sync loss in the background.
 	go func() {
-		bx.numStopListeners++
 		for {
 			select {
 			case err := <-bl.ErrChan:
-				go bx.shutdown(true, err)
+				bx.shutdown(true, err)
+				return
 			case bm := <-bl.MsgChan:
 				switch msg := bm.(type) {
 				case *BleSyncEvt:
 					if !msg.Synced {
-						go bx.shutdown(true, nmxutil.NewXportError(
+						bx.shutdown(true, nmxutil.NewXportError(
 							"BLE host <-> controller sync lost"))
 					}
 				}
@@ -452,7 +446,7 @@ func (bx *BleXport) startOnce() error {
 		}
 	}()
 
-	// Generate a new random address is none was specified.
+	// Generate a new random address if none was specified.
 	if bx.randAddr == nil {
 		addr, err := GenRandAddrXact(bx)
 		if err != nil {

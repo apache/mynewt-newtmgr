@@ -108,7 +108,7 @@ func (d *Discoverer) Stop() error {
 		return nmxutil.NewAlreadyError("Attempt to stop inactive discoverer")
 	}
 
-	ch <- struct{}{}
+	close(ch)
 	return nil
 }
 

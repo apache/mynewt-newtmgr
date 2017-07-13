@@ -94,6 +94,9 @@ func (r *Receiver) RemoveSeqListener(name string, seq BleSeq) {
 }
 
 func (r *Receiver) ErrorAll(err error) {
+	if err == nil {
+		panic("NIL ERROR")
+	}
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 

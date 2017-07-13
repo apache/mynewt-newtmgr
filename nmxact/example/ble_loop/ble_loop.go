@@ -26,8 +26,11 @@ import (
 	"syscall"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
+
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmble"
+	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 	"mynewt.apache.org/newtmgr/nmxact/xact"
 	"mynewt.apache.org/newtmgr/nmxact/xport"
@@ -58,11 +61,14 @@ func configExitHandler(x xport.Xport, s sesn.Sesn) {
 }
 
 func main() {
+	//nmxutil.SetLogLevel(log.DebugLevel)
+	nmxutil.SetLogLevel(log.InfoLevel)
+
 	// Initialize the BLE transport.
 	params := nmble.NewXportCfg()
 	params.SockPath = "/tmp/blehostd-uds"
-	params.BlehostdPath = "blehostd.elf"
-	params.DevPath = "/dev/cu.usbmodem142111"
+	params.BlehostdPath = "blehostd"
+	params.DevPath = "/dev/cu.usbmodem142121"
 
 	x, err := nmble.NewBleXport(params)
 	if err != nil {
@@ -83,7 +89,7 @@ func main() {
 	//     * Peer has name "nimble-bleprph"
 	//     * We use a random address.
 	dev, err := nmble.DiscoverDeviceWithName(
-		x, bledefs.BLE_ADDR_TYPE_RANDOM, 10*time.Second, "nimble-bleprph")
+		x, bledefs.BLE_ADDR_TYPE_RANDOM, 10*time.Second, "c4")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error discovering device: %s\n", err.Error())
 		os.Exit(1)
