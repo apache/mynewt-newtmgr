@@ -25,9 +25,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/xact"
-	"mynewt.apache.org/newt/util"
 )
 
 func crashRunCmd(cmd *cobra.Command, args []string) {
@@ -67,8 +67,8 @@ func crashCmd() *cobra.Command {
 
 	namesStr := strings.Join(xact.CrashTypeNames(), "|")
 	crashCmd := &cobra.Command{
-		Use:     "crash [" + namesStr + "]",
-		Short:   "Send crash command to remote endpoint using newtmgr",
+		Use:     "crash <" + namesStr + "> -c <conn_profiles>",
+		Short:   "Send a crash command to a device",
 		Example: crashEx,
 		Run:     crashRunCmd,
 	}

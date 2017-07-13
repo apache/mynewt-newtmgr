@@ -54,7 +54,7 @@ func Commands() *cobra.Command {
 	}
 
 	nmCmd.PersistentFlags().StringVarP(&nmutil.ConnProfile, "conn", "c", "",
-		"connection profile to use.")
+		"connection profile to use")
 
 	nmCmd.PersistentFlags().Float64VarP(&nmutil.Timeout, "timeout", "t", 10.0,
 		"timeout in seconds (partial seconds allowed)")

@@ -26,10 +26,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/xact"
-	"mynewt.apache.org/newt/util"
 )
 
 func logShowCmd(cmd *cobra.Command, args []string) {
@@ -220,44 +220,44 @@ func logClearCmd(cmd *cobra.Command, args []string) {
 func logCmd() *cobra.Command {
 	logCmd := &cobra.Command{
 		Use:   "log",
-		Short: "Handles log on remote instance",
+		Short: "Manage logs on a device",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd.HelpFunc()(cmd, args)
 		},
 	}
 
 	showCmd := &cobra.Command{
-		Use:   "show [log-name] [min-index] [min-timestamp]",
-		Short: "Show log on target",
+		Use:   "show [log-name] [min-index] [min-timestamp] -c <conn_profile>",
+		Short: "Show the logs on a device",
 		Run:   logShowCmd,
 	}
 	logCmd.AddCommand(showCmd)
 
 	clearCmd := &cobra.Command{
-		Use:   "clear",
-		Short: "Clear log on target",
+		Use:   "clear -c <conn_profile>",
+		Short: "Clear the logs on a device",
 		Run:   logClearCmd,
 	}
 	logCmd.AddCommand(clearCmd)
 
 	moduleListCmd := &cobra.Command{
-		Use:   "module_list",
-		Short: "Module List Command",
+		Use:   "module_list -c <conn_profile>",
+		Short: "Show the log module names",
 		Run:   logModuleListCmd,
 	}
 	logCmd.AddCommand(moduleListCmd)
 
 	levelListCmd := &cobra.Command{
-		Use:   "level_list",
-		Short: "Level List Command",
+		Use:   "level_list -c <conn_profile>",
+		Short: "Show the log levels",
 		Run:   logLevelListCmd,
 	}
 
 	logCmd.AddCommand(levelListCmd)
 
 	ListCmd := &cobra.Command{
-		Use:   "list",
-		Short: "Log List Command",
+		Use:   "list -c <conn_profile>",
+		Short: "Show the log names",
 		Run:   logListCmd,
 	}
 

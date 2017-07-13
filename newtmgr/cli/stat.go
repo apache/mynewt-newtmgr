@@ -25,9 +25,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/xact"
-	"mynewt.apache.org/newt/util"
 )
 
 func statsListRunCmd(cmd *cobra.Command, args []string) {
@@ -104,15 +104,17 @@ func statsRunCmd(cmd *cobra.Command, args []string) {
 }
 
 func statsCmd() *cobra.Command {
+	statsHelpText := "Read statistics for the specified stats_name from a device"
 	statsCmd := &cobra.Command{
-		Use:   "stat",
-		Short: "Read statistics from a remote endpoint",
+		Use:   "stat <stats_name> -c <conn_profile>",
+		Short: "Read statistics from a device",
+		Long:  statsHelpText,
 		Run:   statsRunCmd,
 	}
 
 	ListCmd := &cobra.Command{
-		Use:   "list",
-		Short: "Read list of statistics from a remote endpoint",
+		Use:   "list -c <conn_profile>",
+		Short: "Read the list of Stats names from a device",
 		Run:   statsListRunCmd,
 	}
 

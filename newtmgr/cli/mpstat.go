@@ -25,9 +25,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/xact"
-	"mynewt.apache.org/newt/util"
 )
 
 func mempoolStatRunCmd(cmd *cobra.Command, args []string) {
@@ -70,8 +70,8 @@ func mempoolStatRunCmd(cmd *cobra.Command, args []string) {
 
 func mempoolStatCmd() *cobra.Command {
 	mempoolStatCmd := &cobra.Command{
-		Use:   "mpstat",
-		Short: "Read mempool statistics from a remote endpoint",
+		Use:   "mpstat -c <conn_profile>",
+		Short: "Read mempool statistics from a device",
 		Run:   mempoolStatRunCmd,
 	}
 
