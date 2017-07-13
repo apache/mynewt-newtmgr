@@ -75,10 +75,9 @@ func (bos *BllOicSesn) discoverAll() error {
 		return err
 	}
 
-	iotivitySvcUuid, _ := bledefs.ParseUuid(bledefs.IotivitySvcUuid)
-	ompSvcUuid := bledefs.BleUuid{U16: bledefs.OmpSvcUuid}
-	reqChrUuid, _ := bledefs.ParseUuid(bledefs.OmpReqChrUuid)
-	rspChrUuid, _ := bledefs.ParseUuid(bledefs.OmpRspChrUuid)
+	ompUnsecSvcUuid, _ := bledefs.ParseUuid(bledefs.OmpUnsecSvcUuid)
+	reqChrUuid, _ := bledefs.ParseUuid(bledefs.OmpUnsecReqChrUuid)
+	rspChrUuid, _ := bledefs.ParseUuid(bledefs.OmpUnsecRspChrUuid)
 
 	for _, s := range p.Services {
 		uuid, err := UuidFromBllUuid(s.UUID)
@@ -86,9 +85,7 @@ func (bos *BllOicSesn) discoverAll() error {
 			return err
 		}
 
-		if bledefs.CompareUuids(uuid, iotivitySvcUuid) == 0 ||
-			bledefs.CompareUuids(uuid, ompSvcUuid) == 0 {
-
+		if bledefs.CompareUuids(uuid, ompUnsecSvcUuid) == 0 {
 			for _, c := range s.Characteristics {
 				uuid, err := UuidFromBllUuid(c.UUID)
 				if err != nil {
