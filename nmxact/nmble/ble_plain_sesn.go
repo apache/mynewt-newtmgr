@@ -63,18 +63,19 @@ func (bps *BlePlainSesn) Open() error {
 	// Listen for disconnect in the background.
 	go func() {
 		// Block until disconnect.
-		entry := <-bps.bf.DisconnectChan()
+		<-bps.bf.DisconnectChan()
+		pd := bps.bf.PrevDisconnect()
 
 		// Signal error to all listeners.
-		bps.d.ErrorAll(entry.Err)
+		bps.d.ErrorAll(pd.Err)
 
 		// If the session is being closed, unblock the close() call.
 		close(bps.closeChan)
 
 		// Only execute the client's disconnect callback if the disconnect was
 		// unsolicited.
-		if entry.Dt != FSM_DISCONNECT_TYPE_REQUESTED && bps.onCloseCb != nil {
-			bps.onCloseCb(bps, entry.Err)
+		if pd.Dt != FSM_DISCONNECT_TYPE_REQUESTED && bps.onCloseCb != nil {
+			bps.onCloseCb(bps, pd.Err)
 		}
 	}()
 

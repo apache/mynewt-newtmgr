@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -73,19 +74,21 @@ type BleFsmParams struct {
 type BleFsm struct {
 	params BleFsmParams
 
-	connHandle uint16
-	peerDev    BleDev
-	nmpSvc     *BleSvc
-	nmpReqChr  *BleChr
-	nmpRspChr  *BleChr
-	attMtu     int
-	state      BleSesnState
-	rxer       *Receiver
-	errFunnel  nmxutil.ErrFunnel
-	id         uint32
+	connHandle     uint16
+	peerDev        BleDev
+	nmpSvc         *BleSvc
+	nmpReqChr      *BleChr
+	nmpRspChr      *BleChr
+	prevDisconnect BleDisconnectEntry
+	attMtu         int
+	state          BleSesnState
+	rxer           *Receiver
+	errFunnel      nmxutil.ErrFunnel
+	id             uint32
+	wg             sync.WaitGroup
 
 	encBcast       nmxutil.Bcaster
-	disconnectChan chan BleDisconnectEntry
+	disconnectChan chan struct{}
 	rxNmpChan      chan []byte
 }
 
@@ -164,17 +167,7 @@ func calcDisconnectType(state BleSesnState) BleFsmDisconnectType {
 	}
 }
 
-// Listens for an error in the state machine.  On error, the session is
-// considered disconnected and the error is reported to the client.
-func (bf *BleFsm) listenForError() {
-	err := <-bf.errFunnel.Wait()
-
-	// Stop listening for NMP responses.
-	close(bf.rxNmpChan)
-
-	// Remember some fields before we clear them.
-	dt := calcDisconnectType(bf.state)
-
+func (bf *BleFsm) shutdown(err error) {
 	bf.params.Bx.StopWaitingForMaster(bf, err)
 	bf.rxer.ErrorAll(err)
 
@@ -182,17 +175,36 @@ func (bf *BleFsm) listenForError() {
 
 	// Wait for all listeners to get removed.
 	bf.rxer.WaitUntilNoListeners()
+	bf.wg.Wait()
 
-	bf.disconnectChan <- BleDisconnectEntry{dt, bf.peerDev, err}
+	close(bf.rxNmpChan)
 	close(bf.disconnectChan)
+}
 
-	bf.disconnectChan = make(chan BleDisconnectEntry)
+// Listens for an error in the state machine.  On error, the session is
+// considered disconnected and the error is reported to the client.
+func (bf *BleFsm) listenForError() {
+	bf.wg.Add(1)
+
+	go func() {
+		err := <-bf.errFunnel.Wait()
+
+		dt := calcDisconnectType(bf.state)
+		bf.prevDisconnect = BleDisconnectEntry{dt, bf.peerDev, err}
+
+		bf.wg.Done()
+		bf.shutdown(err)
+	}()
 }
 
 // Listens for events in the background.
 func (bf *BleFsm) eventListen(bl *Listener, seq BleSeq) error {
+	bf.wg.Add(1)
+
 	go func() {
 		defer bf.rxer.RemoveSeqListener("connect", seq)
+		defer bf.wg.Done()
+
 		for {
 			select {
 			case err := <-bl.ErrChan:
@@ -254,8 +266,12 @@ func (bf *BleFsm) nmpRspListen() error {
 		return err
 	}
 
+	bf.wg.Add(1)
+
 	go func() {
 		defer bf.rxer.RemoveBaseListener("nmp-rsp", base)
+		defer bf.wg.Done()
+
 		for {
 			select {
 			case <-bl.ErrChan:
@@ -629,12 +645,16 @@ func (bf *BleFsm) executeState() (bool, error) {
 	return false, nil
 }
 
-func (bf *BleFsm) DisconnectChan() <-chan BleDisconnectEntry {
+func (bf *BleFsm) DisconnectChan() <-chan struct{} {
 	return bf.disconnectChan
 }
 
 func (bf *BleFsm) RxNmpChan() <-chan []byte {
 	return bf.rxNmpChan
+}
+
+func (bf *BleFsm) PrevDisconnect() BleDisconnectEntry {
+	return bf.prevDisconnect
 }
 
 func (bf *BleFsm) startOnce() (bool, error) {
@@ -644,16 +664,23 @@ func (bf *BleFsm) startOnce() (bool, error) {
 			bf.state))
 	}
 
+	bf.disconnectChan = make(chan struct{})
+	bf.rxNmpChan = make(chan []byte)
+
+	bf.listenForError()
+
 	for {
 		retry, err := bf.executeState()
 		if err != nil {
-			bf.errFunnel.Insert(err)
-			err = <-bf.errFunnel.Wait()
+			// If stop fails, assume the connection wasn't established and
+			// force an error.
+			if bf.Stop() != nil {
+				bf.errFunnel.Insert(err)
+			}
+			<-bf.disconnectChan
 			return retry, err
 		} else if bf.state == SESN_STATE_DONE {
 			// We are fully connected.  Listen for errors in the background.
-			go bf.listenForError()
-
 			return false, nil
 		}
 	}
@@ -665,9 +692,6 @@ func (bf *BleFsm) startOnce() (bool, error) {
 func (bf *BleFsm) Start() error {
 	var err error
 
-	bf.disconnectChan = make(chan BleDisconnectEntry)
-	bf.rxNmpChan = make(chan []byte)
-
 	for i := 0; i < bf.params.Central.ConnTries; i++ {
 		var retry bool
 		retry, err = bf.startOnce()
@@ -677,6 +701,8 @@ func (bf *BleFsm) Start() error {
 	}
 
 	if err != nil {
+		nmxutil.Assert(!bf.IsOpen())
+		nmxutil.Assert(bf.IsClosed())
 		return err
 	}
 

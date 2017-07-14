@@ -367,12 +367,12 @@ func (bx *BleXport) startOnce() error {
 		return nmxutil.NewXportError("BLE xport started twice")
 	}
 
+	bx.stopChan = make(chan struct{})
+
 	if err := bx.startUnixChild(); err != nil {
 		bx.shutdown(true, err)
 		return err
 	}
-
-	bx.stopChan = make(chan struct{})
 
 	// Listen for errors and data from the blehostd process.
 	go func() {
