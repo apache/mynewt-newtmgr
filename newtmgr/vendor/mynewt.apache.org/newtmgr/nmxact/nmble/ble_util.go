@@ -305,10 +305,10 @@ func ConnFindXact(x *BleXport, connHandle uint16) (BleConnDesc, error) {
 	}
 
 	bl := NewListener()
-	if err := x.Bd.AddListener(base, bl); err != nil {
+	if err := x.AddListener(base, bl); err != nil {
 		return BleConnDesc{}, err
 	}
-	defer x.Bd.RemoveListener(base)
+	defer x.RemoveListener(base)
 
 	return connFind(x, bl, r)
 }
@@ -323,10 +323,10 @@ func GenRandAddrXact(x *BleXport) (BleAddr, error) {
 	}
 
 	bl := NewListener()
-	if err := x.Bd.AddListener(base, bl); err != nil {
+	if err := x.AddListener(base, bl); err != nil {
 		return BleAddr{}, err
 	}
-	defer x.Bd.RemoveListener(base)
+	defer x.RemoveListener(base)
 
 	return genRandAddr(x, bl, r)
 }
@@ -343,10 +343,10 @@ func SetRandAddrXact(x *BleXport, addr BleAddr) error {
 	}
 
 	bl := NewListener()
-	if err := x.Bd.AddListener(base, bl); err != nil {
+	if err := x.AddListener(base, bl); err != nil {
 		return err
 	}
-	defer x.Bd.RemoveListener(base)
+	defer x.RemoveListener(base)
 
 	return setRandAddr(x, bl, r)
 }
@@ -363,10 +363,10 @@ func SetPreferredMtuXact(x *BleXport, mtu uint16) error {
 	}
 
 	bl := NewListener()
-	if err := x.Bd.AddListener(base, bl); err != nil {
+	if err := x.AddListener(base, bl); err != nil {
 		return err
 	}
-	defer x.Bd.RemoveListener(base)
+	defer x.RemoveListener(base)
 
 	return setPreferredMtu(x, bl, r)
 }
@@ -382,10 +382,10 @@ func ResetXact(x *BleXport) error {
 	}
 
 	bl := NewListener()
-	if err := x.Bd.AddListener(base, bl); err != nil {
+	if err := x.AddListener(base, bl); err != nil {
 		return err
 	}
-	defer x.Bd.RemoveListener(base)
+	defer x.RemoveListener(base)
 
 	return reset(x, bl, r)
 }

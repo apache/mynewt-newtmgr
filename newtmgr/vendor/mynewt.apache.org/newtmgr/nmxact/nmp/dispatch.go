@@ -53,12 +53,18 @@ func (nl *Listener) AfterTimeout(tmo time.Duration) <-chan time.Time {
 	return nl.tmoChan
 }
 
-func (nl *Listener) Stop() {
+func (nl *Listener) Close() {
 	if nl.timer != nil {
 		nl.timer.Stop()
 	}
+
+	close(nl.RspChan)
+	close(nl.ErrChan)
+	close(nl.tmoChan)
 }
 
+// The dispatcher is the owner of the listeners it points to.  Only the
+// dispatcher writes to these listeners.
 type Dispatcher struct {
 	seqListenerMap map[uint8]*Listener
 	reassembler    *Reassembler
@@ -97,7 +103,7 @@ func (d *Dispatcher) RemoveListener(seq uint8) *Listener {
 
 	nl := d.seqListenerMap[seq]
 	if nl != nil {
-		nl.Stop()
+		nl.Close()
 		delete(d.seqListenerMap, seq)
 	}
 	return nl

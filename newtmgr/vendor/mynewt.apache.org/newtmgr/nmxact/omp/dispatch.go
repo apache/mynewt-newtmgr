@@ -20,16 +20,21 @@
 package omp
 
 import (
+	"sync"
+
 	log "github.com/Sirupsen/logrus"
 
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/oic"
 )
 
+// The dispatcher is the owner of the listeners it points to.  Only the
+// dispatcher writes to these listeners.
 type Dispatcher struct {
 	nmpd   *nmp.Dispatcher
 	oicd   *oic.Dispatcher
 	stopCh chan struct{}
+	wg     sync.WaitGroup
 }
 
 func NewDispatcher(isTcp bool, logDepth int) (*Dispatcher, error) {
@@ -56,8 +61,10 @@ func (r *Dispatcher) addOmpListener() error {
 		return err
 	}
 
+	r.wg.Add(1)
 	go func() {
 		defer r.RemoveOicListener(nil)
+		defer r.wg.Done()
 
 		for {
 			select {
@@ -83,6 +90,7 @@ func (r *Dispatcher) addOmpListener() error {
 
 func (r *Dispatcher) Stop() {
 	r.stopCh <- struct{}{}
+	r.wg.Wait()
 }
 
 func (r *Dispatcher) Dispatch(data []byte) bool {

@@ -2,6 +2,7 @@ package nmble
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/runtimeco/go-coap"
@@ -20,6 +21,7 @@ type BleOicSesn struct {
 	d            *omp.Dispatcher
 	closeTimeout time.Duration
 	onCloseCb    sesn.OnCloseFn
+	wg           sync.WaitGroup
 
 	closeChan chan struct{}
 }
@@ -76,26 +78,34 @@ func (bos *BleOicSesn) Open() error {
 	bos.d = d
 
 	// Listen for disconnect in the background.
+	bos.wg.Add(1)
 	go func() {
+		// If the session is being closed, unblock the close() call.
+		defer close(bos.closeChan)
+
 		// Block until disconnect.
-		entry := <-bos.bf.DisconnectChan()
+		<-bos.bf.DisconnectChan()
+		nmxutil.Assert(!bos.IsOpen())
+		pd := bos.bf.PrevDisconnect()
 
 		// Signal error to all listeners.
-		bos.d.ErrorAll(entry.Err)
+		bos.d.ErrorAll(pd.Err)
 		bos.d.Stop()
-
-		// If the session is being closed, unblock the close() call.
-		close(bos.closeChan)
+		bos.wg.Done()
+		bos.wg.Wait()
 
 		// Only execute the client's disconnect callback if the disconnect was
 		// unsolicited.
-		if entry.Dt != FSM_DISCONNECT_TYPE_REQUESTED && bos.onCloseCb != nil {
-			bos.onCloseCb(bos, entry.Err)
+		if pd.Dt != FSM_DISCONNECT_TYPE_REQUESTED && bos.onCloseCb != nil {
+			bos.onCloseCb(bos, pd.Err)
 		}
 	}()
 
 	// Listen for NMP responses in the background.
+	bos.wg.Add(1)
 	go func() {
+		defer bos.wg.Done()
+
 		for {
 			data, ok := <-bos.bf.RxNmpChan()
 			if !ok {

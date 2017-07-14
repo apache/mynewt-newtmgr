@@ -6,11 +6,15 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 )
 
+// The receiver never writes to any of its listeners.  It only maintains a set
+// of listeners so that their lifetimes can be tracked and to facilitate their
+// removal from the BLE transport.
+
 type Receiver struct {
 	id       uint32
 	bx       *BleXport
 	logDepth int
-	bls      map[*Listener]struct{}
+	bls      map[*Listener]MsgBase
 	mtx      sync.Mutex
 	wg       sync.WaitGroup
 }
@@ -20,7 +24,7 @@ func NewReceiver(id uint32, bx *BleXport, logDepth int) *Receiver {
 		id:       id,
 		bx:       bx,
 		logDepth: logDepth + 3,
-		bls:      map[*Listener]struct{}{},
+		bls:      map[*Listener]MsgBase{},
 	}
 }
 
@@ -34,11 +38,11 @@ func (r *Receiver) addListener(name string, base MsgBase) (
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	if err := r.bx.Bd.AddListener(base, bl); err != nil {
+	if err := r.bx.AddListener(base, bl); err != nil {
 		return nil, err
 	}
 
-	r.bls[bl] = struct{}{}
+	r.bls[bl] = base
 	r.wg.Add(1)
 
 	return bl, nil
@@ -68,7 +72,7 @@ func (r *Receiver) removeListener(name string, base MsgBase) *Listener {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	bl := r.bx.Bd.RemoveListener(base)
+	bl := r.bx.RemoveListener(base)
 	delete(r.bls, bl)
 
 	if bl != nil {
@@ -93,18 +97,14 @@ func (r *Receiver) RemoveSeqListener(name string, seq BleSeq) {
 	r.removeListener(name, base)
 }
 
-func (r *Receiver) ErrorAll(err error) {
-	if err == nil {
-		panic("NIL ERROR")
-	}
+func (r *Receiver) RemoveAll(name string) {
 	r.mtx.Lock()
-	defer r.mtx.Unlock()
-
 	bls := r.bls
-	r.bls = map[*Listener]struct{}{}
+	r.bls = map[*Listener]MsgBase{}
+	r.mtx.Unlock()
 
-	for bl, _ := range bls {
-		bl.ErrChan <- err
+	for _, base := range bls {
+		r.removeListener(name, base)
 	}
 }
 

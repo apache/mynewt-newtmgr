@@ -114,7 +114,9 @@ func (s *BleScanner) scan() (*scan.ScanPeer, error) {
 		return nil, nil
 	}
 
-	s.connect(*dev)
+	if err := s.connect(*dev); err != nil {
+		return nil, err
+	}
 	defer s.bos.Close()
 
 	// Now we are connected (and paired if required).  Read the peer's hardware

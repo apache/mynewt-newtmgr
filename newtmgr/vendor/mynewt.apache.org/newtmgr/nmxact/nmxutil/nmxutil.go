@@ -17,6 +17,8 @@ import (
 
 const DURATION_FOREVER time.Duration = math.MaxInt64
 
+var Debug bool
+
 var nextNmpSeq uint8
 var nmpSeqBeenRead bool
 var nextOicSeq uint8
@@ -39,6 +41,12 @@ func SetLogLevel(level log.Level) {
 	log.SetLevel(level)
 	log.SetFormatter(&logFormatter)
 	ListenLog.Level = level
+}
+
+func Assert(cond bool) {
+	if Debug && !cond {
+		panic("Failed assertion")
+	}
 }
 
 func NextNmpSeq() uint8 {

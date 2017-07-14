@@ -40,10 +40,10 @@ func (d *Discoverer) scanCancel() error {
 	}
 
 	bl := NewListener()
-	if err := d.params.Bx.Bd.AddListener(base, bl); err != nil {
+	if err := d.params.Bx.AddListener(base, bl); err != nil {
 		return err
 	}
-	defer d.params.Bx.Bd.RemoveListener(base)
+	defer d.params.Bx.RemoveListener(base)
 
 	if err := scanCancel(d.params.Bx, bl, r); err != nil {
 		return err
@@ -79,10 +79,10 @@ func (d *Discoverer) Start(advRptCb BleAdvRptFn) error {
 	}
 
 	bl := NewListener()
-	if err := d.params.Bx.Bd.AddListener(base, bl); err != nil {
+	if err := d.params.Bx.AddListener(base, bl); err != nil {
 		return err
 	}
-	defer d.params.Bx.Bd.RemoveListener(base)
+	defer d.params.Bx.RemoveListener(base)
 
 	d.abortChan = make(chan struct{}, 1)
 	defer func() { d.abortChan = nil }()

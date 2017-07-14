@@ -2,11 +2,13 @@ package nmble
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"mynewt.apache.org/newt/util"
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
+	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
@@ -15,6 +17,7 @@ type BlePlainSesn struct {
 	d            *nmp.Dispatcher
 	closeTimeout time.Duration
 	onCloseCb    sesn.OnCloseFn
+	wg           sync.WaitGroup
 
 	closeChan chan struct{}
 }
@@ -61,25 +64,34 @@ func (bps *BlePlainSesn) Open() error {
 	bps.d = nmp.NewDispatcher(3)
 
 	// Listen for disconnect in the background.
+	bps.wg.Add(1)
 	go func() {
+		// If the session is being closed, unblock the close() call.
+		defer close(bps.closeChan)
+
 		// Block until disconnect.
-		entry := <-bps.bf.DisconnectChan()
+		<-bps.bf.DisconnectChan()
+		nmxutil.Assert(!bps.IsOpen())
+
+		pd := bps.bf.PrevDisconnect()
 
 		// Signal error to all listeners.
-		bps.d.ErrorAll(entry.Err)
-
-		// If the session is being closed, unblock the close() call.
-		close(bps.closeChan)
+		bps.d.ErrorAll(pd.Err)
+		bps.wg.Done()
+		bps.wg.Wait()
 
 		// Only execute the client's disconnect callback if the disconnect was
 		// unsolicited.
-		if entry.Dt != FSM_DISCONNECT_TYPE_REQUESTED && bps.onCloseCb != nil {
-			bps.onCloseCb(bps, entry.Err)
+		if pd.Dt != FSM_DISCONNECT_TYPE_REQUESTED && bps.onCloseCb != nil {
+			bps.onCloseCb(bps, pd.Err)
 		}
 	}()
 
 	// Listen for NMP responses in the background.
+	bps.wg.Add(1)
 	go func() {
+		defer bps.wg.Done()
+
 		for {
 			data, ok := <-bps.bf.RxNmpChan()
 			if !ok {
@@ -107,22 +119,6 @@ func (bps *BlePlainSesn) Close() error {
 
 func (bps *BlePlainSesn) IsOpen() bool {
 	return bps.bf.IsOpen()
-}
-
-// Called by the FSM when a blehostd disconnect event is received.
-func (bps *BlePlainSesn) onDisconnect(dt BleFsmDisconnectType, peer BleDev,
-	err error) {
-
-	bps.d.ErrorAll(err)
-
-	// If the session is being closed, unblock the close() call.
-	close(bps.closeChan)
-
-	// Only execute client's disconnect callback if the disconnect was
-	// unsolicited and the session was fully open.
-	if dt == FSM_DISCONNECT_TYPE_OPENED && bps.onCloseCb != nil {
-		bps.onCloseCb(bps, err)
-	}
 }
 
 func (bps *BlePlainSesn) EncodeNmpMsg(m *nmp.NmpMsg) ([]byte, error) {
