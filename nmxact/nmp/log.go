@@ -215,7 +215,7 @@ type LogLevelListReq struct {
 type LogLevelListRsp struct {
 	NmpBase
 	Rc  int            `codec:"rc" codec:",omitempty"`
-	Map map[string]int `codec:"module_map"`
+	Map map[string]int `codec:"level_map"`
 }
 
 func NewLogLevelListReq() *LogLevelListReq {

@@ -26,10 +26,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/xact"
-	"mynewt.apache.org/newt/util"
 )
 
 func logShowCmd(cmd *cobra.Command, args []string) {
@@ -182,15 +182,17 @@ func logLevelListCmd(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	names := make([]string, 0, len(sres.Rsp.Map))
-	for k, _ := range sres.Rsp.Map {
-		names = append(names, k)
+	vals := make([]int, 0, len(sres.Rsp.Map))
+	revmap := make(map[int]string, len(sres.Rsp.Map))
+	for name, val := range sres.Rsp.Map {
+		vals = append(vals, val)
+		revmap[val] = name
 	}
-	sort.Strings(names)
+	sort.Ints(vals)
 
 	fmt.Printf("available levels:\n")
-	for _, name := range names {
-		fmt.Printf("    %s: %d\n", name, sres.Rsp.Map[name])
+	for _, val := range vals {
+		fmt.Printf("    %d: %s\n", val, revmap[val])
 	}
 }
 
