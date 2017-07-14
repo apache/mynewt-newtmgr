@@ -16,25 +16,17 @@ type BlePlainSesn struct {
 	closeTimeout time.Duration
 	onCloseCb    sesn.OnCloseFn
 
-	closeChan chan error
+	closeChan chan struct{}
 }
 
 func NewBlePlainSesn(bx *BleXport, cfg sesn.SesnCfg) *BlePlainSesn {
 	bps := &BlePlainSesn{
-		d:            nmp.NewDispatcher(1),
 		closeTimeout: cfg.Ble.CloseTimeout,
 		onCloseCb:    cfg.OnCloseCb,
 	}
 
-	svcUuid, err := ParseUuid(NmpPlainSvcUuid)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	chrUuid, err := ParseUuid(NmpPlainChrUuid)
-	if err != nil {
-		panic(err.Error())
-	}
+	svcUuid, _ := ParseUuid(NmpPlainSvcUuid)
+	chrUuid, _ := ParseUuid(NmpPlainChrUuid)
 
 	bps.bf = NewBleFsm(BleFsmParams{
 		Bx:          bx,
@@ -48,36 +40,9 @@ func NewBlePlainSesn(bx *BleXport, cfg sesn.SesnCfg) *BlePlainSesn {
 		ReqChrUuid:  chrUuid,
 		RspChrUuid:  chrUuid,
 		EncryptWhen: cfg.Ble.EncryptWhen,
-		RxDataCb:    func(d []byte) { bps.onRxNmp(d) },
-		DisconnectCb: func(dt BleFsmDisconnectType, p BleDev, e error) {
-			bps.onDisconnect(dt, p, e)
-		},
 	})
 
 	return bps
-}
-
-func (bps *BlePlainSesn) setCloseChan() error {
-	if bps.closeChan != nil {
-		return fmt.Errorf("Multiple listeners waiting for session to close")
-	}
-
-	bps.closeChan = make(chan error, 1)
-	return nil
-}
-
-func (bps *BlePlainSesn) clearCloseChan() {
-	bps.closeChan = nil
-}
-
-func (bps *BlePlainSesn) listenForClose(timeout time.Duration) error {
-	select {
-	case <-bps.closeChan:
-		return nil
-	case <-time.After(timeout):
-		// Session never closed.
-		return fmt.Errorf("Timeout while waiting for session to close")
-	}
 }
 
 func (bps *BlePlainSesn) AbortRx(seq uint8) error {
@@ -85,35 +50,63 @@ func (bps *BlePlainSesn) AbortRx(seq uint8) error {
 }
 
 func (bps *BlePlainSesn) Open() error {
-	return bps.bf.Start()
+	// This channel gets closed when the session closes.
+	bps.closeChan = make(chan struct{})
+
+	if err := bps.bf.Start(); err != nil {
+		close(bps.closeChan)
+		return err
+	}
+
+	bps.d = nmp.NewDispatcher(3)
+
+	// Listen for disconnect in the background.
+	go func() {
+		// Block until disconnect.
+		entry := <-bps.bf.DisconnectChan()
+
+		// Signal error to all listeners.
+		bps.d.ErrorAll(entry.Err)
+
+		// If the session is being closed, unblock the close() call.
+		close(bps.closeChan)
+
+		// Only execute the client's disconnect callback if the disconnect was
+		// unsolicited.
+		if entry.Dt != FSM_DISCONNECT_TYPE_REQUESTED && bps.onCloseCb != nil {
+			bps.onCloseCb(bps, entry.Err)
+		}
+	}()
+
+	// Listen for NMP responses in the background.
+	go func() {
+		for {
+			data, ok := <-bps.bf.RxNmpChan()
+			if !ok {
+				// Disconnected.
+				return
+			} else {
+				bps.d.Dispatch(data)
+			}
+		}
+	}()
+
+	return nil
 }
 
 func (bps *BlePlainSesn) Close() error {
-	if err := bps.setCloseChan(); err != nil {
-		return err
-	}
-	defer bps.clearCloseChan()
-
-	done, err := bps.bf.Stop()
+	err := bps.bf.Stop()
 	if err != nil {
 		return err
 	}
 
-	if done {
-		// Close complete.
-		return nil
-	}
-
-	// Block until close completes or times out.
-	return bps.listenForClose(bps.closeTimeout)
+	// Block until close completes.
+	<-bps.closeChan
+	return nil
 }
 
 func (bps *BlePlainSesn) IsOpen() bool {
 	return bps.bf.IsOpen()
-}
-
-func (bps *BlePlainSesn) onRxNmp(data []byte) {
-	bps.d.Dispatch(data)
 }
 
 // Called by the FSM when a blehostd disconnect event is received.
@@ -122,10 +115,8 @@ func (bps *BlePlainSesn) onDisconnect(dt BleFsmDisconnectType, peer BleDev,
 
 	bps.d.ErrorAll(err)
 
-	// If someone is waiting for the session to close, unblock them.
-	if bps.closeChan != nil {
-		bps.closeChan <- err
-	}
+	// If the session is being closed, unblock the close() call.
+	close(bps.closeChan)
 
 	// Only execute client's disconnect callback if the disconnect was
 	// unsolicited and the session was fully open.

@@ -55,7 +55,7 @@ type Listener struct {
 func NewListener() *Listener {
 	return &Listener{
 		MsgChan: make(chan Msg, 16),
-		ErrChan: make(chan error, 4),
+		ErrChan: make(chan error, 1),
 		TmoChan: make(chan time.Time, 1),
 	}
 }
@@ -70,10 +70,14 @@ func (bl *Listener) AfterTimeout(tmo time.Duration) <-chan time.Time {
 	return bl.TmoChan
 }
 
-func (bl *Listener) Stop() {
+func (bl *Listener) Close() {
 	if bl.timer != nil {
 		bl.timer.Stop()
 	}
+
+	close(bl.MsgChan)
+	close(bl.ErrChan)
+	close(bl.TmoChan)
 }
 
 type Dispatcher struct {
@@ -234,7 +238,7 @@ func (d *Dispatcher) RemoveListener(base MsgBase) *Listener {
 
 	base, bl := d.findListener(base)
 	if bl != nil {
-		bl.Stop()
+		bl.Close()
 		if base.Seq != BLE_SEQ_NONE {
 			delete(d.seqMap, base.Seq)
 		} else {
@@ -264,8 +268,8 @@ func decodeMsg(data []byte) (MsgBase, Msg, error) {
 	cb := msgCtorMap[opTypePair]
 	if cb == nil {
 		return base, nil, fmt.Errorf(
-			"Unrecognized op+type pair:") // %s, %s",
-		//MsgOpToString(base.Op), MsgTypeToString(base.Type))
+			"Unrecognized op+type pair: %s, %s",
+			MsgOpToString(base.Op), MsgTypeToString(base.Type))
 	}
 
 	msg := cb()
@@ -298,6 +302,10 @@ func (d *Dispatcher) Dispatch(data []byte) {
 }
 
 func (d *Dispatcher) ErrorAll(err error) {
+	if err == nil {
+		panic("NIL ERROR")
+	}
+
 	d.mtx.Lock()
 
 	m1 := d.seqMap
@@ -310,8 +318,10 @@ func (d *Dispatcher) ErrorAll(err error) {
 
 	for _, bl := range m1 {
 		bl.ErrChan <- err
+		bl.Close()
 	}
 	for _, bl := range m2 {
 		bl.ErrChan <- err
+		bl.Close()
 	}
 }

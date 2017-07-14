@@ -48,8 +48,11 @@ const (
 	FSM_DISCONNECT_TYPE_REQUESTED
 )
 
-type BleRxDataFn func(data []byte)
-type BleDisconnectFn func(dt BleFsmDisconnectType, peer BleDev, err error)
+type BleDisconnectEntry struct {
+	Dt   BleFsmDisconnectType
+	Peer BleDev
+	Err  error
+}
 
 type BleFsmParamsCentral struct {
 	PeerDev     BleDev
@@ -58,15 +61,13 @@ type BleFsmParamsCentral struct {
 }
 
 type BleFsmParams struct {
-	Bx           *BleXport
-	OwnAddrType  BleAddrType
-	EncryptWhen  BleEncryptWhen
-	Central      BleFsmParamsCentral
-	SvcUuids     []BleUuid
-	ReqChrUuid   BleUuid
-	RspChrUuid   BleUuid
-	RxDataCb     BleRxDataFn
-	DisconnectCb BleDisconnectFn
+	Bx          *BleXport
+	OwnAddrType BleAddrType
+	EncryptWhen BleEncryptWhen
+	Central     BleFsmParamsCentral
+	SvcUuids    []BleUuid
+	ReqChrUuid  BleUuid
+	RspChrUuid  BleUuid
 }
 
 type BleFsm struct {
@@ -83,8 +84,9 @@ type BleFsm struct {
 	errFunnel  nmxutil.ErrFunnel
 	id         uint32
 
-	// Conveys changes in encrypted state.
-	encChan chan error
+	encBcast       nmxutil.Bcaster
+	disconnectChan chan BleDisconnectEntry
+	rxNmpChan      chan []byte
 }
 
 func NewBleFsm(p BleFsmParams) *BleFsm {
@@ -99,7 +101,6 @@ func NewBleFsm(p BleFsmParams) *BleFsm {
 
 	bf.errFunnel.AccumDelay = 250 * time.Millisecond
 	bf.errFunnel.LessCb = fsmErrorLess
-	bf.errFunnel.ProcCb = func(err error) { bf.processErr(err) }
 
 	return bf
 }
@@ -163,7 +164,14 @@ func calcDisconnectType(state BleSesnState) BleFsmDisconnectType {
 	}
 }
 
-func (bf *BleFsm) processErr(err error) {
+// Listens for an error in the state machine.  On error, the session is
+// considered disconnected and the error is reported to the client.
+func (bf *BleFsm) listenForError() {
+	err := <-bf.errFunnel.Wait()
+
+	// Stop listening for NMP responses.
+	close(bf.rxNmpChan)
+
 	// Remember some fields before we clear them.
 	dt := calcDisconnectType(bf.state)
 
@@ -175,8 +183,10 @@ func (bf *BleFsm) processErr(err error) {
 	// Wait for all listeners to get removed.
 	bf.rxer.WaitUntilNoListeners()
 
-	bf.errFunnel.Reset()
-	bf.params.DisconnectCb(dt, bf.peerDev, err)
+	bf.disconnectChan <- BleDisconnectEntry{dt, bf.peerDev, err}
+	close(bf.disconnectChan)
+
+	bf.disconnectChan = make(chan BleDisconnectEntry)
 }
 
 // Listens for events in the background.
@@ -214,9 +224,9 @@ func (bf *BleFsm) eventListen(bl *Listener, seq BleSeq) error {
 						log.Debugf("Connection encrypted; conn_handle=%d",
 							msg.ConnHandle)
 					}
-					if bf.encChan != nil {
-						bf.encChan <- err
-					}
+
+					// Notify any listeners of the encryption change event.
+					bf.encBcast.SendAndClear(err)
 
 				case *BleDisconnectEvt:
 					err := bf.disconnectError(msg.Reason)
@@ -259,7 +269,7 @@ func (bf *BleFsm) nmpRspListen() error {
 					if bf.nmpRspChr != nil &&
 						msg.AttrHandle == bf.nmpRspChr.ValHandle {
 
-						bf.params.RxDataCb(msg.Data.Bytes)
+						bf.rxNmpChan <- msg.Data.Bytes
 					}
 				}
 			}
@@ -437,16 +447,14 @@ func (bf *BleFsm) encInitiate() error {
 	}
 	defer bf.rxer.RemoveSeqListener("enc-initiate", r.Seq)
 
-	bf.encChan = make(chan error)
-	defer func() { bf.encChan = nil }()
-
 	// Initiate the encryption procedure.
 	if err := encInitiate(bf.params.Bx, bl, r); err != nil {
 		return err
 	}
 
 	// Block until the procedure completes.
-	return <-bf.encChan
+	itf := <-bf.encBcast.Listen()
+	return itf.(error)
 }
 
 func (bf *BleFsm) discAllChrs() error {
@@ -621,6 +629,14 @@ func (bf *BleFsm) executeState() (bool, error) {
 	return false, nil
 }
 
+func (bf *BleFsm) DisconnectChan() <-chan BleDisconnectEntry {
+	return bf.disconnectChan
+}
+
+func (bf *BleFsm) RxNmpChan() <-chan []byte {
+	return bf.rxNmpChan
+}
+
 func (bf *BleFsm) startOnce() (bool, error) {
 	if !bf.IsClosed() {
 		return false, nmxutil.NewSesnAlreadyOpenError(fmt.Sprintf(
@@ -628,15 +644,16 @@ func (bf *BleFsm) startOnce() (bool, error) {
 			bf.state))
 	}
 
-	bf.errFunnel.Start()
-
 	for {
 		retry, err := bf.executeState()
 		if err != nil {
 			bf.errFunnel.Insert(err)
-			err = bf.errFunnel.Wait()
+			err = <-bf.errFunnel.Wait()
 			return retry, err
 		} else if bf.state == SESN_STATE_DONE {
+			// We are fully connected.  Listen for errors in the background.
+			go bf.listenForError()
+
 			return false, nil
 		}
 	}
@@ -648,6 +665,9 @@ func (bf *BleFsm) startOnce() (bool, error) {
 func (bf *BleFsm) Start() error {
 	var err error
 
+	bf.disconnectChan = make(chan BleDisconnectEntry)
+	bf.rxNmpChan = make(chan []byte)
+
 	for i := 0; i < bf.params.Central.ConnTries; i++ {
 		var retry bool
 		retry, err = bf.startOnce()
@@ -656,12 +676,16 @@ func (bf *BleFsm) Start() error {
 		}
 	}
 
-	return err
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // @return bool                 true if stop complete;
 //                              false if disconnect is now pending.
-func (bf *BleFsm) Stop() (bool, error) {
+func (bf *BleFsm) Stop() error {
 	state := bf.state
 
 	switch state {
@@ -669,19 +693,18 @@ func (bf *BleFsm) Stop() (bool, error) {
 		SESN_STATE_TERMINATING,
 		SESN_STATE_CONN_CANCELLING:
 
-		return false,
-			bf.closedError("Attempt to close an unopened BLE session")
+		return bf.closedError("Attempt to close an unopened BLE session")
 
 	case SESN_STATE_CONNECTING:
 		bf.connCancel()
 		bf.errFunnel.Insert(fmt.Errorf("Connection attempt cancelled"))
-		return false, nil
+		return nil
 
 	default:
 		if err := bf.terminate(); err != nil {
-			return false, err
+			return err
 		}
-		return false, nil
+		return nil
 	}
 }
 
