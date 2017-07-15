@@ -169,7 +169,7 @@ func calcDisconnectType(state BleSesnState) BleFsmDisconnectType {
 
 func (bf *BleFsm) shutdown(err error) {
 	bf.params.Bx.StopWaitingForMaster(bf, err)
-	bf.rxer.ErrorAll(err)
+	bf.rxer.RemoveAll("shutdown")
 
 	bf.state = SESN_STATE_UNCONNECTED
 
@@ -202,8 +202,8 @@ func (bf *BleFsm) eventListen(bl *Listener, seq BleSeq) error {
 	bf.wg.Add(1)
 
 	go func() {
-		defer bf.rxer.RemoveSeqListener("connect", seq)
 		defer bf.wg.Done()
+		defer bf.rxer.RemoveSeqListener("connect", seq)
 
 		for {
 			select {
@@ -269,8 +269,8 @@ func (bf *BleFsm) nmpRspListen() error {
 	bf.wg.Add(1)
 
 	go func() {
-		defer bf.rxer.RemoveBaseListener("nmp-rsp", base)
 		defer bf.wg.Done()
+		defer bf.rxer.RemoveBaseListener("nmp-rsp", base)
 
 		for {
 			select {

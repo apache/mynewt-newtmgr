@@ -80,8 +80,12 @@ func (bos *BleOicSesn) Open() error {
 	// Listen for disconnect in the background.
 	bos.wg.Add(1)
 	go func() {
+		// If the session is being closed, unblock the close() call.
+		defer close(bos.closeChan)
+
 		// Block until disconnect.
 		<-bos.bf.DisconnectChan()
+		nmxutil.Assert(!bos.IsOpen())
 		pd := bos.bf.PrevDisconnect()
 
 		// Signal error to all listeners.
@@ -89,9 +93,6 @@ func (bos *BleOicSesn) Open() error {
 		bos.d.Stop()
 		bos.wg.Done()
 		bos.wg.Wait()
-
-		// If the session is being closed, unblock the close() call.
-		close(bos.closeChan)
 
 		// Only execute the client's disconnect callback if the disconnect was
 		// unsolicited.

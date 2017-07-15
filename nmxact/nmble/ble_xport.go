@@ -84,7 +84,8 @@ const (
 
 // Implements xport.Xport.
 type BleXport struct {
-	Bd           *Dispatcher
+	cfg          XportCfg
+	d            *Dispatcher
 	client       *unixchild.Client
 	state        BleXportState
 	stopChan     chan struct{}
@@ -95,13 +96,11 @@ type BleXport struct {
 	randAddr     *BleAddr
 	stateMtx     sync.Mutex
 	scanner      *BleScanner
-
-	cfg XportCfg
 }
 
 func NewBleXport(cfg XportCfg) (*BleXport, error) {
 	bx := &BleXport{
-		Bd:           NewDispatcher(),
+		d:            NewDispatcher(),
 		shutdownChan: make(chan bool),
 		readyBcast:   nmxutil.Bcaster{},
 		master:       nmxutil.NewSingleResource(),
@@ -171,7 +170,7 @@ func (bx *BleXport) addSyncListener() (*Listener, error) {
 		Seq:        BLE_SEQ_NONE,
 		ConnHandle: -1,
 	}
-	if err := bx.Bd.AddListener(base, bl); err != nil {
+	if err := bx.d.AddListener(base, bl); err != nil {
 		return nil, err
 	}
 
@@ -185,7 +184,7 @@ func (bx *BleXport) removeSyncListener() {
 		Seq:        BLE_SEQ_NONE,
 		ConnHandle: -1,
 	}
-	bx.Bd.RemoveListener(base)
+	bx.d.RemoveListener(base)
 }
 
 func (bx *BleXport) querySyncStatus() (bool, error) {
@@ -207,10 +206,10 @@ func (bx *BleXport) querySyncStatus() (bool, error) {
 		Seq:        req.Seq,
 		ConnHandle: -1,
 	}
-	if err := bx.Bd.AddListener(base, bl); err != nil {
+	if err := bx.d.AddListener(base, bl); err != nil {
 		return false, err
 	}
-	defer bx.Bd.RemoveListener(base)
+	defer bx.d.RemoveListener(base)
 
 	if err := bx.txNoSync(j); err != nil {
 		return false, err
@@ -286,7 +285,7 @@ func (bx *BleXport) shutdown(restart bool, err error) {
 	// Indicate an error to all of this transport's listeners.  This prevents
 	// them from blocking endlessly while awaiting a BLE message.
 	log.Debugf("Stopping BLE dispatcher")
-	bx.Bd.ErrorAll(err)
+	bx.d.ErrorAll(err)
 
 	synced, err := bx.querySyncStatus()
 	if err == nil && synced {
@@ -386,7 +385,7 @@ func (bx *BleXport) startOnce() error {
 			case buf := <-bx.client.FromChild:
 				if len(buf) != 0 {
 					log.Debugf("Receive from blehostd:\n%s", hex.Dump(buf))
-					bx.Bd.Dispatch(buf)
+					bx.d.Dispatch(buf)
 				}
 
 			case <-bx.stopChan:
@@ -540,6 +539,14 @@ func (bx *BleXport) Tx(data []byte) error {
 	}
 
 	return bx.txNoSync(data)
+}
+
+func (bx *BleXport) AddListener(base MsgBase, listener *Listener) error {
+	return bx.d.AddListener(base, listener)
+}
+
+func (bx *BleXport) RemoveListener(base MsgBase) *Listener {
+	return bx.d.RemoveListener(base)
 }
 
 func (bx *BleXport) RspTimeout() time.Duration {

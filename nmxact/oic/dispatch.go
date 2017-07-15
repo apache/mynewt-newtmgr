@@ -72,6 +72,18 @@ func (ol *Listener) AfterTimeout(tmo time.Duration) <-chan time.Time {
 	return ol.tmoChan
 }
 
+func (ol *Listener) Close() {
+	if ol.timer != nil {
+		ol.timer.Stop()
+	}
+
+	close(ol.RspChan)
+	close(ol.ErrChan)
+	close(ol.tmoChan)
+}
+
+// The dispatcher is the owner of the listeners it points to.  Only the
+// dispatcher writes to these listeners.
 type Dispatcher struct {
 	tokenListenerMap map[Token]*Listener
 	reassembler      *Reassembler
@@ -124,7 +136,10 @@ func (d *Dispatcher) RemoveListener(token []byte) *Listener {
 	}
 
 	ol := d.tokenListenerMap[ot]
-	delete(d.tokenListenerMap, ot)
+	if ol != nil {
+		ol.Close()
+		delete(d.tokenListenerMap, ot)
+	}
 
 	return ol
 }

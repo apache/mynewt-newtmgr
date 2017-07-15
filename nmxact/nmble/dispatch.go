@@ -80,6 +80,8 @@ func (bl *Listener) Close() {
 	close(bl.TmoChan)
 }
 
+// The dispatcher is the owner of the listeners it points to.  Only the
+// dispatcher writes to these listeners.
 type Dispatcher struct {
 	seqMap  map[BleSeq]*Listener
 	baseMap map[MsgBase]*Listener
