@@ -32,18 +32,12 @@ func NewDiscoverer(params DiscovererParams) *Discoverer {
 func (d *Discoverer) scanCancel() error {
 	r := NewBleScanCancelReq()
 
-	base := MsgBase{
-		Op:         -1,
-		Type:       -1,
-		Seq:        r.Seq,
-		ConnHandle: -1,
-	}
-
-	bl := NewListener()
-	if err := d.params.Bx.AddListener(base, bl); err != nil {
+	key := SeqKey(r.Seq)
+	bl, err := d.params.Bx.AddListener(key)
+	if err != nil {
 		return err
 	}
-	defer d.params.Bx.RemoveListener(base)
+	defer d.params.Bx.RemoveListener(bl)
 
 	if err := scanCancel(d.params.Bx, bl, r); err != nil {
 		return err
@@ -71,23 +65,17 @@ func (d *Discoverer) Start(advRptCb BleAdvRptFn) error {
 	r.Passive = d.params.Passive
 	r.FilterDuplicates = true
 
-	base := MsgBase{
-		Op:         -1,
-		Type:       -1,
-		Seq:        r.Seq,
-		ConnHandle: -1,
-	}
-
-	bl := NewListener()
-	if err := d.params.Bx.AddListener(base, bl); err != nil {
+	key := SeqKey(r.Seq)
+	bl, err := d.params.Bx.AddListener(key)
+	if err != nil {
 		return err
 	}
-	defer d.params.Bx.RemoveListener(base)
+	defer d.params.Bx.RemoveListener(bl)
 
 	d.abortChan = make(chan struct{}, 1)
 	defer func() { d.abortChan = nil }()
 
-	err := actScan(d.params.Bx, bl, r, d.abortChan, advRptCb)
+	err = actScan(d.params.Bx, bl, r, d.abortChan, advRptCb)
 	if !nmxutil.IsXport(err) {
 		// The transport did not restart; always attempt to cancel the scan
 		// operation.  In some cases, the host has already stopped scanning

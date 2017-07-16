@@ -23,15 +23,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
-	"time"
+
+	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 
 	log "github.com/Sirupsen/logrus"
 )
-
-type OpTypePair struct {
-	Op   MsgOp
-	Type MsgType
-}
 
 type MsgBase struct {
 	// Header
@@ -43,49 +39,16 @@ type MsgBase struct {
 	ConnHandle int `json:"conn_handle" json:",omitempty"`
 }
 
-type Listener struct {
-	MsgChan chan Msg
-	ErrChan chan error
-	TmoChan chan time.Time
-	Acked   bool
-
-	timer *time.Timer
-}
-
-func NewListener() *Listener {
-	return &Listener{
-		MsgChan: make(chan Msg, 16),
-		ErrChan: make(chan error, 1),
-		TmoChan: make(chan time.Time, 1),
-	}
-}
-
-func (bl *Listener) AfterTimeout(tmo time.Duration) <-chan time.Time {
-	fn := func() {
-		if !bl.Acked {
-			bl.TmoChan <- time.Now()
-		}
-	}
-	bl.timer = time.AfterFunc(tmo, fn)
-	return bl.TmoChan
-}
-
-func (bl *Listener) Close() {
-	if bl.timer != nil {
-		bl.timer.Stop()
-	}
-
-	close(bl.MsgChan)
-	close(bl.ErrChan)
-	close(bl.TmoChan)
+type OpTypePair struct {
+	Op   MsgOp
+	Type MsgType
 }
 
 // The dispatcher is the owner of the listeners it points to.  Only the
 // dispatcher writes to these listeners.
 type Dispatcher struct {
-	seqMap  map[BleSeq]*Listener
-	baseMap map[MsgBase]*Listener
-	mtx     sync.Mutex
+	lm  *ListenerMap
+	mtx sync.Mutex
 }
 
 type msgCtor func() Msg
@@ -154,101 +117,54 @@ var msgCtorMap = map[OpTypePair]msgCtor{
 
 func NewDispatcher() *Dispatcher {
 	return &Dispatcher{
-		seqMap:  map[BleSeq]*Listener{},
-		baseMap: map[MsgBase]*Listener{},
+		lm: NewListenerMap(),
 	}
 }
 
-func (d *Dispatcher) findBaseListener(base MsgBase) (
-	MsgBase, *Listener) {
-
-	for k, v := range d.baseMap {
-		if k.Op != -1 && base.Op != -1 && k.Op != base.Op {
-			continue
-		}
-		if k.Type != -1 && base.Type != -1 && k.Type != base.Type {
-			continue
-		}
-		if k.ConnHandle != -1 && base.ConnHandle != -1 &&
-			k.ConnHandle != base.ConnHandle {
-
-			continue
-		}
-
-		return k, v
-	}
-
-	return base, nil
-}
-
-func (d *Dispatcher) findDupListener(base MsgBase) (
-	MsgBase, *Listener) {
-
-	if base.Seq != BLE_SEQ_NONE {
-		return base, d.seqMap[base.Seq]
-	}
-
-	return d.findBaseListener(base)
-}
-
-func (d *Dispatcher) findListener(base MsgBase) (
-	MsgBase, *Listener) {
-
-	if base.Seq != BLE_SEQ_NONE {
-		if bl := d.seqMap[base.Seq]; bl != nil {
-			return base, bl
-		}
-	}
-
-	return d.findBaseListener(base)
-}
-
-func (d *Dispatcher) AddListener(base MsgBase,
-	listener *Listener) error {
-
+func (d *Dispatcher) AddListener(key ListenerKey, listener *Listener) error {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
-	if ob, old := d.findDupListener(base); old != nil {
-		return fmt.Errorf(
-			"Duplicate BLE listener;\n"+
-				"    old=op=%d type=%d seq=%d connHandle=%d\n"+
-				"    new=op=%d type=%d seq=%d connHandle=%d",
-			ob.Op, ob.Type, ob.Seq, ob.ConnHandle,
-			base.Op, base.Type, base.Seq, base.ConnHandle)
-	}
-
-	if base.Seq != BLE_SEQ_NONE {
-		if base.Op != -1 ||
-			base.Type != -1 ||
-			base.ConnHandle != -1 {
-			return fmt.Errorf(
-				"Invalid listener base; non-wild seq with wild fields")
-		}
-
-		d.seqMap[base.Seq] = listener
-	} else {
-		d.baseMap[base] = listener
-	}
-
-	return nil
+	return d.lm.AddListener(key, listener)
 }
 
-func (d *Dispatcher) RemoveListener(base MsgBase) *Listener {
+func (d *Dispatcher) RemoveListener(listener *Listener) *ListenerKey {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
-	base, bl := d.findListener(base)
-	if bl != nil {
-		bl.Close()
-		if base.Seq != BLE_SEQ_NONE {
-			delete(d.seqMap, base.Seq)
-		} else {
-			delete(d.baseMap, base)
-		}
+	key := d.lm.RemoveListener(listener)
+	if key == nil {
+		return nil
 	}
 
-	return bl
+	listener.Close()
+	return key
+}
+
+func (d *Dispatcher) RemoveKey(key ListenerKey) *Listener {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
+	listener := d.lm.RemoveKey(key)
+	if listener == nil {
+		return nil
+	}
+
+	listener.Close()
+	return listener
+}
+
+func (d *Dispatcher) ErrorAll(err error) {
+	nmxutil.Assert(err != nil)
+
+	d.mtx.Lock()
+	listeners := d.lm.ExtractAll()
+	d.mtx.Unlock()
+
+	for _, listener := range listeners {
+		listener.ErrChan <- err
+		listener.Close()
+	}
 }
 
 func decodeBleBase(data []byte) (MsgBase, error) {
@@ -290,8 +206,9 @@ func (d *Dispatcher) Dispatch(data []byte) {
 	}
 
 	d.mtx.Lock()
-	_, listener := d.findListener(base)
-	d.mtx.Unlock()
+	defer d.mtx.Unlock()
+
+	_, listener := d.lm.FindListener(base.Seq, base.Type, base.ConnHandle)
 
 	if listener == nil {
 		log.Debugf(
@@ -301,29 +218,4 @@ func (d *Dispatcher) Dispatch(data []byte) {
 	}
 
 	listener.MsgChan <- msg
-}
-
-func (d *Dispatcher) ErrorAll(err error) {
-	if err == nil {
-		panic("NIL ERROR")
-	}
-
-	d.mtx.Lock()
-
-	m1 := d.seqMap
-	d.seqMap = map[BleSeq]*Listener{}
-
-	m2 := d.baseMap
-	d.baseMap = map[MsgBase]*Listener{}
-
-	d.mtx.Unlock()
-
-	for _, bl := range m1 {
-		bl.ErrChan <- err
-		bl.Close()
-	}
-	for _, bl := range m2 {
-		bl.ErrChan <- err
-		bl.Close()
-	}
 }

@@ -13,8 +13,8 @@ import (
 type Receiver struct {
 	id       uint32
 	bx       *BleXport
+	lm       *ListenerMap
 	logDepth int
-	bls      map[*Listener]MsgBase
 	mtx      sync.Mutex
 	wg       sync.WaitGroup
 }
@@ -24,87 +24,69 @@ func NewReceiver(id uint32, bx *BleXport, logDepth int) *Receiver {
 		id:       id,
 		bx:       bx,
 		logDepth: logDepth + 3,
-		bls:      map[*Listener]MsgBase{},
+		lm:       NewListenerMap(),
 	}
 }
 
-func (r *Receiver) addListener(name string, base MsgBase) (
+func (r *Receiver) AddListener(name string, key ListenerKey) (
 	*Listener, error) {
 
-	nmxutil.LogAddListener(r.logDepth, base, r.id, name)
-
-	bl := NewListener()
+	nmxutil.LogAddListener(r.logDepth, key, r.id, name)
 
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	if err := r.bx.AddListener(base, bl); err != nil {
+	bl, err := r.bx.AddListener(key)
+	if err != nil {
 		return nil, err
 	}
 
-	r.bls[bl] = base
+	r.lm.AddListener(key, bl)
 	r.wg.Add(1)
 
 	return bl, nil
 }
 
-func (r *Receiver) AddBaseListener(name string, base MsgBase) (
-	*Listener, error) {
-
-	return r.addListener(name, base)
-}
-
-func (r *Receiver) AddSeqListener(name string, seq BleSeq) (
-	*Listener, error) {
-
-	base := MsgBase{
-		Op:         -1,
-		Type:       -1,
-		Seq:        seq,
-		ConnHandle: -1,
-	}
-	return r.addListener(name, base)
-}
-
-func (r *Receiver) removeListener(name string, base MsgBase) *Listener {
-	nmxutil.LogRemoveListener(r.logDepth, base, r.id, name)
-
+func (r *Receiver) RemoveKey(name string, key ListenerKey) *Listener {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	bl := r.bx.RemoveListener(base)
-	delete(r.bls, bl)
-
-	if bl != nil {
-		r.wg.Done()
+	r.bx.RemoveKey(key)
+	bl := r.lm.RemoveKey(key)
+	if bl == nil {
+		return nil
 	}
 
+	nmxutil.LogRemoveListener(r.logDepth, key, r.id, name)
+	r.wg.Done()
 	return bl
 }
 
-func (r *Receiver) RemoveBaseListener(name string, base MsgBase) {
-	r.removeListener(name, base)
-}
+func (r *Receiver) RemoveListener(name string, listener *Listener) *ListenerKey {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
 
-func (r *Receiver) RemoveSeqListener(name string, seq BleSeq) {
-	base := MsgBase{
-		Op:         -1,
-		Type:       -1,
-		Seq:        seq,
-		ConnHandle: -1,
+	r.bx.RemoveListener(listener)
+	key := r.lm.RemoveListener(listener)
+	if key == nil {
+		return nil
 	}
 
-	r.removeListener(name, base)
+	nmxutil.LogRemoveListener(r.logDepth, key, r.id, name)
+	r.wg.Done()
+	return key
 }
 
 func (r *Receiver) RemoveAll(name string) {
 	r.mtx.Lock()
-	bls := r.bls
-	r.bls = map[*Listener]MsgBase{}
+	bls := r.lm.ExtractAll()
 	r.mtx.Unlock()
 
-	for _, base := range bls {
-		r.removeListener(name, base)
+	for _, bl := range bls {
+		if key := r.bx.RemoveListener(bl); key != nil {
+			nmxutil.LogRemoveListener(r.logDepth, key, r.id, name)
+		}
+		r.wg.Done()
 	}
 }
 

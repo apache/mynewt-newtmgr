@@ -297,36 +297,25 @@ func ConnFindXact(x *BleXport, connHandle uint16) (BleConnDesc, error) {
 	r := NewBleConnFindReq()
 	r.ConnHandle = connHandle
 
-	base := MsgBase{
-		Op:         -1,
-		Type:       -1,
-		Seq:        r.Seq,
-		ConnHandle: -1,
-	}
-
-	bl := NewListener()
-	if err := x.AddListener(base, bl); err != nil {
+	key := SeqKey(r.Seq)
+	bl, err := x.AddListener(key)
+	if err != nil {
 		return BleConnDesc{}, err
 	}
-	defer x.RemoveListener(base)
+	defer x.RemoveListener(bl)
 
 	return connFind(x, bl, r)
 }
 
 func GenRandAddrXact(x *BleXport) (BleAddr, error) {
 	r := NewBleGenRandAddrReq()
-	base := MsgBase{
-		Op:         -1,
-		Type:       -1,
-		Seq:        r.Seq,
-		ConnHandle: -1,
-	}
 
-	bl := NewListener()
-	if err := x.AddListener(base, bl); err != nil {
+	key := SeqKey(r.Seq)
+	bl, err := x.AddListener(key)
+	if err != nil {
 		return BleAddr{}, err
 	}
-	defer x.RemoveListener(base)
+	defer x.RemoveListener(bl)
 
 	return genRandAddr(x, bl, r)
 }
@@ -335,18 +324,12 @@ func SetRandAddrXact(x *BleXport, addr BleAddr) error {
 	r := NewBleSetRandAddrReq()
 	r.Addr = addr
 
-	base := MsgBase{
-		Op:         -1,
-		Type:       -1,
-		Seq:        r.Seq,
-		ConnHandle: -1,
-	}
-
-	bl := NewListener()
-	if err := x.AddListener(base, bl); err != nil {
+	key := SeqKey(r.Seq)
+	bl, err := x.AddListener(key)
+	if err != nil {
 		return err
 	}
-	defer x.RemoveListener(base)
+	defer x.RemoveListener(bl)
 
 	return setRandAddr(x, bl, r)
 }
@@ -355,18 +338,12 @@ func SetPreferredMtuXact(x *BleXport, mtu uint16) error {
 	r := NewBleSetPreferredMtuReq()
 	r.Mtu = mtu
 
-	base := MsgBase{
-		Op:         -1,
-		Type:       -1,
-		Seq:        r.Seq,
-		ConnHandle: -1,
-	}
-
-	bl := NewListener()
-	if err := x.AddListener(base, bl); err != nil {
+	key := SeqKey(r.Seq)
+	bl, err := x.AddListener(key)
+	if err != nil {
 		return err
 	}
-	defer x.RemoveListener(base)
+	defer x.RemoveListener(bl)
 
 	return setPreferredMtu(x, bl, r)
 }
@@ -374,18 +351,12 @@ func SetPreferredMtuXact(x *BleXport, mtu uint16) error {
 func ResetXact(x *BleXport) error {
 	r := NewResetReq()
 
-	base := MsgBase{
-		Op:         -1,
-		Type:       -1,
-		Seq:        r.Seq,
-		ConnHandle: -1,
-	}
-
-	bl := NewListener()
-	if err := x.AddListener(base, bl); err != nil {
+	key := SeqKey(r.Seq)
+	bl, err := x.AddListener(key)
+	if err != nil {
 		return err
 	}
-	defer x.RemoveListener(base)
+	defer x.RemoveListener(bl)
 
 	return reset(x, bl, r)
 }
