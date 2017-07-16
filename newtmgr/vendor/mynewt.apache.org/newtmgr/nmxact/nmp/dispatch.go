@@ -127,6 +127,9 @@ func decodeRsp(pkt []byte) (NmpRsp, error) {
 
 // Returns true if the response was dispatched.
 func (d *Dispatcher) DispatchRsp(r NmpRsp) bool {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
 	log.Debugf("Received nmp rsp: %+v", r)
 
 	nl := d.seqListenerMap[r.Hdr().Seq]
@@ -142,9 +145,6 @@ func (d *Dispatcher) DispatchRsp(r NmpRsp) bool {
 
 // Returns true if the response was dispatched.
 func (d *Dispatcher) Dispatch(data []byte) bool {
-	d.mtx.Lock()
-	defer d.mtx.Unlock()
-
 	pkt := d.reassembler.RxFrag(data)
 	if pkt == nil {
 		return false

@@ -163,28 +163,7 @@ func (bx *BleXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
 }
 
 func (bx *BleXport) addSyncListener() (*Listener, error) {
-	bl := NewListener()
-	base := MsgBase{
-		Op:         MSG_OP_EVT,
-		Type:       MSG_TYPE_SYNC_EVT,
-		Seq:        BLE_SEQ_NONE,
-		ConnHandle: -1,
-	}
-	if err := bx.d.AddListener(base, bl); err != nil {
-		return nil, err
-	}
-
-	return bl, nil
-}
-
-func (bx *BleXport) removeSyncListener() {
-	base := MsgBase{
-		Op:         MSG_OP_EVT,
-		Type:       MSG_TYPE_SYNC_EVT,
-		Seq:        BLE_SEQ_NONE,
-		ConnHandle: -1,
-	}
-	bx.d.RemoveListener(base)
+	return bx.AddListener(TchKey(MSG_TYPE_SYNC_EVT, -1))
 }
 
 func (bx *BleXport) querySyncStatus() (bool, error) {
@@ -199,17 +178,12 @@ func (bx *BleXport) querySyncStatus() (bool, error) {
 		return false, err
 	}
 
-	bl := NewListener()
-	base := MsgBase{
-		Op:         -1,
-		Type:       -1,
-		Seq:        req.Seq,
-		ConnHandle: -1,
-	}
-	if err := bx.d.AddListener(base, bl); err != nil {
+	key := SeqKey(req.Seq)
+	bl, err := bx.AddListener(key)
+	if err != nil {
 		return false, err
 	}
-	defer bx.d.RemoveListener(base)
+	defer bx.RemoveListener(bl)
 
 	if err := bx.txNoSync(j); err != nil {
 		return false, err
@@ -235,7 +209,7 @@ func (bx *BleXport) initialSyncCheck() (bool, *Listener, error) {
 
 	synced, err := bx.querySyncStatus()
 	if err != nil {
-		bx.removeSyncListener()
+		bx.RemoveListener(bl)
 		return false, nil, err
 	}
 
@@ -541,12 +515,20 @@ func (bx *BleXport) Tx(data []byte) error {
 	return bx.txNoSync(data)
 }
 
-func (bx *BleXport) AddListener(base MsgBase, listener *Listener) error {
-	return bx.d.AddListener(base, listener)
+func (bx *BleXport) AddListener(key ListenerKey) (*Listener, error) {
+	listener := NewListener()
+	if err := bx.d.AddListener(key, listener); err != nil {
+		return nil, err
+	}
+	return listener, nil
 }
 
-func (bx *BleXport) RemoveListener(base MsgBase) *Listener {
-	return bx.d.RemoveListener(base)
+func (bx *BleXport) RemoveListener(listener *Listener) *ListenerKey {
+	return bx.d.RemoveListener(listener)
+}
+
+func (bx *BleXport) RemoveKey(key ListenerKey) *Listener {
+	return bx.d.RemoveKey(key)
 }
 
 func (bx *BleXport) RspTimeout() time.Duration {

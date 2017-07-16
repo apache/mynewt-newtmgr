@@ -203,7 +203,7 @@ func (bf *BleFsm) eventListen(bl *Listener, seq BleSeq) error {
 
 	go func() {
 		defer bf.wg.Done()
-		defer bf.rxer.RemoveSeqListener("connect", seq)
+		defer bf.rxer.RemoveListener("connect", bl)
 
 		for {
 			select {
@@ -254,14 +254,8 @@ func (bf *BleFsm) eventListen(bl *Listener, seq BleSeq) error {
 }
 
 func (bf *BleFsm) nmpRspListen() error {
-	base := MsgBase{
-		Op:         MSG_OP_EVT,
-		Type:       MSG_TYPE_NOTIFY_RX_EVT,
-		Seq:        BLE_SEQ_NONE,
-		ConnHandle: int(bf.connHandle),
-	}
-
-	bl, err := bf.rxer.AddBaseListener("nmp-rsp", base)
+	key := TchKey(MSG_TYPE_NOTIFY_RX_EVT, int(bf.connHandle))
+	bl, err := bf.rxer.AddListener("nmp-rsp", key)
 	if err != nil {
 		return err
 	}
@@ -270,12 +264,12 @@ func (bf *BleFsm) nmpRspListen() error {
 
 	go func() {
 		defer bf.wg.Done()
-		defer bf.rxer.RemoveBaseListener("nmp-rsp", base)
+		defer bf.rxer.RemoveListener("nmp-rsp", bl)
 
 		for {
 			select {
-			case <-bl.ErrChan:
-				if err != nil {
+			case err, ok := <-bl.ErrChan:
+				if ok {
 					bf.errFunnel.Insert(err)
 				}
 				return
@@ -308,7 +302,7 @@ func (bf *BleFsm) connect() error {
 	}
 	defer bf.params.Bx.ReleaseMaster()
 
-	bl, err := bf.rxer.AddSeqListener("connect", r.Seq)
+	bl, err := bf.rxer.AddListener("connect", SeqKey(r.Seq))
 	if err != nil {
 		return err
 	}
@@ -323,7 +317,7 @@ func (bf *BleFsm) connect() error {
 		bhe := nmxutil.ToBleHost(err)
 		if bhe != nil && bhe.Status == ERR_CODE_EDONE {
 			// Already connected.
-			bf.rxer.RemoveSeqListener("connect", r.Seq)
+			bf.rxer.RemoveListener("connect", bl)
 			return nil
 		} else if !nmxutil.IsXport(err) {
 			// The transport did not restart; always attempt to cancel the
@@ -336,7 +330,7 @@ func (bf *BleFsm) connect() error {
 			}
 		}
 
-		bf.rxer.RemoveSeqListener("connect", r.Seq)
+		bf.rxer.RemoveListener("connect", bl)
 		return err
 	}
 
@@ -378,11 +372,11 @@ func (bf *BleFsm) terminate() error {
 	r.ConnHandle = bf.connHandle
 	r.HciReason = ERR_CODE_HCI_REM_USER_CONN_TERM
 
-	bl, err := bf.rxer.AddSeqListener("terminate", r.Seq)
+	bl, err := bf.rxer.AddListener("terminate", SeqKey(r.Seq))
 	if err != nil {
 		return err
 	}
-	defer bf.rxer.RemoveSeqListener("terminate", r.Seq)
+	defer bf.rxer.RemoveListener("terminate", bl)
 
 	if err := terminate(bf.params.Bx, bl, r); err != nil {
 		return err
@@ -394,11 +388,11 @@ func (bf *BleFsm) terminate() error {
 func (bf *BleFsm) connCancel() error {
 	r := NewBleConnCancelReq()
 
-	bl, err := bf.rxer.AddSeqListener("conn-cancel", r.Seq)
+	bl, err := bf.rxer.AddListener("conn-cancel", SeqKey(r.Seq))
 	if err != nil {
 		return err
 	}
-	defer bf.rxer.RemoveSeqListener("conn-cancel", r.Seq)
+	defer bf.rxer.RemoveListener("conn-cancel", bl)
 
 	if err := connCancel(bf.params.Bx, bl, r); err != nil {
 		return err
@@ -412,11 +406,11 @@ func (bf *BleFsm) discSvcUuidOnce(uuid BleUuid) (*BleSvc, error) {
 	r.ConnHandle = bf.connHandle
 	r.Uuid = uuid
 
-	bl, err := bf.rxer.AddSeqListener("disc-svc-uuid", r.Seq)
+	bl, err := bf.rxer.AddListener("disc-svc-uuid", SeqKey(r.Seq))
 	if err != nil {
 		return nil, err
 	}
-	defer bf.rxer.RemoveSeqListener("disc-svc-uuid", r.Seq)
+	defer bf.rxer.RemoveListener("disc-svc-uuid", bl)
 
 	svc, err := discSvcUuid(bf.params.Bx, bl, r)
 	if err != nil {
@@ -457,11 +451,11 @@ func (bf *BleFsm) encInitiate() error {
 	r := NewBleSecurityInitiateReq()
 	r.ConnHandle = bf.connHandle
 
-	bl, err := bf.rxer.AddSeqListener("enc-initiate", r.Seq)
+	bl, err := bf.rxer.AddListener("enc-initiate", SeqKey(r.Seq))
 	if err != nil {
 		return err
 	}
-	defer bf.rxer.RemoveSeqListener("enc-initiate", r.Seq)
+	defer bf.rxer.RemoveListener("enc-initiate", bl)
 
 	// Initiate the encryption procedure.
 	if err := encInitiate(bf.params.Bx, bl, r); err != nil {
@@ -479,11 +473,11 @@ func (bf *BleFsm) discAllChrs() error {
 	r.StartHandle = bf.nmpSvc.StartHandle
 	r.EndHandle = bf.nmpSvc.EndHandle
 
-	bl, err := bf.rxer.AddSeqListener("disc-all-chrs", r.Seq)
+	bl, err := bf.rxer.AddListener("disc-all-chrs", SeqKey(r.Seq))
 	if err != nil {
 		return err
 	}
-	defer bf.rxer.RemoveSeqListener("disc-all-chrs", r.Seq)
+	defer bf.rxer.RemoveListener("disc-all-chrs", bl)
 
 	chrs, err := discAllChrs(bf.params.Bx, bl, r)
 	if err != nil {
@@ -518,11 +512,11 @@ func (bf *BleFsm) exchangeMtu() error {
 	r := NewBleExchangeMtuReq()
 	r.ConnHandle = bf.connHandle
 
-	bl, err := bf.rxer.AddSeqListener("exchange-mtu", r.Seq)
+	bl, err := bf.rxer.AddListener("exchange-mtu", SeqKey(r.Seq))
 	if err != nil {
 		return err
 	}
-	defer bf.rxer.RemoveSeqListener("exchange-mtu", r.Seq)
+	defer bf.rxer.RemoveListener("exchange-mtu", bl)
 
 	mtu, err := exchangeMtu(bf.params.Bx, bl, r)
 	if err != nil {
@@ -539,11 +533,11 @@ func (bf *BleFsm) writeCmd(data []byte) error {
 	r.AttrHandle = bf.nmpReqChr.ValHandle
 	r.Data.Bytes = data
 
-	bl, err := bf.rxer.AddSeqListener("write-cmd", r.Seq)
+	bl, err := bf.rxer.AddListener("write-cmd", SeqKey(r.Seq))
 	if err != nil {
 		return err
 	}
-	defer bf.rxer.RemoveSeqListener("write-cmd", r.Seq)
+	defer bf.rxer.RemoveListener("write-cmd", bl)
 
 	if err := writeCmd(bf.params.Bx, bl, r); err != nil {
 		return err
@@ -558,11 +552,11 @@ func (bf *BleFsm) subscribe() error {
 	r.AttrHandle = bf.nmpRspChr.ValHandle + 1
 	r.Data.Bytes = []byte{1, 0}
 
-	bl, err := bf.rxer.AddSeqListener("subscribe", r.Seq)
+	bl, err := bf.rxer.AddListener("subscribe", SeqKey(r.Seq))
 	if err != nil {
 		return err
 	}
-	defer bf.rxer.RemoveSeqListener("subscribe", r.Seq)
+	defer bf.rxer.RemoveListener("subscribe", bl)
 
 	if err := writeCmd(bf.params.Bx, bl, r); err != nil {
 		return err

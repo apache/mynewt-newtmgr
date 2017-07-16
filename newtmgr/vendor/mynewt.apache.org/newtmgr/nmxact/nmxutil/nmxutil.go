@@ -10,9 +10,10 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/ugorji/go/codec"
 
-	log "github.com/Sirupsen/logrus"
+	"mynewt.apache.org/newt/util"
 )
 
 const DURATION_FOREVER time.Duration = math.MaxInt64
@@ -45,6 +46,7 @@ func SetLogLevel(level log.Level) {
 
 func Assert(cond bool) {
 	if Debug && !cond {
+		util.PrintStacks()
 		panic("Failed assertion")
 	}
 }
@@ -115,16 +117,16 @@ func LogRemoveOicListener(parentLevel int, token []byte) {
 		fmt.Sprintf("token=%+v", token))
 }
 
-func LogAddListener(parentLevel int, base interface{}, id uint32,
+func LogAddListener(parentLevel int, key interface{}, id uint32,
 	name string) {
 
 	LogListener(parentLevel, "add-ble-listener",
-		fmt.Sprintf("[%d] %s: base=%+v", id, name, base))
+		fmt.Sprintf("[%d] %s: base=%+v", id, name, key))
 }
 
-func LogRemoveListener(parentLevel int, base interface{}, id uint32,
+func LogRemoveListener(parentLevel int, key interface{}, id uint32,
 	name string) {
 
 	LogListener(parentLevel, "remove-ble-listener",
-		fmt.Sprintf("[%d] %s: base=%+v", id, name, base))
+		fmt.Sprintf("[%d] %s: base=%+v", id, name, key))
 }

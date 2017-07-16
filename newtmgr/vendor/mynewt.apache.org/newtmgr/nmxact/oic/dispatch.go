@@ -125,23 +125,40 @@ func (d *Dispatcher) AddListener(token []byte) (*Listener, error) {
 }
 
 func (d *Dispatcher) RemoveListener(token []byte) *Listener {
-	nmxutil.LogRemoveOicListener(d.logDepth, token)
-
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
 	ot, err := NewToken(token)
 	if err != nil {
+		log.Errorf("Error creating OIC token: %s", err.Error())
 		return nil
 	}
 
 	ol := d.tokenListenerMap[ot]
-	if ol != nil {
-		ol.Close()
-		delete(d.tokenListenerMap, ot)
+	if ol == nil {
+		return nil
 	}
 
+	nmxutil.LogRemoveOicListener(d.logDepth, token)
+	ol.Close()
+	delete(d.tokenListenerMap, ot)
+
 	return ol
+}
+
+func (d *Dispatcher) dispatchRsp(ot Token, msg *coap.Message) bool {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
+	ol := d.tokenListenerMap[ot]
+
+	if ol == nil {
+		log.Printf("No listener for incoming OIC message; token=%#v", ot)
+		return false
+	}
+
+	ol.RspChan <- msg
+	return true
 }
 
 // Returns true if the response was dispatched.
@@ -171,17 +188,7 @@ func (d *Dispatcher) Dispatch(data []byte) bool {
 		return false
 	}
 
-	d.mtx.Lock()
-	ol := d.tokenListenerMap[ot]
-	d.mtx.Unlock()
-
-	if ol == nil {
-		log.Printf("No listener for incoming OIC message; token=%#v", ot)
-		return false
-	}
-
-	ol.RspChan <- msg
-	return true
+	return d.dispatchRsp(ot, msg)
 }
 
 func (d *Dispatcher) ErrorOne(token Token, err error) error {

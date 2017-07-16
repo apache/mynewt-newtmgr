@@ -126,63 +126,63 @@
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/bledefs",
-			"Comment": "mynewt_0_9_0_tag-552-g62a3d9e",
-			"Rev": "62a3d9ece4c5ad7b8b357d66ee8a61e4e40c4063"
+			"Comment": "mynewt_0_9_0_tag-554-gf64449a",
+			"Rev": "f64449a63215d75d533034dfc62dca4678c5c23c"
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/nmble",
-			"Comment": "mynewt_0_9_0_tag-552-g62a3d9e",
-			"Rev": "62a3d9ece4c5ad7b8b357d66ee8a61e4e40c4063"
+			"Comment": "mynewt_0_9_0_tag-554-gf64449a",
+			"Rev": "f64449a63215d75d533034dfc62dca4678c5c23c"
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/nmp",
-			"Comment": "mynewt_0_9_0_tag-552-g62a3d9e",
-			"Rev": "62a3d9ece4c5ad7b8b357d66ee8a61e4e40c4063"
+			"Comment": "mynewt_0_9_0_tag-554-gf64449a",
+			"Rev": "f64449a63215d75d533034dfc62dca4678c5c23c"
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/nmserial",
-			"Comment": "mynewt_0_9_0_tag-552-g62a3d9e",
-			"Rev": "62a3d9ece4c5ad7b8b357d66ee8a61e4e40c4063"
+			"Comment": "mynewt_0_9_0_tag-554-gf64449a",
+			"Rev": "f64449a63215d75d533034dfc62dca4678c5c23c"
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/nmxutil",
-			"Comment": "mynewt_0_9_0_tag-552-g62a3d9e",
-			"Rev": "62a3d9ece4c5ad7b8b357d66ee8a61e4e40c4063"
+			"Comment": "mynewt_0_9_0_tag-554-gf64449a",
+			"Rev": "f64449a63215d75d533034dfc62dca4678c5c23c"
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/oic",
-			"Comment": "mynewt_0_9_0_tag-552-g62a3d9e",
-			"Rev": "62a3d9ece4c5ad7b8b357d66ee8a61e4e40c4063"
+			"Comment": "mynewt_0_9_0_tag-554-gf64449a",
+			"Rev": "f64449a63215d75d533034dfc62dca4678c5c23c"
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/omp",
-			"Comment": "mynewt_0_9_0_tag-552-g62a3d9e",
-			"Rev": "62a3d9ece4c5ad7b8b357d66ee8a61e4e40c4063"
+			"Comment": "mynewt_0_9_0_tag-554-gf64449a",
+			"Rev": "f64449a63215d75d533034dfc62dca4678c5c23c"
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/scan",
-			"Comment": "mynewt_0_9_0_tag-552-g62a3d9e",
-			"Rev": "62a3d9ece4c5ad7b8b357d66ee8a61e4e40c4063"
+			"Comment": "mynewt_0_9_0_tag-554-gf64449a",
+			"Rev": "f64449a63215d75d533034dfc62dca4678c5c23c"
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/sesn",
-			"Comment": "mynewt_0_9_0_tag-552-g62a3d9e",
-			"Rev": "62a3d9ece4c5ad7b8b357d66ee8a61e4e40c4063"
+			"Comment": "mynewt_0_9_0_tag-554-gf64449a",
+			"Rev": "f64449a63215d75d533034dfc62dca4678c5c23c"
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/udp",
-			"Comment": "mynewt_0_9_0_tag-552-g62a3d9e",
-			"Rev": "62a3d9ece4c5ad7b8b357d66ee8a61e4e40c4063"
+			"Comment": "mynewt_0_9_0_tag-554-gf64449a",
+			"Rev": "f64449a63215d75d533034dfc62dca4678c5c23c"
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/xact",
-			"Comment": "mynewt_0_9_0_tag-552-g62a3d9e",
-			"Rev": "62a3d9ece4c5ad7b8b357d66ee8a61e4e40c4063"
+			"Comment": "mynewt_0_9_0_tag-554-gf64449a",
+			"Rev": "f64449a63215d75d533034dfc62dca4678c5c23c"
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/xport",
-			"Comment": "mynewt_0_9_0_tag-552-g62a3d9e",
-			"Rev": "62a3d9ece4c5ad7b8b357d66ee8a61e4e40c4063"
+			"Comment": "mynewt_0_9_0_tag-554-gf64449a",
+			"Rev": "f64449a63215d75d533034dfc62dca4678c5c23c"
 		}
 	]
 }

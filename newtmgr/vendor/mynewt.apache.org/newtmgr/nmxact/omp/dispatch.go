@@ -38,33 +38,33 @@ type Dispatcher struct {
 }
 
 func NewDispatcher(isTcp bool, logDepth int) (*Dispatcher, error) {
-	r := &Dispatcher{
+	d := &Dispatcher{
 		nmpd:   nmp.NewDispatcher(logDepth + 1),
 		oicd:   oic.NewDispatcher(isTcp, logDepth+1),
 		stopCh: make(chan struct{}),
 	}
 
 	// Listen for OMP responses.  This should never fail.
-	if err := r.addOmpListener(); err != nil {
+	if err := d.addOmpListener(); err != nil {
 		log.Errorf("Unexpected failure to add OMP listener: " + err.Error())
 		return nil, err
 	}
 
-	return r, nil
+	return d, nil
 }
 
-func (r *Dispatcher) addOmpListener() error {
+func (d *Dispatcher) addOmpListener() error {
 	// OMP responses are identifiable by the lack of a CoAP token.  Set up a
 	// permanent listener to receive these messages.
-	ol, err := r.AddOicListener(nil)
+	ol, err := d.AddOicListener(nil)
 	if err != nil {
 		return err
 	}
 
-	r.wg.Add(1)
+	d.wg.Add(1)
 	go func() {
-		defer r.RemoveOicListener(nil)
-		defer r.wg.Done()
+		defer d.RemoveOicListener(nil)
+		defer d.wg.Done()
 
 		for {
 			select {
@@ -73,13 +73,13 @@ func (r *Dispatcher) addOmpListener() error {
 				if err != nil {
 					log.Debugf("OMP decode failure: %s", err.Error())
 				} else {
-					r.nmpd.DispatchRsp(rsp)
+					d.nmpd.DispatchRsp(rsp)
 				}
 
 			case err := <-ol.ErrChan:
 				log.Debugf("OIC error: %s", err.Error())
 
-			case <-r.stopCh:
+			case <-d.stopCh:
 				return
 			}
 		}
@@ -88,36 +88,36 @@ func (r *Dispatcher) addOmpListener() error {
 	return nil
 }
 
-func (r *Dispatcher) Stop() {
-	r.stopCh <- struct{}{}
-	r.wg.Wait()
+func (d *Dispatcher) Stop() {
+	d.stopCh <- struct{}{}
+	d.wg.Wait()
 }
 
-func (r *Dispatcher) Dispatch(data []byte) bool {
-	return r.oicd.Dispatch(data)
+func (d *Dispatcher) Dispatch(data []byte) bool {
+	return d.oicd.Dispatch(data)
 }
 
-func (r *Dispatcher) AddOicListener(token []byte) (*oic.Listener, error) {
-	return r.oicd.AddListener(token)
+func (d *Dispatcher) AddOicListener(token []byte) (*oic.Listener, error) {
+	return d.oicd.AddListener(token)
 }
 
-func (r *Dispatcher) RemoveOicListener(token []byte) *oic.Listener {
-	return r.oicd.RemoveListener(token)
+func (d *Dispatcher) RemoveOicListener(token []byte) *oic.Listener {
+	return d.oicd.RemoveListener(token)
 }
 
-func (r *Dispatcher) AddNmpListener(seq uint8) (*nmp.Listener, error) {
-	return r.nmpd.AddListener(seq)
+func (d *Dispatcher) AddNmpListener(seq uint8) (*nmp.Listener, error) {
+	return d.nmpd.AddListener(seq)
 }
 
-func (r *Dispatcher) RemoveNmpListener(seq uint8) *nmp.Listener {
-	return r.nmpd.RemoveListener(seq)
+func (d *Dispatcher) RemoveNmpListener(seq uint8) *nmp.Listener {
+	return d.nmpd.RemoveListener(seq)
 }
 
-func (r *Dispatcher) ErrorOneNmp(seq uint8, err error) error {
-	return r.nmpd.ErrorOne(seq, err)
+func (d *Dispatcher) ErrorOneNmp(seq uint8, err error) error {
+	return d.nmpd.ErrorOne(seq, err)
 }
 
-func (r *Dispatcher) ErrorAll(err error) {
-	r.nmpd.ErrorAll(err)
-	r.oicd.ErrorAll(err)
+func (d *Dispatcher) ErrorAll(err error) {
+	d.nmpd.ErrorAll(err)
+	d.oicd.ErrorAll(err)
 }
