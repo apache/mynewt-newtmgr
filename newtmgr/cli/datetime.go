@@ -24,10 +24,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 	"mynewt.apache.org/newtmgr/nmxact/xact"
-	"mynewt.apache.org/newt/util"
 )
 
 func dateTimeRead(s sesn.Sesn) error {
@@ -57,7 +57,7 @@ func dateTimeWrite(s sesn.Sesn, args []string) error {
 
 	sres := res.(*xact.DateTimeWriteResult)
 	if sres.Rsp.Rc != 0 {
-		fmt.Printf("Error: %c\n", sres.Rsp.Rc)
+		fmt.Printf("Error: %d\n", sres.Rsp.Rc)
 	} else {
 		fmt.Printf("Done\n")
 	}
@@ -83,18 +83,29 @@ func dateTimeRunCmd(cmd *cobra.Command, args []string) {
 }
 
 func dateTimeCmd() *cobra.Command {
-	dateTimeCmd := &cobra.Command{
-		Use:   "datetime [rfc-3339-date-string]",
-		Short: "Manage datetime on the device",
-		Long: "Manage datetime on the device\n" +
-			"Example RFC 3339 strings:\n" +
-			"2016-03-02T22:44:00                  UTC time (implicit)\n" +
-			"2016-03-02T22:44:00Z                 UTC time (explicit)\n" +
-			"2016-03-02T22:44:00-08:00            PST timezone\n" +
-			"2016-03-02T22:44:00.1                fractional seconds\n" +
-			"2016-03-02T22:44:00.101+05:30        fractional seconds with timezone\n",
+	dateTimeHelpText := "Display or set datetime on a device. "
+	dateTimeHelpText += "Specify a datetime-value\n"
+	dateTimeHelpText += "to set the datetime on the device.\n\n"
+	dateTimeHelpText += "Must specify datetime-value in RFC 3339 format.\n"
 
-		Run: dateTimeRunCmd,
+	dateTimeEx := "newtmgr datetime -c myserial\n"
+	dateTimeEx += "newtmgr datetime 2016-03-02T22:44:00 -c myserial"
+	dateTimeEx += "             (implicit UTC) \n"
+	dateTimeEx += "newtmgr datetime 2016-03-02T22:44:00Z -c myserial"
+	dateTimeEx += "            (explicit UTC)\n"
+	dateTimeEx += "newtmgr datetime 2016-03-02T22:44:00-08:00 -c myserial"
+	dateTimeEx += "       (PST)\n"
+	dateTimeEx += "newtmgr datetime 2016-03-02T22:44:00.1 -c myserial"
+	dateTimeEx += "           (fractional secs)\n"
+	dateTimeEx += "newtmgr datetime 2016-03-02T22:44:00.101+05:30 -c myserial"
+	dateTimeEx += "   (fractional secs + timezone)\n"
+
+	dateTimeCmd := &cobra.Command{
+		Use:     "datetime [rfc-3339-date-string] -c <conn_profile>",
+		Short:   "Manage datetime on a device",
+		Long:    dateTimeHelpText,
+		Example: dateTimeEx,
+		Run:     dateTimeRunCmd,
 	}
 
 	return dateTimeCmd

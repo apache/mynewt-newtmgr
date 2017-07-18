@@ -25,9 +25,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/xact"
-	"mynewt.apache.org/newt/util"
 )
 
 func taskStatRunCmd(cmd *cobra.Command, args []string) {
@@ -76,8 +76,8 @@ func taskStatRunCmd(cmd *cobra.Command, args []string) {
 
 func taskStatCmd() *cobra.Command {
 	taskStatCmd := &cobra.Command{
-		Use:   "taskstat",
-		Short: "Read statistics from a remote endpoint",
+		Use:   "taskstat -c <conn_profile>",
+		Short: "Read task statistics from a device",
 		Run:   taskStatRunCmd,
 	}
 

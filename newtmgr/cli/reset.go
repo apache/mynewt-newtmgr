@@ -24,9 +24,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/xact"
-	"mynewt.apache.org/newt/util"
 )
 
 func resetRunCmd(cmd *cobra.Command, args []string) {
@@ -47,8 +47,8 @@ func resetRunCmd(cmd *cobra.Command, args []string) {
 
 func resetCmd() *cobra.Command {
 	resetCmd := &cobra.Command{
-		Use:   "reset",
-		Short: "Performs a soft reset of target device",
+		Use:   "reset -c <conn_profile>",
+		Short: "Perform a soft reset of a device",
 		Run:   resetRunCmd,
 	}
 

@@ -24,10 +24,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 	"mynewt.apache.org/newtmgr/nmxact/xact"
-	"mynewt.apache.org/newt/util"
 )
 
 func configRead(s sesn.Sesn, args []string) {
@@ -83,9 +83,12 @@ func configRunCmd(cmd *cobra.Command, args []string) {
 }
 
 func configCmd() *cobra.Command {
+	configCmdLongHelp := "Read or write a config value for <var-name> variable on " +
+		"a device.\nSpecify a var-value to write a value to a device.\n"
 	configCmd := &cobra.Command{
-		Use:   "config <name> [val]",
-		Short: "Read or write config value on target",
+		Use:   "config <var-name> [var-value] -c <conn_profile>",
+		Short: "Read or write a config value on a device",
+		Long:  configCmdLongHelp,
 		Run:   configRunCmd,
 	}
 

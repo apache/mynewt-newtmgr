@@ -24,9 +24,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/xact"
-	"mynewt.apache.org/newt/util"
 )
 
 func echoRunCmd(cmd *cobra.Command, args []string) {
@@ -54,8 +54,8 @@ func echoRunCmd(cmd *cobra.Command, args []string) {
 
 func echoCmd() *cobra.Command {
 	echoCmd := &cobra.Command{
-		Use:   "echo",
-		Short: "Send data to remote endpoint using newtmgr, and receive data back",
+		Use:   "echo <text> -c <conn_profile>",
+		Short: "Send data to a device and display the echoed back data",
 		Run:   echoRunCmd,
 	}
 
