@@ -255,6 +255,7 @@ const (
 	MSG_TYPE_SCAN_EVT       = 2057
 	MSG_TYPE_SCAN_TMO_EVT   = 2058
 	MSG_TYPE_ENC_CHANGE_EVT = 2059
+	MSG_TYPE_RESET_EVT      = 2060
 )
 
 var MsgOpStringMap = map[MsgOp]string{
@@ -298,6 +299,7 @@ var MsgTypeStringMap = map[MsgType]string{
 	MSG_TYPE_SCAN_EVT:       "scan_evt",
 	MSG_TYPE_SCAN_TMO_EVT:   "scan_tmo_evt",
 	MSG_TYPE_ENC_CHANGE_EVT: "enc_change_evt",
+	MSG_TYPE_RESET_EVT:      "reset_evt",
 }
 
 type BleHdr struct {
@@ -985,6 +987,16 @@ type BleAdvFieldsRsp struct {
 	// Mandatory
 	Status int    `json:"status"`
 	Data   []byte `json:"data"`
+}
+
+type BleResetEvt struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Reason int `json:"reason"`
 }
 
 func ErrCodeToString(e int) string {

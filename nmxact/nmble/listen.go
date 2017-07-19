@@ -79,9 +79,15 @@ func (bl *Listener) AfterTimeout(tmo time.Duration) <-chan time.Time {
 }
 
 func (bl *Listener) Close() {
+	// This provokes a race condition.  The timer may get initialized at any
+	// time.
 	if bl.timer != nil {
 		bl.timer.Stop()
 	}
+
+	// Mark the command as acked in case the race condition mentioned above
+	// occurred.  If the timer goes off, nothing will happen.
+	bl.Acked = true
 
 	close(bl.MsgChan)
 	close(bl.ErrChan)
@@ -114,6 +120,10 @@ func (lm *ListenerMap) FindListener(seq BleSeq, typ MsgType, connHandle int) (
 
 	// Otherwise, find by other fields.
 	key = TchKey(typ, connHandle)
+	if listener := lm.k2l[key]; listener != nil {
+		return key, listener
+	}
+	key = TchKey(typ, -1)
 	if listener := lm.k2l[key]; listener != nil {
 		return key, listener
 	}
