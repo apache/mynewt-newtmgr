@@ -53,11 +53,11 @@ func (bps *BlePlainSesn) AbortRx(seq uint8) error {
 
 func (bps *BlePlainSesn) Open() error {
 	// Ensure subsequent calls to Close() block.
-	bos.closeBlocker.Block()
+	bps.closeBlocker.Block()
 
-	if err := bos.bf.Start(); err != nil {
+	if err := bps.bf.Start(); err != nil {
 		if !nmxutil.IsSesnAlreadyOpen(err) {
-			bos.closeBlocker.Unblock()
+			bps.closeBlocker.Unblock()
 		}
 		return err
 	}
@@ -68,7 +68,7 @@ func (bps *BlePlainSesn) Open() error {
 	bps.wg.Add(1)
 	go func() {
 		// If the session is being closed, unblock the close() call.
-		defer bos.closeBlocker.Unblock()
+		defer bps.closeBlocker.Unblock()
 
 		// Block until disconnect.
 		<-bps.bf.DisconnectChan()
@@ -114,7 +114,7 @@ func (bps *BlePlainSesn) Close() error {
 	}
 
 	// Block until close completes.
-	bos.closeBlocker.Wait()
+	bps.closeBlocker.Wait()
 	return nil
 }
 
