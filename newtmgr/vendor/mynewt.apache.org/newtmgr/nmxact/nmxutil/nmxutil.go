@@ -29,7 +29,6 @@ var seqMutex sync.Mutex
 var logFormatter = log.TextFormatter{
 	FullTimestamp:   true,
 	TimestampFormat: "2006-01-02 15:04:05.999",
-	ForceColors:     true,
 }
 
 var ListenLog = &log.Logger{

@@ -82,6 +82,7 @@ func mtuChangeEvtCtor() Msg  { return &BleMtuChangeEvt{} }
 func scanEvtCtor() Msg       { return &BleScanEvt{} }
 func scanTmoEvtCtor() Msg    { return &BleScanTmoEvt{} }
 func encChangeEvtCtor() Msg  { return &BleEncChangeEvt{} }
+func resetEvtCtor() Msg      { return &BleResetEvt{} }
 
 var msgCtorMap = map[OpTypePair]msgCtor{
 	{MSG_OP_RSP, MSG_TYPE_ERR}:               errRspCtor,
@@ -113,6 +114,7 @@ var msgCtorMap = map[OpTypePair]msgCtor{
 	{MSG_OP_EVT, MSG_TYPE_SCAN_EVT}:       scanEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_SCAN_TMO_EVT}:   scanTmoEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_ENC_CHANGE_EVT}: encChangeEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_RESET_EVT}:      resetEvtCtor,
 }
 
 func NewDispatcher() *Dispatcher {
