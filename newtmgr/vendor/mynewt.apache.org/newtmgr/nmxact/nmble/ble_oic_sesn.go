@@ -41,8 +41,7 @@ type BleOicSesn struct {
 	closeTimeout time.Duration
 	onCloseCb    sesn.OnCloseFn
 	wg           sync.WaitGroup
-
-	closeChan chan struct{}
+	closeBlocker nmxutil.Blocker
 }
 
 func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
@@ -81,17 +80,19 @@ func (bos *BleOicSesn) AbortRx(seq uint8) error {
 }
 
 func (bos *BleOicSesn) Open() error {
-	// This channel gets closed when the session closes.
-	bos.closeChan = make(chan struct{})
+	// Ensure subsequent calls to Close() block.
+	bos.closeBlocker.Block()
 
 	if err := bos.bf.Start(); err != nil {
-		close(bos.closeChan)
+		if !nmxutil.IsSesnAlreadyOpen(err) {
+			bos.closeBlocker.Unblock()
+		}
 		return err
 	}
 
 	d, err := omp.NewDispatcher(true, 3)
 	if err != nil {
-		close(bos.closeChan)
+		bos.closeBlocker.Unblock()
 		return err
 	}
 	bos.d = d
@@ -100,7 +101,7 @@ func (bos *BleOicSesn) Open() error {
 	bos.wg.Add(1)
 	go func() {
 		// If the session is being closed, unblock the close() call.
-		defer close(bos.closeChan)
+		defer bos.closeBlocker.Unblock()
 
 		// Block until disconnect.
 		<-bos.bf.DisconnectChan()
@@ -146,7 +147,7 @@ func (bos *BleOicSesn) Close() error {
 	}
 
 	// Block until close completes.
-	<-bos.closeChan
+	bos.closeBlocker.Wait()
 	return nil
 }
 

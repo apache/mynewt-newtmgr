@@ -182,7 +182,15 @@ func (bx *BleXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
 }
 
 func (bx *BleXport) addSyncListener() (*Listener, error) {
-	return bx.AddListener(TchKey(MSG_TYPE_SYNC_EVT, -1))
+	key := TchKey(MSG_TYPE_SYNC_EVT, -1)
+	nmxutil.LogAddListener(3, key, 0, "sync")
+	return bx.AddListener(key)
+}
+
+func (bx *BleXport) addResetListener() (*Listener, error) {
+	key := TchKey(MSG_TYPE_RESET_EVT, -1)
+	nmxutil.LogAddListener(3, key, 0, "reset")
+	return bx.AddListener(key)
 }
 
 func (bx *BleXport) querySyncStatus() (bool, error) {
@@ -325,7 +333,18 @@ func (bx *BleXport) blockUntilReady() error {
 	bx.stateMtx.Unlock()
 
 	itf := <-ch
-	return itf.(error)
+	if itf == nil {
+		return nil
+	} else {
+		return itf.(error)
+	}
+}
+
+func (bx *BleXport) getState() BleXportState {
+	bx.stateMtx.Lock()
+	defer bx.stateMtx.Unlock()
+
+	return bx.state
 }
 
 func (bx *BleXport) setStateFrom(from BleXportState, to BleXportState) bool {
@@ -387,7 +406,7 @@ func (bx *BleXport) startOnce() error {
 		}
 	}()
 
-	synced, bl, err := bx.initialSyncCheck()
+	synced, syncl, err := bx.initialSyncCheck()
 	if err != nil {
 		bx.shutdown(true, err)
 		return err
@@ -398,10 +417,10 @@ func (bx *BleXport) startOnce() error {
 	SyncLoop:
 		for {
 			select {
-			case err := <-bl.ErrChan:
+			case err := <-syncl.ErrChan:
 				bx.shutdown(true, err)
 				return err
-			case bm := <-bl.MsgChan:
+			case bm := <-syncl.MsgChan:
 				switch msg := bm.(type) {
 				case *BleSyncEvt:
 					if msg.Synced {
@@ -417,14 +436,22 @@ func (bx *BleXport) startOnce() error {
 		}
 	}
 
-	// Host and controller are synced.  Listen for sync loss in the background.
+	// Host and controller are synced.  Listen for sync loss and stack reset in
+	// the background.
 	go func() {
+		resetl, err := bx.addResetListener()
+		if err != nil {
+			bx.shutdown(true, err)
+			return
+		}
+		defer bx.RemoveListener(resetl)
+
 		for {
 			select {
-			case err := <-bl.ErrChan:
+			case err := <-syncl.ErrChan:
 				bx.shutdown(true, err)
 				return
-			case bm := <-bl.MsgChan:
+			case bm := <-syncl.MsgChan:
 				switch msg := bm.(type) {
 				case *BleSyncEvt:
 					if !msg.Synced {
@@ -432,6 +459,28 @@ func (bx *BleXport) startOnce() error {
 							"BLE host <-> controller sync lost"))
 					}
 				}
+
+			case err := <-resetl.ErrChan:
+				bx.shutdown(true, err)
+				return
+			case bm := <-resetl.MsgChan:
+				switch msg := bm.(type) {
+				case *BleResetEvt:
+					// Only process the reset event if the transport is not
+					// already shutting down.  If in mid-shutdown, the reset
+					// event was likely elicited by the shutdown itself.
+					state := bx.getState()
+					if state == BLE_XPORT_STATE_STARTING ||
+						state == BLE_XPORT_STATE_STARTED {
+
+						bx.shutdown(true, nmxutil.NewXportError(fmt.Sprintf(
+							"The BLE controller has been reset by the host; "+
+								"reason=%s (%d)",
+							ErrCodeToString(msg.Reason), msg.Reason)))
+						return
+					}
+				}
+
 			case <-bx.stopChan:
 				return
 			}

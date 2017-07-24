@@ -37,8 +37,7 @@ type BlePlainSesn struct {
 	closeTimeout time.Duration
 	onCloseCb    sesn.OnCloseFn
 	wg           sync.WaitGroup
-
-	closeChan chan struct{}
+	closeBlocker nmxutil.Blocker
 }
 
 func NewBlePlainSesn(bx *BleXport, cfg sesn.SesnCfg) *BlePlainSesn {
@@ -72,11 +71,13 @@ func (bps *BlePlainSesn) AbortRx(seq uint8) error {
 }
 
 func (bps *BlePlainSesn) Open() error {
-	// This channel gets closed when the session closes.
-	bps.closeChan = make(chan struct{})
+	// Ensure subsequent calls to Close() block.
+	bps.closeBlocker.Block()
 
 	if err := bps.bf.Start(); err != nil {
-		close(bps.closeChan)
+		if !nmxutil.IsSesnAlreadyOpen(err) {
+			bps.closeBlocker.Unblock()
+		}
 		return err
 	}
 
@@ -86,7 +87,7 @@ func (bps *BlePlainSesn) Open() error {
 	bps.wg.Add(1)
 	go func() {
 		// If the session is being closed, unblock the close() call.
-		defer close(bps.closeChan)
+		defer bps.closeBlocker.Unblock()
 
 		// Block until disconnect.
 		<-bps.bf.DisconnectChan()
@@ -132,7 +133,7 @@ func (bps *BlePlainSesn) Close() error {
 	}
 
 	// Block until close completes.
-	<-bps.closeChan
+	bps.closeBlocker.Wait()
 	return nil
 }
 
