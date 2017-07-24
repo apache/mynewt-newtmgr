@@ -11,9 +11,11 @@ COMPATIBLE
 COPYING
 INSTALLING.md
 RELEASE_NOTES.md
+README.md
 Godeps.json
 .gitignore
-
+.travis.yml
+appveyor.yml
 
 # Viper - MIT license.
 viper
@@ -68,3 +70,13 @@ ugorji
 
 # go-coap - MIT license.
 go-coap
+
+# structs - MIT license
+structs
+
+# ansi - MIT license
+# logx - MIT license
+mgutz
+
+# errors - BSD license
+errors
