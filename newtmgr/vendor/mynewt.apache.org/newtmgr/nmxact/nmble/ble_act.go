@@ -158,8 +158,57 @@ func connCancel(x *BleXport, bl *Listener, r *BleConnCancelReq) error {
 }
 
 // Blocking.
+func discAllSvcs(x *BleXport, bl *Listener, r *BleDiscAllSvcsReq) (
+	[]*BleDiscSvc, error) {
+
+	const rspType = MSG_TYPE_DISC_ALL_SVCS
+	const evtType = MSG_TYPE_DISC_SVC_EVT
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := x.Tx(j); err != nil {
+		return nil, err
+	}
+
+	var svcs []*BleDiscSvc
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return nil, err
+
+		case bm := <-bl.MsgChan:
+			switch msg := bm.(type) {
+			case *BleDiscAllSvcsRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return nil, StatusError(MSG_OP_RSP, rspType, msg.Status)
+				}
+
+			case *BleDiscSvcEvt:
+				switch msg.Status {
+				case 0:
+					svcs = append(svcs, &msg.Svc)
+				case ERR_CODE_EDONE:
+					return svcs, nil
+				default:
+					return nil, StatusError(MSG_OP_EVT, evtType, msg.Status)
+				}
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return nil, BhdTimeoutError(rspType, r.Seq)
+		}
+	}
+}
+
+// Blocking.
 func discSvcUuid(x *BleXport, bl *Listener, r *BleDiscSvcUuidReq) (
-	*BleSvc, error) {
+	*BleDiscSvc, error) {
 
 	const rspType = MSG_TYPE_DISC_SVC_UUID
 	const evtType = MSG_TYPE_DISC_SVC_EVT
@@ -173,7 +222,7 @@ func discSvcUuid(x *BleXport, bl *Listener, r *BleDiscSvcUuidReq) (
 		return nil, err
 	}
 
-	var svc *BleSvc
+	var svc *BleDiscSvc
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -214,7 +263,7 @@ func discSvcUuid(x *BleXport, bl *Listener, r *BleDiscSvcUuidReq) (
 
 // Blocking.
 func discAllChrs(x *BleXport, bl *Listener, r *BleDiscAllChrsReq) (
-	[]*BleChr, error) {
+	[]*BleDiscChr, error) {
 
 	const rspType = MSG_TYPE_DISC_ALL_CHRS
 	const evtType = MSG_TYPE_DISC_CHR_EVT
@@ -228,7 +277,7 @@ func discAllChrs(x *BleXport, bl *Listener, r *BleDiscAllChrsReq) (
 		return nil, err
 	}
 
-	chrs := []*BleChr{}
+	chrs := []*BleDiscChr{}
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -257,6 +306,101 @@ func discAllChrs(x *BleXport, bl *Listener, r *BleDiscAllChrsReq) (
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
 			return nil, BhdTimeoutError(rspType, r.Seq)
+		}
+	}
+}
+
+// Blocking.
+func discAllDscs(x *BleXport, bl *Listener, r *BleDiscAllDscsReq) (
+	[]*BleDiscDsc, error) {
+
+	const rspType = MSG_TYPE_DISC_ALL_DSCS
+	const evtType = MSG_TYPE_DISC_DSC_EVT
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := x.Tx(j); err != nil {
+		return nil, err
+	}
+
+	dscs := []*BleDiscDsc{}
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return nil, err
+
+		case bm := <-bl.MsgChan:
+			switch msg := bm.(type) {
+			case *BleDiscAllDscsRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return nil, StatusError(MSG_OP_RSP, rspType, msg.Status)
+				}
+
+			case *BleDiscDscEvt:
+				switch msg.Status {
+				case 0:
+					dscs = append(dscs, &msg.Dsc)
+				case ERR_CODE_EDONE:
+					return dscs, nil
+				default:
+					return nil, StatusError(MSG_OP_EVT, evtType, msg.Status)
+				}
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return nil, BhdTimeoutError(rspType, r.Seq)
+		}
+	}
+}
+
+// Blocking.
+func write(x *BleXport, bl *Listener, r *BleWriteReq) error {
+	const rspType = MSG_TYPE_WRITE_CMD
+	const evtType = MSG_TYPE_WRITE_ACK_EVT
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+
+	if err := x.Tx(j); err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return err
+
+		case bm := <-bl.MsgChan:
+			switch msg := bm.(type) {
+			case *BleWriteRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return StatusError(MSG_OP_RSP, rspType, msg.Status)
+				} else {
+					return nil
+				}
+
+			case *BleDiscChrEvt:
+				switch msg.Status {
+				case 0:
+					return nil
+				default:
+					return StatusError(MSG_OP_EVT, evtType, msg.Status)
+				}
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return BhdTimeoutError(rspType, r.Seq)
 		}
 	}
 }
@@ -294,6 +438,82 @@ func writeCmd(x *BleXport, bl *Listener, r *BleWriteCmdReq) error {
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
 			return BhdTimeoutError(rspType, r.Seq)
+		}
+	}
+}
+
+// Blocking.
+func notify(x *BleXport, bl *Listener, r *BleNotifyReq) error {
+	const rspType = MSG_TYPE_NOTIFY
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+
+	if err := x.Tx(j); err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return err
+
+		case bm := <-bl.MsgChan:
+			switch msg := bm.(type) {
+			case *BleNotifyRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return StatusError(MSG_OP_RSP, rspType, msg.Status)
+				} else {
+					return nil
+				}
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return BhdTimeoutError(rspType, r.Seq)
+		}
+	}
+}
+
+// Blocking.
+func findChr(x *BleXport, bl *Listener, r *BleFindChrReq) (
+	uint16, uint16, error) {
+
+	const rspType = MSG_TYPE_NOTIFY
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	if err := x.Tx(j); err != nil {
+		return 0, 0, err
+	}
+
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return 0, 0, err
+
+		case bm := <-bl.MsgChan:
+			switch msg := bm.(type) {
+			case *BleFindChrRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return 0, 0, StatusError(MSG_OP_RSP, rspType, msg.Status)
+				} else {
+					return msg.DefHandle, msg.ValHandle, nil
+				}
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return 0, 0, BhdTimeoutError(rspType, r.Seq)
 		}
 	}
 }
@@ -533,37 +753,47 @@ func encInitiate(x *BleXport, bl *Listener,
 }
 
 // Blocking
-func advStart(x *BleXport, bl *Listener, r *BleAdvStartReq) error {
+func advStart(x *BleXport, bl *Listener, r *BleAdvStartReq) (uint16, error) {
 	const rspType = MSG_TYPE_ADV_START
 
 	j, err := json.Marshal(r)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	if err := x.Tx(j); err != nil {
-		return err
+		return 0, err
 	}
 
 	for {
 		select {
 		case err := <-bl.ErrChan:
-			return err
+			return 0, err
 
 		case bm := <-bl.MsgChan:
 			switch msg := bm.(type) {
 			case *BleAdvStartRsp:
 				bl.Acked = true
 				if msg.Status != 0 {
-					return StatusError(MSG_OP_RSP, rspType, msg.Status)
+					return 0, StatusError(MSG_OP_RSP, rspType, msg.Status)
 				}
-				return nil
+
+			case *BleConnectEvt:
+				if msg.Status == 0 {
+					return msg.ConnHandle, nil
+				} else {
+					str := fmt.Sprintf("BLE peer failed to connect to us; "+
+						"status=%s (%d)",
+						ErrCodeToString(msg.Status), msg.Status)
+					log.Debugf(str)
+					return 0, nmxutil.NewBleHostError(msg.Status, str)
+				}
 
 			default:
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
-			return BhdTimeoutError(rspType, r.Seq)
+			return 0, BhdTimeoutError(rspType, r.Seq)
 		}
 	}
 }
@@ -704,13 +934,143 @@ func advFields(x *BleXport, bl *Listener, r *BleAdvFieldsReq) (
 					return nil, StatusError(MSG_OP_RSP, rspType, msg.Status)
 				}
 
-				return msg.Data, nil
+				return msg.Data.Bytes, nil
 
 			default:
 			}
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
 			return nil, BhdTimeoutError(rspType, r.Seq)
+		}
+	}
+}
+
+func clearSvcs(x *BleXport, bl *Listener, r *BleClearSvcsReq) error {
+	const rspType = MSG_TYPE_CLEAR_SVCS
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+
+	x.txNoSync(j)
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return err
+
+		case bm := <-bl.MsgChan:
+			switch msg := bm.(type) {
+			case *BleClearSvcsRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return StatusError(MSG_OP_RSP, rspType, msg.Status)
+				}
+				return nil
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return BhdTimeoutError(rspType, r.Seq)
+		}
+	}
+}
+
+func addSvcs(x *BleXport, bl *Listener, r *BleAddSvcsReq) error {
+	const rspType = MSG_TYPE_ADD_SVCS
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+
+	x.txNoSync(j)
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return err
+
+		case bm := <-bl.MsgChan:
+			switch msg := bm.(type) {
+			case *BleAddSvcsRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return StatusError(MSG_OP_RSP, rspType, msg.Status)
+				}
+				return nil
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return BhdTimeoutError(rspType, r.Seq)
+		}
+	}
+}
+
+func commitSvcs(x *BleXport, bl *Listener, r *BleCommitSvcsReq) (
+	[]BleRegSvc, error) {
+
+	const rspType = MSG_TYPE_COMMIT_SVCS
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return nil, err
+	}
+
+	x.txNoSync(j)
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return nil, err
+
+		case bm := <-bl.MsgChan:
+			switch msg := bm.(type) {
+			case *BleCommitSvcsRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return nil, StatusError(MSG_OP_RSP, rspType, msg.Status)
+				}
+				return msg.Svcs, nil
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return nil, BhdTimeoutError(rspType, r.Seq)
+		}
+	}
+}
+
+func accessStatus(x *BleXport, bl *Listener, r *BleAccessStatusReq) error {
+	const rspType = MSG_TYPE_ACCESS_STATUS
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+
+	x.Tx(j)
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return err
+
+		case bm := <-bl.MsgChan:
+			switch msg := bm.(type) {
+			case *BleAccessStatusRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return StatusError(MSG_OP_RSP, rspType, msg.Status)
+				}
+				return nil
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return BhdTimeoutError(rspType, r.Seq)
 		}
 	}
 }
@@ -821,6 +1181,7 @@ func setPreferredMtu(x *BleXport, bl *Listener,
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
 			return BhdTimeoutError(rspType, r.Seq)
+
 		}
 	}
 }

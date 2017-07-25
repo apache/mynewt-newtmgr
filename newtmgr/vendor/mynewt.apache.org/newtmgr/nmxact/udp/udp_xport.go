@@ -22,6 +22,7 @@ package udp
 import (
 	"fmt"
 
+	"mynewt.apache.org/newtmgr/nmxact/adv"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/scan"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
@@ -70,4 +71,8 @@ func (ux *UdpXport) Stop() error {
 
 func (ux *UdpXport) Tx(bytes []byte) error {
 	return fmt.Errorf("unsupported")
+}
+
+func (ux *UdpXport) BuildAdvertiser() (adv.Advertiser, error) {
+	return nil, fmt.Errorf("UdpXport#BuildAdvertiser unsupported")
 }

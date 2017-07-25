@@ -31,16 +31,22 @@ const BLE_ATT_ATTR_MAX_LEN = 512
 
 const BLE_ATT_MTU_DFLT = 23
 
-const NmpPlainSvcUuid = "8D53DC1D-1DB7-4CD3-868B-8A527460AA84"
-const NmpPlainChrUuid = "DA2E7828-FBCE-4E01-AE9E-261174997C48"
+const CccdUuid = 0x2902
 
-const OmpUnsecSvcUuid = "ADE3D529-C784-4F63-A987-EB69F70EE816"
-const OmpUnsecReqChrUuid = "AD7B334F-4637-4B86-90B6-9D787F03D218"
-const OmpUnsecRspChrUuid = "E9241982-4580-42C4-8831-95048216B256"
+const NmpPlainSvcUuid = "8d53dc1d-1db7-4cd3-868b-8a527460aa84"
+const NmpPlainChrUuid = "da2e7828-fbce-4e01-ae9e-261174997c48"
+
+const OmpUnsecSvcUuid = "ade3d529-c784-4f63-a987-eb69f70ee816"
+const OmpUnsecReqChrUuid = "ad7b334f-4637-4b86-90b6-9d787f03d218"
+const OmpUnsecRspChrUuid = "e9241982-4580-42c4-8831-95048216b256"
 
 const OmpSecSvcUuid = 0xfe18
 const OmpSecReqChrUuid = 0x1000
 const OmpSecRspChrUuid = 0x1001
+
+const GwSvcUuid = "0c08c213-98ed-4e43-a499-7e1137c39567"
+const GwReqChrUuid = "69b8a928-2ab2-487b-923e-54ce53a18bc1"
+const GwRspChrUuid = "bca10aea-5df1-4248-b72b-f52955ad9c88"
 
 type BleAddrType int
 
@@ -520,9 +526,10 @@ func (a *BleAdvDiscMode) UnmarshalJSON(data []byte) error {
 type BleAdvFilterPolicy int
 
 const (
-	BLE_ADV_FILTER_POLICY_NON BleAdvFilterPolicy = iota
-	BLE_ADV_FILTER_POLICY_LTD
-	BLE_ADV_FILTER_POLICY_GEN
+	BLE_ADV_FILTER_POLICY_NONE BleAdvFilterPolicy = iota
+	BLE_ADV_FILTER_POLICY_SCAN
+	BLE_ADV_FILTER_POLICY_CONN
+	BLE_ADV_FILTER_POLICY_BOTH
 )
 
 var BleAdvFilterPolicyStringMap = map[BleAdvFilterPolicy]string{
@@ -607,6 +614,13 @@ type BleAdvReport struct {
 type BleAdvRptFn func(r BleAdvReport)
 type BleAdvPredicate func(adv BleAdvReport) bool
 
+type BleRole int
+
+const (
+	BLE_ROLE_MASTER BleRole = iota
+	BLE_ROLE_SLAVE
+)
+
 type BleConnDesc struct {
 	ConnHandle      uint16
 	OwnIdAddrType   BleAddrType
@@ -617,6 +631,7 @@ type BleConnDesc struct {
 	PeerIdAddr      BleAddr
 	PeerOtaAddrType BleAddrType
 	PeerOtaAddr     BleAddr
+	Role            BleRole
 }
 
 func (d *BleConnDesc) String() string {
@@ -641,3 +656,166 @@ const (
 	BLE_ENCRYPT_PRIV_ONLY
 	BLE_ENCRYPT_ALWAYS
 )
+
+type BleGattOp int
+
+const (
+	BLE_GATT_ACCESS_OP_READ_CHR  BleGattOp = 0
+	BLE_GATT_ACCESS_OP_WRITE_CHR           = 1
+	BLE_GATT_ACCESS_OP_READ_DSC            = 2
+	BLE_GATT_ACCESS_OP_WRITE_DSC           = 3
+)
+
+var BleGattOpStringMap = map[BleGattOp]string{
+	BLE_GATT_ACCESS_OP_READ_CHR:  "read_chr",
+	BLE_GATT_ACCESS_OP_WRITE_CHR: "write_chr",
+	BLE_GATT_ACCESS_OP_READ_DSC:  "read_dsc",
+	BLE_GATT_ACCESS_OP_WRITE_DSC: "write_dsc",
+}
+
+func BleGattOpToString(op BleGattOp) string {
+	s := BleGattOpStringMap[op]
+	if s == "" {
+		return "???"
+	}
+
+	return s
+}
+
+func BleGattOpFromString(s string) (BleGattOp, error) {
+	for op, name := range BleGattOpStringMap {
+		if s == name {
+			return op, nil
+		}
+	}
+
+	return BleGattOp(0),
+		fmt.Errorf("Invalid BleGattOp string: %s", s)
+}
+
+type BleSvcType int
+
+const (
+	BLE_SVC_TYPE_PRIMARY BleSvcType = iota
+	BLE_SVC_TYPE_SECONDARY
+)
+
+var BleSvcTypeStringMap = map[BleSvcType]string{
+	BLE_SVC_TYPE_PRIMARY:   "primary",
+	BLE_SVC_TYPE_SECONDARY: "secondary",
+}
+
+func BleSvcTypeToString(svcType BleSvcType) string {
+	s := BleSvcTypeStringMap[svcType]
+	if s == "" {
+		return "???"
+	}
+
+	return s
+}
+
+func BleSvcTypeFromString(s string) (BleSvcType, error) {
+	for svcType, name := range BleSvcTypeStringMap {
+		if s == name {
+			return svcType, nil
+		}
+	}
+
+	return BleSvcType(0),
+		fmt.Errorf("Invalid BleSvcType string: %s", s)
+}
+
+func (a BleSvcType) MarshalJSON() ([]byte, error) {
+	return json.Marshal(BleSvcTypeToString(a))
+}
+
+func (a *BleSvcType) UnmarshalJSON(data []byte) error {
+	var err error
+
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	*a, err = BleSvcTypeFromString(s)
+	return err
+}
+
+type BleChrFlags int
+
+const (
+	BLE_GATT_F_BROADCAST       BleChrFlags = 0x0001
+	BLE_GATT_F_READ                        = 0x0002
+	BLE_GATT_F_WRITE_NO_RSP                = 0x0004
+	BLE_GATT_F_WRITE                       = 0x0008
+	BLE_GATT_F_NOTIFY                      = 0x0010
+	BLE_GATT_F_INDICATE                    = 0x0020
+	BLE_GATT_F_AUTH_SIGN_WRITE             = 0x0040
+	BLE_GATT_F_RELIABLE_WRITE              = 0x0080
+	BLE_GATT_F_AUX_WRITE                   = 0x0100
+	BLE_GATT_F_READ_ENC                    = 0x0200
+	BLE_GATT_F_READ_AUTHEN                 = 0x0400
+	BLE_GATT_F_READ_AUTHOR                 = 0x0800
+	BLE_GATT_F_WRITE_ENC                   = 0x1000
+	BLE_GATT_F_WRITE_AUTHEN                = 0x2000
+	BLE_GATT_F_WRITE_AUTHOR                = 0x4000
+)
+
+type BleAttFlags int
+
+const (
+	BLE_ATT_F_READ         BleAttFlags = 0x01
+	BLE_ATT_F_WRITE                    = 0x02
+	BLE_ATT_F_READ_ENC                 = 0x04
+	BLE_ATT_F_READ_AUTHEN              = 0x08
+	BLE_ATT_F_READ_AUTHOR              = 0x10
+	BLE_ATT_F_WRITE_ENC                = 0x20
+	BLE_ATT_F_WRITE_AUTHEN             = 0x40
+	BLE_ATT_F_WRITE_AUTHOR             = 0x80
+)
+
+type BleGattAccess struct {
+	Op         BleGattOp
+	ConnHandle uint16
+	SvcUuid    BleUuid
+	ChrUuid    BleUuid
+	Data       []byte
+}
+
+type BleGattAccessFn func(access BleGattAccess) (uint8, []byte)
+
+type BleDsc struct {
+	Uuid       BleUuid
+	AttFlags   BleAttFlags
+	MinKeySize int
+}
+
+type BleChr struct {
+	Uuid       BleUuid
+	Flags      BleChrFlags
+	MinKeySize int
+	AccessCb   BleGattAccessFn
+	Dscs       []BleDsc
+}
+
+type BleSvc struct {
+	Uuid    BleUuid
+	SvcType BleSvcType
+	Chrs    []BleChr
+}
+
+type BleChrId struct {
+	SvcUuid BleUuid
+	ChrUuid BleUuid
+}
+
+type BleMgmtChrs struct {
+	NmpReqChr        *BleChrId
+	NmpRspChr        *BleChrId
+	ResPublicReqChr  *BleChrId
+	ResPublicRspChr  *BleChrId
+	ResGwReqChr      *BleChrId
+	ResGwRspChr      *BleChrId
+	ResPrivateReqChr *BleChrId
+	ResPrivateRspChr *BleChrId
+}

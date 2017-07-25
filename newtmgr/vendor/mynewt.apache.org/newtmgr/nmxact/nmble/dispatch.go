@@ -57,9 +57,12 @@ func errRspCtor() Msg              { return &BleErrRsp{} }
 func syncRspCtor() Msg             { return &BleSyncRsp{} }
 func connectRspCtor() Msg          { return &BleConnectRsp{} }
 func terminateRspCtor() Msg        { return &BleTerminateRsp{} }
+func discAllSvcsRspCtor() Msg      { return &BleDiscAllSvcsRsp{} }
 func discSvcUuidRspCtor() Msg      { return &BleDiscSvcUuidRsp{} }
 func discAllChrsRspCtor() Msg      { return &BleDiscAllChrsRsp{} }
 func discChrUuidRspCtor() Msg      { return &BleDiscChrUuidRsp{} }
+func discAllDscsRspCtor() Msg      { return &BleDiscAllDscsRsp{} }
+func writeRspCtor() Msg            { return &BleWriteRsp{} }
 func writeCmdRspCtor() Msg         { return &BleWriteCmdRsp{} }
 func exchangeMtuRspCtor() Msg      { return &BleExchangeMtuRsp{} }
 func genRandAddrRspCtor() Msg      { return &BleGenRandAddrRsp{} }
@@ -71,27 +74,44 @@ func setPreferredMtuRspCtor() Msg  { return &BleSetPreferredMtuRsp{} }
 func securityInitiateRspCtor() Msg { return &BleSecurityInitiateRsp{} }
 func connFindRspCtor() Msg         { return &BleConnFindRsp{} }
 func resetRspCtor() Msg            { return &BleResetRsp{} }
+func advStartRspCtor() Msg         { return &BleAdvStartRsp{} }
+func advStopRspCtor() Msg          { return &BleAdvStopRsp{} }
+func advSetDataRspCtor() Msg       { return &BleAdvSetDataRsp{} }
+func advRspSetDataRspCtor() Msg    { return &BleAdvRspSetDataRsp{} }
+func advFieldsRspCtor() Msg        { return &BleAdvFieldsRsp{} }
+func clearSvcsRspCtor() Msg        { return &BleClearSvcsRsp{} }
+func addSvcsRspCtor() Msg          { return &BleAddSvcsRsp{} }
+func commitSvcsRspCtor() Msg       { return &BleCommitSvcsRsp{} }
+func accessStatusRspCtor() Msg     { return &BleAccessStatusRsp{} }
+func notifyRspCtor() Msg           { return &BleNotifyRsp{} }
+func findChrRspCtor() Msg          { return &BleFindChrRsp{} }
 
 func syncEvtCtor() Msg       { return &BleSyncEvt{} }
 func connectEvtCtor() Msg    { return &BleConnectEvt{} }
 func disconnectEvtCtor() Msg { return &BleDisconnectEvt{} }
 func discSvcEvtCtor() Msg    { return &BleDiscSvcEvt{} }
 func discChrEvtCtor() Msg    { return &BleDiscChrEvt{} }
+func discDscEvtCtor() Msg    { return &BleDiscDscEvt{} }
+func writeAckEvtCtor() Msg   { return &BleWriteAckEvt{} }
 func notifyRxEvtCtor() Msg   { return &BleNotifyRxEvt{} }
 func mtuChangeEvtCtor() Msg  { return &BleMtuChangeEvt{} }
 func scanEvtCtor() Msg       { return &BleScanEvt{} }
 func scanTmoEvtCtor() Msg    { return &BleScanTmoEvt{} }
 func encChangeEvtCtor() Msg  { return &BleEncChangeEvt{} }
 func resetEvtCtor() Msg      { return &BleResetEvt{} }
+func accessEvtCtor() Msg     { return &BleAccessEvt{} }
 
 var msgCtorMap = map[OpTypePair]msgCtor{
 	{MSG_OP_RSP, MSG_TYPE_ERR}:               errRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_SYNC}:              syncRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_CONNECT}:           connectRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_TERMINATE}:         terminateRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_DISC_ALL_SVCS}:     discAllSvcsRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_DISC_SVC_UUID}:     discSvcUuidRspCtor,
-	{MSG_OP_RSP, MSG_TYPE_DISC_CHR_UUID}:     discChrUuidRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_DISC_ALL_CHRS}:     discAllChrsRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_DISC_CHR_UUID}:     discChrUuidRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_DISC_ALL_DSCS}:     discAllDscsRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_WRITE}:             writeRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_WRITE_CMD}:         writeCmdRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_EXCHANGE_MTU}:      exchangeMtuRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_GEN_RAND_ADDR}:     genRandAddrRspCtor,
@@ -103,18 +123,32 @@ var msgCtorMap = map[OpTypePair]msgCtor{
 	{MSG_OP_RSP, MSG_TYPE_SECURITY_INITIATE}: securityInitiateRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_CONN_FIND}:         connFindRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_RESET}:             resetRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_ADV_START}:         advStartRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_ADV_STOP}:          advStopRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_ADV_SET_DATA}:      advSetDataRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_ADV_RSP_SET_DATA}:  advRspSetDataRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_ADV_FIELDS}:        advFieldsRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_CLEAR_SVCS}:        clearSvcsRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_ADD_SVCS}:          addSvcsRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_COMMIT_SVCS}:       commitSvcsRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_ACCESS_STATUS}:     accessStatusRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_NOTIFY}:            notifyRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_FIND_CHR}:          findChrRspCtor,
 
 	{MSG_OP_EVT, MSG_TYPE_SYNC_EVT}:       syncEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_CONNECT_EVT}:    connectEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_DISCONNECT_EVT}: disconnectEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_DISC_SVC_EVT}:   discSvcEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_DISC_CHR_EVT}:   discChrEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_DISC_DSC_EVT}:   discDscEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_WRITE_ACK_EVT}:  writeAckEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_NOTIFY_RX_EVT}:  notifyRxEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_MTU_CHANGE_EVT}: mtuChangeEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_SCAN_EVT}:       scanEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_SCAN_TMO_EVT}:   scanTmoEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_ENC_CHANGE_EVT}: encChangeEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_RESET_EVT}:      resetEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_ACCESS_EVT}:     accessEvtCtor,
 }
 
 func NewDispatcher() *Dispatcher {

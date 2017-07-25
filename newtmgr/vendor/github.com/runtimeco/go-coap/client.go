@@ -38,7 +38,7 @@ func Dial(n, addr string) (*Conn, error) {
 }
 
 // Send a message.  Get a response if there is one.
-func (c *Conn) Send(req Message) (*Message, error) {
+func (c *Conn) Send(req Message) (Message, error) {
 	err := Transmit(c.conn, nil, req)
 	if err != nil {
 		return nil, err
@@ -53,14 +53,14 @@ func (c *Conn) Send(req Message) (*Message, error) {
 		return nil, err
 	}
 
-	return &rv, nil
+	return rv, nil
 }
 
 // Receive a message.
-func (c *Conn) Receive() (*Message, error) {
+func (c *Conn) Receive() (Message, error) {
 	rv, err := Receive(c.conn, c.buf)
 	if err != nil {
 		return nil, err
 	}
-	return &rv, nil
+	return rv, nil
 }

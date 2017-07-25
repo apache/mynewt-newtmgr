@@ -1,13 +1,11 @@
 package coap
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"reflect"
-	"sort"
 	"strings"
 )
 
@@ -335,24 +333,80 @@ func (o options) Minus(oid OptionID) options {
 	return rv
 }
 
-// Message is a CoAP message.
-type Message struct {
+type Message interface {
+	Type() COAPType
+	Code() COAPCode
+	MessageID() uint16
+	Token() []byte
+	Payload() []byte
+	AllOptions() options
+
+	IsConfirmable() bool
+	Options(o OptionID) []interface{}
+	Option(o OptionID) interface{}
+	optionStrings(o OptionID) []string
+	Path() []string
+	PathString() string
+	SetPathString(s string)
+	SetPath(s []string)
+	SetPayload(p []byte)
+	RemoveOption(opID OptionID)
+	AddOption(opID OptionID, val interface{})
+	SetOption(opID OptionID, val interface{})
+	MarshalBinary() ([]byte, error)
+	UnmarshalBinary(data []byte) error
+}
+
+type MessageParams struct {
 	Type      COAPType
 	Code      COAPCode
 	MessageID uint16
+	Token     []byte
+	Payload   []byte
+}
 
-	Token, Payload []byte
+// MessageBase is a CoAP message.
+type MessageBase struct {
+	typ       COAPType
+	code      COAPCode
+	messageID uint16
+
+	token, payload []byte
 
 	opts options
 }
 
+func (m *MessageBase) Type() COAPType {
+	return m.typ
+}
+
+func (m *MessageBase) Code() COAPCode {
+	return m.code
+}
+
+func (m *MessageBase) MessageID() uint16 {
+	return m.messageID
+}
+
+func (m *MessageBase) Token() []byte {
+	return m.token
+}
+
+func (m *MessageBase) Payload() []byte {
+	return m.payload
+}
+
+func (m *MessageBase) AllOptions() options {
+	return m.opts
+}
+
 // IsConfirmable returns true if this message is confirmable.
-func (m Message) IsConfirmable() bool {
-	return m.Type == Confirmable
+func (m *MessageBase) IsConfirmable() bool {
+	return m.typ == Confirmable
 }
 
 // Options gets all the values for the given option.
-func (m Message) Options(o OptionID) []interface{} {
+func (m *MessageBase) Options(o OptionID) []interface{} {
 	var rv []interface{}
 
 	for _, v := range m.opts {
@@ -365,7 +419,7 @@ func (m Message) Options(o OptionID) []interface{} {
 }
 
 // Option gets the first value for the given option ID.
-func (m Message) Option(o OptionID) interface{} {
+func (m *MessageBase) Option(o OptionID) interface{} {
 	for _, v := range m.opts {
 		if o == v.ID {
 			return v.Value
@@ -374,7 +428,7 @@ func (m Message) Option(o OptionID) interface{} {
 	return nil
 }
 
-func (m Message) optionStrings(o OptionID) []string {
+func (m *MessageBase) optionStrings(o OptionID) []string {
 	var rv []string
 	for _, o := range m.Options(o) {
 		rv = append(rv, o.(string))
@@ -383,17 +437,17 @@ func (m Message) optionStrings(o OptionID) []string {
 }
 
 // Path gets the Path set on this message if any.
-func (m Message) Path() []string {
+func (m *MessageBase) Path() []string {
 	return m.optionStrings(URIPath)
 }
 
 // PathString gets a path as a / separated string.
-func (m Message) PathString() string {
+func (m *MessageBase) PathString() string {
 	return strings.Join(m.Path(), "/")
 }
 
 // SetPathString sets a path by a / separated string.
-func (m *Message) SetPathString(s string) {
+func (m *MessageBase) SetPathString(s string) {
 	for s[0] == '/' {
 		s = s[1:]
 	}
@@ -401,17 +455,22 @@ func (m *Message) SetPathString(s string) {
 }
 
 // SetPath updates or adds a URIPath attribute on this message.
-func (m *Message) SetPath(s []string) {
+func (m *MessageBase) SetPath(s []string) {
 	m.SetOption(URIPath, s)
 }
 
+// SetPayload
+func (m *MessageBase) SetPayload(p []byte) {
+	m.payload = p
+}
+
 // RemoveOption removes all references to an option
-func (m *Message) RemoveOption(opID OptionID) {
+func (m *MessageBase) RemoveOption(opID OptionID) {
 	m.opts = m.opts.Minus(opID)
 }
 
 // AddOption adds an option.
-func (m *Message) AddOption(opID OptionID, val interface{}) {
+func (m *MessageBase) AddOption(opID OptionID, val interface{}) {
 	iv := reflect.ValueOf(val)
 	if (iv.Kind() == reflect.Slice || iv.Kind() == reflect.Array) &&
 		iv.Type().Elem().Kind() == reflect.String {
@@ -424,7 +483,7 @@ func (m *Message) AddOption(opID OptionID, val interface{}) {
 }
 
 // SetOption sets an option, discarding any previous value
-func (m *Message) SetOption(opID OptionID, val interface{}) {
+func (m *MessageBase) SetOption(opID OptionID, val interface{}) {
 	m.RemoveOption(opID)
 	m.AddOption(opID, val)
 }
@@ -514,51 +573,6 @@ func writeOpts(buf io.Writer, opts options) {
 	}
 }
 
-// MarshalBinary produces the binary form of this Message.
-func (m *Message) MarshalBinary() ([]byte, error) {
-	tmpbuf := []byte{0, 0}
-	binary.BigEndian.PutUint16(tmpbuf, m.MessageID)
-
-	/*
-	     0                   1                   2                   3
-	    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-	   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	   |Ver| T |  TKL  |      Code     |          Message ID           |
-	   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	   |   Token (if any, TKL bytes) ...
-	   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	   |   Options (if any) ...
-	   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	   |1 1 1 1 1 1 1 1|    Payload (if any) ...
-	   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	*/
-
-	buf := bytes.Buffer{}
-	buf.Write([]byte{
-		(1 << 6) | (uint8(m.Type) << 4) | uint8(0xf&len(m.Token)),
-		byte(m.Code),
-		tmpbuf[0], tmpbuf[1],
-	})
-	buf.Write(m.Token)
-
-	sort.Stable(&m.opts)
-	writeOpts(&buf, m.opts)
-
-	if len(m.Payload) > 0 {
-		buf.Write([]byte{0xff})
-	}
-
-	buf.Write(m.Payload)
-
-	return buf.Bytes(), nil
-}
-
-// ParseMessage extracts the Message from the given input.
-func ParseMessage(data []byte) (Message, error) {
-	rv := Message{}
-	return rv, rv.UnmarshalBinary(data)
-}
-
 // parseBody extracts the options and payload from a byte slice.  The supplied
 // byte slice contains everything following the message header (everything
 // after the token).
@@ -625,43 +639,4 @@ func parseBody(data []byte) (options, []byte, error) {
 	}
 
 	return opts, data, nil
-}
-
-// UnmarshalBinary parses the given binary slice as a Message.
-func (m *Message) UnmarshalBinary(data []byte) error {
-	if len(data) < 4 {
-		return errors.New("short packet")
-	}
-
-	if data[0]>>6 != 1 {
-		return errors.New("invalid version")
-	}
-
-	m.Type = COAPType((data[0] >> 4) & 0x3)
-	tokenLen := int(data[0] & 0xf)
-	if tokenLen > 8 {
-		return ErrInvalidTokenLen
-	}
-
-	m.Code = COAPCode(data[1])
-	m.MessageID = binary.BigEndian.Uint16(data[2:4])
-
-	if tokenLen > 0 {
-		m.Token = make([]byte, tokenLen)
-	}
-	if len(data) < 4+tokenLen {
-		return errors.New("truncated")
-	}
-	copy(m.Token, data[4:4+tokenLen])
-	b := data[4+tokenLen:]
-
-	o, p, err := parseBody(b)
-	if err != nil {
-		return err
-	}
-
-	m.Payload = p
-	m.opts = o
-
-	return nil
 }

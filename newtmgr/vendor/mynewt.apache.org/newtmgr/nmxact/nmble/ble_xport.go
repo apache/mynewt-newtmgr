@@ -29,6 +29,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 
 	"mynewt.apache.org/newt/util/unixchild"
+	"mynewt.apache.org/newtmgr/nmxact/adv"
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/scan"
@@ -115,6 +116,8 @@ type BleXport struct {
 	randAddr     *BleAddr
 	stateMtx     sync.Mutex
 	scanner      *BleScanner
+	advertiser   *Advertiser
+	cm           ChrMgr
 }
 
 func NewBleXport(cfg XportCfg) (*BleXport, error) {
@@ -168,17 +171,18 @@ func (bx *BleXport) BuildScanner() (scan.Scanner, error) {
 	return bx.scanner, nil
 }
 
-func (bx *BleXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
-	switch cfg.MgmtProto {
-	case sesn.MGMT_PROTO_NMP:
-		return NewBlePlainSesn(bx, cfg), nil
-	case sesn.MGMT_PROTO_OMP:
-		return NewBleOicSesn(bx, cfg), nil
-	default:
-		return nil, fmt.Errorf(
-			"Invalid management protocol: %d; expected NMP or OMP",
-			cfg.MgmtProto)
+func (bx *BleXport) BuildAdvertiser() (adv.Advertiser, error) {
+	// The transport only allows a single advertiser.  This is because the
+	// slave privileges need to managed among all the advertise operations.
+	if bx.advertiser == nil {
+		bx.advertiser = NewAdvertiser(bx)
 	}
+
+	return bx.advertiser, nil
+}
+
+func (bx *BleXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
+	return NewBleSesn(bx, cfg)
 }
 
 func (bx *BleXport) addSyncListener() (*Listener, error) {
@@ -190,6 +194,12 @@ func (bx *BleXport) addSyncListener() (*Listener, error) {
 func (bx *BleXport) addResetListener() (*Listener, error) {
 	key := TchKey(MSG_TYPE_RESET_EVT, -1)
 	nmxutil.LogAddListener(3, key, 0, "reset")
+	return bx.AddListener(key)
+}
+
+func (bx *BleXport) addAccessListener() (*Listener, error) {
+	key := TchKey(MSG_TYPE_ACCESS_EVT, -1)
+	nmxutil.LogAddListener(3, key, 0, "access")
 	return bx.AddListener(key)
 }
 
@@ -432,12 +442,16 @@ func (bx *BleXport) startOnce() error {
 					"Timeout waiting for host <-> controller sync")
 				bx.shutdown(true, err)
 				return err
+			case <-bx.stopChan:
+				return nmxutil.NewXportError("Transport startup aborted")
 			}
 		}
 	}
 
-	// Host and controller are synced.  Listen for sync loss and stack reset in
-	// the background.
+	// Host and controller are synced.  Listen for events in the background:
+	//     * sync loss
+	//     * stack reset
+	//     * GATT access
 	go func() {
 		resetl, err := bx.addResetListener()
 		if err != nil {
@@ -445,6 +459,13 @@ func (bx *BleXport) startOnce() error {
 			return
 		}
 		defer bx.RemoveListener(resetl)
+
+		accessl, err := bx.addAccessListener()
+		if err != nil {
+			bx.shutdown(true, err)
+			return
+		}
+		defer bx.RemoveListener(accessl)
 
 		for {
 			select {
@@ -478,6 +499,18 @@ func (bx *BleXport) startOnce() error {
 								"reason=%s (%d)",
 							ErrCodeToString(msg.Reason), msg.Reason)))
 						return
+					}
+				}
+
+			case err := <-accessl.ErrChan:
+				bx.shutdown(true, err)
+				return
+			case bm := <-accessl.MsgChan:
+				switch msg := bm.(type) {
+				case *BleAccessEvt:
+					if err := bx.cm.Access(bx, msg); err != nil {
+						log.Debugf("Error sending access status: %s",
+							err.Error())
 					}
 				}
 
@@ -581,6 +614,10 @@ func (bx *BleXport) Tx(data []byte) error {
 	}
 
 	return bx.txNoSync(data)
+}
+
+func (bx *BleXport) SetServices(svcs []BleSvc) error {
+	return bx.cm.SetServices(bx, svcs)
 }
 
 func (bx *BleXport) AddListener(key ListenerKey) (*Listener, error) {

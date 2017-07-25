@@ -26,9 +26,12 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/runtimeco/go-coap"
 
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
+	"mynewt.apache.org/newtmgr/nmxact/oic"
+	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
 const WRITE_CMD_BASE_SZ = 3
@@ -167,6 +170,14 @@ func NewBleConnCancelReq() *BleConnCancelReq {
 	}
 }
 
+func NewBleDiscAllSvcsReq() *BleDiscAllSvcsReq {
+	return &BleDiscAllSvcsReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_DISC_ALL_SVCS,
+		Seq:  NextSeq(),
+	}
+}
+
 func NewBleDiscSvcUuidReq() *BleDiscSvcUuidReq {
 	return &BleDiscSvcUuidReq{
 		Op:   MSG_OP_REQ,
@@ -182,6 +193,14 @@ func NewBleDiscAllChrsReq() *BleDiscAllChrsReq {
 	return &BleDiscAllChrsReq{
 		Op:   MSG_OP_REQ,
 		Type: MSG_TYPE_DISC_ALL_CHRS,
+		Seq:  NextSeq(),
+	}
+}
+
+func NewBleDiscAllDscsReq() *BleDiscAllDscsReq {
+	return &BleDiscAllDscsReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_DISC_ALL_DSCS,
 		Seq:  NextSeq(),
 	}
 }
@@ -217,10 +236,14 @@ func NewBleWriteCmdReq() *BleWriteCmdReq {
 		Op:   MSG_OP_REQ,
 		Type: MSG_TYPE_WRITE_CMD,
 		Seq:  NextSeq(),
+	}
+}
 
-		ConnHandle: 0,
-		AttrHandle: 0,
-		Data:       BleBytes{},
+func NewBleWriteReq() *BleWriteReq {
+	return &BleWriteReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_WRITE,
+		Seq:  NextSeq(),
 	}
 }
 
@@ -312,6 +335,54 @@ func NewBleAdvStopReq() *BleAdvStopReq {
 	}
 }
 
+func NewBleClearSvcsReq() *BleClearSvcsReq {
+	return &BleClearSvcsReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_CLEAR_SVCS,
+		Seq:  NextSeq(),
+	}
+}
+
+func NewBleAddSvcsReq() *BleAddSvcsReq {
+	return &BleAddSvcsReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_ADD_SVCS,
+		Seq:  NextSeq(),
+	}
+}
+
+func NewBleCommitSvcsReq() *BleCommitSvcsReq {
+	return &BleCommitSvcsReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_COMMIT_SVCS,
+		Seq:  NextSeq(),
+	}
+}
+
+func NewAccessStatusReq() *BleAccessStatusReq {
+	return &BleAccessStatusReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_ACCESS_STATUS,
+		Seq:  NextSeq(),
+	}
+}
+
+func NewNotifyReq() *BleNotifyReq {
+	return &BleNotifyReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_NOTIFY,
+		Seq:  NextSeq(),
+	}
+}
+
+func NewFindChrReq() *BleFindChrReq {
+	return &BleFindChrReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_FIND_CHR,
+		Seq:  NextSeq(),
+	}
+}
+
 func ConnFindXact(x *BleXport, connHandle uint16) (BleConnDesc, error) {
 	r := NewBleConnFindReq()
 	r.ConnHandle = connHandle
@@ -380,6 +451,90 @@ func ResetXact(x *BleXport) error {
 	return reset(x, bl, r)
 }
 
+func ClearSvcsXact(x *BleXport) error {
+	r := NewBleClearSvcsReq()
+
+	bl, err := x.AddListener(SeqKey(r.Seq))
+	if err != nil {
+		return err
+	}
+	defer x.RemoveListener(bl)
+
+	return clearSvcs(x, bl, r)
+}
+
+func AddSvcsXact(x *BleXport, svcs []BleAddSvc) error {
+	r := NewBleAddSvcsReq()
+	r.Svcs = svcs
+
+	bl, err := x.AddListener(SeqKey(r.Seq))
+	if err != nil {
+		return err
+	}
+	defer x.RemoveListener(bl)
+
+	return addSvcs(x, bl, r)
+}
+
+func CommitSvcsXact(x *BleXport) ([]BleRegSvc, error) {
+	r := NewBleCommitSvcsReq()
+
+	bl, err := x.AddListener(SeqKey(r.Seq))
+	if err != nil {
+		return nil, err
+	}
+	defer x.RemoveListener(bl)
+
+	return commitSvcs(x, bl, r)
+}
+
+func AccessStatusXact(x *BleXport, attStatus uint8, data []byte) error {
+	r := NewAccessStatusReq()
+	r.AttStatus = attStatus
+	r.Data.Bytes = data
+
+	bl, err := x.AddListener(SeqKey(r.Seq))
+	if err != nil {
+		return err
+	}
+	defer x.RemoveListener(bl)
+
+	return accessStatus(x, bl, r)
+}
+
+func NotifyXact(x *BleXport, connHandle uint16, attrHandle uint16,
+	data []byte) error {
+
+	r := NewNotifyReq()
+	r.ConnHandle = connHandle
+	r.AttrHandle = attrHandle
+	r.Data.Bytes = data
+
+	bl, err := x.AddListener(SeqKey(r.Seq))
+	if err != nil {
+		return err
+	}
+	defer x.RemoveListener(bl)
+
+	return notify(x, bl, r)
+}
+
+func FindChrXact(x *BleXport, svcUuid BleUuid, chrUuid BleUuid) (
+	uint16, uint16, error) {
+
+	r := NewFindChrReq()
+	r.SvcUuid = svcUuid
+	r.ChrUuid = chrUuid
+
+	bl, err := x.AddListener(SeqKey(r.Seq))
+	if err != nil {
+		return 0, 0, err
+	}
+	defer x.RemoveListener(bl)
+
+	return findChr(x, bl, r)
+}
+
 func DiscoverDeviceWithName(
 	bx *BleXport,
 	ownAddrType BleAddrType,
@@ -391,4 +546,231 @@ func DiscoverDeviceWithName(
 	}
 
 	return DiscoverDevice(bx, ownAddrType, timeout, advPred)
+}
+
+func BleAdvFieldsToReq(f BleAdvFields) *BleAdvFieldsReq {
+	r := NewBleAdvFieldsReq()
+
+	r.Flags = f.Flags
+	r.Uuids16 = f.Uuids16
+	r.Uuids16IsComplete = f.Uuids16IsComplete
+	r.Uuids32 = f.Uuids32
+	r.Uuids32IsComplete = f.Uuids32IsComplete
+	r.Uuids128 = f.Uuids128
+	r.Uuids128IsComplete = f.Uuids128IsComplete
+	r.Name = f.Name
+	r.NameIsComplete = f.NameIsComplete
+	r.TxPwrLvl = f.TxPwrLvl
+	r.SlaveItvlMin = f.SlaveItvlMin
+	r.SlaveItvlMax = f.SlaveItvlMax
+	r.SvcDataUuid16 = BleBytes{f.SvcDataUuid16}
+	r.PublicTgtAddrs = f.PublicTgtAddrs
+	r.Appearance = f.Appearance
+	r.AdvItvl = f.AdvItvl
+	r.SvcDataUuid32 = BleBytes{f.SvcDataUuid32}
+	r.SvcDataUuid128 = BleBytes{f.SvcDataUuid128}
+	r.Uri = f.Uri
+	r.MfgData = BleBytes{f.MfgData}
+
+	return r
+}
+
+func BleSvcToAddSvc(svc BleSvc) BleAddSvc {
+	as := BleAddSvc{
+		Uuid:    svc.Uuid,
+		SvcType: svc.SvcType,
+	}
+
+	for _, chr := range svc.Chrs {
+		ac := BleAddChr{
+			Uuid:       chr.Uuid,
+			Flags:      chr.Flags,
+			MinKeySize: chr.MinKeySize,
+		}
+
+		for _, dsc := range chr.Dscs {
+			ad := BleAddDsc{
+				Uuid:       dsc.Uuid,
+				AttFlags:   dsc.AttFlags,
+				MinKeySize: dsc.MinKeySize,
+			}
+
+			ac.Dscs = append(ac.Dscs, ad)
+		}
+
+		as.Chrs = append(as.Chrs, ac)
+	}
+
+	return as
+}
+
+func GapService(devName string) BleSvc {
+	return BleSvc{
+		Uuid:    BleUuid{0x1800, [16]byte{}},
+		SvcType: BLE_SVC_TYPE_PRIMARY,
+		Chrs: []BleChr{
+			// Device name.
+			BleChr{
+				Uuid:       BleUuid{0x2a00, [16]byte{}},
+				Flags:      BLE_GATT_F_READ,
+				MinKeySize: 0,
+				AccessCb: func(access BleGattAccess) (uint8, []byte) {
+					return 0, []byte(devName)
+				},
+			},
+
+			// Appearance.
+			BleChr{
+				Uuid:       BleUuid{0x2a01, [16]byte{}},
+				Flags:      BLE_GATT_F_READ,
+				MinKeySize: 0,
+				AccessCb: func(access BleGattAccess) (uint8, []byte) {
+					return 0, []byte{0, 0}
+				},
+			},
+
+			// Peripheral privacy flag.
+			BleChr{
+				Uuid:       BleUuid{0x2a02, [16]byte{}},
+				Flags:      BLE_GATT_F_READ,
+				MinKeySize: 0,
+				AccessCb: func(access BleGattAccess) (uint8, []byte) {
+					return 0, []byte{0}
+				},
+			},
+
+			// Reconnection address.
+			BleChr{
+				Uuid:       BleUuid{0x2a03, [16]byte{}},
+				Flags:      BLE_GATT_F_READ,
+				MinKeySize: 0,
+				AccessCb: func(access BleGattAccess) (uint8, []byte) {
+					return 0, []byte{0, 0, 0, 0, 0, 0}
+				},
+			},
+
+			// Peripheral preferred connection parameters.
+			BleChr{
+				Uuid:       BleUuid{0x2a04, [16]byte{}},
+				Flags:      BLE_GATT_F_READ,
+				MinKeySize: 0,
+				AccessCb: func(access BleGattAccess) (uint8, []byte) {
+					return 0, []byte{0, 0, 0, 0, 0, 0, 0, 0}
+				},
+			},
+		},
+	}
+}
+
+func GattService() BleSvc {
+	return BleSvc{
+		Uuid:    BleUuid{0x1801, [16]byte{}},
+		SvcType: BLE_SVC_TYPE_PRIMARY,
+		Chrs: []BleChr{
+			// Device name.
+			BleChr{
+				Uuid:       BleUuid{0x2a05, [16]byte{}},
+				Flags:      BLE_GATT_F_INDICATE,
+				MinKeySize: 0,
+				AccessCb: func(access BleGattAccess) (uint8, []byte) {
+					return 0, []byte{0, 0, 0, 0}
+				},
+			},
+		},
+	}
+}
+
+func GenCoapService(x *BleXport, svcUuid BleUuid, reqChrUuid BleUuid,
+	rspChrUuid BleUuid, resources []oic.Resource) (BleSvc, error) {
+
+	svr := NewBleOicSvr(x, svcUuid, rspChrUuid)
+	for _, r := range resources {
+		if err := svr.AddResource(r); err != nil {
+			return BleSvc{}, err
+		}
+	}
+
+	svc := BleSvc{
+		Uuid:    svcUuid,
+		SvcType: BLE_SVC_TYPE_PRIMARY,
+		Chrs: []BleChr{
+			BleChr{
+				Uuid:       reqChrUuid,
+				Flags:      BLE_GATT_F_WRITE_NO_RSP, /* XXX: Security */
+				MinKeySize: 0,
+				AccessCb: func(access BleGattAccess) (uint8, []byte) {
+					return svr.Rx(access), nil
+				},
+			},
+			BleChr{
+				Uuid:       rspChrUuid,
+				Flags:      BLE_GATT_F_NOTIFY, /* XXX: Security */
+				MinKeySize: 0,
+				AccessCb:   nil,
+			},
+		},
+	}
+
+	return svc, nil
+}
+
+func GwService(x *BleXport) (BleSvc, error) {
+	svcUuid, _ := ParseUuid(GwSvcUuid)
+	reqChrUuid, _ := ParseUuid(GwReqChrUuid)
+	rspChrUuid, _ := ParseUuid(GwRspChrUuid)
+
+	resources := []oic.Resource{
+		oic.Resource{
+			Name: "mynewt.yourmom",
+			ReadCb: func(uri string, data []byte) (coap.COAPCode, []byte) {
+				return coap.Content, []byte{1, 2, 3, 4}
+			},
+		},
+	}
+
+	return GenCoapService(x, svcUuid, reqChrUuid, rspChrUuid, resources)
+}
+
+func ResChrIdLookup(mgmtChrs BleMgmtChrs, resType sesn.ResourceType) *BleChrId {
+	m := map[sesn.ResourceType]*BleChrId{
+		sesn.RES_TYPE_PUBLIC:  mgmtChrs.ResPublicReqChr,
+		sesn.RES_TYPE_UNAUTH: mgmtChrs.ResGwReqChr,
+		sesn.RES_TYPE_SECURE: mgmtChrs.ResPrivateReqChr,
+	}
+
+	return m[resType]
+}
+
+func BuildMgmtChrs(mgmtProto sesn.MgmtProto) (BleMgmtChrs, error) {
+	mgmtChrs := BleMgmtChrs{}
+
+	nmpSvcUuid, _ := ParseUuid(NmpPlainSvcUuid)
+	nmpChrUuid, _ := ParseUuid(NmpPlainChrUuid)
+
+	ompSvcUuid, _ := ParseUuid(OmpUnsecSvcUuid)
+	ompReqChrUuid, _ := ParseUuid(OmpUnsecReqChrUuid)
+	ompRspChrUuid, _ := ParseUuid(OmpUnsecRspChrUuid)
+
+	gwSvcUuid, _ := ParseUuid(GwSvcUuid)
+	gwReqChrUuid, _ := ParseUuid(GwReqChrUuid)
+	gwRspChrUuid, _ := ParseUuid(GwRspChrUuid)
+
+	switch mgmtProto {
+	case sesn.MGMT_PROTO_NMP:
+		mgmtChrs.NmpReqChr = &BleChrId{nmpSvcUuid, nmpChrUuid}
+		mgmtChrs.NmpRspChr = &BleChrId{nmpSvcUuid, nmpChrUuid}
+
+	case sesn.MGMT_PROTO_OMP:
+		mgmtChrs.NmpReqChr = &BleChrId{ompSvcUuid, ompReqChrUuid}
+		mgmtChrs.NmpRspChr = &BleChrId{ompSvcUuid, ompRspChrUuid}
+
+	default:
+		return mgmtChrs,
+			fmt.Errorf("invalid management protocol: %+v", mgmtProto)
+	}
+
+	mgmtChrs.ResGwReqChr = &BleChrId{gwSvcUuid, gwReqChrUuid}
+	mgmtChrs.ResGwRspChr = &BleChrId{gwSvcUuid, gwRspChrUuid}
+
+	return mgmtChrs, nil
 }

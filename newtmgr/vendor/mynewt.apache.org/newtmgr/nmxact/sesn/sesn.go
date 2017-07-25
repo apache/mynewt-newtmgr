@@ -22,6 +22,8 @@ package sesn
 import (
 	"time"
 
+	"github.com/runtimeco/go-coap"
+
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 )
 
@@ -79,6 +81,8 @@ type Sesn interface {
 	// separate thread, as sesn receive operations are blocking.
 	AbortRx(nmpSeq uint8) error
 
+	// XXX AbortResource(seq uint8) error
+
 	////// Internal to nmxact:
 
 	EncodeNmpMsg(msg *nmp.NmpMsg) ([]byte, error)
@@ -90,6 +94,8 @@ type Sesn interface {
 	//     * other error
 	TxNmpOnce(m *nmp.NmpMsg, opt TxOptions) (nmp.NmpRsp, error)
 
-	GetResourceOnce(uri string, opt TxOptions) ([]byte, error)
+	GetResourceOnce(resType ResourceType, uri string, opt TxOptions) (
+		coap.COAPCode, []byte, error)
+
 	//SetResource(uri string, value []byte, opt TxOptions) error
 }

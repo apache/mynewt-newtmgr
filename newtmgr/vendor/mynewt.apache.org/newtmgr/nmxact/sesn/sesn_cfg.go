@@ -20,6 +20,7 @@
 package sesn
 
 import (
+	"fmt"
 	"time"
 
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
@@ -31,6 +32,34 @@ const (
 	MGMT_PROTO_NMP MgmtProto = iota
 	MGMT_PROTO_OMP
 )
+
+type ResourceType int
+
+const (
+	RES_TYPE_PUBLIC ResourceType = iota
+	RES_TYPE_UNAUTH
+	RES_TYPE_SECURE
+)
+
+var resTypeMap = map[ResourceType]string{
+	RES_TYPE_PUBLIC: "public",
+	RES_TYPE_UNAUTH: "unauth",
+	RES_TYPE_SECURE: "secure",
+}
+
+func (r ResourceType) String() string {
+	return resTypeMap[r]
+}
+
+func ParseResType(s string) (ResourceType, error) {
+	for r, n := range resTypeMap {
+		if s == n {
+			return r, nil
+		}
+	}
+
+	return ResourceType(0), fmt.Errorf("Unknown resource type: %s", s)
+}
 
 type OnCloseFn func(s Sesn, err error)
 
@@ -45,31 +74,14 @@ type SesnCfgBleCentral struct {
 	// XXX: Missing fields.
 }
 
-type SesnCfgBlePeriph struct {
-	Duration      time.Duration
-	ConnMode      bledefs.BleAdvConnMode
-	DiscMode      bledefs.BleAdvDiscMode
-	ItvlMin       uint16
-	ItvlMax       uint16
-	ChannelMap    uint8
-	FilterPolicy  bledefs.BleAdvFilterPolicy
-	HighDutyCycle bool
-	AdvFields     bledefs.BleAdvFields
-	RspFields     bledefs.BleAdvFields
-}
-
 type SesnCfgBle struct {
 	// General configuration.
-	IsCentral    bool
 	OwnAddrType  bledefs.BleAddrType
 	EncryptWhen  bledefs.BleEncryptWhen
 	CloseTimeout time.Duration
 
 	// Central configuration.
 	Central SesnCfgBleCentral
-
-	// Peripheral configuration.
-	Periph SesnCfgBlePeriph
 }
 
 type SesnCfg struct {
@@ -88,7 +100,6 @@ func NewSesnCfg() SesnCfg {
 		// future, there will need to be some global default, or something that
 		// gets read from blehostd.
 		Ble: SesnCfgBle{
-			IsCentral:    true,
 			OwnAddrType:  bledefs.BLE_ADDR_TYPE_RANDOM,
 			CloseTimeout: 30 * time.Second,
 
@@ -96,7 +107,6 @@ func NewSesnCfg() SesnCfg {
 				ConnTries:   3,
 				ConnTimeout: 10 * time.Second,
 			},
-			Periph: SesnCfgBlePeriph{},
 		},
 	}
 }

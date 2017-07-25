@@ -15,10 +15,22 @@ const (
 	TCP_MESSAGE_MAX_LEN    = 0x7fff0000 // Large number that works in 32-bit builds.
 )
 
-// TcpMessage is a CoAP Message that can encode itself for TCP
+// TcpMessage is a CoAP MessageBase that can encode itself for TCP
 // transport.
 type TcpMessage struct {
-	Message
+	MessageBase
+}
+
+func NewTcpMessage(p MessageParams) *TcpMessage {
+	return &TcpMessage{
+		MessageBase{
+			typ:       p.Type,
+			code:      p.Code,
+			messageID: p.MessageID,
+			token:     p.Token,
+			payload:   p.Payload,
+		},
+	}
 }
 
 func (m *TcpMessage) MarshalBinary() ([]byte, error) {
@@ -50,12 +62,12 @@ func (m *TcpMessage) MarshalBinary() ([]byte, error) {
 
 	buf := bytes.Buffer{}
 
-	sort.Stable(&m.Message.opts)
-	writeOpts(&buf, m.Message.opts)
+	sort.Stable(&m.MessageBase.opts)
+	writeOpts(&buf, m.MessageBase.opts)
 
-	if len(m.Message.Payload) > 0 {
+	if len(m.MessageBase.payload) > 0 {
 		buf.Write([]byte{0xff})
-		buf.Write(m.Message.Payload)
+		buf.Write(m.MessageBase.payload)
 	}
 
 	var lenNib uint8
@@ -79,11 +91,11 @@ func (m *TcpMessage) MarshalBinary() ([]byte, error) {
 		binary.BigEndian.PutUint32(extLenBytes, uint32(extLen))
 	}
 
-	hdr := make([]byte, 1+len(extLenBytes)+len(m.Message.Token)+1)
+	hdr := make([]byte, 1+len(extLenBytes)+len(m.MessageBase.token)+1)
 	hdrOff := 0
 
 	// Length and TKL nibbles.
-	hdr[hdrOff] = uint8(0xf&len(m.Token)) | (lenNib << 4)
+	hdr[hdrOff] = uint8(0xf&len(m.MessageBase.token)) | (lenNib << 4)
 	hdrOff++
 
 	// Extended length, if present.
@@ -93,13 +105,13 @@ func (m *TcpMessage) MarshalBinary() ([]byte, error) {
 	}
 
 	// Code.
-	hdr[hdrOff] = byte(m.Message.Code)
+	hdr[hdrOff] = byte(m.MessageBase.code)
 	hdrOff++
 
 	// Token.
-	if len(m.Message.Token) > 0 {
-		copy(hdr[hdrOff:hdrOff+len(m.Message.Token)], m.Message.Token)
-		hdrOff += len(m.Message.Token)
+	if len(m.MessageBase.token) > 0 {
+		copy(hdr[hdrOff:hdrOff+len(m.MessageBase.token)], m.MessageBase.token)
+		hdrOff += len(m.MessageBase.token)
 	}
 
 	return append(hdr, buf.Bytes()...), nil
@@ -190,11 +202,11 @@ func readTcpMsgBody(mti msgTcpInfo, r io.Reader) (options, []byte, error) {
 }
 
 func (m *TcpMessage) fill(mti msgTcpInfo, o options, p []byte) {
-	m.Type = COAPType(mti.typ)
-	m.Code = COAPCode(mti.code)
-	m.Token = mti.token
-	m.opts = o
-	m.Payload = p
+	m.MessageBase.typ = COAPType(mti.typ)
+	m.MessageBase.code = COAPCode(mti.code)
+	m.MessageBase.token = mti.token
+	m.MessageBase.opts = o
+	m.MessageBase.payload = p
 }
 
 func (m *TcpMessage) UnmarshalBinary(data []byte) error {

@@ -40,7 +40,7 @@ type BleScanner struct {
 	bx           *BleXport
 	discoverer   *Discoverer
 	reportedDevs map[BleDev]string
-	bos          *BleOicSesn
+	bos          *BleSesn
 	enabled      bool
 
 	// Protects accesses to the reported devices map.
@@ -96,7 +96,7 @@ func (s *BleScanner) connect(dev BleDev) error {
 	}
 
 	s.mtx.Lock()
-	s.bos = session.(*BleOicSesn)
+	s.bos = session.(*BleSesn)
 	s.mtx.Unlock()
 
 	if err := s.bos.Open(); err != nil {

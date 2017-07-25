@@ -27,6 +27,7 @@ import (
 	"path"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -84,6 +85,10 @@ func NextNmpSeq() uint8 {
 	return val
 }
 
+func SeqToToken(seq uint8) []byte {
+	return []byte{seq}
+}
+
 func NextToken() []byte {
 	seqMutex.Lock()
 	defer seqMutex.Unlock()
@@ -93,7 +98,7 @@ func NextToken() []byte {
 		oicSeqBeenRead = true
 	}
 
-	token := []byte{nextOicSeq}
+	token := SeqToToken(nextOicSeq)
 	nextOicSeq++
 
 	return token
@@ -109,6 +114,12 @@ func DecodeCborMap(cbor []byte) (map[string]interface{}, error) {
 	}
 
 	return m, nil
+}
+
+var nextId uint32
+
+func GetNextId() uint32 {
+	return atomic.AddUint32(&nextId, 1) - 1
 }
 
 func LogListener(parentLevel int, title string, extra string) {

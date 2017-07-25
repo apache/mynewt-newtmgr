@@ -17,35 +17,51 @@
  * under the License.
  */
 
-package omp
+package xact
 
 import (
-	log "github.com/Sirupsen/logrus"
 	"github.com/runtimeco/go-coap"
+
+	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
-type Reassembler struct {
-	cur []byte
+type GetResCmd struct {
+	CmdBase
+	Uri string
+	Typ sesn.ResourceType
 }
 
-func NewReassembler() *Reassembler {
-	return &Reassembler{}
+func NewGetResCmd() *GetResCmd {
+	return &GetResCmd{
+		CmdBase: NewCmdBase(),
+	}
 }
 
-func (r *Reassembler) RxFrag(frag []byte) *coap.TcpMessage {
-	r.cur = append(r.cur, frag...)
+type GetResResult struct {
+	Code  coap.COAPCode
+	Value []byte
+}
 
-	var tm *coap.TcpMessage
-	var err error
-	tm, r.cur, err = coap.PullTcp(r.cur)
+func newGetResResult() *GetResResult {
+	return &GetResResult{}
+}
+
+func (r *GetResResult) Status() int {
+	if r.Code == coap.Content {
+		return 0
+	} else {
+		return int(r.Code)
+	}
+}
+
+func (c *GetResCmd) Run(s sesn.Sesn) (Result, error) {
+	status, val, err := sesn.GetResource(s, c.Typ, c.Uri, c.TxOptions())
 	if err != nil {
-		log.Debugf("received invalid CoAP-TCP packet: %s", err.Error())
-		return nil
+		return nil, err
 	}
 
-	if tm != nil {
-		r.cur = nil
-	}
-
-	return tm
+	res := newGetResResult()
+	res.Code = status
+	res.Value = val
+	return res, nil
 }
