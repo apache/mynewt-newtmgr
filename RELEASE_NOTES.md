@@ -1,0 +1,17 @@
+# RELEASE NOTES
+
+24 July 2017 - Apache Newtmgr v1.1.0
+
+For full release notes, please visit the
+[Apache Mynewt Wiki](https://cwiki.apache.org/confluence/display/MYNEWT/Release+Notes).
+
+Newt Manager (newtmgr) is the application tool that enables a user to communicate with and manage remote devices running the Mynewt OS. It uses a connection profile to establish a connection with a device and sends command requests to the device.  Thew newtmgr tool is documented at http://mynewt.apache.org/latest/newtmgr/overview/
+
+New features in this version of newtmgr include:
+
+* Native BLE support (connection types "ble" and "oic_ble")
+* Blehostd BLE support (see https://github.com/runtimeco/blehostd for information about blehostd).
+
+If working on next-generation build and source package management systems
+sounds exciting to you, get in touch, by sending a mail to the Apache Mynewt
+Developer's list, dev@mynewt.apache.org.

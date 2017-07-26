@@ -20,3 +20,14 @@
 -->
 
 # Newtmgr
+
+Newt Manager (newtmgr) is the application tool that enables a user to communicate with and manage remote devices running the Mynewt OS. It uses a connection profile to establish a connection with a device and sends command requests to the device.  Thew newtmgr tool is documented at http://mynewt.apache.org/latest/newtmgr/overview/
+
+### Vendoring
+
+newtmgr is vendored using the godep tool (https://github.com/tools/godep).  Two dependencies are intentially excluded from the vendor directory:
+
+* https://github.com/currantlabs/ble
+* https://github.com/raff/goble
+
+The reason these are not vendored is to prevent errors during elicited by `go get mynewt.apache.org/newtmgr/...` on linux.  These two dependencies contain OS-specific code, something `go get` seems to trip over when it is vendored.
