@@ -31,13 +31,22 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/nmserial"
 )
 
+func isSerial() bool {
+	x, err := cli.GetXportIfOpen()
+	if err != nil || x == nil {
+		return false
+	}
+
+	if _, ok := x.(*nmserial.SerialXport); !ok {
+		return false
+	}
+
+	return true
+}
+
 func stopXport() {
 	x, err := cli.GetXportIfOpen()
 	if err == nil {
-		// Don't attempt to close a serial transport.  Attempting to close
-		// the serial port while a read is in progress (in MacOS) just
-		// blocks until the read completes.  Instead, let the OS close the
-		// port on termination.
 		if _, ok := x.(*nmserial.SerialXport); !ok {
 			x.Stop()
 		}
@@ -52,8 +61,14 @@ func closeSesn() {
 }
 
 func cleanup() {
-	closeSesn()
-	stopXport()
+	// Don't attempt to close a serial transport.  Attempting to close
+	// the serial port while a read is in progress (in MacOS) just
+	// blocks until the read completes.  Instead, let the OS close the
+	// port on termination.
+	if !isSerial() {
+		closeSesn()
+		stopXport()
+	}
 }
 
 func main() {
