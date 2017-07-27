@@ -25,7 +25,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/Sirupsen/logrus"
+	log "github.com/Sirupsen/logrus"
 	"github.com/currantlabs/ble"
 
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
