@@ -36,7 +36,7 @@ type BllSesnCfg struct {
 
 func NewBllSesnCfg() BllSesnCfg {
 	return BllSesnCfg{
-		PreferredMtu: 527,
+		PreferredMtu: 512,
 		ConnTimeout:  10 * time.Second,
 	}
 }
