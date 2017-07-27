@@ -1,4 +1,4 @@
-// +build !windows
+// +build windows
 
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -24,14 +24,11 @@ package bll
 import (
 	"time"
 
-	"github.com/currantlabs/ble"
-
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
 type BllSesnCfg struct {
 	MgmtProto    sesn.MgmtProto
-	AdvFilter    ble.AdvFilter
 	PreferredMtu int
 	ConnTimeout  time.Duration
 }
