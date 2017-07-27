@@ -1,4 +1,4 @@
-// +build !windows
+// +build windows
 
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -23,9 +23,6 @@ package bll
 
 import (
 	"fmt"
-
-	"github.com/currantlabs/ble"
-	"github.com/currantlabs/ble/examples/lib/dev"
 
 	"mynewt.apache.org/newtmgr/nmxact/scan"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
@@ -52,40 +49,20 @@ func NewBllXport(cfg XportCfg) *BllXport {
 }
 
 func (bx *BllXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
-	return nil, fmt.Errorf("BllXport.BuildSesn() not supported; " +
-		"use BllXport.BuildBllSesn instead")
+	return nil, fmt.Errorf("Not Supported On Windows")
 }
 
 func (bx *BllXport) BuildBllSesn(cfg BllSesnCfg) (sesn.Sesn, error) {
-	switch cfg.MgmtProto {
-	case sesn.MGMT_PROTO_NMP:
-		return NewBllPlainSesn(cfg), nil
-	case sesn.MGMT_PROTO_OMP:
-		return NewBllOicSesn(cfg), nil
-	default:
-		return nil, fmt.Errorf(
-			"Invalid management protocol: %d; expected NMP or OMP",
-			cfg.MgmtProto)
-	}
+	return nil, fmt.Errorf("Not Supported On Windows")
 }
 
 func (bx *BllXport) Start() error {
-	d, err := dev.NewDevice(bx.cfg.CtlrName)
-	if err != nil {
-		return err
-	}
 
-	ble.SetDefaultDevice(d)
-
-	return nil
+	return fmt.Errorf("Not Supported On Windows")
 }
 
 func (bx *BllXport) Stop() error {
-	if err := ble.Stop(); err != nil {
-		return err
-	}
-
-	return nil
+	return fmt.Errorf("Not Supported On Windows")
 }
 
 func (bx *BllXport) BuildScanner() (scan.Scanner, error) {

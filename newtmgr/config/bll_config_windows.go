@@ -1,4 +1,4 @@
-// +build !windows
+// +build windows
 
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -19,26 +19,38 @@
  * under the License.
  */
 
-package bll
+package config
 
 import (
-	"time"
+	"fmt"
 
-	"github.com/currantlabs/ble"
-
-	"mynewt.apache.org/newtmgr/nmxact/sesn"
+	"mynewt.apache.org/newt/util"
+	"mynewt.apache.org/newtmgr/newtmgr/bll"
 )
 
-type BllSesnCfg struct {
-	MgmtProto    sesn.MgmtProto
-	AdvFilter    ble.AdvFilter
-	PreferredMtu int
-	ConnTimeout  time.Duration
+type BllConfig struct {
+	CtlrName string
+	PeerId   string
+	PeerName string
 }
 
-func NewBllSesnCfg() BllSesnCfg {
-	return BllSesnCfg{
-		PreferredMtu: 527,
-		ConnTimeout:  10 * time.Second,
-	}
+func NewBllConfig() *BllConfig {
+	return &BllConfig{}
+}
+
+func einvalBllConnString(f string, args ...interface{}) error {
+	suffix := fmt.Sprintf(f, args)
+	return util.FmtNewtError("Invalid BLE connstring; %s", suffix)
+}
+
+func ParseBllConnString(cs string) (*BllConfig, error) {
+
+	return nil, util.FmtNewtError("Not Supported on Windows")
+}
+
+func BuildBllSesnCfg(bc *BllConfig) (bll.BllSesnCfg, error) {
+
+	sc := bll.NewBllSesnCfg()
+
+	return sc, util.FmtNewtError("Not Supported on Windows")
 }

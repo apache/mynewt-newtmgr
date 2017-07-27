@@ -1,3 +1,5 @@
+// +build !windows
+
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -24,7 +26,7 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/currantlabs/ble"
+	//"github.com/currantlabs/ble"
 
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
 )
