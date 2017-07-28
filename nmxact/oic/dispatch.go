@@ -50,7 +50,7 @@ func NewToken(rawToken []byte) (Token, error) {
 }
 
 type Listener struct {
-	RspChan chan *coap.Message
+	RspChan chan coap.Message
 	ErrChan chan error
 	tmoChan chan time.Time
 	timer   *time.Timer
@@ -58,7 +58,7 @@ type Listener struct {
 
 func NewListener() *Listener {
 	return &Listener{
-		RspChan: make(chan *coap.Message, 1),
+		RspChan: make(chan coap.Message, 1),
 		ErrChan: make(chan error, 1),
 		tmoChan: make(chan time.Time, 1),
 	}
@@ -86,7 +86,7 @@ func (ol *Listener) Close() {
 // dispatcher writes to these listeners.
 type Dispatcher struct {
 	tokenListenerMap map[Token]*Listener
-	reassembler      *Reassembler
+	rxer             Receiver
 	logDepth         int
 	mtx              sync.Mutex
 }
@@ -94,11 +94,8 @@ type Dispatcher struct {
 func NewDispatcher(isTcp bool, logDepth int) *Dispatcher {
 	d := &Dispatcher{
 		tokenListenerMap: map[Token]*Listener{},
+		rxer:             NewReceiver(isTcp),
 		logDepth:         logDepth + 2,
-	}
-
-	if isTcp {
-		d.reassembler = NewReassembler()
 	}
 
 	return d
@@ -146,7 +143,7 @@ func (d *Dispatcher) RemoveListener(token []byte) *Listener {
 	return ol
 }
 
-func (d *Dispatcher) dispatchRsp(ot Token, msg *coap.Message) bool {
+func (d *Dispatcher) dispatchRsp(ot Token, msg coap.Message) bool {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
@@ -163,32 +160,17 @@ func (d *Dispatcher) dispatchRsp(ot Token, msg *coap.Message) bool {
 
 // Returns true if the response was dispatched.
 func (d *Dispatcher) Dispatch(data []byte) bool {
-	var msg *coap.Message
-
-	if d.reassembler != nil {
-		// TCP.
-		tm := d.reassembler.RxFrag(data)
-		if tm == nil {
-			return false
-		}
-
-		msg = &tm.Message
-	} else {
-		// UDP.
-		m, err := coap.ParseMessage(data)
-		if err != nil {
-			log.Printf("CoAP parse failure: %s", err.Error())
-			return false
-		}
-		msg = &m
+	m := d.rxer.Rx(data)
+	if m == nil {
+		return false
 	}
 
-	ot, err := NewToken(msg.Token)
+	ot, err := NewToken(m.Token())
 	if err != nil {
 		return false
 	}
 
-	return d.dispatchRsp(ot, msg)
+	return d.dispatchRsp(ot, m)
 }
 
 func (d *Dispatcher) ErrorOne(token Token, err error) error {

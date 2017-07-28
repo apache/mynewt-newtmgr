@@ -22,6 +22,8 @@ package sesn
 import (
 	"time"
 
+	"github.com/runtimeco/go-coap"
+
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 )
 
@@ -100,6 +102,6 @@ type Sesn interface {
 	//     * other error
 	TxNmpOnce(m *nmp.NmpMsg, opt TxOptions) (nmp.NmpRsp, error)
 
-	GetResourceOnce(uri string, opt TxOptions) ([]byte, error)
+	GetResourceOnce(uri string, opt TxOptions) (coap.COAPCode, []byte, error)
 	//SetResource(uri string, value []byte, opt TxOptions) error
 }

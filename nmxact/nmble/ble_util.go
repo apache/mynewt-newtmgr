@@ -344,6 +344,22 @@ func NewAccessStatusReq() *BleAccessStatusReq {
 	}
 }
 
+func NewNotifyReq() *BleNotifyReq {
+	return &BleNotifyReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_NOTIFY,
+		Seq:  NextSeq(),
+	}
+}
+
+func NewFindChrReq() *BleFindChrReq {
+	return &BleFindChrReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_FIND_CHR,
+		Seq:  NextSeq(),
+	}
+}
+
 func ConnFindXact(x *BleXport, connHandle uint16) (BleConnDesc, error) {
 	r := NewBleConnFindReq()
 	r.ConnHandle = connHandle
@@ -449,9 +465,10 @@ func CommitSvcsXact(x *BleXport) ([]BleRegSvc, error) {
 	return commitSvcs(x, bl, r)
 }
 
-func AccessStatusXact(x *BleXport, attStatus uint8) error {
+func AccessStatusXact(x *BleXport, attStatus uint8, data []byte) error {
 	r := NewAccessStatusReq()
 	r.AttStatus = attStatus
+	r.Data.Bytes = data
 
 	bl, err := x.AddListener(SeqKey(r.Seq))
 	if err != nil {
@@ -460,6 +477,39 @@ func AccessStatusXact(x *BleXport, attStatus uint8) error {
 	defer x.RemoveListener(bl)
 
 	return accessStatus(x, bl, r)
+}
+
+func NotifyXact(x *BleXport, connHandle uint16, attrHandle uint16,
+	data []byte) error {
+
+	r := NewNotifyReq()
+	r.ConnHandle = connHandle
+	r.AttrHandle = attrHandle
+	r.Data.Bytes = data
+
+	bl, err := x.AddListener(SeqKey(r.Seq))
+	if err != nil {
+		return err
+	}
+	defer x.RemoveListener(bl)
+
+	return notify(x, bl, r)
+}
+
+func FindChrXact(x *BleXport, svcUuid BleUuid, chrUuid BleUuid) (
+	uint16, uint16, error) {
+
+	r := NewFindChrReq()
+	r.SvcUuid = svcUuid
+	r.ChrUuid = chrUuid
+
+	bl, err := x.AddListener(SeqKey(r.Seq))
+	if err != nil {
+		return 0, 0, err
+	}
+	defer x.RemoveListener(bl)
+
+	return findChr(x, bl, r)
 }
 
 func DiscoverDeviceWithName(
@@ -529,4 +579,80 @@ func BleSvcToAddSvc(svc BleSvc) BleAddSvc {
 	}
 
 	return as
+}
+
+func GapService(devName string) BleSvc {
+	return BleSvc{
+		Uuid:    BleUuid{0x1800, [16]byte{}},
+		SvcType: BLE_SVC_TYPE_PRIMARY,
+		Chrs: []BleChr{
+			// Device name.
+			BleChr{
+				Uuid:       BleUuid{0x2a00, [16]byte{}},
+				Flags:      BLE_GATT_F_READ,
+				MinKeySize: 0,
+				AccessCb: func(access BleGattAccess) (uint8, []byte) {
+					return 0, []byte(devName)
+				},
+			},
+
+			// Appearance.
+			BleChr{
+				Uuid:       BleUuid{0x2a01, [16]byte{}},
+				Flags:      BLE_GATT_F_READ,
+				MinKeySize: 0,
+				AccessCb: func(access BleGattAccess) (uint8, []byte) {
+					return 0, []byte{0, 0}
+				},
+			},
+
+			// Peripheral privacy flag.
+			BleChr{
+				Uuid:       BleUuid{0x2a02, [16]byte{}},
+				Flags:      BLE_GATT_F_READ,
+				MinKeySize: 0,
+				AccessCb: func(access BleGattAccess) (uint8, []byte) {
+					return 0, []byte{0}
+				},
+			},
+
+			// Reconnection address.
+			BleChr{
+				Uuid:       BleUuid{0x2a03, [16]byte{}},
+				Flags:      BLE_GATT_F_READ,
+				MinKeySize: 0,
+				AccessCb: func(access BleGattAccess) (uint8, []byte) {
+					return 0, []byte{0, 0, 0, 0, 0, 0}
+				},
+			},
+
+			// Peripheral preferred connection parameters.
+			BleChr{
+				Uuid:       BleUuid{0x2a04, [16]byte{}},
+				Flags:      BLE_GATT_F_READ,
+				MinKeySize: 0,
+				AccessCb: func(access BleGattAccess) (uint8, []byte) {
+					return 0, []byte{0, 0, 0, 0, 0, 0, 0, 0}
+				},
+			},
+		},
+	}
+}
+
+func GattService() BleSvc {
+	return BleSvc{
+		Uuid:    BleUuid{0x1801, [16]byte{}},
+		SvcType: BLE_SVC_TYPE_PRIMARY,
+		Chrs: []BleChr{
+			// Device name.
+			BleChr{
+				Uuid:       BleUuid{0x2a05, [16]byte{}},
+				Flags:      BLE_GATT_F_INDICATE,
+				MinKeySize: 0,
+				AccessCb: func(access BleGattAccess) (uint8, []byte) {
+					return 0, []byte{0, 0, 0, 0}
+				},
+			},
+		},
+	}
 }

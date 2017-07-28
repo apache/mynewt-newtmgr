@@ -44,22 +44,22 @@ type OicMsg struct {
  * codec.  So we need to decode the whole response, and then re-encode the
  * newtmgr response part.
  */
-func DecodeOmp(tm *coap.Message) (nmp.NmpRsp, error) {
+func DecodeOmp(m coap.Message) (nmp.NmpRsp, error) {
 	// Ignore non-responses.
-	if tm.Code == coap.GET || tm.Code == coap.PUT {
+	if m.Code() == coap.GET || m.Code() == coap.PUT {
 		return nil, nil
 	}
 
-	if tm.Code != coap.Created && tm.Code != coap.Deleted &&
-		tm.Code != coap.Valid && tm.Code != coap.Changed &&
-		tm.Code != coap.Content {
+	if m.Code() != coap.Created && m.Code() != coap.Deleted &&
+		m.Code() != coap.Valid && m.Code() != coap.Changed &&
+		m.Code() != coap.Content {
 		return nil, fmt.Errorf(
-			"OMP response specifies unexpected code: %d (%s)", int(tm.Code),
-			tm.Code.String())
+			"OMP response specifies unexpected code: %d (%s)", int(m.Code()),
+			m.Code().String())
 	}
 
 	var om OicMsg
-	err := codec.NewDecoderBytes(tm.Payload, new(codec.CborHandle)).Decode(&om)
+	err := codec.NewDecoderBytes(m.Payload(), new(codec.CborHandle)).Decode(&om)
 	if err != nil {
 		return nil, fmt.Errorf("Invalid incoming cbor: %s", err.Error())
 	}
@@ -73,7 +73,7 @@ func DecodeOmp(tm *coap.Message) (nmp.NmpRsp, error) {
 		return nil, err
 	}
 
-	rsp, err := nmp.DecodeRspBody(hdr, tm.Payload)
+	rsp, err := nmp.DecodeRspBody(hdr, m.Payload())
 	if err != nil {
 		return nil, fmt.Errorf("Error decoding OMP response: %s", err.Error())
 	}
@@ -85,19 +85,19 @@ func DecodeOmp(tm *coap.Message) (nmp.NmpRsp, error) {
 }
 
 type encodeRecord struct {
-	m        coap.Message
+	tm       *coap.TcpMessage
 	hdrBytes []byte
 	fieldMap map[string]interface{}
 }
 
 func encodeOmpBase(nmr *nmp.NmpMsg) (encodeRecord, error) {
 	er := encodeRecord{
-		m: coap.Message{
+		tm: coap.NewTcpMessage(coap.MessageParams{
 			Type: coap.Confirmable,
 			Code: coap.PUT,
-		},
+		}),
 	}
-	er.m.SetPathString("/omgr")
+	er.tm.SetPathString("/omgr")
 
 	payload := []byte{}
 	enc := codec.NewEncoderBytes(&payload, new(codec.CborHandle))
@@ -117,7 +117,7 @@ func encodeOmpBase(nmr *nmp.NmpMsg) (encodeRecord, error) {
 	if err := enc.Encode(er.fieldMap); err != nil {
 		return er, err
 	}
-	er.m.Payload = payload
+	er.tm.SetPayload(payload)
 
 	return er, nil
 }
@@ -128,16 +128,14 @@ func EncodeOmpTcp(nmr *nmp.NmpMsg) ([]byte, error) {
 		return nil, err
 	}
 
-	tm := coap.TcpMessage{er.m}
-
-	data, err := tm.MarshalBinary()
+	data, err := er.tm.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("Failed to encode: %s\n", err.Error())
 	}
 
 	log.Debugf("Serialized OMP TCP request:\n"+
 		"Hdr %+v:\n%s\nPayload:%s\nData:\n%s",
-		nmr.Hdr, hex.Dump(er.hdrBytes), hex.Dump(tm.Payload),
+		nmr.Hdr, hex.Dump(er.hdrBytes), hex.Dump(er.tm.Payload()),
 		hex.Dump(data))
 
 	return data, nil
@@ -149,14 +147,14 @@ func EncodeOmpDgram(nmr *nmp.NmpMsg) ([]byte, error) {
 		return nil, err
 	}
 
-	data, err := er.m.MarshalBinary()
+	data, err := er.tm.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("Failed to encode: %s\n", err.Error())
 	}
 
 	log.Debugf("Serialized OMP datagram request:\n"+
 		"Hdr %+v:\n%s\nPayload:%s\nData:\n%s",
-		nmr.Hdr, hex.Dump(er.hdrBytes), hex.Dump(er.m.Payload),
+		nmr.Hdr, hex.Dump(er.hdrBytes), hex.Dump(er.tm.Payload()),
 		hex.Dump(data))
 
 	return data, nil

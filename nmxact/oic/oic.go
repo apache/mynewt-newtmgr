@@ -21,26 +21,44 @@ package oic
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/runtimeco/go-coap"
 )
 
-func EncodeGet(resUri string, token []byte) ([]byte, error) {
+var messageIdMtx sync.Mutex
+var nextMessageId uint16
+
+func NextMessageId() uint16 {
+	messageIdMtx.Lock()
+	defer messageIdMtx.Unlock()
+
+	id := nextMessageId
+	nextMessageId++
+	return id
+}
+
+func EncodeGet(isTcp bool, resUri string, token []byte) ([]byte, error) {
 	if len(token) > 8 {
 		return nil,
 			fmt.Errorf("Invalid token; len=%d, must be < 8", len(token))
 	}
 
-	req := &coap.TcpMessage{
-		Message: coap.Message{
-			Type:  coap.Confirmable,
-			Code:  coap.GET,
-			Token: token,
-		},
+	p := coap.MessageParams{
+		Type:  coap.Confirmable,
+		Code:  coap.GET,
+		Token: token,
 	}
-	req.SetPathString(resUri)
 
-	b, err := req.MarshalBinary()
+	var m coap.Message
+	if isTcp {
+		m = coap.NewTcpMessage(p)
+	} else {
+		m = coap.NewDgramMessage(p)
+	}
+	m.SetPathString(resUri)
+
+	b, err := m.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("Failed to encode CoAP: %s\n", err.Error())
 	}

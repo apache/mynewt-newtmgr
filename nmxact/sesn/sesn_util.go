@@ -20,6 +20,8 @@
 package sesn
 
 import (
+	"github.com/runtimeco/go-coap"
+
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 )
@@ -38,16 +40,16 @@ func TxNmp(s Sesn, m *nmp.NmpMsg, o TxOptions) (nmp.NmpRsp, error) {
 	}
 }
 
-func GetResource(s Sesn, uri string, o TxOptions) (int, []byte, error) {
+func GetResource(s Sesn, uri string, o TxOptions) (coap.COAPCode, []byte, error) {
 	retries := o.Tries - 1
 	for i := 0; ; i++ {
-		status, r, err := s.GetResourceOnce(uri, o)
+		code, r, err := s.GetResourceOnce(uri, o)
 		if err == nil {
-			return status, r, nil
+			return code, r, nil
 		}
 
 		if !nmxutil.IsRspTimeout(err) || i >= retries {
-			return status, nil, err
+			return code, nil, err
 		}
 	}
 }

@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/runtimeco/go-coap"
+
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/omp"
@@ -133,7 +135,7 @@ func (ups *UdpPlainSesn) AbortRx(seq uint8) error {
 }
 
 func (ups *UdpPlainSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
-	[]byte, error) {
+	coap.COAPCode, []byte, error) {
 
-	return nil, fmt.Errorf("UdpPlainSesn.GetResourceOnce() unsupported")
+	return 0, nil, fmt.Errorf("UdpPlainSesn.GetResourceOnce() unsupported")
 }

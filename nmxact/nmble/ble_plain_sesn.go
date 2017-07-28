@@ -24,6 +24,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/runtimeco/go-coap"
+
 	"mynewt.apache.org/newt/util"
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
@@ -182,7 +184,7 @@ func (bps *BlePlainSesn) ConnInfo() (BleConnDesc, error) {
 }
 
 func (bps *BlePlainSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
-	[]byte, error) {
+	coap.COAPCode, []byte, error) {
 
-	return nil, fmt.Errorf("BlePlainSesn.GetResourceOnce() unsupported")
+	return 0, nil, fmt.Errorf("BlePlainSesn.GetResourceOnce() unsupported")
 }

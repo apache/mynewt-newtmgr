@@ -27,11 +27,13 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/runtimeco/go-coap"
 
 	"mynewt.apache.org/newt/util/unixchild"
 	"mynewt.apache.org/newtmgr/nmxact/adv"
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
+	"mynewt.apache.org/newtmgr/nmxact/oic"
 	"mynewt.apache.org/newtmgr/nmxact/scan"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )

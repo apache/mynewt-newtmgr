@@ -115,7 +115,8 @@ func (bls *BllOicSesn) discoverAll() error {
 
 				if bledefs.CompareUuids(uuid, reqChrUuid) == 0 {
 					bls.nmpReqChr = c
-				} else if bledefs.CompareUuids(uuid, rspChrUuid) == 0 {
+				}
+				if bledefs.CompareUuids(uuid, rspChrUuid) == 0 {
 					bls.nmpRspChr = c
 				}
 			}
@@ -282,7 +283,7 @@ func (bls *BllOicSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
 	}
 	defer bls.d.RemoveOicListener(token)
 
-	req, err := oic.EncodeGet(uri, token)
+	req, err := oic.EncodeGet(true, uri, token)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -298,7 +299,7 @@ func (bls *BllOicSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
 		case err := <-ol.ErrChan:
 			return 0, nil, err
 		case rsp := <-ol.RspChan:
-			return rsp.Code, rsp.Payload, nil
+			return rsp.Code(), rsp.Payload(), nil
 		case <-ol.AfterTimeout(opt.Timeout):
 			msg := fmt.Sprintf("CoAP timeout; uri=%s", uri)
 			return 0, nil, nmxutil.NewRspTimeoutError(msg)

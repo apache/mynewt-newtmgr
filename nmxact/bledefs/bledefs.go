@@ -769,13 +769,14 @@ const (
 )
 
 type BleGattAccess struct {
-	Op      BleGattOp
-	SvcUuid BleUuid
-	ChrUuid BleUuid
-	Data    []byte
+	Op         BleGattOp
+	ConnHandle uint16
+	SvcUuid    BleUuid
+	ChrUuid    BleUuid
+	Data       []byte
 }
 
-type BleGattAccessFn func(access BleGattAccess) uint8
+type BleGattAccessFn func(access BleGattAccess) (uint8, []byte)
 
 type BleDsc struct {
 	Uuid       BleUuid

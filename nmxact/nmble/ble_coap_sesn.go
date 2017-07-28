@@ -148,29 +148,25 @@ func (bcs *BleCoapSesn) ConnInfo() (BleConnDesc, error) {
 }
 
 func (bcs *BleCoapSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
-	[]byte, error) {
+	coap.COAPCode, []byte, error) {
 
 	token := nmxutil.NextToken()
 
 	ol, err := bcs.d.AddListener(token)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 	defer bcs.d.RemoveListener(token)
 
-	req, err := oic.EncodeGet(uri, token)
+	req, err := oic.EncodeGet(true, uri, token)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
 	rsp, err := bcs.bf.TxOic(req, ol, opt.Timeout)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
-	if rsp.Code != coap.Content {
-		return nil, fmt.Errorf("UNEXPECTED OIC ACK: %#v", rsp)
-	}
-
-	return rsp.Payload, nil
+	return rsp.Code(), rsp.Payload(), nil
 }

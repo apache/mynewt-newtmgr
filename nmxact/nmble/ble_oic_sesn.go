@@ -202,25 +202,25 @@ func (bos *BleOicSesn) ConnInfo() (BleConnDesc, error) {
 }
 
 func (bos *BleOicSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
-	int, []byte, error) {
+	coap.COAPCode, []byte, error) {
 
 	token := nmxutil.NextToken()
 
 	ol, err := bos.d.AddOicListener(token)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 	defer bos.d.RemoveOicListener(token)
 
-	req, err := oic.EncodeGet(uri, token)
+	req, err := oic.EncodeGet(true, uri, token)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
 	rsp, err := bos.bf.TxOic(req, ol, opt.Timeout)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
-	return rsp.Status, rsp.Payload, nil
+	return rsp.Code(), rsp.Payload(), nil
 }

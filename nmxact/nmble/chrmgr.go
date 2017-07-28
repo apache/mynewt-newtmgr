@@ -103,20 +103,21 @@ func (cm *ChrMgr) findByAttHandle(handle uint16) *chrMgrElem {
 func (cm *ChrMgr) Access(x *BleXport, evt *BleAccessEvt) error {
 	chr := cm.findByAttHandle(evt.AttHandle)
 	if chr == nil {
-		return AccessStatusXact(x, uint8(ERR_CODE_ATT_INVALID_HANDLE))
+		return AccessStatusXact(x, uint8(ERR_CODE_ATT_INVALID_HANDLE), nil)
 	}
 
 	if chr.Cb == nil {
-		return AccessStatusXact(x, 0)
+		return AccessStatusXact(x, 0, nil)
 	}
 
 	access := BleGattAccess{
-		Op:      evt.GattOp,
-		SvcUuid: chr.SvcUuid,
-		ChrUuid: chr.ChrUuid,
-		Data:    evt.Data.Bytes,
+		Op:         evt.GattOp,
+		ConnHandle: evt.ConnHandle,
+		SvcUuid:    chr.SvcUuid,
+		ChrUuid:    chr.ChrUuid,
+		Data:       evt.Data.Bytes,
 	}
 
-	status := chr.Cb(access)
-	return AccessStatusXact(x, status)
+	status, val := chr.Cb(access)
+	return AccessStatusXact(x, status, val)
 }

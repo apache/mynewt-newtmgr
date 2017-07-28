@@ -535,7 +535,10 @@ func (bf *BleFsm) exchangeMtu() error {
 		// If the operation failed because the peer already initiated the
 		// exchange, just pretend it was successful.
 		bhe := nmxutil.ToBleHost(err)
-		if bhe != nil && bhe.Status == ERR_CODE_EALREADY {
+		if bhe != nil &&
+			(bhe.Status == ERR_CODE_EALREADY ||
+				bhe.Status == ERR_CODE_ATT_BASE+ERR_CODE_ATT_REQ_NOT_SUPPORTED) {
+
 			return nil
 		}
 		return err
@@ -745,7 +748,8 @@ func (bf *BleFsm) StartConnected(
 		return err
 	}
 
-	bf.state = SESN_STATE_EXCHANGE_MTU
+	bf.state = SESN_STATE_GET_INFO
+
 	if _, err := bf.startOnce(); err != nil {
 		nmxutil.Assert(!bf.IsOpen())
 		nmxutil.Assert(bf.IsClosed())
@@ -819,7 +823,7 @@ func (bf *BleFsm) TxNmp(payload []byte, nl *nmp.Listener,
 }
 
 func (bf *BleFsm) TxOic(payload []byte, ol *oic.Listener,
-	timeout time.Duration) (*coap.Message, error) {
+	timeout time.Duration) (coap.Message, error) {
 
 	log.Debugf("Tx OIC request: %s", hex.Dump(payload))
 	if err := bf.writeCmd(payload); err != nil {

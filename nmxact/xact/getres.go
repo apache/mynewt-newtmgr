@@ -47,7 +47,11 @@ func newGetResResult() *GetResResult {
 }
 
 func (r *GetResResult) Status() int {
-	return int(r.Code)
+	if r.Code == coap.Content {
+		return 0
+	} else {
+		return int(r.Code)
+	}
 }
 
 func (c *GetResCmd) Run(s sesn.Sesn) (Result, error) {

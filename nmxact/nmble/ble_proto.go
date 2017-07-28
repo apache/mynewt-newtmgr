@@ -306,6 +306,8 @@ const (
 	MSG_TYPE_ADD_SVCS                  = 27
 	MSG_TYPE_COMMIT_SVCS               = 28
 	MSG_TYPE_ACCESS_STATUS             = 29
+	MSG_TYPE_NOTIFY                    = 30
+	MSG_TYPE_FIND_CHR                  = 31
 
 	MSG_TYPE_SYNC_EVT       = 2049
 	MSG_TYPE_CONNECT_EVT    = 2050
@@ -356,6 +358,8 @@ var MsgTypeStringMap = map[MsgType]string{
 	MSG_TYPE_ADD_SVCS:          "add_svcs",
 	MSG_TYPE_COMMIT_SVCS:       "commit_svcs",
 	MSG_TYPE_ACCESS_STATUS:     "access_status",
+	MSG_TYPE_NOTIFY:            "notify",
+	MSG_TYPE_FIND_CHR:          "find_chr",
 
 	MSG_TYPE_SYNC_EVT:       "sync_evt",
 	MSG_TYPE_CONNECT_EVT:    "connect_evt",
@@ -1181,7 +1185,8 @@ type BleAccessStatusReq struct {
 	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
-	AttStatus uint8 `json:"att_status"`
+	AttStatus uint8    `json:"att_status"`
+	Data      BleBytes `json:"data"`
 }
 
 type BleAccessStatusRsp struct {
@@ -1192,6 +1197,51 @@ type BleAccessStatusRsp struct {
 
 	// Mandatory
 	Status int `json:"status"`
+}
+
+type BleNotifyReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	ConnHandle uint16   `json:"conn_handle"`
+	AttrHandle uint16   `json:"attr_handle"`
+	Data       BleBytes `json:"data"`
+}
+
+type BleNotifyRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status int `json:"status"`
+}
+
+type BleFindChrReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	SvcUuid BleUuid `json:"svc_uuid"`
+	ChrUuid BleUuid `json:"chr_uuid"`
+}
+
+type BleFindChrRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status    int    `json:"status"`
+	DefHandle uint16 `json:"def_handle"`
+	ValHandle uint16 `json:"val_handle"`
 }
 
 func ErrCodeToString(e int) string {

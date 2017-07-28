@@ -153,36 +153,33 @@ func (sos *SerialOicSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 }
 
 func (sos *SerialOicSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
-	[]byte, error) {
+	coap.COAPCode, []byte, error) {
 
 	token := nmxutil.NextToken()
 
 	ol, err := sos.d.AddOicListener(token)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 	defer sos.d.RemoveOicListener(token)
 
-	req, err := oic.EncodeGet(uri, token)
+	req, err := oic.EncodeGet(false, uri, token)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
 	if err := sos.sx.Tx(req); err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
 	for {
 		select {
 		case err := <-ol.ErrChan:
-			return nil, err
+			return 0, nil, err
 		case rsp := <-ol.RspChan:
-			if rsp.Code != coap.Content {
-				return nil, fmt.Errorf("UNEXPECTED OIC ACK: %#v", rsp)
-			}
-			return rsp.Payload, nil
+			return rsp.Code(), rsp.Payload(), nil
 		case <-ol.AfterTimeout(opt.Timeout):
-			return nil, nmxutil.NewRspTimeoutError("OIC timeout")
+			return 0, nil, nmxutil.NewRspTimeoutError("OIC timeout")
 		}
 	}
 }

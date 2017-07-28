@@ -299,6 +299,82 @@ func writeCmd(x *BleXport, bl *Listener, r *BleWriteCmdReq) error {
 }
 
 // Blocking.
+func notify(x *BleXport, bl *Listener, r *BleNotifyReq) error {
+	const rspType = MSG_TYPE_NOTIFY
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+
+	if err := x.Tx(j); err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return err
+
+		case bm := <-bl.MsgChan:
+			switch msg := bm.(type) {
+			case *BleNotifyRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return StatusError(MSG_OP_RSP, rspType, msg.Status)
+				} else {
+					return nil
+				}
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return BhdTimeoutError(rspType, r.Seq)
+		}
+	}
+}
+
+// Blocking.
+func findChr(x *BleXport, bl *Listener, r *BleFindChrReq) (
+	uint16, uint16, error) {
+
+	const rspType = MSG_TYPE_NOTIFY
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	if err := x.Tx(j); err != nil {
+		return 0, 0, err
+	}
+
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return 0, 0, err
+
+		case bm := <-bl.MsgChan:
+			switch msg := bm.(type) {
+			case *BleFindChrRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return 0, 0, StatusError(MSG_OP_RSP, rspType, msg.Status)
+				} else {
+					return msg.DefHandle, msg.ValHandle, nil
+				}
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return 0, 0, BhdTimeoutError(rspType, r.Seq)
+		}
+	}
+}
+
+// Blocking.
 func exchangeMtu(x *BleXport, bl *Listener, r *BleExchangeMtuReq) (
 	int, error) {
 
