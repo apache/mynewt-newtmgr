@@ -32,11 +32,13 @@ type BllSesnCfg struct {
 	AdvFilter    ble.AdvFilter
 	PreferredMtu int
 	ConnTimeout  time.Duration
+	ConnTries    int
 }
 
 func NewBllSesnCfg() BllSesnCfg {
 	return BllSesnCfg{
 		PreferredMtu: 527,
 		ConnTimeout:  10 * time.Second,
+		ConnTries:    3,
 	}
 }
