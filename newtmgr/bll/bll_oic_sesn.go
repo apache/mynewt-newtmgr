@@ -196,31 +196,55 @@ func (bls *BllOicSesn) exchangeMtu() error {
 	return nil
 }
 
-func (bls *BllOicSesn) Open() error {
+// @return bool                 Whether to retry the open attempt; false
+//                                  on success.
+//         error                The cause of a failed open; nil on success.
+func (bls *BllOicSesn) openOnce() (bool, error) {
 	if bls.IsOpen() {
-		return nmxutil.NewSesnAlreadyOpenError(
+		return false, nmxutil.NewSesnAlreadyOpenError(
 			"Attempt to open an already-open bll session")
 	}
 
 	d, err := omp.NewDispatcher(true, 3)
 	if err != nil {
-		return err
+		return false, err
 	}
 	bls.d = d
 
 	if err := bls.connect(); err != nil {
-		return err
+		return false, err
 	}
 
 	if err := bls.exchangeMtu(); err != nil {
-		return err
+		return true, err
 	}
 
 	if err := bls.discoverAll(); err != nil {
-		return err
+		return false, err
 	}
 
 	if err := bls.subscribe(); err != nil {
+		return false, err
+	}
+
+	return false, nil
+}
+
+func (bls *BllOicSesn) Open() error {
+	var err error
+
+	for i := 0; i < bls.cfg.ConnTries; i++ {
+		var retry bool
+
+		retry, err = bls.openOnce()
+		if !retry {
+			break
+		}
+	}
+
+	if err != nil {
+		// Ensure the session is closed.
+		bls.Close()
 		return err
 	}
 

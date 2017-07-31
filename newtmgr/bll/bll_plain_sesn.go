@@ -140,25 +140,49 @@ func (bps *BllPlainSesn) exchangeMtu() error {
 	return nil
 }
 
-func (bps *BllPlainSesn) Open() error {
+// @return bool                 Whether to retry the open attempt; false
+//                                  on success.
+//         error                The cause of a failed open; nil on success.
+func (bps *BllPlainSesn) openOnce() (bool, error) {
 	if bps.IsOpen() {
-		return nmxutil.NewSesnAlreadyOpenError(
+		return false, nmxutil.NewSesnAlreadyOpenError(
 			"Attempt to open an already-open bll session")
 	}
 
 	if err := bps.connect(); err != nil {
-		return err
+		return false, err
 	}
 
 	if err := bps.exchangeMtu(); err != nil {
-		return err
+		return true, err
 	}
 
 	if err := bps.discoverAll(); err != nil {
-		return err
+		return false, err
 	}
 
 	if err := bps.subscribe(); err != nil {
+		return false, err
+	}
+
+	return false, nil
+}
+
+func (bps *BllPlainSesn) Open() error {
+	var err error
+
+	for i := 0; i < bps.cfg.ConnTries; i++ {
+		var retry bool
+
+		retry, err = bps.openOnce()
+		if !retry {
+			break
+		}
+	}
+
+	if err != nil {
+		// Ensure the session is closed.
+		bps.Close()
 		return err
 	}
 
