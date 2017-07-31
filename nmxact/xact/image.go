@@ -34,6 +34,7 @@ type ImageUploadProgressFn func(c *ImageUploadCmd, r *nmp.ImageUploadRsp)
 type ImageUploadCmd struct {
 	CmdBase
 	Data       []byte
+	StartOff   int
 	ProgressCb ImageUploadProgressFn
 }
 
@@ -117,7 +118,7 @@ func nextImageUploadReq(s sesn.Sesn, data []byte, off int) (
 func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 	res := newImageUploadResult()
 
-	for off := 0; off < len(c.Data); {
+	for off := c.StartOff; off < len(c.Data); {
 		r, err := nextImageUploadReq(s, c.Data, off)
 		if err != nil {
 			return nil, err
@@ -150,8 +151,8 @@ func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 
 // Image upgrade combines the image erase and image upload commands into a
 // single command.  Some hardware and / or BLE connection settings cause the
-// connection to drop during the initial erase.  The image upgrade command
-// addresses this issue with the following sequence:
+// connection to drop while flash is being erased or written to.  The image
+// upgrade command addresses this issue with the following sequence:
 // 1. Send image erase command.
 // 2. If the image erase command succeeded, proceed to step 5.
 // 3. Else if the peer is disconnected, attempt to reconnect to the peer.  If
@@ -159,7 +160,8 @@ func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 //    the reconnect attempt succeeded, proceed to step 5.
 // 4. Else (the erase command failed and the peer is still connected), proceed
 //    to step 5.
-// 5. Execute the upload command.
+// 5. Execute the upload command.  If the connection drops before the final
+//    part is uploaded, reconnect and retry the previous part.
 
 type ImageUpgradeCmd struct {
 	CmdBase
@@ -192,36 +194,80 @@ func (r *ImageUpgradeResult) Status() int {
 	}
 }
 
-func (c *ImageUpgradeCmd) Run(s sesn.Sesn) (Result, error) {
-	upgradeRes := newImageUpgradeResult()
-
-	eraseCmd := NewImageEraseCmd()
-	res, err := eraseCmd.Run(s)
-
-	if res != nil {
-		upgradeRes.EraseRes = res.(*ImageEraseResult)
-	}
-	if err != nil || res.Status() != 0 {
-		// If the erase command failed and the peer is no longer connected, the
-		// disconnect could have been caused by a stall in the destination
-		// device's processor.  In this case, the erase command succeeded.  Try
-		// to recover by reconnecting.
+// Attempts to recover from a disconnect.
+func (c *ImageUpgradeCmd) rescue(s sesn.Sesn, err error) error {
+	if err != nil {
 		if !s.IsOpen() {
-			if err := s.Open(); err != nil {
-				return upgradeRes, err
+			if err := s.Open(); err == nil {
+				return nil
 			}
 		}
 	}
 
-	uploadCmd := NewImageUploadCmd()
-	uploadCmd.Data = c.Data
-	uploadCmd.ProgressCb = c.ProgressCb
-	res, err = uploadCmd.Run(s)
+	return err
+}
 
-	if res != nil {
-		upgradeRes.UploadRes = res.(*ImageUploadResult)
+func (c *ImageUpgradeCmd) runErase(s sesn.Sesn) (*ImageEraseResult, error) {
+	cmd := NewImageEraseCmd()
+	res, err := cmd.Run(s)
+
+	if err := c.rescue(s, err); err != nil {
+		return nil, err
 	}
-	return upgradeRes, err
+
+	if res == nil {
+		// We didn't get a response back but we rescued ourselves from the
+		// disconnect.
+		res = newImageEraseResult()
+	}
+
+	return res.(*ImageEraseResult), nil
+}
+
+func (c *ImageUpgradeCmd) runUpload(s sesn.Sesn) (*ImageUploadResult, error) {
+	startOff := 0
+	progressCb := func(uc *ImageUploadCmd, r *nmp.ImageUploadRsp) {
+		if r.Rc == 0 {
+			startOff = int(r.Off)
+		}
+		c.ProgressCb(uc, r)
+	}
+
+	for {
+		cmd := NewImageUploadCmd()
+		cmd.Data = c.Data
+		cmd.StartOff = startOff
+		cmd.ProgressCb = progressCb
+
+		res, err := cmd.Run(s)
+		if err == nil {
+			return res.(*ImageUploadResult), nil
+		}
+
+		if err := c.rescue(s, err); err != nil {
+			// Disconnected and couldn't recover.
+			return nil, err
+		}
+
+		// Disconnected but recovered; retry last part.
+	}
+}
+
+func (c *ImageUpgradeCmd) Run(s sesn.Sesn) (Result, error) {
+	eres, err := c.runErase(s)
+	if err != nil {
+		return nil, err
+	}
+
+	ures, err := c.runUpload(s)
+	if err != nil {
+		return nil, err
+	}
+
+	upgradeRes := newImageUpgradeResult()
+	upgradeRes.EraseRes = eres
+	upgradeRes.UploadRes = ures
+	return upgradeRes, nil
 }
 
 //////////////////////////////////////////////////////////////////////////////
