@@ -797,3 +797,16 @@ type BleSvc struct {
 	SvcType BleSvcType
 	Chrs    []BleChr
 }
+
+type BleChrId struct {
+	SvcUuid BleUuid
+	ChrUuid BleUuid
+}
+
+type BleMgmtChrs struct {
+	NmpReqChr     *BleChrId
+	NmpRspChr     *BleChrId
+	ResPublicChr  *BleChrId
+	ResGwChr      *BleChrId
+	ResPrivateChr *BleChrId
+}

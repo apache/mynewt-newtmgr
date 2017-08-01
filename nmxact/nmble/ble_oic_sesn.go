@@ -20,7 +20,6 @@
 package nmble
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -37,7 +36,6 @@ import (
 
 type BleOicSesn struct {
 	bf           *BleFsm
-	d            *omp.Dispatcher
 	closeTimeout time.Duration
 	onCloseCb    sesn.OnCloseFn
 	wg           sync.WaitGroup
@@ -51,10 +49,6 @@ func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 	}
 
 	iotUuid, _ := ParseUuid(OmpUnsecSvcUuid)
-	svcUuids := []BleUuid{
-		iotUuid,
-	}
-
 	reqChrUuid, _ := ParseUuid(OmpUnsecReqChrUuid)
 	rspChrUuid, _ := ParseUuid(OmpUnsecRspChrUuid)
 
@@ -66,9 +60,11 @@ func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 			ConnTries:   cfg.Ble.Central.ConnTries,
 			ConnTimeout: cfg.Ble.Central.ConnTimeout,
 		},
-		SvcUuids:    svcUuids,
-		ReqChrUuid:  reqChrUuid,
-		RspChrUuid:  rspChrUuid,
+		MgmtChrs: BleMgmtChrs{
+			NmpReqChr: &BleChrId{iotUuid, reqChrUuid},
+			NmpRspChr: &BleChrId{iotUuid, rspChrUuid},
+		},
+		MgmtProto:   sesn.MGMT_PROTO_OMP,
 		EncryptWhen: cfg.Ble.EncryptWhen,
 	})
 
@@ -76,7 +72,7 @@ func NewBleOicSesn(bx *BleXport, cfg sesn.SesnCfg) *BleOicSesn {
 }
 
 func (bos *BleOicSesn) AbortRx(seq uint8) error {
-	return bos.d.ErrorOneNmp(seq, fmt.Errorf("Rx aborted"))
+	return bos.bf.AbortNmpRx(seq)
 }
 
 func (bos *BleOicSesn) Open() error {
@@ -90,13 +86,6 @@ func (bos *BleOicSesn) Open() error {
 		return err
 	}
 
-	d, err := omp.NewDispatcher(true, 3)
-	if err != nil {
-		bos.closeBlocker.Unblock()
-		return err
-	}
-	bos.d = d
-
 	// Listen for disconnect in the background.
 	bos.wg.Add(1)
 	go func() {
@@ -109,8 +98,6 @@ func (bos *BleOicSesn) Open() error {
 		pd := bos.bf.PrevDisconnect()
 
 		// Signal error to all listeners.
-		bos.d.ErrorAll(pd.Err)
-		bos.d.Stop()
 		bos.wg.Done()
 		bos.wg.Wait()
 
@@ -118,22 +105,6 @@ func (bos *BleOicSesn) Open() error {
 		// unsolicited.
 		if pd.Dt != FSM_DISCONNECT_TYPE_REQUESTED && bos.onCloseCb != nil {
 			bos.onCloseCb(bos, pd.Err)
-		}
-	}()
-
-	// Listen for NMP responses in the background.
-	bos.wg.Add(1)
-	go func() {
-		defer bos.wg.Done()
-
-		for {
-			data, ok := <-bos.bf.RxNmpChan()
-			if !ok {
-				// Disconnected.
-				return
-			} else {
-				bos.d.Dispatch(data)
-			}
 		}
 	}()
 
@@ -160,26 +131,10 @@ func (bos *BleOicSesn) EncodeNmpMsg(m *nmp.NmpMsg) ([]byte, error) {
 }
 
 // Blocking.
-func (bos *BleOicSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
+func (bos *BleOicSesn) TxNmpOnce(req *nmp.NmpMsg, opt sesn.TxOptions) (
 	nmp.NmpRsp, error) {
 
-	if !bos.IsOpen() {
-		return nil, bos.bf.closedError(
-			"Attempt to transmit over closed BLE session")
-	}
-
-	nl, err := bos.d.AddNmpListener(m.Hdr.Seq)
-	if err != nil {
-		return nil, err
-	}
-	defer bos.d.RemoveNmpListener(m.Hdr.Seq)
-
-	b, err := bos.EncodeNmpMsg(m)
-	if err != nil {
-		return nil, err
-	}
-
-	return bos.bf.TxNmp(b, nl, opt.Timeout)
+	return bos.bf.TxNmp(req, opt.Timeout)
 }
 
 func (bos *BleOicSesn) MtuIn() int {
@@ -205,19 +160,12 @@ func (bos *BleOicSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
 	coap.COAPCode, []byte, error) {
 
 	token := nmxutil.NextToken()
-
-	ol, err := bos.d.AddOicListener(token)
-	if err != nil {
-		return 0, nil, err
-	}
-	defer bos.d.RemoveOicListener(token)
-
-	req, err := oic.EncodeGet(true, uri, token)
+	req, err := oic.CreateGet(true, uri, token)
 	if err != nil {
 		return 0, nil, err
 	}
 
-	rsp, err := bos.bf.TxOic(req, ol, opt.Timeout)
+	rsp, err := bos.bf.TxOic(req, oic.RES_TYPE_PUBLIC, opt.Timeout)
 	if err != nil {
 		return 0, nil, err
 	}

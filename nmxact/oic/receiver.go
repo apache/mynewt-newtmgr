@@ -22,7 +22,11 @@ func NewReceiver(isTcp bool) Receiver {
 func (r *Receiver) Rx(data []byte) coap.Message {
 	if r.reassembler != nil {
 		// TCP.
-		return r.reassembler.RxFrag(data)
+		tm := r.reassembler.RxFrag(data)
+		if tm == nil {
+			return nil
+		}
+		return tm
 	} else {
 		// UDP.
 		m, err := coap.ParseDgramMessage(data)

@@ -32,7 +32,7 @@ type ResourceType int
 const (
 	RES_TYPE_PUBLIC ResourceType = iota
 	RES_TYPE_GATEWAY
-	RES_TYPE_SECURE
+	RES_TYPE_PRIVATE
 )
 
 type TxOptions struct {

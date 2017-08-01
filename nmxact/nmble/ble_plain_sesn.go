@@ -59,9 +59,10 @@ func NewBlePlainSesn(bx *BleXport, cfg sesn.SesnCfg) *BlePlainSesn {
 			ConnTries:   cfg.Ble.Central.ConnTries,
 			ConnTimeout: cfg.Ble.Central.ConnTimeout,
 		},
-		SvcUuids:    []BleUuid{svcUuid},
-		ReqChrUuid:  chrUuid,
-		RspChrUuid:  chrUuid,
+		MgmtChrs: BleMgmtChrs{
+			NmpReqChr: &BleChrId{svcUuid, chrUuid},
+			NmpRspChr: &BleChrId{svcUuid, chrUuid},
+		},
 		EncryptWhen: cfg.Ble.EncryptWhen,
 	})
 
@@ -148,26 +149,10 @@ func (bps *BlePlainSesn) EncodeNmpMsg(m *nmp.NmpMsg) ([]byte, error) {
 }
 
 // Blocking.
-func (bps *BlePlainSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
+func (bps *BlePlainSesn) TxNmpOnce(req *nmp.NmpMsg, opt sesn.TxOptions) (
 	nmp.NmpRsp, error) {
 
-	if !bps.IsOpen() {
-		return nil, bps.bf.closedError(
-			"Attempt to transmit over closed BLE session")
-	}
-
-	nl, err := bps.d.AddListener(msg.Hdr.Seq)
-	if err != nil {
-		return nil, err
-	}
-	defer bps.d.RemoveListener(msg.Hdr.Seq)
-
-	b, err := bps.EncodeNmpMsg(msg)
-	if err != nil {
-		return nil, err
-	}
-
-	return bps.bf.TxNmp(b, nl, opt.Timeout)
+	return bps.bf.TxNmp(req, opt.Timeout)
 }
 
 func (bps *BlePlainSesn) MtuIn() int {

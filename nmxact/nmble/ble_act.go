@@ -158,6 +158,55 @@ func connCancel(x *BleXport, bl *Listener, r *BleConnCancelReq) error {
 }
 
 // Blocking.
+func discAllSvcs(x *BleXport, bl *Listener, r *BleDiscAllSvcsReq) (
+	[]*BleDiscSvc, error) {
+
+	const rspType = MSG_TYPE_DISC_ALL_SVCS
+	const evtType = MSG_TYPE_DISC_SVC_EVT
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := x.Tx(j); err != nil {
+		return nil, err
+	}
+
+	var svcs []*BleDiscSvc
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return nil, err
+
+		case bm := <-bl.MsgChan:
+			switch msg := bm.(type) {
+			case *BleDiscAllSvcsRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return nil, StatusError(MSG_OP_RSP, rspType, msg.Status)
+				}
+
+			case *BleDiscSvcEvt:
+				switch msg.Status {
+				case 0:
+					svcs = append(svcs, &msg.Svc)
+				case ERR_CODE_EDONE:
+					return svcs, nil
+				default:
+					return nil, StatusError(MSG_OP_EVT, evtType, msg.Status)
+				}
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return nil, BhdTimeoutError(rspType, r.Seq)
+		}
+	}
+}
+
+// Blocking.
 func discSvcUuid(x *BleXport, bl *Listener, r *BleDiscSvcUuidReq) (
 	*BleDiscSvc, error) {
 

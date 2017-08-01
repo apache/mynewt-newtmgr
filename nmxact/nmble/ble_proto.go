@@ -335,6 +335,7 @@ var MsgTypeStringMap = map[MsgType]string{
 	MSG_TYPE_SYNC:              "sync",
 	MSG_TYPE_CONNECT:           "connect",
 	MSG_TYPE_TERMINATE:         "terminate",
+	MSG_TYPE_DISC_ALL_SVCS:     "disc_all_svcs",
 	MSG_TYPE_DISC_SVC_UUID:     "disc_svc_uuid",
 	MSG_TYPE_DISC_CHR_UUID:     "disc_chr_uuid",
 	MSG_TYPE_DISC_ALL_CHRS:     "disc_all_chrs",
@@ -493,6 +494,26 @@ type BleDisconnectEvt struct {
 	// Mandatory
 	Reason     int    `json:"reason"`
 	ConnHandle uint16 `json:"conn_handle"`
+}
+
+type BleDiscAllSvcsReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	ConnHandle uint16 `json:"conn_handle"`
+}
+
+type BleDiscAllSvcsRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status int `json:"status"`
 }
 
 type BleDiscSvcUuidReq struct {

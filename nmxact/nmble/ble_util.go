@@ -167,6 +167,14 @@ func NewBleConnCancelReq() *BleConnCancelReq {
 	}
 }
 
+func NewBleDiscAllSvcsReq() *BleDiscAllSvcsReq {
+	return &BleDiscAllSvcsReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_DISC_ALL_SVCS,
+		Seq:  NextSeq(),
+	}
+}
+
 func NewBleDiscSvcUuidReq() *BleDiscSvcUuidReq {
 	return &BleDiscSvcUuidReq{
 		Op:   MSG_OP_REQ,

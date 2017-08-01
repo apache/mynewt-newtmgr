@@ -57,6 +57,7 @@ func errRspCtor() Msg              { return &BleErrRsp{} }
 func syncRspCtor() Msg             { return &BleSyncRsp{} }
 func connectRspCtor() Msg          { return &BleConnectRsp{} }
 func terminateRspCtor() Msg        { return &BleTerminateRsp{} }
+func discAllSvcsRspCtor() Msg      { return &BleDiscAllSvcsRsp{} }
 func discSvcUuidRspCtor() Msg      { return &BleDiscSvcUuidRsp{} }
 func discAllChrsRspCtor() Msg      { return &BleDiscAllChrsRsp{} }
 func discChrUuidRspCtor() Msg      { return &BleDiscChrUuidRsp{} }
@@ -101,6 +102,7 @@ var msgCtorMap = map[OpTypePair]msgCtor{
 	{MSG_OP_RSP, MSG_TYPE_SYNC}:              syncRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_CONNECT}:           connectRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_TERMINATE}:         terminateRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_DISC_ALL_SVCS}:     discAllSvcsRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_DISC_SVC_UUID}:     discSvcUuidRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_DISC_CHR_UUID}:     discChrUuidRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_DISC_ALL_CHRS}:     discAllChrsRspCtor,

@@ -151,19 +151,12 @@ func (bcs *BleCoapSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
 	coap.COAPCode, []byte, error) {
 
 	token := nmxutil.NextToken()
-
-	ol, err := bcs.d.AddListener(token)
-	if err != nil {
-		return 0, nil, err
-	}
-	defer bcs.d.RemoveListener(token)
-
-	req, err := oic.EncodeGet(true, uri, token)
+	req, err := oic.CreateGet(true, uri, token)
 	if err != nil {
 		return 0, nil, err
 	}
 
-	rsp, err := bcs.bf.TxOic(req, ol, opt.Timeout)
+	rsp, err := bcs.bf.TxOic(req, oic.RES_TYPE_PUBLIC, opt.Timeout)
 	if err != nil {
 		return 0, nil, err
 	}

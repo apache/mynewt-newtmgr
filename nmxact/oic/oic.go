@@ -26,6 +26,14 @@ import (
 	"github.com/runtimeco/go-coap"
 )
 
+type ResType int
+
+const (
+	RES_TYPE_PUBLIC ResType = iota
+	RES_TYPE_GW
+	RES_TYPE_PRIVATE
+)
+
 var messageIdMtx sync.Mutex
 var nextMessageId uint16
 
@@ -38,7 +46,16 @@ func NextMessageId() uint16 {
 	return id
 }
 
-func EncodeGet(isTcp bool, resUri string, token []byte) ([]byte, error) {
+func Encode(m coap.Message) ([]byte, error) {
+	b, err := m.MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to encode CoAP: %s\n", err.Error())
+	}
+
+	return b, nil
+}
+
+func CreateGet(isTcp bool, resUri string, token []byte) (coap.Message, error) {
 	if len(token) > 8 {
 		return nil,
 			fmt.Errorf("Invalid token; len=%d, must be < 8", len(token))
@@ -58,9 +75,18 @@ func EncodeGet(isTcp bool, resUri string, token []byte) ([]byte, error) {
 	}
 	m.SetPathString(resUri)
 
-	b, err := m.MarshalBinary()
+	return m, nil
+}
+
+func EncodeGet(isTcp bool, resUri string, token []byte) ([]byte, error) {
+	m, err := CreateGet(isTcp, resUri, token)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to encode CoAP: %s\n", err.Error())
+		return nil, err
+	}
+
+	b, err := Encode(m)
+	if err != nil {
+		return nil, err
 	}
 
 	return b, nil

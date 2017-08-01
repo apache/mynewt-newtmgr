@@ -20,9 +20,7 @@
 package nmble
 
 import (
-	"encoding/hex"
 	"fmt"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -34,6 +32,7 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/oic"
+	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
 var nextId uint32
@@ -86,9 +85,22 @@ type BleFsmParams struct {
 	OwnAddrType BleAddrType
 	EncryptWhen BleEncryptWhen
 	Central     BleFsmParamsCentral
-	SvcUuids    []BleUuid
-	ReqChrUuid  BleUuid
-	RspChrUuid  BleUuid
+	MgmtChrs    BleMgmtChrs
+	MgmtProto   sesn.MgmtProto
+}
+
+type FsmChr struct {
+	Uuid       BleUuid
+	DefHandle  uint16
+	ValHandle  uint16
+	Properties uint8
+}
+
+type FsmSvc struct {
+	Uuid        BleUuid
+	StartHandle uint16
+	EndHandle   uint16
+	Chrs        []FsmChr
 }
 
 type BleFsm struct {
@@ -97,12 +109,12 @@ type BleFsm struct {
 	connHandle     uint16
 	connDesc       BleConnDesc
 	peerDev        BleDev
-	nmpSvc         *BleDiscSvc
-	nmpReqChr      *BleDiscChr
-	nmpRspChr      *BleDiscChr
+	svcs           []FsmSvc
+	chrs           map[BleChrId]FsmChr
 	prevDisconnect BleDisconnectEntry
 	attMtu         int
 	state          BleSesnState
+	txvr           *Transceiver
 	rxer           *Receiver
 	errFunnel      nmxutil.ErrFunnel
 	id             uint32
@@ -120,6 +132,8 @@ func NewBleFsm(p BleFsmParams) *BleFsm {
 		attMtu: DFLT_ATT_MTU,
 		id:     getNextId(),
 	}
+
+	bf.chrs = map[BleChrId]FsmChr{}
 
 	bf.rxer = NewReceiver(bf.id, p.Bx, 1)
 
@@ -179,9 +193,54 @@ func calcDisconnectType(state BleSesnState) BleFsmDisconnectType {
 	}
 }
 
+func (bf *BleFsm) chrHandle(chrId *BleChrId, name string) (uint16, error) {
+	if chrId == nil {
+		return 0, fmt.Errorf("BLE session not configured with "+
+			"characteristic \"%s\"", name)
+	}
+
+	chr, ok := bf.chrs[*chrId]
+	if !ok {
+		return 0, fmt.Errorf("BLE peer does not support characteristic "+
+			"\"%s\" (svc=%s chr=%s)",
+			name, chrId.SvcUuid.String(), chrId.ChrUuid.String())
+	}
+
+	return chr.ValHandle, nil
+}
+
+func (bf *BleFsm) nmpReqHandle() (uint16, error) {
+	return bf.chrHandle(bf.params.MgmtChrs.NmpReqChr, "NMP request")
+}
+
+func (bf *BleFsm) nmpRspHandle() (uint16, error) {
+	return bf.chrHandle(bf.params.MgmtChrs.NmpRspChr, "NMP response")
+}
+
+func (bf *BleFsm) oicResHandle(resType oic.ResType) (uint16, error) {
+	switch resType {
+	case oic.RES_TYPE_PUBLIC:
+		return bf.chrHandle(bf.params.MgmtChrs.ResPublicChr,
+			"Public resource")
+	case oic.RES_TYPE_GW:
+		return bf.chrHandle(bf.params.MgmtChrs.ResGwChr,
+			"Gateway resource")
+	case oic.RES_TYPE_PRIVATE:
+		return bf.chrHandle(bf.params.MgmtChrs.ResPrivateChr,
+			"Private resource")
+
+	default:
+		return 0, fmt.Errorf("Invalid resource type: %#v", resType)
+	}
+}
+
 func (bf *BleFsm) shutdown(err error) {
 	bf.params.Bx.StopWaitingForMaster(bf, err)
+
 	bf.rxer.RemoveAll("shutdown")
+	if bf.txvr != nil {
+		bf.txvr.Stop(err)
+	}
 
 	bf.state = SESN_STATE_UNCONNECTED
 
@@ -219,8 +278,10 @@ func (bf *BleFsm) eventListen(bl *Listener) error {
 
 		for {
 			select {
-			case err := <-bl.ErrChan:
-				bf.errFunnel.Insert(err)
+			case err, ok := <-bl.ErrChan:
+				if ok {
+					bf.errFunnel.Insert(err)
+				}
 				return
 
 			case bm := <-bl.MsgChan:
@@ -258,41 +319,6 @@ func (bf *BleFsm) eventListen(bl *Listener) error {
 					return
 
 				default:
-				}
-			}
-		}
-	}()
-	return nil
-}
-
-func (bf *BleFsm) nmpRspListen() error {
-	key := TchKey(MSG_TYPE_NOTIFY_RX_EVT, int(bf.connHandle))
-	bl, err := bf.rxer.AddListener("nmp-rsp", key)
-	if err != nil {
-		return err
-	}
-
-	bf.wg.Add(1)
-
-	go func() {
-		defer bf.wg.Done()
-		defer bf.rxer.RemoveListener("nmp-rsp", bl)
-
-		for {
-			select {
-			case err, ok := <-bl.ErrChan:
-				if ok {
-					bf.errFunnel.Insert(err)
-				}
-				return
-			case bm := <-bl.MsgChan:
-				switch msg := bm.(type) {
-				case *BleNotifyRxEvt:
-					if bf.nmpRspChr != nil &&
-						msg.AttrHandle == bf.nmpRspChr.ValHandle {
-
-						bf.rxNmpChan <- msg.Data.Bytes
-					}
 				}
 			}
 		}
@@ -348,11 +374,6 @@ func (bf *BleFsm) connect() error {
 
 	// Listen for events in the background.
 	if err := bf.eventListen(bl); err != nil {
-		return err
-	}
-
-	// Listen for NMP responses in the background.
-	if err := bf.nmpRspListen(); err != nil {
 		return err
 	}
 
@@ -413,50 +434,31 @@ func (bf *BleFsm) connCancel() error {
 	return nil
 }
 
-func (bf *BleFsm) discSvcUuidOnce(uuid BleUuid) (*BleDiscSvc, error) {
-	r := NewBleDiscSvcUuidReq()
+func (bf *BleFsm) discAllSvcs() error {
+	r := NewBleDiscAllSvcsReq()
 	r.ConnHandle = bf.connHandle
-	r.Uuid = uuid
 
-	bl, err := bf.rxer.AddListener("disc-svc-uuid", SeqKey(r.Seq))
+	bl, err := bf.rxer.AddListener("disc-all-svcs", SeqKey(r.Seq))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	defer bf.rxer.RemoveListener("disc-svc-uuid", bl)
+	defer bf.rxer.RemoveListener("disc-all-svcs", bl)
 
-	svc, err := discSvcUuid(bf.params.Bx, bl, r)
+	svcs, err := discAllSvcs(bf.params.Bx, bl, r)
 	if err != nil {
-		bhe := nmxutil.ToBleHost(err)
-		if bhe != nil && bhe.Status == ERR_CODE_EDONE {
-			return nil, nil
-		} else {
-			return nil, err
-		}
+		return err
 	}
 
-	return svc, nil
-}
-
-func (bf *BleFsm) discSvcUuid() error {
-	for _, uuid := range bf.params.SvcUuids {
-		svc, err := bf.discSvcUuidOnce(uuid)
-		if err != nil {
-			return err
-		}
-
-		if svc != nil {
-			bf.nmpSvc = svc
-			return nil
-		}
+	bf.svcs = nil
+	for _, s := range svcs {
+		bf.svcs = append(bf.svcs, FsmSvc{
+			Uuid:        s.Uuid,
+			StartHandle: uint16(s.StartHandle),
+			EndHandle:   uint16(s.EndHandle),
+		})
 	}
 
-	strs := []string{}
-	for _, uuid := range bf.params.SvcUuids {
-		strs = append(strs, uuid.String())
-	}
-
-	return fmt.Errorf("Peer does not support any required services: %s",
-		strings.Join(strs, ", "))
+	return nil
 }
 
 func (bf *BleFsm) encInitiate() error {
@@ -479,11 +481,11 @@ func (bf *BleFsm) encInitiate() error {
 	return itf.(error)
 }
 
-func (bf *BleFsm) discAllChrs() error {
+func (bf *BleFsm) discAllChrsOnce(svc *FsmSvc) error {
 	r := NewBleDiscAllChrsReq()
 	r.ConnHandle = bf.connHandle
-	r.StartHandle = bf.nmpSvc.StartHandle
-	r.EndHandle = bf.nmpSvc.EndHandle
+	r.StartHandle = int(svc.StartHandle)
+	r.EndHandle = int(svc.EndHandle)
 
 	bl, err := bf.rxer.AddListener("disc-all-chrs", SeqKey(r.Seq))
 	if err != nil {
@@ -497,25 +499,52 @@ func (bf *BleFsm) discAllChrs() error {
 	}
 
 	for _, c := range chrs {
-		if CompareUuids(bf.params.ReqChrUuid, c.Uuid) == 0 {
-			bf.nmpReqChr = c
+		fc := FsmChr{
+			Uuid:       c.Uuid,
+			DefHandle:  uint16(c.DefHandle),
+			ValHandle:  uint16(c.ValHandle),
+			Properties: uint8(c.Properties),
 		}
-		if CompareUuids(bf.params.RspChrUuid, c.Uuid) == 0 {
-			bf.nmpRspChr = c
+		svc.Chrs = append(svc.Chrs, fc)
+		bf.chrs[BleChrId{svc.Uuid, c.Uuid}] = fc
+	}
+
+	return nil
+}
+
+func (bf *BleFsm) discAllChrs() error {
+	for _, s := range bf.svcs {
+		if err := bf.discAllChrsOnce(&s); err != nil {
+			return err
 		}
 	}
 
-	if bf.nmpReqChr == nil {
-		return fmt.Errorf(
-			"Peer doesn't support required characteristic: %s",
-			bf.params.ReqChrUuid.String())
+	// Listen for NMP responses in the background.
+	attHandle, err := bf.nmpRspHandle()
+	if err != nil {
+		return err
 	}
 
-	if bf.nmpRspChr == nil {
-		return fmt.Errorf(
-			"Peer doesn't support required characteristic: %s",
-			bf.params.RspChrUuid.String())
+	txvr, err := NewTransceiver(bf.id, bf.connHandle, bf.params.MgmtProto,
+		bf.params.Bx, bf.rxer, 1)
+	if err != nil {
+		return err
 	}
+	bf.txvr = txvr
+
+	errChan, err := bf.txvr.NmpRspListen(attHandle)
+	if err != nil {
+		return err
+	}
+
+	bf.wg.Add(1)
+	go func() {
+		defer bf.wg.Done()
+
+		if err := <-errChan; err != nil {
+			bf.errFunnel.Insert(err)
+		}
+	}()
 
 	return nil
 }
@@ -548,42 +577,13 @@ func (bf *BleFsm) exchangeMtu() error {
 	return nil
 }
 
-func (bf *BleFsm) writeCmd(data []byte) error {
-	r := NewBleWriteCmdReq()
-	r.ConnHandle = bf.connHandle
-	r.AttrHandle = bf.nmpReqChr.ValHandle
-	r.Data.Bytes = data
-
-	bl, err := bf.rxer.AddListener("write-cmd", SeqKey(r.Seq))
-	if err != nil {
-		return err
-	}
-	defer bf.rxer.RemoveListener("write-cmd", bl)
-
-	if err := writeCmd(bf.params.Bx, bl, r); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (bf *BleFsm) subscribe() error {
-	r := NewBleWriteCmdReq()
-	r.ConnHandle = bf.connHandle
-	r.AttrHandle = bf.nmpRspChr.ValHandle + 1
-	r.Data.Bytes = []byte{1, 0}
-
-	bl, err := bf.rxer.AddListener("subscribe", SeqKey(r.Seq))
+	rspHandle, err := bf.nmpRspHandle()
 	if err != nil {
 		return err
 	}
-	defer bf.rxer.RemoveListener("subscribe", bl)
 
-	if err := writeCmd(bf.params.Bx, bl, r); err != nil {
-		return err
-	}
-
-	return nil
+	return bf.txvr.WriteCmd(rspHandle+1, []byte{1, 0}, "subscribe")
 }
 
 func (bf *BleFsm) shouldEncrypt() bool {
@@ -622,18 +622,14 @@ func (bf *BleFsm) executeState() (bool, error) {
 		bf.state = SESN_STATE_DISCOVER_SVC
 
 	case SESN_STATE_DISCOVER_SVC:
-		if len(bf.params.SvcUuids) > 0 {
-			if err := bf.discSvcUuid(); err != nil {
-				return false, err
-			}
+		if err := bf.discAllSvcs(); err != nil {
+			return false, err
 		}
 		bf.state = SESN_STATE_DISCOVER_CHR
 
 	case SESN_STATE_DISCOVER_CHR:
-		if bf.nmpSvc != nil {
-			if err := bf.discAllChrs(); err != nil {
-				return false, err
-			}
+		if err := bf.discAllChrs(); err != nil {
+			return false, err
 		}
 		bf.state = SESN_STATE_SECURITY
 
@@ -646,10 +642,8 @@ func (bf *BleFsm) executeState() (bool, error) {
 		bf.state = SESN_STATE_SUBSCRIBE
 
 	case SESN_STATE_SUBSCRIBE:
-		if bf.nmpRspChr != nil {
-			if err := bf.subscribe(); err != nil {
-				return false, err
-			}
+		if err := bf.subscribe(); err != nil {
+			return false, err
 		}
 		bf.state = SESN_STATE_GET_INFO
 
@@ -691,6 +685,7 @@ func (bf *BleFsm) IsCentral() bool {
 func (bf *BleFsm) startOnce() (bool, error) {
 	bf.disconnectChan = make(chan struct{})
 	bf.rxNmpChan = make(chan []byte)
+	bf.txvr = nil
 
 	bf.listenForError()
 
@@ -792,61 +787,38 @@ func (bf *BleFsm) IsClosed() bool {
 	return bf.state == SESN_STATE_UNCONNECTED
 }
 
-func (bf *BleFsm) TxNmp(payload []byte, nl *nmp.Listener,
-	timeout time.Duration) (nmp.NmpRsp, error) {
+func (bf *BleFsm) TxNmp(req *nmp.NmpMsg, timeout time.Duration) (
+	nmp.NmpRsp, error) {
 
-	log.Debugf("Tx NMP request: %s", hex.Dump(payload))
-	if err := bf.writeCmd(payload); err != nil {
+	if !bf.IsOpen() {
+		return nil, bf.closedError(
+			"Attempt to transmit over closed BLE session")
+	}
+
+	attHandle, err := bf.nmpReqHandle()
+	if err != nil {
 		return nil, err
 	}
 
-	// Now wait for NMP response.
-	for {
-		select {
-		case err := <-nl.ErrChan:
-			return nil, err
-		case rsp := <-nl.RspChan:
-			// Only accept NMP responses if the session is still open.  This is
-			// to help prevent race conditions in client code.
-			if bf.IsOpen() {
-				return rsp, nil
-			}
-		case <-nl.AfterTimeout(timeout):
-			msg := fmt.Sprintf(
-				"NMP timeout; op=%d group=%d id=%d seq=%d peer=%#v",
-				payload[0], payload[4]+payload[5]<<8,
-				payload[7], payload[6], bf.peerDev)
-
-			return nil, nmxutil.NewRspTimeoutError(msg)
-		}
-	}
+	return bf.txvr.TxNmp(attHandle, req, timeout)
 }
 
-func (bf *BleFsm) TxOic(payload []byte, ol *oic.Listener,
+func (bf *BleFsm) TxOic(req coap.Message, resType oic.ResType,
 	timeout time.Duration) (coap.Message, error) {
 
-	log.Debugf("Tx OIC request: %s", hex.Dump(payload))
-	if err := bf.writeCmd(payload); err != nil {
+	if !bf.IsOpen() {
+		return nil, bf.closedError(
+			"Attempt to transmit over closed BLE session")
+	}
+
+	attHandle, err := bf.oicResHandle(resType)
+	if err != nil {
 		return nil, err
 	}
 
-	// Don't wait for a response if no listener was provided.
-	if ol == nil {
-		return nil, nil
-	}
+	return bf.txvr.TxOic(attHandle, req, timeout)
+}
 
-	for {
-		select {
-		case err := <-ol.ErrChan:
-			return nil, err
-		case m := <-ol.RspChan:
-			// Only accept messages if the session is still open.  This is
-			// to help prevent race conditions in client code.
-			if bf.IsOpen() {
-				return m, nil
-			}
-		case <-ol.AfterTimeout(timeout):
-			return nil, nmxutil.NewRspTimeoutError("OIC timeout")
-		}
-	}
+func (bf *BleFsm) AbortNmpRx(seq uint8) error {
+	return bf.txvr.AbortNmpRx(seq)
 }

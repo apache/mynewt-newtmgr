@@ -43,9 +43,10 @@ func (r *Reassembler) RxFrag(frag []byte) *coap.TcpMessage {
 		return nil
 	}
 
-	if tm != nil {
-		r.cur = nil
+	if tm == nil {
+		return nil
 	}
 
+	r.cur = nil
 	return tm
 }
