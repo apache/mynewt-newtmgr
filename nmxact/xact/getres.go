@@ -55,7 +55,7 @@ func (r *GetResResult) Status() int {
 }
 
 func (c *GetResCmd) Run(s sesn.Sesn) (Result, error) {
-	status, val, err := sesn.GetResource(s, c.Uri, c.TxOptions())
+	status, val, err := sesn.GetResource(s, c.Typ, c.Uri, c.TxOptions())
 	if err != nil {
 		return nil, err
 	}

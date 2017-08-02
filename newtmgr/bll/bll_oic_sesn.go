@@ -41,12 +41,19 @@ import (
 type BllOicSesn struct {
 	cfg BllSesnCfg
 
-	cln       ble.Client
-	nmpReqChr *ble.Characteristic
-	nmpRspChr *ble.Characteristic
-	d         *omp.Dispatcher
-	mtx       sync.Mutex
-	attMtu    int
+	cln    ble.Client
+	d      *omp.Dispatcher
+	mtx    sync.Mutex
+	attMtu int
+
+	nmpReqChr     *ble.Characteristic
+	nmpRspChr     *ble.Characteristic
+	publicReqChr  *ble.Characteristic
+	publicRspChr  *ble.Characteristic
+	gwReqChr      *ble.Characteristic
+	gwRspChr      *ble.Characteristic
+	privateReqChr *ble.Characteristic
+	privateRspChr *ble.Characteristic
 }
 
 func NewBllOicSesn(cfg BllSesnCfg) *BllOicSesn {
@@ -89,6 +96,32 @@ func (bls *BllOicSesn) connect() error {
 	return nil
 }
 
+func findChr(profile *ble.Profile, svcUuid bledefs.BleUuid,
+	chrUuid bledefs.BleUuid) (*ble.Characteristic, error) {
+
+	for _, s := range profile.Services {
+		uuid, err := UuidFromBllUuid(s.UUID)
+		if err != nil {
+			return nil, err
+		}
+
+		if bledefs.CompareUuids(uuid, svcUuid) == 0 {
+			for _, c := range s.Characteristics {
+				uuid, err := UuidFromBllUuid(c.UUID)
+				if err != nil {
+					return nil, err
+				}
+
+				if bledefs.CompareUuids(uuid, chrUuid) == 0 {
+					return c, nil
+				}
+			}
+		}
+	}
+
+	return nil, nil
+}
+
 func (bls *BllOicSesn) discoverAll() error {
 	log.Debugf("Discovering profile")
 	p, err := bls.cln.DiscoverProfile(true)
@@ -96,36 +129,32 @@ func (bls *BllOicSesn) discoverAll() error {
 		return err
 	}
 
-	ompUnsecSvcUuid, _ := ParseUuid(bledefs.OmpUnsecSvcUuid)
-	reqChrUuid, _ := ParseUuid(bledefs.OmpUnsecReqChrUuid)
-	rspChrUuid, _ := ParseUuid(bledefs.OmpUnsecRspChrUuid)
+	ompSvcUuid, _ := bledefs.ParseUuid(bledefs.OmpUnsecSvcUuid)
+	ompReqChrUuid, _ := bledefs.ParseUuid(bledefs.OmpUnsecReqChrUuid)
+	ompRspChrUuid, _ := bledefs.ParseUuid(bledefs.OmpUnsecRspChrUuid)
 
-	for _, s := range p.Services {
-		uuid, err := UuidFromBllUuid(s.UUID)
-		if err != nil {
-			return err
-		}
+	gwSvcUuid, _ := bledefs.ParseUuid(bledefs.GwSvcUuid)
+	gwReqChrUuid, _ := bledefs.ParseUuid(bledefs.GwReqChrUuid)
+	gwRspChrUuid, _ := bledefs.ParseUuid(bledefs.GwRspChrUuid)
 
-		if bledefs.CompareUuids(uuid, ompUnsecSvcUuid) == 0 {
-			for _, c := range s.Characteristics {
-				uuid, err := UuidFromBllUuid(c.UUID)
-				if err != nil {
-					return err
-				}
-
-				if bledefs.CompareUuids(uuid, reqChrUuid) == 0 {
-					bls.nmpReqChr = c
-				}
-				if bledefs.CompareUuids(uuid, rspChrUuid) == 0 {
-					bls.nmpRspChr = c
-				}
-			}
-		}
+	bls.nmpReqChr, err = findChr(p, ompSvcUuid, ompReqChrUuid)
+	if err != nil {
+		return err
 	}
 
-	if bls.nmpReqChr == nil || bls.nmpRspChr == nil {
-		return fmt.Errorf(
-			"Peer doesn't support a suitable service / characteristic")
+	bls.nmpRspChr, err = findChr(p, ompSvcUuid, ompRspChrUuid)
+	if err != nil {
+		return err
+	}
+
+	bls.gwReqChr, err = findChr(p, gwSvcUuid, gwReqChrUuid)
+	if err != nil {
+		return err
+	}
+
+	bls.gwRspChr, err = findChr(p, gwSvcUuid, gwRspChrUuid)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -138,8 +167,20 @@ func (bls *BllOicSesn) subscribe() error {
 		bls.d.Dispatch(data)
 	}
 
-	if err := bls.cln.Subscribe(bls.nmpRspChr, false, onNotify); err != nil {
-		return err
+	if bls.nmpRspChr != nil {
+		if err := bls.cln.Subscribe(bls.nmpRspChr, false,
+			onNotify); err != nil {
+
+			return err
+		}
+	}
+
+	if bls.gwRspChr != nil {
+		if err := bls.cln.Subscribe(bls.gwRspChr, false,
+			onNotify); err != nil {
+
+			return err
+		}
 	}
 
 	return nil
@@ -239,6 +280,11 @@ func (bls *BllOicSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 			"Attempt to transmit over closed BLE session")
 	}
 
+	if bls.nmpReqChr == nil || bls.nmpRspChr == nil {
+		return nil, fmt.Errorf("Cannot send NMP request; peer doesn't " +
+			"support request or response characteristic")
+	}
+
 	b, err := bls.EncodeNmpMsg(msg)
 	if err != nil {
 		return nil, err
@@ -272,8 +318,31 @@ func (bls *BllOicSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 	}
 }
 
-func (bls *BllOicSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
-	coap.COAPCode, []byte, error) {
+func (bls *BllOicSesn) resReqChr(resType sesn.ResourceType) (
+	*ble.Characteristic, error) {
+
+	m := map[sesn.ResourceType]*ble.Characteristic{
+		sesn.RES_TYPE_PUBLIC: bls.publicReqChr,
+		sesn.RES_TYPE_UNAUTH: bls.gwReqChr,
+		sesn.RES_TYPE_SECURE: bls.privateReqChr,
+	}
+
+	chr := m[resType]
+	if chr == nil {
+		return nil, fmt.Errorf("BLE session not configured with "+
+			"characteristic for %s resources", resType)
+	}
+
+	return chr, nil
+}
+
+func (bls *BllOicSesn) GetResourceOnce(resType sesn.ResourceType, uri string,
+	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
+
+	chr, err := bls.resReqChr(resType)
+	if err != nil {
+		return 0, nil, err
+	}
 
 	token := nmxutil.NextToken()
 
@@ -289,7 +358,7 @@ func (bls *BllOicSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
 	}
 
 	// Send request.
-	if err := bls.cln.WriteCharacteristic(bls.nmpReqChr, req, true); err != nil {
+	if err := bls.cln.WriteCharacteristic(chr, req, true); err != nil {
 		return 0, nil, err
 	}
 

@@ -134,8 +134,8 @@ func (ups *UdpPlainSesn) AbortRx(seq uint8) error {
 	return ups.d.ErrorOne(seq, fmt.Errorf("Rx aborted"))
 }
 
-func (ups *UdpPlainSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
-	coap.COAPCode, []byte, error) {
+func (ups *UdpPlainSesn) GetResourceOnce(resType sesn.ResourceType,
+	uri string, opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
 
 	return 0, nil, fmt.Errorf("UdpPlainSesn.GetResourceOnce() unsupported")
 }

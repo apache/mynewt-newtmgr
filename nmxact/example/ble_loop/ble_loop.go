@@ -28,6 +28,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 
+	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmble"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
@@ -53,22 +54,27 @@ func configExitHandler(x xport.Xport, s sesn.Sesn) {
 			s := <-sigChan
 			switch s {
 			case os.Interrupt, syscall.SIGTERM:
-				onExit()
-				os.Exit(0)
+				go func() {
+					onExit()
+					os.Exit(0)
+				}()
+
+			case syscall.SIGQUIT:
+				util.PrintStacks()
 			}
 		}
 	}()
 }
 
 func main() {
-	//nmxutil.SetLogLevel(log.DebugLevel)
-	nmxutil.SetLogLevel(log.InfoLevel)
+	nmxutil.SetLogLevel(log.DebugLevel)
+	//nmxutil.SetLogLevel(log.InfoLevel)
 
 	// Initialize the BLE transport.
 	params := nmble.NewXportCfg()
 	params.SockPath = "/tmp/blehostd-uds"
 	params.BlehostdPath = "blehostd"
-	params.DevPath = "/dev/cu.usbmodem142111"
+	params.DevPath = "/dev/cu.usbmodem142141"
 
 	x, err := nmble.NewBleXport(params)
 	if err != nil {
@@ -103,7 +109,7 @@ func main() {
 	//     * Plain NMP (not tunnelled over OIC).
 	//     * We use a random address.
 	sc := sesn.NewSesnCfg()
-	sc.MgmtProto = sesn.MGMT_PROTO_NMP
+	sc.MgmtProto = sesn.MGMT_PROTO_OMP
 	sc.Ble.OwnAddrType = bledefs.BLE_ADDR_TYPE_RANDOM
 	sc.PeerSpec.Ble = *dev
 
@@ -127,12 +133,9 @@ func main() {
 			if err := s.Open(); err != nil {
 				fmt.Fprintf(os.Stderr, "error starting BLE session: %s\n",
 					err.Error())
+				time.Sleep(time.Second)
 				continue
 			}
-		}
-
-		if err := s.Open(); err != nil {
-			s.Close()
 		}
 
 		// Send an echo command to the peer.

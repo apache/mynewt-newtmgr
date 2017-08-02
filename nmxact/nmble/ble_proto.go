@@ -38,6 +38,8 @@ type BleBytes struct {
 	Bytes []byte
 }
 
+const BLE_CONN_HANDLE_NONE uint16 = 0xffff
+
 const BLE_SEQ_MIN BleSeq = 0
 const BLE_SEQ_EVT_MIN BleSeq = 0xffffff00
 const BLE_SEQ_NONE BleSeq = 0xffffffff
@@ -285,43 +287,45 @@ const (
 	MSG_TYPE_DISC_SVC_UUID             = 6
 	MSG_TYPE_DISC_ALL_CHRS             = 7
 	MSG_TYPE_DISC_CHR_UUID             = 8
-	MSG_TYPE_WRITE                     = 9
-	MSG_TYPE_WRITE_CMD                 = 10
-	MSG_TYPE_EXCHANGE_MTU              = 11
-	MSG_TYPE_GEN_RAND_ADDR             = 12
-	MSG_TYPE_SET_RAND_ADDR             = 13
-	MSG_TYPE_CONN_CANCEL               = 14
-	MSG_TYPE_SCAN                      = 15
-	MSG_TYPE_SCAN_CANCEL               = 16
-	MSG_TYPE_SET_PREFERRED_MTU         = 17
-	MSG_TYPE_SECURITY_INITIATE         = 18
-	MSG_TYPE_CONN_FIND                 = 19
-	MSG_TYPE_RESET                     = 20
-	MSG_TYPE_ADV_START                 = 21
-	MSG_TYPE_ADV_STOP                  = 22
-	MSG_TYPE_ADV_SET_DATA              = 23
-	MSG_TYPE_ADV_RSP_SET_DATA          = 24
-	MSG_TYPE_ADV_FIELDS                = 25
-	MSG_TYPE_CLEAR_SVCS                = 26
-	MSG_TYPE_ADD_SVCS                  = 27
-	MSG_TYPE_COMMIT_SVCS               = 28
-	MSG_TYPE_ACCESS_STATUS             = 29
-	MSG_TYPE_NOTIFY                    = 30
-	MSG_TYPE_FIND_CHR                  = 31
+	MSG_TYPE_DISC_ALL_DSCS             = 9
+	MSG_TYPE_WRITE                     = 10
+	MSG_TYPE_WRITE_CMD                 = 11
+	MSG_TYPE_EXCHANGE_MTU              = 12
+	MSG_TYPE_GEN_RAND_ADDR             = 13
+	MSG_TYPE_SET_RAND_ADDR             = 14
+	MSG_TYPE_CONN_CANCEL               = 15
+	MSG_TYPE_SCAN                      = 16
+	MSG_TYPE_SCAN_CANCEL               = 17
+	MSG_TYPE_SET_PREFERRED_MTU         = 18
+	MSG_TYPE_SECURITY_INITIATE         = 19
+	MSG_TYPE_CONN_FIND                 = 20
+	MSG_TYPE_RESET                     = 21
+	MSG_TYPE_ADV_START                 = 22
+	MSG_TYPE_ADV_STOP                  = 23
+	MSG_TYPE_ADV_SET_DATA              = 24
+	MSG_TYPE_ADV_RSP_SET_DATA          = 25
+	MSG_TYPE_ADV_FIELDS                = 26
+	MSG_TYPE_CLEAR_SVCS                = 27
+	MSG_TYPE_ADD_SVCS                  = 28
+	MSG_TYPE_COMMIT_SVCS               = 29
+	MSG_TYPE_ACCESS_STATUS             = 30
+	MSG_TYPE_NOTIFY                    = 31
+	MSG_TYPE_FIND_CHR                  = 32
 
 	MSG_TYPE_SYNC_EVT       = 2049
 	MSG_TYPE_CONNECT_EVT    = 2050
 	MSG_TYPE_DISCONNECT_EVT = 2051
 	MSG_TYPE_DISC_SVC_EVT   = 2052
 	MSG_TYPE_DISC_CHR_EVT   = 2053
-	MSG_TYPE_WRITE_ACK_EVT  = 2054
-	MSG_TYPE_NOTIFY_RX_EVT  = 2055
-	MSG_TYPE_MTU_CHANGE_EVT = 2056
-	MSG_TYPE_SCAN_EVT       = 2057
-	MSG_TYPE_SCAN_TMO_EVT   = 2058
-	MSG_TYPE_ENC_CHANGE_EVT = 2059
-	MSG_TYPE_RESET_EVT      = 2060
-	MSG_TYPE_ACCESS_EVT     = 2061
+	MSG_TYPE_DISC_DSC_EVT   = 2054
+	MSG_TYPE_WRITE_ACK_EVT  = 2055
+	MSG_TYPE_NOTIFY_RX_EVT  = 2056
+	MSG_TYPE_MTU_CHANGE_EVT = 2057
+	MSG_TYPE_SCAN_EVT       = 2058
+	MSG_TYPE_SCAN_TMO_EVT   = 2059
+	MSG_TYPE_ENC_CHANGE_EVT = 2060
+	MSG_TYPE_RESET_EVT      = 2061
+	MSG_TYPE_ACCESS_EVT     = 2062
 )
 
 var MsgOpStringMap = map[MsgOp]string{
@@ -337,8 +341,10 @@ var MsgTypeStringMap = map[MsgType]string{
 	MSG_TYPE_TERMINATE:         "terminate",
 	MSG_TYPE_DISC_ALL_SVCS:     "disc_all_svcs",
 	MSG_TYPE_DISC_SVC_UUID:     "disc_svc_uuid",
-	MSG_TYPE_DISC_CHR_UUID:     "disc_chr_uuid",
 	MSG_TYPE_DISC_ALL_CHRS:     "disc_all_chrs",
+	MSG_TYPE_DISC_CHR_UUID:     "disc_chr_uuid",
+	MSG_TYPE_DISC_ALL_DSCS:     "disc_all_dscs",
+	MSG_TYPE_WRITE:             "write",
 	MSG_TYPE_WRITE_CMD:         "write_cmd",
 	MSG_TYPE_EXCHANGE_MTU:      "exchange_mtu",
 	MSG_TYPE_GEN_RAND_ADDR:     "gen_rand_addr",
@@ -367,6 +373,8 @@ var MsgTypeStringMap = map[MsgType]string{
 	MSG_TYPE_DISCONNECT_EVT: "disconnect_evt",
 	MSG_TYPE_DISC_SVC_EVT:   "disc_svc_evt",
 	MSG_TYPE_DISC_CHR_EVT:   "disc_chr_evt",
+	MSG_TYPE_DISC_DSC_EVT:   "disc_dsc_evt",
+	MSG_TYPE_WRITE_ACK_EVT:  "write_ack_evt",
 	MSG_TYPE_NOTIFY_RX_EVT:  "notify_rx_evt",
 	MSG_TYPE_MTU_CHANGE_EVT: "mtu_change_evt",
 	MSG_TYPE_SCAN_EVT:       "scan_evt",
@@ -395,6 +403,11 @@ type BleDiscChr struct {
 	ValHandle  int     `json:"val_handle"`
 	Properties int     `json:"properties"`
 	Uuid       BleUuid `json:"uuid"`
+}
+
+type BleDiscDsc struct {
+	Handle uint16  `json:"handle"`
+	Uuid   BleUuid `json:"uuid"`
 }
 
 type BleSyncReq struct {
@@ -548,19 +561,6 @@ type BleDiscSvcEvt struct {
 	Svc    BleDiscSvc `json:"service"`
 }
 
-type BleDiscChrUuidReq struct {
-	// Header
-	Op   MsgOp   `json:"op"`
-	Type MsgType `json:"type"`
-	Seq  BleSeq  `json:"seq"`
-
-	// Mandatory
-	ConnHandle  uint16  `json:"conn_handle"`
-	StartHandle int     `json:"start_handle"`
-	EndHandle   int     `json:"end_handle"`
-	Uuid        BleUuid `json:"chr_uuid"`
-}
-
 type BleDiscAllChrsReq struct {
 	// Header
 	Op   MsgOp   `json:"op"`
@@ -581,6 +581,74 @@ type BleDiscAllChrsRsp struct {
 
 	// Mandatory
 	Status int `json:"status"`
+}
+
+type BleDiscChrUuidReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	ConnHandle  uint16  `json:"conn_handle"`
+	StartHandle int     `json:"start_handle"`
+	EndHandle   int     `json:"end_handle"`
+	Uuid        BleUuid `json:"chr_uuid"`
+}
+
+type BleDiscChrUuidRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status int `json:"status"`
+}
+
+type BleDiscChrEvt struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status int        `json:"status"`
+	Chr    BleDiscChr `json:"characteristic"`
+}
+
+type BleDiscAllDscsReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	ConnHandle  uint16 `json:"conn_handle"`
+	StartHandle int    `json:"start_handle"`
+	EndHandle   int    `json:"end_handle"`
+}
+
+type BleDiscAllDscsRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status int `json:"status"`
+}
+
+type BleDiscDscEvt struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status       int        `json:"status"`
+	ChrDefHandle uint16     `json:"chr_def_handle"`
+	Dsc          BleDiscDsc `json:"descriptor"`
 }
 
 type BleErrRsp struct {
@@ -604,7 +672,19 @@ type BleSyncRsp struct {
 	Synced bool `json:"synced"`
 }
 
-type BleDiscChrUuidRsp struct {
+type BleWriteReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	ConnHandle uint16   `json:"conn_handle"`
+	AttrHandle int      `json:"attr_handle"`
+	Data       BleBytes `json:"data"`
+}
+
+type BleWriteRsp struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
@@ -614,15 +694,14 @@ type BleDiscChrUuidRsp struct {
 	Status int `json:"status"`
 }
 
-type BleDiscChrEvt struct {
+type BleWriteAckEvt struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
 	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
-	Status int        `json:"status"`
-	Chr    BleDiscChr `json:"characteristic"`
+	Status int `json:"status"`
 }
 
 type BleWriteCmdReq struct {

@@ -145,8 +145,8 @@ func (uos *UdpOicSesn) AbortRx(seq uint8) error {
 	return nil
 }
 
-func (uos *UdpOicSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
-	coap.COAPCode, []byte, error) {
+func (uos *UdpOicSesn) GetResourceOnce(resType sesn.ResourceType, uri string,
+	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
 
 	token := nmxutil.NextToken()
 

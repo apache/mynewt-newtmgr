@@ -31,16 +31,22 @@ const BLE_ATT_ATTR_MAX_LEN = 512
 
 const BLE_ATT_MTU_DFLT = 23
 
-const NmpPlainSvcUuid = "8D53DC1D-1DB7-4CD3-868B-8A527460AA84"
-const NmpPlainChrUuid = "DA2E7828-FBCE-4E01-AE9E-261174997C48"
+const CccdUuid = 0x2902
 
-const OmpUnsecSvcUuid = "ADE3D529-C784-4F63-A987-EB69F70EE816"
-const OmpUnsecReqChrUuid = "AD7B334F-4637-4B86-90B6-9D787F03D218"
-const OmpUnsecRspChrUuid = "E9241982-4580-42C4-8831-95048216B256"
+const NmpPlainSvcUuid = "8d53dc1d-1db7-4cd3-868b-8a527460aa84"
+const NmpPlainChrUuid = "da2e7828-fbce-4e01-ae9e-261174997c48"
+
+const OmpUnsecSvcUuid = "ade3d529-c784-4f63-a987-eb69f70ee816"
+const OmpUnsecReqChrUuid = "ad7b334f-4637-4b86-90b6-9d787f03d218"
+const OmpUnsecRspChrUuid = "e9241982-4580-42c4-8831-95048216b256"
 
 const OmpSecSvcUuid = 0xfe18
 const OmpSecReqChrUuid = 0x1000
 const OmpSecRspChrUuid = 0x1001
+
+const GwSvcUuid = "0c08c213-98ed-4e43-a499-7e1137c39567"
+const GwReqChrUuid = "69b8a928-2ab2-487b-923e-54ce53a18bc1"
+const GwRspChrUuid = "bca10aea-5df1-4248-b72b-f52955ad9c88"
 
 type BleAddrType int
 
@@ -804,9 +810,12 @@ type BleChrId struct {
 }
 
 type BleMgmtChrs struct {
-	NmpReqChr     *BleChrId
-	NmpRspChr     *BleChrId
-	ResPublicChr  *BleChrId
-	ResGwChr      *BleChrId
-	ResPrivateChr *BleChrId
+	NmpReqChr        *BleChrId
+	NmpRspChr        *BleChrId
+	ResPublicReqChr  *BleChrId
+	ResPublicRspChr  *BleChrId
+	ResGwReqChr      *BleChrId
+	ResGwRspChr      *BleChrId
+	ResPrivateReqChr *BleChrId
+	ResPrivateRspChr *BleChrId
 }

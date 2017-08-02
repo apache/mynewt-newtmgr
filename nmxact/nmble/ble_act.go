@@ -311,6 +311,101 @@ func discAllChrs(x *BleXport, bl *Listener, r *BleDiscAllChrsReq) (
 }
 
 // Blocking.
+func discAllDscs(x *BleXport, bl *Listener, r *BleDiscAllDscsReq) (
+	[]*BleDiscDsc, error) {
+
+	const rspType = MSG_TYPE_DISC_ALL_DSCS
+	const evtType = MSG_TYPE_DISC_DSC_EVT
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := x.Tx(j); err != nil {
+		return nil, err
+	}
+
+	dscs := []*BleDiscDsc{}
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return nil, err
+
+		case bm := <-bl.MsgChan:
+			switch msg := bm.(type) {
+			case *BleDiscAllDscsRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return nil, StatusError(MSG_OP_RSP, rspType, msg.Status)
+				}
+
+			case *BleDiscDscEvt:
+				switch msg.Status {
+				case 0:
+					dscs = append(dscs, &msg.Dsc)
+				case ERR_CODE_EDONE:
+					return dscs, nil
+				default:
+					return nil, StatusError(MSG_OP_EVT, evtType, msg.Status)
+				}
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return nil, BhdTimeoutError(rspType, r.Seq)
+		}
+	}
+}
+
+// Blocking.
+func write(x *BleXport, bl *Listener, r *BleWriteReq) error {
+	const rspType = MSG_TYPE_WRITE_CMD
+	const evtType = MSG_TYPE_WRITE_ACK_EVT
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+
+	if err := x.Tx(j); err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return err
+
+		case bm := <-bl.MsgChan:
+			switch msg := bm.(type) {
+			case *BleWriteRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return StatusError(MSG_OP_RSP, rspType, msg.Status)
+				} else {
+					return nil
+				}
+
+			case *BleDiscChrEvt:
+				switch msg.Status {
+				case 0:
+					return nil
+				default:
+					return StatusError(MSG_OP_EVT, evtType, msg.Status)
+				}
+
+			default:
+			}
+
+		case <-bl.AfterTimeout(x.RspTimeout()):
+			return BhdTimeoutError(rspType, r.Seq)
+		}
+	}
+}
+
+// Blocking.
 func writeCmd(x *BleXport, bl *Listener, r *BleWriteCmdReq) error {
 	const rspType = MSG_TYPE_WRITE_CMD
 

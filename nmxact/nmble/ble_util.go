@@ -26,9 +26,12 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/runtimeco/go-coap"
 
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
+	"mynewt.apache.org/newtmgr/nmxact/oic"
+	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
 const WRITE_CMD_BASE_SZ = 3
@@ -194,6 +197,14 @@ func NewBleDiscAllChrsReq() *BleDiscAllChrsReq {
 	}
 }
 
+func NewBleDiscAllDscsReq() *BleDiscAllDscsReq {
+	return &BleDiscAllDscsReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_DISC_ALL_DSCS,
+		Seq:  NextSeq(),
+	}
+}
+
 func NewBleExchangeMtuReq() *BleExchangeMtuReq {
 	return &BleExchangeMtuReq{
 		Op:   MSG_OP_REQ,
@@ -225,10 +236,14 @@ func NewBleWriteCmdReq() *BleWriteCmdReq {
 		Op:   MSG_OP_REQ,
 		Type: MSG_TYPE_WRITE_CMD,
 		Seq:  NextSeq(),
+	}
+}
 
-		ConnHandle: 0,
-		AttrHandle: 0,
-		Data:       BleBytes{},
+func NewBleWriteReq() *BleWriteReq {
+	return &BleWriteReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_WRITE,
+		Seq:  NextSeq(),
 	}
 }
 
@@ -663,4 +678,99 @@ func GattService() BleSvc {
 			},
 		},
 	}
+}
+
+func GenCoapService(x *BleXport, svcUuid BleUuid, reqChrUuid BleUuid,
+	rspChrUuid BleUuid, resources []oic.Resource) (BleSvc, error) {
+
+	svr := NewBleOicSvr(x, svcUuid, rspChrUuid)
+	for _, r := range resources {
+		if err := svr.AddResource(r); err != nil {
+			return BleSvc{}, err
+		}
+	}
+
+	svc := BleSvc{
+		Uuid:    svcUuid,
+		SvcType: BLE_SVC_TYPE_PRIMARY,
+		Chrs: []BleChr{
+			BleChr{
+				Uuid:       reqChrUuid,
+				Flags:      BLE_GATT_F_WRITE_NO_RSP, /* XXX: Security */
+				MinKeySize: 0,
+				AccessCb: func(access BleGattAccess) (uint8, []byte) {
+					return svr.Rx(access), nil
+				},
+			},
+			BleChr{
+				Uuid:       rspChrUuid,
+				Flags:      BLE_GATT_F_NOTIFY, /* XXX: Security */
+				MinKeySize: 0,
+				AccessCb:   nil,
+			},
+		},
+	}
+
+	return svc, nil
+}
+
+func GwService(x *BleXport) (BleSvc, error) {
+	svcUuid, _ := ParseUuid(GwSvcUuid)
+	reqChrUuid, _ := ParseUuid(GwReqChrUuid)
+	rspChrUuid, _ := ParseUuid(GwRspChrUuid)
+
+	resources := []oic.Resource{
+		oic.Resource{
+			Name: "mynewt.yourmom",
+			ReadCb: func(uri string, data []byte) (coap.COAPCode, []byte) {
+				return coap.Content, []byte{1, 2, 3, 4}
+			},
+		},
+	}
+
+	return GenCoapService(x, svcUuid, reqChrUuid, rspChrUuid, resources)
+}
+
+func ResChrIdLookup(mgmtChrs BleMgmtChrs, resType sesn.ResourceType) *BleChrId {
+	m := map[sesn.ResourceType]*BleChrId{
+		sesn.RES_TYPE_PUBLIC:  mgmtChrs.ResPublicReqChr,
+		sesn.RES_TYPE_UNAUTH: mgmtChrs.ResGwReqChr,
+		sesn.RES_TYPE_SECURE: mgmtChrs.ResPrivateReqChr,
+	}
+
+	return m[resType]
+}
+
+func BuildMgmtChrs(mgmtProto sesn.MgmtProto) (BleMgmtChrs, error) {
+	mgmtChrs := BleMgmtChrs{}
+
+	nmpSvcUuid, _ := ParseUuid(NmpPlainSvcUuid)
+	nmpChrUuid, _ := ParseUuid(NmpPlainChrUuid)
+
+	ompSvcUuid, _ := ParseUuid(OmpUnsecSvcUuid)
+	ompReqChrUuid, _ := ParseUuid(OmpUnsecReqChrUuid)
+	ompRspChrUuid, _ := ParseUuid(OmpUnsecRspChrUuid)
+
+	gwSvcUuid, _ := ParseUuid(GwSvcUuid)
+	gwReqChrUuid, _ := ParseUuid(GwReqChrUuid)
+	gwRspChrUuid, _ := ParseUuid(GwRspChrUuid)
+
+	switch mgmtProto {
+	case sesn.MGMT_PROTO_NMP:
+		mgmtChrs.NmpReqChr = &BleChrId{nmpSvcUuid, nmpChrUuid}
+		mgmtChrs.NmpRspChr = &BleChrId{nmpSvcUuid, nmpChrUuid}
+
+	case sesn.MGMT_PROTO_OMP:
+		mgmtChrs.NmpReqChr = &BleChrId{ompSvcUuid, ompReqChrUuid}
+		mgmtChrs.NmpRspChr = &BleChrId{ompSvcUuid, ompRspChrUuid}
+
+	default:
+		return mgmtChrs,
+			fmt.Errorf("invalid management protocol: %+v", mgmtProto)
+	}
+
+	mgmtChrs.ResGwReqChr = &BleChrId{gwSvcUuid, gwReqChrUuid}
+	mgmtChrs.ResGwRspChr = &BleChrId{gwSvcUuid, gwRspChrUuid}
+
+	return mgmtChrs, nil
 }

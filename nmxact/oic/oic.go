@@ -26,14 +26,6 @@ import (
 	"github.com/runtimeco/go-coap"
 )
 
-type ResType int
-
-const (
-	RES_TYPE_PUBLIC ResType = iota
-	RES_TYPE_GW
-	RES_TYPE_PRIVATE
-)
-
 var messageIdMtx sync.Mutex
 var nextMessageId uint16
 

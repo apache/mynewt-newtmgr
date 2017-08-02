@@ -26,6 +26,7 @@ import (
 
 	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
+	"mynewt.apache.org/newtmgr/nmxact/sesn"
 	"mynewt.apache.org/newtmgr/nmxact/xact"
 )
 
@@ -34,7 +35,10 @@ func getResRunCmd(cmd *cobra.Command, args []string) {
 		nmUsage(cmd, nil)
 	}
 
-	// XXX: Parse type.
+	rt, err := sesn.ParseResType(args[0])
+	if err != nil {
+		nmUsage(cmd, err)
+	}
 
 	uri := args[1]
 
@@ -46,6 +50,7 @@ func getResRunCmd(cmd *cobra.Command, args []string) {
 	c := xact.NewGetResCmd()
 	c.SetTxOptions(nmutil.TxOptions())
 	c.Uri = uri
+	c.Typ = rt
 
 	res, err := c.Run(s)
 	if err != nil {

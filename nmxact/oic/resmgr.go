@@ -7,8 +7,8 @@ import (
 	"github.com/runtimeco/go-coap"
 )
 
-type ResWriteFn func(data []byte) coap.COAPCode
-type ResReadFn func(data []byte) (coap.COAPCode, []byte)
+type ResWriteFn func(uri string, data []byte) coap.COAPCode
+type ResReadFn func(uri string, data []byte) (coap.COAPCode, []byte)
 
 type Resource struct {
 	Name    string
@@ -55,14 +55,14 @@ func (rm *ResMgr) Access(m coap.Message) (coap.COAPCode, []byte) {
 		if r.ReadCb == nil {
 			return coap.MethodNotAllowed, nil
 		} else {
-			return r.ReadCb(m.Payload())
+			return r.ReadCb(path, m.Payload())
 		}
 
 	case coap.PUT:
 		if r.WriteCb == nil {
 			return coap.MethodNotAllowed, nil
 		} else {
-			return r.WriteCb(m.Payload()), nil
+			return r.WriteCb(path, m.Payload()), nil
 		}
 
 	default:

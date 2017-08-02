@@ -27,14 +27,6 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 )
 
-type ResourceType int
-
-const (
-	RES_TYPE_PUBLIC ResourceType = iota
-	RES_TYPE_GATEWAY
-	RES_TYPE_PRIVATE
-)
-
 type TxOptions struct {
 	Timeout time.Duration
 	Tries   int
@@ -102,6 +94,8 @@ type Sesn interface {
 	//     * other error
 	TxNmpOnce(m *nmp.NmpMsg, opt TxOptions) (nmp.NmpRsp, error)
 
-	GetResourceOnce(uri string, opt TxOptions) (coap.COAPCode, []byte, error)
+	GetResourceOnce(resType ResourceType, uri string, opt TxOptions) (
+		coap.COAPCode, []byte, error)
+
 	//SetResource(uri string, value []byte, opt TxOptions) error
 }

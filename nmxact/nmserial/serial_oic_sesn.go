@@ -152,8 +152,8 @@ func (sos *SerialOicSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 	}
 }
 
-func (sos *SerialOicSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
-	coap.COAPCode, []byte, error) {
+func (sos *SerialOicSesn) GetResourceOnce(resType sesn.ResourceType,
+	uri string, opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
 
 	token := nmxutil.NextToken()
 

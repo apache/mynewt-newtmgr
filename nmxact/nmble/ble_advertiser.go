@@ -122,11 +122,14 @@ func (a *Advertiser) stopAdvertising() error {
 func (a *Advertiser) buildSesn(cfg adv.Cfg, connHandle uint16, bl *Listener) (
 	sesn.Sesn, error) {
 
-	// XXX: Build different kinds of sessions.
-	s := NewBleCoapSesn(a.bx, cfg.Ble.SesnCfg)
-	if err := s.OpenConnected(connHandle, bl); err != nil {
+	s, err := NewBleSesn(a.bx, cfg.Ble.SesnCfg)
+	if err != nil {
 		return nil, err
 	}
+
+	//if err := s.OpenConnected(connHandle, bl); err != nil {
+	//return nil, err
+	//}
 
 	return s, nil
 }

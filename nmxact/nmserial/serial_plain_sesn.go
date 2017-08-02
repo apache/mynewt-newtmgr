@@ -157,8 +157,8 @@ func (sps *SerialPlainSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 	}
 }
 
-func (sps *SerialPlainSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
-	coap.COAPCode, []byte, error) {
+func (sps *SerialPlainSesn) GetResourceOnce(resType sesn.ResourceType,
+	uri string, opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
 
 	return 0, nil, fmt.Errorf("SerialPlainSesn.GetResourceOnce() unsupported")
 }

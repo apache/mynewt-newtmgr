@@ -27,6 +27,7 @@ import (
 	"path"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -113,6 +114,12 @@ func DecodeCborMap(cbor []byte) (map[string]interface{}, error) {
 	}
 
 	return m, nil
+}
+
+var nextId uint32
+
+func GetNextId() uint32 {
+	return atomic.AddUint32(&nextId, 1) - 1
 }
 
 func LogListener(parentLevel int, title string, extra string) {

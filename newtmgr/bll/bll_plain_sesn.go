@@ -251,8 +251,8 @@ func (bps *BllPlainSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 	}
 }
 
-func (bps *BllPlainSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
-	coap.COAPCode, []byte, error) {
+func (bps *BllPlainSesn) GetResourceOnce(resType sesn.ResourceType, uri string,
+	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
 
 	return 0, nil,
 		fmt.Errorf("Resource API not supported by plain (non-OIC) session")

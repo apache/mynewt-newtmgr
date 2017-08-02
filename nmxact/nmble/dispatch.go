@@ -61,6 +61,8 @@ func discAllSvcsRspCtor() Msg      { return &BleDiscAllSvcsRsp{} }
 func discSvcUuidRspCtor() Msg      { return &BleDiscSvcUuidRsp{} }
 func discAllChrsRspCtor() Msg      { return &BleDiscAllChrsRsp{} }
 func discChrUuidRspCtor() Msg      { return &BleDiscChrUuidRsp{} }
+func discAllDscsRspCtor() Msg      { return &BleDiscAllDscsRsp{} }
+func writeRspCtor() Msg            { return &BleWriteRsp{} }
 func writeCmdRspCtor() Msg         { return &BleWriteCmdRsp{} }
 func exchangeMtuRspCtor() Msg      { return &BleExchangeMtuRsp{} }
 func genRandAddrRspCtor() Msg      { return &BleGenRandAddrRsp{} }
@@ -89,6 +91,8 @@ func connectEvtCtor() Msg    { return &BleConnectEvt{} }
 func disconnectEvtCtor() Msg { return &BleDisconnectEvt{} }
 func discSvcEvtCtor() Msg    { return &BleDiscSvcEvt{} }
 func discChrEvtCtor() Msg    { return &BleDiscChrEvt{} }
+func discDscEvtCtor() Msg    { return &BleDiscDscEvt{} }
+func writeAckEvtCtor() Msg   { return &BleWriteAckEvt{} }
 func notifyRxEvtCtor() Msg   { return &BleNotifyRxEvt{} }
 func mtuChangeEvtCtor() Msg  { return &BleMtuChangeEvt{} }
 func scanEvtCtor() Msg       { return &BleScanEvt{} }
@@ -104,8 +108,10 @@ var msgCtorMap = map[OpTypePair]msgCtor{
 	{MSG_OP_RSP, MSG_TYPE_TERMINATE}:         terminateRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_DISC_ALL_SVCS}:     discAllSvcsRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_DISC_SVC_UUID}:     discSvcUuidRspCtor,
-	{MSG_OP_RSP, MSG_TYPE_DISC_CHR_UUID}:     discChrUuidRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_DISC_ALL_CHRS}:     discAllChrsRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_DISC_CHR_UUID}:     discChrUuidRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_DISC_ALL_DSCS}:     discAllDscsRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_WRITE}:             writeRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_WRITE_CMD}:         writeCmdRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_EXCHANGE_MTU}:      exchangeMtuRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_GEN_RAND_ADDR}:     genRandAddrRspCtor,
@@ -134,6 +140,8 @@ var msgCtorMap = map[OpTypePair]msgCtor{
 	{MSG_OP_EVT, MSG_TYPE_DISCONNECT_EVT}: disconnectEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_DISC_SVC_EVT}:   discSvcEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_DISC_CHR_EVT}:   discChrEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_DISC_DSC_EVT}:   discDscEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_WRITE_ACK_EVT}:  writeAckEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_NOTIFY_RX_EVT}:  notifyRxEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_MTU_CHANGE_EVT}: mtuChangeEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_SCAN_EVT}:       scanEvtCtor,

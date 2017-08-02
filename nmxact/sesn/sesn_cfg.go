@@ -20,6 +20,7 @@
 package sesn
 
 import (
+	"fmt"
 	"time"
 
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
@@ -31,6 +32,34 @@ const (
 	MGMT_PROTO_NMP MgmtProto = iota
 	MGMT_PROTO_OMP
 )
+
+type ResourceType int
+
+const (
+	RES_TYPE_PUBLIC ResourceType = iota
+	RES_TYPE_UNAUTH
+	RES_TYPE_SECURE
+)
+
+var resTypeMap = map[ResourceType]string{
+	RES_TYPE_PUBLIC: "public",
+	RES_TYPE_UNAUTH: "unauth",
+	RES_TYPE_SECURE: "secure",
+}
+
+func (r ResourceType) String() string {
+	return resTypeMap[r]
+}
+
+func ParseResType(s string) (ResourceType, error) {
+	for r, n := range resTypeMap {
+		if s == n {
+			return r, nil
+		}
+	}
+
+	return ResourceType(0), fmt.Errorf("Unknown resource type: %s", s)
+}
 
 type OnCloseFn func(s Sesn, err error)
 
