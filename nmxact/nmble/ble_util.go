@@ -715,9 +715,9 @@ func GenCoapService(x *BleXport, svcUuid BleUuid, reqChrUuid BleUuid,
 }
 
 func GwService(x *BleXport) (BleSvc, error) {
-	svcUuid, _ := ParseUuid(GwSvcUuid)
-	reqChrUuid, _ := ParseUuid(GwReqChrUuid)
-	rspChrUuid, _ := ParseUuid(GwRspChrUuid)
+	svcUuid, _ := ParseUuid(UnauthSvcUuid)
+	reqChrUuid, _ := ParseUuid(UnauthReqChrUuid)
+	rspChrUuid, _ := ParseUuid(UnauthRspChrUuid)
 
 	resources := []oic.Resource{
 		oic.Resource{
@@ -733,9 +733,9 @@ func GwService(x *BleXport) (BleSvc, error) {
 
 func ResChrIdLookup(mgmtChrs BleMgmtChrs, resType sesn.ResourceType) *BleChrId {
 	m := map[sesn.ResourceType]*BleChrId{
-		sesn.RES_TYPE_PUBLIC:  mgmtChrs.ResPublicReqChr,
-		sesn.RES_TYPE_UNAUTH: mgmtChrs.ResGwReqChr,
-		sesn.RES_TYPE_SECURE: mgmtChrs.ResPrivateReqChr,
+		sesn.RES_TYPE_PUBLIC: mgmtChrs.ResPublicReqChr,
+		sesn.RES_TYPE_UNAUTH: mgmtChrs.ResUnauthReqChr,
+		sesn.RES_TYPE_SECURE: mgmtChrs.ResSecureReqChr,
 	}
 
 	return m[resType]
@@ -751,9 +751,9 @@ func BuildMgmtChrs(mgmtProto sesn.MgmtProto) (BleMgmtChrs, error) {
 	ompReqChrUuid, _ := ParseUuid(OmpUnsecReqChrUuid)
 	ompRspChrUuid, _ := ParseUuid(OmpUnsecRspChrUuid)
 
-	gwSvcUuid, _ := ParseUuid(GwSvcUuid)
-	gwReqChrUuid, _ := ParseUuid(GwReqChrUuid)
-	gwRspChrUuid, _ := ParseUuid(GwRspChrUuid)
+	unauthSvcUuid, _ := ParseUuid(UnauthSvcUuid)
+	unauthReqChrUuid, _ := ParseUuid(UnauthReqChrUuid)
+	unauthRspChrUuid, _ := ParseUuid(UnauthRspChrUuid)
 
 	switch mgmtProto {
 	case sesn.MGMT_PROTO_NMP:
@@ -769,8 +769,8 @@ func BuildMgmtChrs(mgmtProto sesn.MgmtProto) (BleMgmtChrs, error) {
 			fmt.Errorf("invalid management protocol: %+v", mgmtProto)
 	}
 
-	mgmtChrs.ResGwReqChr = &BleChrId{gwSvcUuid, gwReqChrUuid}
-	mgmtChrs.ResGwRspChr = &BleChrId{gwSvcUuid, gwRspChrUuid}
+	mgmtChrs.ResUnauthReqChr = &BleChrId{unauthSvcUuid, unauthReqChrUuid}
+	mgmtChrs.ResUnauthRspChr = &BleChrId{unauthSvcUuid, unauthRspChrUuid}
 
 	return mgmtChrs, nil
 }

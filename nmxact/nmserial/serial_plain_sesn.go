@@ -162,3 +162,10 @@ func (sps *SerialPlainSesn) GetResourceOnce(resType sesn.ResourceType,
 
 	return 0, nil, fmt.Errorf("SerialPlainSesn.GetResourceOnce() unsupported")
 }
+
+func (sps *SerialPlainSesn) PutResourceOnce(resType sesn.ResourceType,
+	uri string, value []byte,
+	opt sesn.TxOptions) (coap.COAPCode, error) {
+
+	return 0, fmt.Errorf("SerialPlainSesn.PutResourceOnce() unsupported")
+}

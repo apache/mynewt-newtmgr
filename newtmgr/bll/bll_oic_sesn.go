@@ -46,14 +46,14 @@ type BllOicSesn struct {
 	mtx    sync.Mutex
 	attMtu int
 
-	nmpReqChr     *ble.Characteristic
-	nmpRspChr     *ble.Characteristic
-	publicReqChr  *ble.Characteristic
-	publicRspChr  *ble.Characteristic
-	gwReqChr      *ble.Characteristic
-	gwRspChr      *ble.Characteristic
-	privateReqChr *ble.Characteristic
-	privateRspChr *ble.Characteristic
+	nmpReqChr    *ble.Characteristic
+	nmpRspChr    *ble.Characteristic
+	publicReqChr *ble.Characteristic
+	publicRspChr *ble.Characteristic
+	unauthReqChr *ble.Characteristic
+	unauthRspChr *ble.Characteristic
+	secureReqChr *ble.Characteristic
+	secureRspChr *ble.Characteristic
 }
 
 func NewBllOicSesn(cfg BllSesnCfg) *BllOicSesn {
@@ -133,9 +133,9 @@ func (bls *BllOicSesn) discoverAll() error {
 	ompReqChrUuid, _ := bledefs.ParseUuid(bledefs.OmpUnsecReqChrUuid)
 	ompRspChrUuid, _ := bledefs.ParseUuid(bledefs.OmpUnsecRspChrUuid)
 
-	gwSvcUuid, _ := bledefs.ParseUuid(bledefs.GwSvcUuid)
-	gwReqChrUuid, _ := bledefs.ParseUuid(bledefs.GwReqChrUuid)
-	gwRspChrUuid, _ := bledefs.ParseUuid(bledefs.GwRspChrUuid)
+	unauthSvcUuid, _ := bledefs.ParseUuid(bledefs.UnauthSvcUuid)
+	unauthReqChrUuid, _ := bledefs.ParseUuid(bledefs.UnauthReqChrUuid)
+	unauthRspChrUuid, _ := bledefs.ParseUuid(bledefs.UnauthRspChrUuid)
 
 	bls.nmpReqChr, err = findChr(p, ompSvcUuid, ompReqChrUuid)
 	if err != nil {
@@ -147,12 +147,12 @@ func (bls *BllOicSesn) discoverAll() error {
 		return err
 	}
 
-	bls.gwReqChr, err = findChr(p, gwSvcUuid, gwReqChrUuid)
+	bls.unauthReqChr, err = findChr(p, unauthSvcUuid, unauthReqChrUuid)
 	if err != nil {
 		return err
 	}
 
-	bls.gwRspChr, err = findChr(p, gwSvcUuid, gwRspChrUuid)
+	bls.unauthRspChr, err = findChr(p, unauthSvcUuid, unauthRspChrUuid)
 	if err != nil {
 		return err
 	}
@@ -175,8 +175,8 @@ func (bls *BllOicSesn) subscribe() error {
 		}
 	}
 
-	if bls.gwRspChr != nil {
-		if err := bls.cln.Subscribe(bls.gwRspChr, false,
+	if bls.unauthRspChr != nil {
+		if err := bls.cln.Subscribe(bls.unauthRspChr, false,
 			onNotify); err != nil {
 
 			return err
@@ -323,8 +323,8 @@ func (bls *BllOicSesn) resReqChr(resType sesn.ResourceType) (
 
 	m := map[sesn.ResourceType]*ble.Characteristic{
 		sesn.RES_TYPE_PUBLIC: bls.publicReqChr,
-		sesn.RES_TYPE_UNAUTH: bls.gwReqChr,
-		sesn.RES_TYPE_SECURE: bls.privateReqChr,
+		sesn.RES_TYPE_UNAUTH: bls.unauthReqChr,
+		sesn.RES_TYPE_SECURE: bls.secureReqChr,
 	}
 
 	chr := m[resType]
@@ -374,4 +374,10 @@ func (bls *BllOicSesn) GetResourceOnce(resType sesn.ResourceType, uri string,
 			return 0, nil, nmxutil.NewRspTimeoutError(msg)
 		}
 	}
+}
+
+func (bls *BllOicSesn) PutResourceOnce(resType sesn.ResourceType,
+	uri string, value []byte, opt sesn.TxOptions) (coap.COAPCode, error) {
+
+	return 0, fmt.Errorf("BllOicSesn.PutResourceOnce() unsupported")
 }

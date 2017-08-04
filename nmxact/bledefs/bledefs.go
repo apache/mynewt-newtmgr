@@ -44,9 +44,9 @@ const OmpSecSvcUuid = 0xfe18
 const OmpSecReqChrUuid = 0x1000
 const OmpSecRspChrUuid = 0x1001
 
-const GwSvcUuid = "0c08c213-98ed-4e43-a499-7e1137c39567"
-const GwReqChrUuid = "69b8a928-2ab2-487b-923e-54ce53a18bc1"
-const GwRspChrUuid = "bca10aea-5df1-4248-b72b-f52955ad9c88"
+const UnauthSvcUuid = "0c08c213-98ed-4e43-a499-7e1137c39567"
+const UnauthReqChrUuid = "69b8a928-2ab2-487b-923e-54ce53a18bc1"
+const UnauthRspChrUuid = "bca10aea-5df1-4248-b72b-f52955ad9c88"
 
 type BleAddrType int
 
@@ -814,8 +814,8 @@ type BleMgmtChrs struct {
 	NmpRspChr        *BleChrId
 	ResPublicReqChr  *BleChrId
 	ResPublicRspChr  *BleChrId
-	ResGwReqChr      *BleChrId
-	ResGwRspChr      *BleChrId
-	ResPrivateReqChr *BleChrId
-	ResPrivateRspChr *BleChrId
+	ResUnauthReqChr  *BleChrId
+	ResUnauthRspChr  *BleChrId
+	ResSecureReqChr *BleChrId
+	ResSecureRspChr *BleChrId
 }

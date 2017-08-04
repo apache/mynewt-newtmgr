@@ -257,3 +257,9 @@ func (bps *BllPlainSesn) GetResourceOnce(resType sesn.ResourceType, uri string,
 	return 0, nil,
 		fmt.Errorf("Resource API not supported by plain (non-OIC) session")
 }
+
+func (bps *BllPlainSesn) PutResourceOnce(resType sesn.ResourceType,
+	uri string, value []byte, opt sesn.TxOptions) (coap.COAPCode, error) {
+
+	return 0, fmt.Errorf("BllPlainSesn.PutResourceOnce() unsupported")
+}

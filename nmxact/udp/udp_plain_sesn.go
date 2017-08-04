@@ -139,3 +139,10 @@ func (ups *UdpPlainSesn) GetResourceOnce(resType sesn.ResourceType,
 
 	return 0, nil, fmt.Errorf("UdpPlainSesn.GetResourceOnce() unsupported")
 }
+
+func (ups *UdpPlainSesn) PutResourceOnce(resType sesn.ResourceType,
+	uri string, value []byte,
+	opt sesn.TxOptions) (coap.COAPCode, error) {
+
+	return 0, fmt.Errorf("UdpPlainSesn.PutResourceOnce() unsupported")
+}

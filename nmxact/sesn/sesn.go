@@ -97,5 +97,6 @@ type Sesn interface {
 	GetResourceOnce(resType ResourceType, uri string, opt TxOptions) (
 		coap.COAPCode, []byte, error)
 
-	//SetResource(uri string, value []byte, opt TxOptions) error
+	PutResourceOnce(resType ResourceType, uri string,
+		value []byte, opt TxOptions) (coap.COAPCode, error)
 }
