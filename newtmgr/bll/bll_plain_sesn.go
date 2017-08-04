@@ -24,6 +24,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/currantlabs/ble"
+	"github.com/runtimeco/go-coap"
 	"golang.org/x/net/context"
 
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
@@ -251,8 +252,8 @@ func (bps *BllPlainSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 }
 
 func (bps *BllPlainSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
-	[]byte, error) {
+	coap.COAPCode, []byte, error) {
 
-	return nil,
+	return 0, nil,
 		fmt.Errorf("Resource API not supported by plain (non-OIC) session")
 }

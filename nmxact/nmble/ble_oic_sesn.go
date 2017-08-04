@@ -202,7 +202,7 @@ func (bos *BleOicSesn) ConnInfo() (BleConnDesc, error) {
 }
 
 func (bos *BleOicSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
-	[]byte, error) {
+	int, []byte, error) {
 
 	token := nmxutil.NextToken()
 
@@ -222,9 +222,5 @@ func (bos *BleOicSesn) GetResourceOnce(uri string, opt sesn.TxOptions) (
 		return nil, err
 	}
 
-	if rsp.Code != coap.Content {
-		return nil, fmt.Errorf("UNEXPECTED OIC ACK: %#v", rsp)
-	}
-
-	return rsp.Payload, nil
+	return rsp.Status, rsp.Payload, nil
 }

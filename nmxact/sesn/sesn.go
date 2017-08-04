@@ -25,6 +25,14 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 )
 
+type ResourceType int
+
+const (
+	RES_TYPE_PUBLIC ResourceType = iota
+	RES_TYPE_GATEWAY
+	RES_TYPE_SECURE
+)
+
 type TxOptions struct {
 	Timeout time.Duration
 	Tries   int

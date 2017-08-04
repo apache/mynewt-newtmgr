@@ -17,37 +17,47 @@
  * under the License.
  */
 
-package sesn
+package xact
 
 import (
-	"mynewt.apache.org/newtmgr/nmxact/nmp"
-	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
+	"github.com/runtimeco/go-coap"
+
+	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
-func TxNmp(s Sesn, m *nmp.NmpMsg, o TxOptions) (nmp.NmpRsp, error) {
-	retries := o.Tries - 1
-	for i := 0; ; i++ {
-		r, err := s.TxNmpOnce(m, o)
-		if err == nil {
-			return r, nil
-		}
+type GetResCmd struct {
+	CmdBase
+	Uri string
+	Typ sesn.ResourceType
+}
 
-		if !nmxutil.IsRspTimeout(err) || i >= retries {
-			return nil, err
-		}
+func NewGetResCmd() *GetResCmd {
+	return &GetResCmd{
+		CmdBase: NewCmdBase(),
 	}
 }
 
-func GetResource(s Sesn, uri string, o TxOptions) (int, []byte, error) {
-	retries := o.Tries - 1
-	for i := 0; ; i++ {
-		status, r, err := s.GetResourceOnce(uri, o)
-		if err == nil {
-			return status, r, nil
-		}
+type GetResResult struct {
+	Code  coap.COAPCode
+	Value []byte
+}
 
-		if !nmxutil.IsRspTimeout(err) || i >= retries {
-			return status, nil, err
-		}
+func newGetResResult() *GetResResult {
+	return &GetResResult{}
+}
+
+func (r *GetResResult) Status() int {
+	return int(r.Code)
+}
+
+func (c *GetResCmd) Run(s sesn.Sesn) (Result, error) {
+	status, val, err := sesn.GetResource(s, c.Uri, c.TxOptions())
+	if err != nil {
+		return nil, err
 	}
+
+	res := newGetResResult()
+	res.Code = status
+	res.Value = val
+	return res, nil
 }

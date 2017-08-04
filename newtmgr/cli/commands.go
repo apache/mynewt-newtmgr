@@ -81,6 +81,7 @@ func Commands() *cobra.Command {
 	nmCmd.AddCommand(configCmd())
 	nmCmd.AddCommand(connProfileCmd())
 	nmCmd.AddCommand(echoCmd())
+	nmCmd.AddCommand(getResCmd())
 
 	return nmCmd
 }
