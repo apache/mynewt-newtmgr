@@ -26,7 +26,6 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/runtimeco/go-coap"
 
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
@@ -712,23 +711,6 @@ func GenCoapService(x *BleXport, svcUuid BleUuid, reqChrUuid BleUuid,
 	}
 
 	return svc, nil
-}
-
-func GwService(x *BleXport) (BleSvc, error) {
-	svcUuid, _ := ParseUuid(UnauthSvcUuid)
-	reqChrUuid, _ := ParseUuid(UnauthReqChrUuid)
-	rspChrUuid, _ := ParseUuid(UnauthRspChrUuid)
-
-	resources := []oic.Resource{
-		oic.Resource{
-			Name: "mynewt.yourmom",
-			ReadCb: func(uri string, data []byte) (coap.COAPCode, []byte) {
-				return coap.Content, []byte{1, 2, 3, 4}
-			},
-		},
-	}
-
-	return GenCoapService(x, svcUuid, reqChrUuid, rspChrUuid, resources)
 }
 
 func ResChrIdLookup(mgmtChrs BleMgmtChrs, resType sesn.ResourceType) *BleChrId {
