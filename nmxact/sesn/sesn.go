@@ -87,6 +87,8 @@ type Sesn interface {
 	// separate thread, as sesn receive operations are blocking.
 	AbortRx(nmpSeq uint8) error
 
+	// XXX AbortResource(seq uint8) error
+
 	////// Internal to nmxact:
 
 	EncodeNmpMsg(msg *nmp.NmpMsg) ([]byte, error)

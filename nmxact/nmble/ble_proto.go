@@ -226,6 +226,46 @@ var HciErrCodeStringMap = map[int]string{
 	ERR_CODE_HCI_COARSE_CLK_ADJ:      "coarse clk adj",
 }
 
+const (
+	ERR_CODE_ATT_INVALID_HANDLE         int = 0x01
+	ERR_CODE_ATT_READ_NOT_PERMITTED         = 0x02
+	ERR_CODE_ATT_WRITE_NOT_PERMITTED        = 0x03
+	ERR_CODE_ATT_INVALID_PDU                = 0x04
+	ERR_CODE_ATT_INSUFFICIENT_AUTHEN        = 0x05
+	ERR_CODE_ATT_REQ_NOT_SUPPORTED          = 0x06
+	ERR_CODE_ATT_INVALID_OFFSET             = 0x07
+	ERR_CODE_ATT_INSUFFICIENT_AUTHOR        = 0x08
+	ERR_CODE_ATT_PREPARE_QUEUE_FULL         = 0x09
+	ERR_CODE_ATT_ATTR_NOT_FOUND             = 0x0a
+	ERR_CODE_ATT_ATTR_NOT_LONG              = 0x0b
+	ERR_CODE_ATT_INSUFFICIENT_KEY_SZ        = 0x0c
+	ERR_CODE_ATT_INVALID_ATTR_VALUE_LEN     = 0x0d
+	ERR_CODE_ATT_UNLIKELY                   = 0x0e
+	ERR_CODE_ATT_INSUFFICIENT_ENC           = 0x0f
+	ERR_CODE_ATT_UNSUPPORTED_GROUP          = 0x10
+	ERR_CODE_ATT_INSUFFICIENT_RES           = 0x11
+)
+
+var AttErrCodeStringMap = map[int]string{
+	ERR_CODE_ATT_INVALID_HANDLE:         "invalid handle",
+	ERR_CODE_ATT_READ_NOT_PERMITTED:     "read not permitted",
+	ERR_CODE_ATT_WRITE_NOT_PERMITTED:    "write not permitted",
+	ERR_CODE_ATT_INVALID_PDU:            "invalid pdu",
+	ERR_CODE_ATT_INSUFFICIENT_AUTHEN:    "insufficient authentication",
+	ERR_CODE_ATT_REQ_NOT_SUPPORTED:      "request not supported",
+	ERR_CODE_ATT_INVALID_OFFSET:         "invalid offset",
+	ERR_CODE_ATT_INSUFFICIENT_AUTHOR:    "insufficient authorization",
+	ERR_CODE_ATT_PREPARE_QUEUE_FULL:     "prepare queue full",
+	ERR_CODE_ATT_ATTR_NOT_FOUND:         "attribute not found",
+	ERR_CODE_ATT_ATTR_NOT_LONG:          "attribute not long",
+	ERR_CODE_ATT_INSUFFICIENT_KEY_SZ:    "insufficient key size",
+	ERR_CODE_ATT_INVALID_ATTR_VALUE_LEN: "invalid attribute value length",
+	ERR_CODE_ATT_UNLIKELY:               "unlikely error",
+	ERR_CODE_ATT_INSUFFICIENT_ENC:       "insufficient encryption",
+	ERR_CODE_ATT_UNSUPPORTED_GROUP:      "unsupported group",
+	ERR_CODE_ATT_INSUFFICIENT_RES:       "insufficient resources",
+}
+
 // These values never get transmitted or received, so their precise values
 // don't matter.  We specify them explicitly here to match the blehostd source.
 const (
@@ -262,6 +302,10 @@ const (
 	MSG_TYPE_ADV_SET_DATA              = 23
 	MSG_TYPE_ADV_RSP_SET_DATA          = 24
 	MSG_TYPE_ADV_FIELDS                = 25
+	MSG_TYPE_CLEAR_SVCS                = 26
+	MSG_TYPE_ADD_SVCS                  = 27
+	MSG_TYPE_COMMIT_SVCS               = 28
+	MSG_TYPE_ACCESS_STATUS             = 29
 
 	MSG_TYPE_SYNC_EVT       = 2049
 	MSG_TYPE_CONNECT_EVT    = 2050
@@ -275,6 +319,7 @@ const (
 	MSG_TYPE_SCAN_TMO_EVT   = 2058
 	MSG_TYPE_ENC_CHANGE_EVT = 2059
 	MSG_TYPE_RESET_EVT      = 2060
+	MSG_TYPE_ACCESS_EVT     = 2061
 )
 
 var MsgOpStringMap = map[MsgOp]string{
@@ -307,6 +352,10 @@ var MsgTypeStringMap = map[MsgType]string{
 	MSG_TYPE_ADV_SET_DATA:      "adv_set_data",
 	MSG_TYPE_ADV_RSP_SET_DATA:  "adv_rsp_set_data",
 	MSG_TYPE_ADV_FIELDS:        "adv_fields",
+	MSG_TYPE_CLEAR_SVCS:        "clear_svcs",
+	MSG_TYPE_ADD_SVCS:          "add_svcs",
+	MSG_TYPE_COMMIT_SVCS:       "commit_svcs",
+	MSG_TYPE_ACCESS_STATUS:     "access_status",
 
 	MSG_TYPE_SYNC_EVT:       "sync_evt",
 	MSG_TYPE_CONNECT_EVT:    "connect_evt",
@@ -319,6 +368,7 @@ var MsgTypeStringMap = map[MsgType]string{
 	MSG_TYPE_SCAN_TMO_EVT:   "scan_tmo_evt",
 	MSG_TYPE_ENC_CHANGE_EVT: "enc_change_evt",
 	MSG_TYPE_RESET_EVT:      "reset_evt",
+	MSG_TYPE_ACCESS_EVT:     "access_evt",
 }
 
 type BleHdr struct {
@@ -329,13 +379,13 @@ type BleHdr struct {
 
 type Msg interface{}
 
-type BleSvc struct {
+type BleDiscSvc struct {
 	StartHandle int     `json:"start_handle"`
 	EndHandle   int     `json:"end_handle"`
 	Uuid        BleUuid `json:"uuid"`
 }
 
-type BleChr struct {
+type BleDiscChr struct {
 	DefHandle  int     `json:"def_handle"`
 	ValHandle  int     `json:"val_handle"`
 	Properties int     `json:"properties"`
@@ -469,8 +519,8 @@ type BleDiscSvcEvt struct {
 	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
-	Status int    `json:"status"`
-	Svc    BleSvc `json:"service"`
+	Status int        `json:"status"`
+	Svc    BleDiscSvc `json:"service"`
 }
 
 type BleDiscChrUuidReq struct {
@@ -546,8 +596,8 @@ type BleDiscChrEvt struct {
 	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
-	Status int    `json:"status"`
-	Chr    BleChr `json:"characteristic"`
+	Status int        `json:"status"`
+	Chr    BleDiscChr `json:"characteristic"`
 }
 
 type BleWriteCmdReq struct {
@@ -870,7 +920,7 @@ type BleAdvStartReq struct {
 	HighDutyCycle bool               `json:"high_duty_cycle"`
 
 	// Only required for direct advertisements
-	PeerAddr *BleAddr `json:"peer_addr"`
+	PeerAddr *BleAddr `json:"peer_addr,omitempty"`
 }
 
 type BleAdvStartRsp struct {
@@ -907,7 +957,7 @@ type BleAdvSetDataReq struct {
 	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
-	Data []byte `json:"data"`
+	Data BleBytes `json:"data"`
 }
 
 type BleAdvSetDataRsp struct {
@@ -927,7 +977,7 @@ type BleAdvRspSetDataReq struct {
 	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
-	Data []byte `json:"data"`
+	Data BleBytes `json:"data"`
 }
 
 type BleAdvRspSetDataRsp struct {
@@ -950,51 +1000,51 @@ type BleAdvFieldsReq struct {
 	Flags *uint8 `json:"flags,omitempty"`
 
 	/*** 0x02,0x03 - 16-bit service class UUIDs. */
-	Uuids16           []BleUuid16 `json:"uuids16"`
+	Uuids16           []BleUuid16 `json:"uuids16,omitempty"`
 	Uuids16IsComplete bool        `json:"uuids16_is_complete"`
 
 	/*** 0x04,0x05 - 32-bit service class UUIDs. */
-	Uuids32           []uint32 `json:"uuids32"`
+	Uuids32           []uint32 `json:"uuids32,omitempty"`
 	Uuids32IsComplete bool     `json:"uuids32_is_complete"`
 
 	/*** 0x06,0x07 - 128-bit service class UUIDs. */
-	Uuids128           []BleUuid128 `json:"uuids128"`
+	Uuids128           []BleUuid128 `json:"uuids128,omitempty"`
 	Uuids128IsComplete bool         `json:"uuids128_is_complete"`
 
 	/*** 0x08,0x09 - Local name. */
-	Name           *string `json:"name,omitempty"`
+	Name           *string `json:"name,omitempty,omitempty"`
 	NameIsComplete bool    `json:"name_is_complete"`
 
 	/*** 0x0a - Tx power level. */
-	TxPwrLvl *int8 `json:"tx_pwr_lvl"`
+	TxPwrLvl *int8 `json:"tx_pwr_lvl,omitempty"`
 
 	/*** 0x0d - Slave connection interval range. */
-	SlaveItvlMin *uint16 `json:"slave_itvl_min"`
-	SlaveItvlMax *uint16 `json:"slave_itvl_max"`
+	SlaveItvlMin *uint16 `json:"slave_itvl_min,omitempty"`
+	SlaveItvlMax *uint16 `json:"slave_itvl_max,omitempty"`
 
 	/*** 0x16 - Service data - 16-bit UUID. */
-	SvcDataUuid16 []byte `json:"svc_data_uuid16"`
+	SvcDataUuid16 BleBytes `json:"svc_data_uuid16,omitempty"`
 
 	/*** 0x17 - Public target address. */
-	PublicTgtAddrs []BleAddr `json:"public_tgt_addrs"`
+	PublicTgtAddrs []BleAddr `json:"public_tgt_addrs,omitempty"`
 
 	/*** 0x19 - Appearance. */
-	Appearance *uint16 `json:"appearance"`
+	Appearance *uint16 `json:"appearance,omitempty"`
 
 	/*** 0x1a - Advertising interval. */
-	AdvItvl *uint16 `json:"adv_itvl"`
+	AdvItvl *uint16 `json:"adv_itvl,omitempty"`
 
 	/*** 0x20 - Service data - 32-bit UUID. */
-	SvcDataUuid32 []byte `json:"svc_data_uuid32"`
+	SvcDataUuid32 BleBytes `json:"svc_data_uuid32,omitempty"`
 
 	/*** 0x21 - Service data - 128-bit UUID. */
-	SvcDataUuid128 []byte `json:"svc_data_uuid128"`
+	SvcDataUuid128 BleBytes `json:"svc_data_uuid128,omitempty"`
 
 	/*** 0x24 - URI. */
 	Uri *string `json:"uri,omitempty"`
 
 	/*** 0xff - Manufacturer specific data. */
-	MfgData []byte `json:"mfg_data"`
+	MfgData BleBytes `json:"mfg_data,omitempty"`
 }
 
 type BleAdvFieldsRsp struct {
@@ -1004,8 +1054,8 @@ type BleAdvFieldsRsp struct {
 	Seq  BleSeq  `json:"seq"`
 
 	// Mandatory
-	Status int    `json:"status"`
-	Data   []byte `json:"data"`
+	Status int      `json:"status"`
+	Data   BleBytes `json:"data"`
 }
 
 type BleResetEvt struct {
@@ -1016,6 +1066,132 @@ type BleResetEvt struct {
 
 	// Mandatory
 	Reason int `json:"reason"`
+}
+
+type BleClearSvcsReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+}
+
+type BleClearSvcsRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status int `json:"status"`
+}
+
+type BleAddDsc struct {
+	Uuid       BleUuid     `json:"uuid"`
+	AttFlags   BleAttFlags `json:"att_flags"`
+	MinKeySize int         `json:"min_key_size"`
+}
+
+type BleAddChr struct {
+	Uuid       BleUuid     `json:"uuid"`
+	Flags      BleChrFlags `json:"flags"`
+	MinKeySize int         `json:"min_key_size"`
+	Dscs       []BleAddDsc `json:"descriptors,omitempty"`
+}
+
+type BleAddSvc struct {
+	Uuid    BleUuid     `json:"uuid"`
+	SvcType BleSvcType  `json:"type"`
+	Chrs    []BleAddChr `json:"characteristics,omitempty"`
+}
+
+type BleAddSvcsReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	Svcs []BleAddSvc `json:"services"`
+}
+
+type BleAddSvcsRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status int `json:"status"`
+}
+
+type BleRegDsc struct {
+	Uuid   BleUuid `json:"uuid"`
+	Handle uint16  `json:"handle"`
+}
+
+type BleRegChr struct {
+	Uuid      BleUuid     `json:"uuid"`
+	DefHandle uint16      `json:"def_handle"`
+	ValHandle uint16      `json:"val_handle"`
+	Dscs      []BleRegDsc `json:"descriptors"`
+}
+
+type BleRegSvc struct {
+	Uuid   BleUuid     `json:"uuid"`
+	Handle uint16      `json:"handle"`
+	Chrs   []BleRegChr `json:"characteristics"`
+}
+
+type BleCommitSvcsReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+}
+
+type BleCommitSvcsRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status int `json:"status"`
+
+	// Optional
+	Svcs []BleRegSvc `json:"services"`
+}
+
+type BleAccessEvt struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	GattOp     BleGattOp `json:"gatt_op"`
+	ConnHandle uint16    `json:"conn_handle"`
+	AttHandle  uint16    `json:"att_handle"`
+	Data       BleBytes  `json:"data"`
+}
+
+type BleAccessStatusReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	AttStatus uint8 `json:"att_status"`
+}
+
+type BleAccessStatusRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status int `json:"status"`
 }
 
 func ErrCodeToString(e int) string {

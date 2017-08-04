@@ -526,9 +526,10 @@ const (
 )
 
 var BleAdvFilterPolicyStringMap = map[BleAdvFilterPolicy]string{
-	BLE_ADV_FILTER_POLICY_NON: "non",
-	BLE_ADV_FILTER_POLICY_LTD: "ltd",
-	BLE_ADV_FILTER_POLICY_GEN: "gen",
+	BLE_ADV_FILTER_POLICY_NONE: "none",
+	BLE_ADV_FILTER_POLICY_SCAN: "scan",
+	BLE_ADV_FILTER_POLICY_CONN: "conn",
+	BLE_ADV_FILTER_POLICY_BOTH: "both",
 }
 
 func BleAdvFilterPolicyToString(discMode BleAdvFilterPolicy) string {

@@ -312,6 +312,38 @@ func NewBleAdvStopReq() *BleAdvStopReq {
 	}
 }
 
+func NewBleClearSvcsReq() *BleClearSvcsReq {
+	return &BleClearSvcsReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_CLEAR_SVCS,
+		Seq:  NextSeq(),
+	}
+}
+
+func NewBleAddSvcsReq() *BleAddSvcsReq {
+	return &BleAddSvcsReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_ADD_SVCS,
+		Seq:  NextSeq(),
+	}
+}
+
+func NewBleCommitSvcsReq() *BleCommitSvcsReq {
+	return &BleCommitSvcsReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_COMMIT_SVCS,
+		Seq:  NextSeq(),
+	}
+}
+
+func NewAccessStatusReq() *BleAccessStatusReq {
+	return &BleAccessStatusReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_ACCESS_STATUS,
+		Seq:  NextSeq(),
+	}
+}
+
 func ConnFindXact(x *BleXport, connHandle uint16) (BleConnDesc, error) {
 	r := NewBleConnFindReq()
 	r.ConnHandle = connHandle
@@ -380,6 +412,56 @@ func ResetXact(x *BleXport) error {
 	return reset(x, bl, r)
 }
 
+func ClearSvcsXact(x *BleXport) error {
+	r := NewBleClearSvcsReq()
+
+	bl, err := x.AddListener(SeqKey(r.Seq))
+	if err != nil {
+		return err
+	}
+	defer x.RemoveListener(bl)
+
+	return clearSvcs(x, bl, r)
+}
+
+func AddSvcsXact(x *BleXport, svcs []BleAddSvc) error {
+	r := NewBleAddSvcsReq()
+	r.Svcs = svcs
+
+	bl, err := x.AddListener(SeqKey(r.Seq))
+	if err != nil {
+		return err
+	}
+	defer x.RemoveListener(bl)
+
+	return addSvcs(x, bl, r)
+}
+
+func CommitSvcsXact(x *BleXport) ([]BleRegSvc, error) {
+	r := NewBleCommitSvcsReq()
+
+	bl, err := x.AddListener(SeqKey(r.Seq))
+	if err != nil {
+		return nil, err
+	}
+	defer x.RemoveListener(bl)
+
+	return commitSvcs(x, bl, r)
+}
+
+func AccessStatusXact(x *BleXport, attStatus uint8) error {
+	r := NewAccessStatusReq()
+	r.AttStatus = attStatus
+
+	bl, err := x.AddListener(SeqKey(r.Seq))
+	if err != nil {
+		return err
+	}
+	defer x.RemoveListener(bl)
+
+	return accessStatus(x, bl, r)
+}
+
 func DiscoverDeviceWithName(
 	bx *BleXport,
 	ownAddrType BleAddrType,
@@ -391,4 +473,60 @@ func DiscoverDeviceWithName(
 	}
 
 	return DiscoverDevice(bx, ownAddrType, timeout, advPred)
+}
+
+func BleAdvFieldsToReq(f BleAdvFields) *BleAdvFieldsReq {
+	r := NewBleAdvFieldsReq()
+
+	r.Flags = f.Flags
+	r.Uuids16 = f.Uuids16
+	r.Uuids16IsComplete = f.Uuids16IsComplete
+	r.Uuids32 = f.Uuids32
+	r.Uuids32IsComplete = f.Uuids32IsComplete
+	r.Uuids128 = f.Uuids128
+	r.Uuids128IsComplete = f.Uuids128IsComplete
+	r.Name = f.Name
+	r.NameIsComplete = f.NameIsComplete
+	r.TxPwrLvl = f.TxPwrLvl
+	r.SlaveItvlMin = f.SlaveItvlMin
+	r.SlaveItvlMax = f.SlaveItvlMax
+	r.SvcDataUuid16 = BleBytes{f.SvcDataUuid16}
+	r.PublicTgtAddrs = f.PublicTgtAddrs
+	r.Appearance = f.Appearance
+	r.AdvItvl = f.AdvItvl
+	r.SvcDataUuid32 = BleBytes{f.SvcDataUuid32}
+	r.SvcDataUuid128 = BleBytes{f.SvcDataUuid128}
+	r.Uri = f.Uri
+	r.MfgData = BleBytes{f.MfgData}
+
+	return r
+}
+
+func BleSvcToAddSvc(svc BleSvc) BleAddSvc {
+	as := BleAddSvc{
+		Uuid:    svc.Uuid,
+		SvcType: svc.SvcType,
+	}
+
+	for _, chr := range svc.Chrs {
+		ac := BleAddChr{
+			Uuid:       chr.Uuid,
+			Flags:      chr.Flags,
+			MinKeySize: chr.MinKeySize,
+		}
+
+		for _, dsc := range chr.Dscs {
+			ad := BleAddDsc{
+				Uuid:       dsc.Uuid,
+				AttFlags:   dsc.AttFlags,
+				MinKeySize: dsc.MinKeySize,
+			}
+
+			ac.Dscs = append(ac.Dscs, ad)
+		}
+
+		as.Chrs = append(as.Chrs, ac)
+	}
+
+	return as
 }

@@ -84,6 +84,10 @@ func NextNmpSeq() uint8 {
 	return val
 }
 
+func SeqToToken(seq uint8) []byte {
+	return []byte{seq}
+}
+
 func NextToken() []byte {
 	seqMutex.Lock()
 	defer seqMutex.Unlock()
@@ -93,7 +97,7 @@ func NextToken() []byte {
 		oicSeqBeenRead = true
 	}
 
-	token := []byte{nextOicSeq}
+	token := SeqToToken(nextOicSeq)
 	nextOicSeq++
 
 	return token

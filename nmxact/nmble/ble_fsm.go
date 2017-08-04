@@ -54,9 +54,10 @@ const (
 	SESN_STATE_DISCOVER_CHR                 = 4
 	SESN_STATE_SECURITY                     = 5
 	SESN_STATE_SUBSCRIBE                    = 6
-	SESN_STATE_DONE                         = 7
-	SESN_STATE_TERMINATING                  = 8
-	SESN_STATE_CONN_CANCELLING              = 9
+	SESN_STATE_GET_INFO                     = 7
+	SESN_STATE_DONE                         = 8
+	SESN_STATE_TERMINATING                  = 9
+	SESN_STATE_CONN_CANCELLING              = 10
 )
 
 type BleFsmDisconnectType int
@@ -94,10 +95,11 @@ type BleFsm struct {
 	params BleFsmParams
 
 	connHandle     uint16
+	connDesc       BleConnDesc
 	peerDev        BleDev
-	nmpSvc         *BleSvc
-	nmpReqChr      *BleChr
-	nmpRspChr      *BleChr
+	nmpSvc         *BleDiscSvc
+	nmpReqChr      *BleDiscChr
+	nmpRspChr      *BleDiscChr
 	prevDisconnect BleDisconnectEntry
 	attMtu         int
 	state          BleSesnState
@@ -142,15 +144,6 @@ func (bf *BleFsm) closedError(msg string) error {
 
 func (bf *BleFsm) connInfo() (BleConnDesc, error) {
 	return ConnFindXact(bf.params.Bx, bf.connHandle)
-}
-
-func (bf *BleFsm) logConnection() {
-	desc, err := bf.connInfo()
-	if err != nil {
-		return
-	}
-
-	log.Debugf("BLE connection attempt succeeded; %s", desc.String())
 }
 
 func fsmErrorLess(a error, b error) bool {
@@ -217,7 +210,7 @@ func (bf *BleFsm) listenForError() {
 }
 
 // Listens for events in the background.
-func (bf *BleFsm) eventListen(bl *Listener, seq BleSeq) error {
+func (bf *BleFsm) eventListen(bl *Listener) error {
 	bf.wg.Add(1)
 
 	go func() {
@@ -354,7 +347,7 @@ func (bf *BleFsm) connect() error {
 	}
 
 	// Listen for events in the background.
-	if err := bf.eventListen(bl, r.Seq); err != nil {
+	if err := bf.eventListen(bl); err != nil {
 		return err
 	}
 
@@ -420,7 +413,7 @@ func (bf *BleFsm) connCancel() error {
 	return nil
 }
 
-func (bf *BleFsm) discSvcUuidOnce(uuid BleUuid) (*BleSvc, error) {
+func (bf *BleFsm) discSvcUuidOnce(uuid BleUuid) (*BleDiscSvc, error) {
 	r := NewBleDiscSvcUuidReq()
 	r.ConnHandle = bf.connHandle
 	r.Uuid = uuid
@@ -539,6 +532,12 @@ func (bf *BleFsm) exchangeMtu() error {
 
 	mtu, err := exchangeMtu(bf.params.Bx, bl, r)
 	if err != nil {
+		// If the operation failed because the peer already initiated the
+		// exchange, just pretend it was successful.
+		bhe := nmxutil.ToBleHost(err)
+		if bhe != nil && bhe.Status == ERR_CODE_EALREADY {
+			return nil
+		}
 		return err
 	}
 
@@ -620,31 +619,43 @@ func (bf *BleFsm) executeState() (bool, error) {
 		bf.state = SESN_STATE_DISCOVER_SVC
 
 	case SESN_STATE_DISCOVER_SVC:
-		if err := bf.discSvcUuid(); err != nil {
-			return false, err
+		if len(bf.params.SvcUuids) > 0 {
+			if err := bf.discSvcUuid(); err != nil {
+				return false, err
+			}
 		}
 		bf.state = SESN_STATE_DISCOVER_CHR
 
 	case SESN_STATE_DISCOVER_CHR:
-		if err := bf.discAllChrs(); err != nil {
-			return false, err
+		if bf.nmpSvc != nil {
+			if err := bf.discAllChrs(); err != nil {
+				return false, err
+			}
 		}
-		if bf.shouldEncrypt() {
-			bf.state = SESN_STATE_SECURITY
-		} else {
-			bf.state = SESN_STATE_SUBSCRIBE
-		}
+		bf.state = SESN_STATE_SECURITY
 
 	case SESN_STATE_SECURITY:
-		if err := bf.encInitiate(); err != nil {
-			return false, err
+		if bf.shouldEncrypt() {
+			if err := bf.encInitiate(); err != nil {
+				return false, err
+			}
 		}
 		bf.state = SESN_STATE_SUBSCRIBE
 
 	case SESN_STATE_SUBSCRIBE:
-		if err := bf.subscribe(); err != nil {
+		if bf.nmpRspChr != nil {
+			if err := bf.subscribe(); err != nil {
+				return false, err
+			}
+		}
+		bf.state = SESN_STATE_GET_INFO
+
+	case SESN_STATE_GET_INFO:
+		desc, err := bf.connInfo()
+		if err != nil {
 			return false, err
 		}
+		bf.connDesc = desc
 		bf.state = SESN_STATE_DONE
 
 	case SESN_STATE_DONE:
@@ -670,13 +681,11 @@ func (bf *BleFsm) PrevDisconnect() BleDisconnectEntry {
 	return bf.prevDisconnect
 }
 
-func (bf *BleFsm) startOnce() (bool, error) {
-	if !bf.IsClosed() {
-		return false, nmxutil.NewSesnAlreadyOpenError(fmt.Sprintf(
-			"Attempt to open an already-open BLE session (state=%d)",
-			bf.state))
-	}
+func (bf *BleFsm) IsCentral() bool {
+	return bf.connDesc.Role == BLE_ROLE_MASTER
+}
 
+func (bf *BleFsm) startOnce() (bool, error) {
 	bf.disconnectChan = make(chan struct{})
 	bf.rxNmpChan = make(chan []byte)
 
@@ -705,6 +714,12 @@ func (bf *BleFsm) startOnce() (bool, error) {
 func (bf *BleFsm) Start() error {
 	var err error
 
+	if !bf.IsClosed() {
+		return nmxutil.NewSesnAlreadyOpenError(fmt.Sprintf(
+			"Attempt to open an already-open BLE session (state=%d)",
+			bf.state))
+	}
+
 	for i := 0; i < bf.params.Central.ConnTries; i++ {
 		var retry bool
 		retry, err = bf.startOnce()
@@ -714,6 +729,24 @@ func (bf *BleFsm) Start() error {
 	}
 
 	if err != nil {
+		nmxutil.Assert(!bf.IsOpen())
+		nmxutil.Assert(bf.IsClosed())
+		return err
+	}
+
+	return nil
+}
+
+func (bf *BleFsm) StartConnected(
+	connHandle uint16, eventListener *Listener) error {
+
+	bf.connHandle = connHandle
+	if err := bf.eventListen(eventListener); err != nil {
+		return err
+	}
+
+	bf.state = SESN_STATE_EXCHANGE_MTU
+	if _, err := bf.startOnce(); err != nil {
 		nmxutil.Assert(!bf.IsOpen())
 		nmxutil.Assert(bf.IsClosed())
 		return err

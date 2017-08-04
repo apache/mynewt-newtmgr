@@ -68,7 +68,7 @@ func main() {
 	params := nmble.NewXportCfg()
 	params.SockPath = "/tmp/blehostd-uds"
 	params.BlehostdPath = "blehostd"
-	params.DevPath = "/dev/cu.usbmodem142121"
+	params.DevPath = "/dev/cu.usbmodem142111"
 
 	x, err := nmble.NewBleXport(params)
 	if err != nil {
@@ -129,6 +129,10 @@ func main() {
 					err.Error())
 				continue
 			}
+		}
+
+		if err := s.Open(); err != nil {
+			s.Close()
 		}
 
 		// Send an echo command to the peer.

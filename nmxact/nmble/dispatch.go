@@ -71,6 +71,15 @@ func setPreferredMtuRspCtor() Msg  { return &BleSetPreferredMtuRsp{} }
 func securityInitiateRspCtor() Msg { return &BleSecurityInitiateRsp{} }
 func connFindRspCtor() Msg         { return &BleConnFindRsp{} }
 func resetRspCtor() Msg            { return &BleResetRsp{} }
+func advStartRspCtor() Msg         { return &BleAdvStartRsp{} }
+func advStopRspCtor() Msg          { return &BleAdvStopRsp{} }
+func advSetDataRspCtor() Msg       { return &BleAdvSetDataRsp{} }
+func advRspSetDataRspCtor() Msg    { return &BleAdvRspSetDataRsp{} }
+func advFieldsRspCtor() Msg        { return &BleAdvFieldsRsp{} }
+func clearSvcsRspCtor() Msg        { return &BleClearSvcsRsp{} }
+func addSvcsRspCtor() Msg          { return &BleAddSvcsRsp{} }
+func commitSvcsRspCtor() Msg       { return &BleCommitSvcsRsp{} }
+func accessStatusRspCtor() Msg     { return &BleAccessStatusRsp{} }
 
 func syncEvtCtor() Msg       { return &BleSyncEvt{} }
 func connectEvtCtor() Msg    { return &BleConnectEvt{} }
@@ -83,6 +92,7 @@ func scanEvtCtor() Msg       { return &BleScanEvt{} }
 func scanTmoEvtCtor() Msg    { return &BleScanTmoEvt{} }
 func encChangeEvtCtor() Msg  { return &BleEncChangeEvt{} }
 func resetEvtCtor() Msg      { return &BleResetEvt{} }
+func accessEvtCtor() Msg     { return &BleAccessEvt{} }
 
 var msgCtorMap = map[OpTypePair]msgCtor{
 	{MSG_OP_RSP, MSG_TYPE_ERR}:               errRspCtor,
@@ -103,6 +113,15 @@ var msgCtorMap = map[OpTypePair]msgCtor{
 	{MSG_OP_RSP, MSG_TYPE_SECURITY_INITIATE}: securityInitiateRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_CONN_FIND}:         connFindRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_RESET}:             resetRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_ADV_START}:         advStartRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_ADV_STOP}:          advStopRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_ADV_SET_DATA}:      advSetDataRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_ADV_RSP_SET_DATA}:  advRspSetDataRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_ADV_FIELDS}:        advFieldsRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_CLEAR_SVCS}:        clearSvcsRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_ADD_SVCS}:          addSvcsRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_COMMIT_SVCS}:       commitSvcsRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_ACCESS_STATUS}:     accessStatusRspCtor,
 
 	{MSG_OP_EVT, MSG_TYPE_SYNC_EVT}:       syncEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_CONNECT_EVT}:    connectEvtCtor,
@@ -115,6 +134,7 @@ var msgCtorMap = map[OpTypePair]msgCtor{
 	{MSG_OP_EVT, MSG_TYPE_SCAN_TMO_EVT}:   scanTmoEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_ENC_CHANGE_EVT}: encChangeEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_RESET_EVT}:      resetEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_ACCESS_EVT}:     accessEvtCtor,
 }
 
 func NewDispatcher() *Dispatcher {

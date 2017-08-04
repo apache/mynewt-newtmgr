@@ -45,31 +45,14 @@ type SesnCfgBleCentral struct {
 	// XXX: Missing fields.
 }
 
-type SesnCfgBlePeriph struct {
-	Duration      time.Duration
-	ConnMode      bledefs.BleAdvConnMode
-	DiscMode      bledefs.BleAdvDiscMode
-	ItvlMin       uint16
-	ItvlMax       uint16
-	ChannelMap    uint8
-	FilterPolicy  bledefs.BleAdvFilterPolicy
-	HighDutyCycle bool
-	AdvFields     bledefs.BleAdvFields
-	RspFields     bledefs.BleAdvFields
-}
-
 type SesnCfgBle struct {
 	// General configuration.
-	IsCentral    bool
 	OwnAddrType  bledefs.BleAddrType
 	EncryptWhen  bledefs.BleEncryptWhen
 	CloseTimeout time.Duration
 
 	// Central configuration.
 	Central SesnCfgBleCentral
-
-	// Peripheral configuration.
-	Periph SesnCfgBlePeriph
 }
 
 type SesnCfg struct {
@@ -88,7 +71,6 @@ func NewSesnCfg() SesnCfg {
 		// future, there will need to be some global default, or something that
 		// gets read from blehostd.
 		Ble: SesnCfgBle{
-			IsCentral:    true,
 			OwnAddrType:  bledefs.BLE_ADDR_TYPE_RANDOM,
 			CloseTimeout: 30 * time.Second,
 
@@ -96,7 +78,6 @@ func NewSesnCfg() SesnCfg {
 				ConnTries:   3,
 				ConnTimeout: 10 * time.Second,
 			},
-			Periph: SesnCfgBlePeriph{},
 		},
 	}
 }
