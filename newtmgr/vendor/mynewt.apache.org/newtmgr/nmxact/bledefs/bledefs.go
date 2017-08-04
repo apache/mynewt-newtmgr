@@ -809,13 +809,17 @@ type BleChrId struct {
 	ChrUuid BleUuid
 }
 
+func (b *BleChrId) String() string {
+	return fmt.Sprintf("s=%s c=%s", b.SvcUuid.String(), b.ChrUuid.String())
+}
+
 type BleMgmtChrs struct {
-	NmpReqChr        *BleChrId
-	NmpRspChr        *BleChrId
-	ResPublicReqChr  *BleChrId
-	ResPublicRspChr  *BleChrId
-	ResUnauthReqChr  *BleChrId
-	ResUnauthRspChr  *BleChrId
+	NmpReqChr       *BleChrId
+	NmpRspChr       *BleChrId
+	ResPublicReqChr *BleChrId
+	ResPublicRspChr *BleChrId
+	ResUnauthReqChr *BleChrId
+	ResUnauthRspChr *BleChrId
 	ResSecureReqChr *BleChrId
 	ResSecureRspChr *BleChrId
 }

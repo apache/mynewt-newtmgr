@@ -38,6 +38,22 @@ func NextMessageId() uint16 {
 	return id
 }
 
+func validateToken(t []byte) error {
+	if len(t) > 8 {
+		return fmt.Errorf("Invalid token; len=%d, must be <= 8", len(t))
+	}
+
+	return nil
+}
+
+func buildMessage(isTcp bool, p coap.MessageParams) coap.Message {
+	if isTcp {
+		return coap.NewTcpMessage(p)
+	} else {
+		return coap.NewDgramMessage(p)
+	}
+}
+
 func Encode(m coap.Message) ([]byte, error) {
 	b, err := m.MarshalBinary()
 	if err != nil {
@@ -48,9 +64,8 @@ func Encode(m coap.Message) ([]byte, error) {
 }
 
 func CreateGet(isTcp bool, resUri string, token []byte) (coap.Message, error) {
-	if len(token) > 8 {
-		return nil,
-			fmt.Errorf("Invalid token; len=%d, must be < 8", len(token))
+	if err := validateToken(token); err != nil {
+		return nil, err
 	}
 
 	p := coap.MessageParams{
@@ -59,12 +74,7 @@ func CreateGet(isTcp bool, resUri string, token []byte) (coap.Message, error) {
 		Token: token,
 	}
 
-	var m coap.Message
-	if isTcp {
-		m = coap.NewTcpMessage(p)
-	} else {
-		m = coap.NewDgramMessage(p)
-	}
+	m := buildMessage(isTcp, p)
 	m.SetPathString(resUri)
 
 	return m, nil
@@ -72,6 +82,42 @@ func CreateGet(isTcp bool, resUri string, token []byte) (coap.Message, error) {
 
 func EncodeGet(isTcp bool, resUri string, token []byte) ([]byte, error) {
 	m, err := CreateGet(isTcp, resUri, token)
+	if err != nil {
+		return nil, err
+	}
+
+	b, err := Encode(m)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+func CreatePut(isTcp bool, resUri string, token []byte,
+	val []byte) (coap.Message, error) {
+
+	if err := validateToken(token); err != nil {
+		return nil, err
+	}
+
+	p := coap.MessageParams{
+		Type:    coap.Confirmable,
+		Code:    coap.PUT,
+		Token:   token,
+		Payload: val,
+	}
+
+	m := buildMessage(isTcp, p)
+	m.SetPathString(resUri)
+
+	return m, nil
+}
+
+func EncodePut(isTcp bool, resUri string, token []byte, val []byte) (
+	[]byte, error) {
+
+	m, err := CreatePut(isTcp, resUri, token, val)
 	if err != nil {
 		return nil, err
 	}

@@ -77,7 +77,9 @@ func (d *Dispatcher) addOmpListener() error {
 				}
 
 			case err := <-ol.ErrChan:
-				log.Debugf("OIC error: %s", err.Error())
+				if err != nil {
+					log.Debugf("OIC error: %s", err.Error())
+				}
 
 			case <-d.stopCh:
 				return

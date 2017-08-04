@@ -27,9 +27,12 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 
+	"mynewt.apache.org/newt/util"
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
+	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/oic"
+	"mynewt.apache.org/newtmgr/nmxact/omp"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
@@ -713,11 +716,25 @@ func GenCoapService(x *BleXport, svcUuid BleUuid, reqChrUuid BleUuid,
 	return svc, nil
 }
 
-func ResChrIdLookup(mgmtChrs BleMgmtChrs, resType sesn.ResourceType) *BleChrId {
+func ResChrReqIdLookup(mgmtChrs BleMgmtChrs,
+	resType sesn.ResourceType) *BleChrId {
+
 	m := map[sesn.ResourceType]*BleChrId{
 		sesn.RES_TYPE_PUBLIC: mgmtChrs.ResPublicReqChr,
 		sesn.RES_TYPE_UNAUTH: mgmtChrs.ResUnauthReqChr,
 		sesn.RES_TYPE_SECURE: mgmtChrs.ResSecureReqChr,
+	}
+
+	return m[resType]
+}
+
+func ResChrRspIdLookup(mgmtChrs BleMgmtChrs,
+	resType sesn.ResourceType) *BleChrId {
+
+	m := map[sesn.ResourceType]*BleChrId{
+		sesn.RES_TYPE_PUBLIC: mgmtChrs.ResPublicRspChr,
+		sesn.RES_TYPE_UNAUTH: mgmtChrs.ResUnauthRspChr,
+		sesn.RES_TYPE_SECURE: mgmtChrs.ResSecureRspChr,
 	}
 
 	return m[resType]
@@ -755,4 +772,54 @@ func BuildMgmtChrs(mgmtProto sesn.MgmtProto) (BleMgmtChrs, error) {
 	mgmtChrs.ResUnauthRspChr = &BleChrId{unauthSvcUuid, unauthRspChrUuid}
 
 	return mgmtChrs, nil
+}
+
+func MtuIn(mgmtProto sesn.MgmtProto, attMtu uint16) (int, error) {
+	var mtu int
+
+	switch mgmtProto {
+	case sesn.MGMT_PROTO_NMP:
+		mtu = int(attMtu) - NOTIFY_CMD_BASE_SZ - nmp.NMP_HDR_SIZE
+
+	case sesn.MGMT_PROTO_OMP:
+		mtu = int(attMtu) - NOTIFY_CMD_BASE_SZ - omp.OMP_MSG_OVERHEAD -
+			nmp.NMP_HDR_SIZE
+
+	default:
+		return 0, fmt.Errorf("Invalid management protocol: %s", mgmtProto)
+	}
+
+	return mtu, nil
+}
+
+func MtuOut(mgmtProto sesn.MgmtProto, attMtu uint16) (int, error) {
+	var mtu int
+
+	switch mgmtProto {
+	case sesn.MGMT_PROTO_NMP:
+		mtu = int(attMtu) - NOTIFY_CMD_BASE_SZ - nmp.NMP_HDR_SIZE
+
+	case sesn.MGMT_PROTO_OMP:
+		mtu = int(attMtu) - NOTIFY_CMD_BASE_SZ - omp.OMP_MSG_OVERHEAD -
+			nmp.NMP_HDR_SIZE
+
+	default:
+		return 0, fmt.Errorf("Invalid management protocol: %s", mgmtProto)
+	}
+
+	return util.IntMin(mtu, BLE_ATT_ATTR_MAX_LEN), nil
+}
+
+func EncodeMgmtMsg(mgmtProto sesn.MgmtProto, m *nmp.NmpMsg) ([]byte, error) {
+	switch mgmtProto {
+	case sesn.MGMT_PROTO_NMP:
+		return nmp.EncodeNmpPlain(m)
+
+	case sesn.MGMT_PROTO_OMP:
+		return omp.EncodeOmpTcp(m)
+
+	default:
+		return nil,
+			fmt.Errorf("invalid management protocol: %+v", mgmtProto)
+	}
 }

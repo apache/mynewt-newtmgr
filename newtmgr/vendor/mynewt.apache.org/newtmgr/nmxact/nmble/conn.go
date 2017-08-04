@@ -32,12 +32,13 @@ func NewNotifyListener() *NotifyListener {
 type Conn struct {
 	bx      *BleXport
 	rxvr    *Receiver
-	attMtu  int
+	attMtu  uint16
 	profile Profile
 	desc    BleConnDesc
 
 	connHandle     uint16
 	connecting     bool
+	stopped        bool
 	disconnectChan chan error
 	wg             sync.WaitGroup
 
@@ -74,13 +75,12 @@ func (c *Conn) initiateShutdown() bool {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	if c.stopChan == nil {
+	if c.stopped {
 		return false
 	}
+	c.stopped = true
 
 	close(c.stopChan)
-	c.stopChan = nil
-
 	return true
 }
 
@@ -100,6 +100,7 @@ func (c *Conn) shutdown(err error) {
 	if !c.initiateShutdown() {
 		return
 	}
+	defer func() { c.stopped = false }()
 
 	c.connecting = false
 	c.connHandle = BLE_CONN_HANDLE_NONE
@@ -153,7 +154,7 @@ func (c *Conn) eventListen(bl *Listener) error {
 					} else {
 						log.Debugf("BLE ATT MTU updated; from=%d to=%d",
 							c.attMtu, msg.Mtu)
-						c.attMtu = int(msg.Mtu)
+						c.attMtu = msg.Mtu
 					}
 
 				case *BleEncChangeEvt:
@@ -369,7 +370,7 @@ func (c *Conn) ConnInfo() BleConnDesc {
 	return c.desc
 }
 
-func (c *Conn) AttMtu() int {
+func (c *Conn) AttMtu() uint16 {
 	return c.attMtu
 }
 
@@ -558,7 +559,7 @@ func (c *Conn) ExchangeMtu() error {
 		return err
 	}
 
-	c.attMtu = mtu
+	c.attMtu = uint16(mtu)
 	return nil
 }
 
@@ -697,16 +698,16 @@ func (c *Conn) Stop() error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	var err error
 	if c.connHandle != BLE_CONN_HANDLE_NONE {
-		err = c.terminate()
+		// Terminate the connection.  On success, the conn object will shut
+		// down upon receipt of the disconnect event.  On failure, just force a
+		// shutdown manually.
+		if err := c.terminate(); err != nil {
+			go c.shutdown(err)
+		}
 	} else if c.connecting {
-		err = c.connCancel()
-	}
-
-	if err != nil {
-		// Something went unexpectedly wrong.  Just force a shutdown.
-		go c.shutdown(err)
+		c.connCancel()
+		go c.shutdown(fmt.Errorf("Stopped"))
 	}
 
 	return nil
