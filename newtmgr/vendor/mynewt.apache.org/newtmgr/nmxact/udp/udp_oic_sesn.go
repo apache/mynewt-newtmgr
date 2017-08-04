@@ -176,3 +176,10 @@ func (uos *UdpOicSesn) GetResourceOnce(resType sesn.ResourceType, uri string,
 		}
 	}
 }
+
+func (uos *UdpOicSesn) PutResourceOnce(resType sesn.ResourceType,
+	uri string, value []byte,
+	opt sesn.TxOptions) (coap.COAPCode, error) {
+
+	return 0, fmt.Errorf("UdpOicSesn.PutResourceOnce() unsupported")
+}

@@ -65,3 +65,43 @@ func (c *GetResCmd) Run(s sesn.Sesn) (Result, error) {
 	res.Value = val
 	return res, nil
 }
+
+type PutResCmd struct {
+	CmdBase
+	Uri   string
+	Typ   sesn.ResourceType
+	Value map[string]interface{}
+}
+
+func NewPutResCmd() *PutResCmd {
+	return &PutResCmd{
+		CmdBase: NewCmdBase(),
+	}
+}
+
+type PutResResult struct {
+	Code coap.COAPCode
+}
+
+func newPutResResult() *PutResResult {
+	return &PutResResult{}
+}
+
+func (r *PutResResult) Status() int {
+	if r.Code == coap.Content {
+		return 0
+	} else {
+		return int(r.Code)
+	}
+}
+
+func (c *PutResCmd) Run(s sesn.Sesn) (Result, error) {
+	status, err := sesn.PutResource(s, c.Typ, c.Uri, c.Value, c.TxOptions())
+	if err != nil {
+		return nil, err
+	}
+
+	res := newPutResResult()
+	res.Code = status
+	return res, nil
+}

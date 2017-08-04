@@ -340,3 +340,9 @@ func (s *BleSesn) GetResourceOnce(resType sesn.ResourceType, uri string,
 
 	return rsp.Code(), rsp.Payload(), nil
 }
+
+func (s *BleSesn) PutResourceOnce(resType sesn.ResourceType,
+	uri string, value []byte, opt sesn.TxOptions) (coap.COAPCode, error) {
+
+	return 0, fmt.Errorf("SerialPlainSesn.PutResourceOnce() unsupported")
+}

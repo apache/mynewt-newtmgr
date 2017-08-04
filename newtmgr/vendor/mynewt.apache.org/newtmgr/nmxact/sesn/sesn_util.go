@@ -55,3 +55,24 @@ func GetResource(s Sesn, resType ResourceType, uri string, o TxOptions) (
 		}
 	}
 }
+
+func PutResource(s Sesn, resType ResourceType, uri string,
+	value map[string]interface{}, o TxOptions) (coap.COAPCode, error) {
+
+	b, err := nmxutil.EncodeCborMap(value)
+	if err != nil {
+		return 0, err
+	}
+
+	retries := o.Tries - 1
+	for i := 0; ; i++ {
+		code, err := s.PutResourceOnce(resType, uri, b, o)
+		if err == nil {
+			return code, nil
+		}
+
+		if !nmxutil.IsRspTimeout(err) || i >= retries {
+			return code, err
+		}
+	}
+}

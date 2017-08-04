@@ -116,6 +116,16 @@ func DecodeCborMap(cbor []byte) (map[string]interface{}, error) {
 	return m, nil
 }
 
+func EncodeCborMap(value map[string]interface{}) ([]byte, error) {
+	b := []byte{}
+	enc := codec.NewEncoderBytes(&b, new(codec.CborHandle))
+	if err := enc.Encode(value); err != nil {
+		return nil, fmt.Errorf("failure encoding cbor; %s", err.Error())
+	}
+
+	return b, nil
+}
+
 var nextId uint32
 
 func GetNextId() uint32 {
