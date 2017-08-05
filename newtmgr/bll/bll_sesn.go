@@ -32,21 +32,21 @@ import (
 
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
+	"mynewt.apache.org/newtmgr/nmxact/mgmt"
 	"mynewt.apache.org/newtmgr/nmxact/nmble"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/oic"
-	"mynewt.apache.org/newtmgr/nmxact/omp"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
-type BllOicSesn struct {
+type BllSesn struct {
 	cfg BllSesnCfg
 
 	cln    ble.Client
-	d      *omp.Dispatcher
+	txvr   *mgmt.Transceiver
 	mtx    sync.Mutex
-	attMtu int
+	attMtu uint16
 
 	nmpReqChr    *ble.Characteristic
 	nmpRspChr    *ble.Characteristic
@@ -58,42 +58,41 @@ type BllOicSesn struct {
 	secureRspChr *ble.Characteristic
 }
 
-func NewBllOicSesn(cfg BllSesnCfg) *BllOicSesn {
-	return &BllOicSesn{
+func NewBllSesn(cfg BllSesnCfg) *BllSesn {
+	return &BllSesn{
 		cfg: cfg,
 	}
 }
 
-func (bls *BllOicSesn) listenDisconnect() {
+func (s *BllSesn) listenDisconnect() {
 	go func() {
-		<-bls.cln.Disconnected()
+		<-s.cln.Disconnected()
 
-		bls.mtx.Lock()
-		bls.d.ErrorAll(fmt.Errorf("Disconnected"))
-		bls.d.Stop()
-		bls.mtx.Unlock()
+		s.mtx.Lock()
+		s.txvr.ErrorAll(fmt.Errorf("disconnected"))
+		s.mtx.Unlock()
 
-		bls.cln = nil
+		s.cln = nil
 	}()
 }
 
-func (bls *BllOicSesn) connect() error {
+func (s *BllSesn) connect() error {
 	log.Debugf("Connecting to peer")
 	ctx := ble.WithSigHandler(context.WithTimeout(context.Background(),
-		bls.cfg.ConnTimeout))
+		s.cfg.ConnTimeout))
 
 	var err error
-	bls.cln, err = ble.Connect(ctx, bls.cfg.AdvFilter)
+	s.cln, err = ble.Connect(ctx, s.cfg.AdvFilter)
 	if err != nil {
 		if nmutil.ErrorCausedBy(err, context.DeadlineExceeded) {
 			return fmt.Errorf("Failed to connect to peer after %s",
-				bls.cfg.ConnTimeout.String())
+				s.cfg.ConnTimeout.String())
 		} else {
 			return err
 		}
 	}
 
-	bls.listenDisconnect()
+	s.listenDisconnect()
 
 	return nil
 }
@@ -124,12 +123,15 @@ func findChr(profile *ble.Profile, svcUuid bledefs.BleUuid,
 	return nil, nil
 }
 
-func (bls *BllOicSesn) discoverAll() error {
+func (s *BllSesn) discoverAll() error {
 	log.Debugf("Discovering profile")
-	p, err := bls.cln.DiscoverProfile(true)
+	p, err := s.cln.DiscoverProfile(true)
 	if err != nil {
 		return err
 	}
+
+	nmpSvcUuid, _ := bledefs.ParseUuid(bledefs.NmpPlainSvcUuid)
+	nmpChrUuid, _ := bledefs.ParseUuid(bledefs.NmpPlainChrUuid)
 
 	ompSvcUuid, _ := bledefs.ParseUuid(bledefs.OmpUnsecSvcUuid)
 	ompReqChrUuid, _ := bledefs.ParseUuid(bledefs.OmpUnsecReqChrUuid)
@@ -139,22 +141,35 @@ func (bls *BllOicSesn) discoverAll() error {
 	unauthReqChrUuid, _ := bledefs.ParseUuid(bledefs.UnauthReqChrUuid)
 	unauthRspChrUuid, _ := bledefs.ParseUuid(bledefs.UnauthRspChrUuid)
 
-	bls.nmpReqChr, err = findChr(p, ompSvcUuid, ompReqChrUuid)
+	switch s.cfg.MgmtProto {
+	case sesn.MGMT_PROTO_NMP:
+		s.nmpReqChr, err = findChr(p, nmpSvcUuid, nmpChrUuid)
+		if err != nil {
+			return err
+		}
+		s.nmpRspChr = s.nmpReqChr
+
+	case sesn.MGMT_PROTO_OMP:
+		s.nmpReqChr, err = findChr(p, ompSvcUuid, ompReqChrUuid)
+		if err != nil {
+			return err
+		}
+
+		s.nmpRspChr, err = findChr(p, ompSvcUuid, ompRspChrUuid)
+		if err != nil {
+			return err
+		}
+
+	default:
+		return fmt.Errorf("invalid management protocol: %s", s.cfg.MgmtProto)
+	}
+
+	s.unauthReqChr, err = findChr(p, unauthSvcUuid, unauthReqChrUuid)
 	if err != nil {
 		return err
 	}
 
-	bls.nmpRspChr, err = findChr(p, ompSvcUuid, ompRspChrUuid)
-	if err != nil {
-		return err
-	}
-
-	bls.unauthReqChr, err = findChr(p, unauthSvcUuid, unauthReqChrUuid)
-	if err != nil {
-		return err
-	}
-
-	bls.unauthRspChr, err = findChr(p, unauthSvcUuid, unauthRspChrUuid)
+	s.unauthRspChr, err = findChr(p, unauthSvcUuid, unauthRspChrUuid)
 	if err != nil {
 		return err
 	}
@@ -163,22 +178,22 @@ func (bls *BllOicSesn) discoverAll() error {
 }
 
 // Subscribes to the peer's characteristic implementing NMP.
-func (bls *BllOicSesn) subscribe() error {
+func (s *BllSesn) subscribe() error {
 	log.Debugf("Subscribing to NMP response characteristic")
 	onNotify := func(data []byte) {
-		bls.d.Dispatch(data)
+		s.txvr.DispatchNmpRsp(data)
 	}
 
-	if bls.nmpRspChr != nil {
-		if err := bls.cln.Subscribe(bls.nmpRspChr, false,
+	if s.nmpRspChr != nil {
+		if err := s.cln.Subscribe(s.nmpRspChr, false,
 			onNotify); err != nil {
 
 			return err
 		}
 	}
 
-	if bls.unauthRspChr != nil {
-		if err := bls.cln.Subscribe(bls.unauthRspChr, false,
+	if s.unauthRspChr != nil {
+		if err := s.cln.Subscribe(s.unauthRspChr, false,
 			onNotify); err != nil {
 
 			return err
@@ -188,57 +203,57 @@ func (bls *BllOicSesn) subscribe() error {
 	return nil
 }
 
-func (bls *BllOicSesn) exchangeMtu() error {
-	mtu, err := exchangeMtu(bls.cln, bls.cfg.PreferredMtu)
+func (s *BllSesn) exchangeMtu() error {
+	mtu, err := exchangeMtu(s.cln, s.cfg.PreferredMtu)
 	if err != nil {
 		return err
 	}
 
-	bls.attMtu = mtu
+	s.attMtu = mtu
 	return nil
 }
 
 // @return bool                 Whether to retry the open attempt; false
 //                                  on success.
 //         error                The cause of a failed open; nil on success.
-func (bls *BllOicSesn) openOnce() (bool, error) {
-	if bls.IsOpen() {
+func (s *BllSesn) openOnce() (bool, error) {
+	if s.IsOpen() {
 		return false, nmxutil.NewSesnAlreadyOpenError(
 			"Attempt to open an already-open bll session")
 	}
 
-	d, err := omp.NewDispatcher(true, 3)
+	txvr, err := mgmt.NewTransceiver(s.cfg.MgmtProto, 3)
 	if err != nil {
 		return false, err
 	}
-	bls.d = d
+	s.txvr = txvr
 
-	if err := bls.connect(); err != nil {
+	if err := s.connect(); err != nil {
 		return false, err
 	}
 
-	if err := bls.exchangeMtu(); err != nil {
+	if err := s.exchangeMtu(); err != nil {
 		return true, err
 	}
 
-	if err := bls.discoverAll(); err != nil {
+	if err := s.discoverAll(); err != nil {
 		return false, err
 	}
 
-	if err := bls.subscribe(); err != nil {
+	if err := s.subscribe(); err != nil {
 		return false, err
 	}
 
 	return false, nil
 }
 
-func (bls *BllOicSesn) Open() error {
+func (s *BllSesn) Open() error {
 	var err error
 
-	for i := 0; i < bls.cfg.ConnTries; i++ {
+	for i := 0; i < s.cfg.ConnTries; i++ {
 		var retry bool
 
-		retry, err = bls.openOnce()
+		retry, err = s.openOnce()
 		if !retry {
 			break
 		}
@@ -246,51 +261,54 @@ func (bls *BllOicSesn) Open() error {
 
 	if err != nil {
 		// Ensure the session is closed.
-		bls.Close()
+		s.Close()
 		return err
 	}
 
 	return nil
 }
 
-func (bls *BllOicSesn) Close() error {
-	if !bls.IsOpen() {
+func (s *BllSesn) Close() error {
+	if !s.IsOpen() {
 		return nmxutil.NewSesnClosedError(
 			"Attempt to close an unopened bll session")
 	}
 
-	if err := bls.cln.CancelConnection(); err != nil {
+	if err := s.cln.CancelConnection(); err != nil {
 		return err
 	}
 
-	bls.cln = nil
+	s.cln = nil
 
 	return nil
 }
 
 // Indicates whether the session is currently open.
-func (bls *BllOicSesn) IsOpen() bool {
-	return bls.cln != nil
-}
-
-// Retrieves the maximum data payload for outgoing NMP requests.
-func (bls *BllOicSesn) MtuOut() int {
-	return bls.attMtu - nmble.NOTIFY_CMD_BASE_SZ - nmp.NMP_HDR_SIZE
+func (s *BllSesn) IsOpen() bool {
+	return s.cln != nil
 }
 
 // Retrieves the maximum data payload for incoming NMP responses.
-func (bls *BllOicSesn) MtuIn() int {
-	return bls.attMtu - nmble.NOTIFY_CMD_BASE_SZ - nmp.NMP_HDR_SIZE
+func (s *BllSesn) MtuIn() int {
+	mtu, _ := nmble.MtuIn(s.cfg.MgmtProto, s.attMtu)
+	return mtu
+}
+
+// Retrieves the maximum data payload for outgoing NMP requests.
+func (s *BllSesn) MtuOut() int {
+	mtu, _ := nmble.MtuOut(s.cfg.MgmtProto, s.attMtu)
+	return mtu
 }
 
 // Stops a receive operation in progress.  This must be called from a
 // separate thread, as sesn receive operations are blocking.
-func (bls *BllOicSesn) AbortRx(nmpSeq uint8) error {
-	return bls.d.ErrorOneNmp(nmpSeq, fmt.Errorf("Rx aborted"))
+func (s *BllSesn) AbortRx(nmpSeq uint8) error {
+	s.txvr.ErrorOne(nmpSeq, fmt.Errorf("Rx aborted"))
+	return nil
 }
 
-func (bls *BllOicSesn) EncodeNmpMsg(msg *nmp.NmpMsg) ([]byte, error) {
-	return omp.EncodeOmpTcp(msg)
+func (s *BllSesn) EncodeNmpMsg(msg *nmp.NmpMsg) ([]byte, error) {
+	return nmble.EncodeMgmtMsg(s.cfg.MgmtProto, msg)
 }
 
 // Performs a blocking transmit a single NMP message and listens for the
@@ -298,59 +316,33 @@ func (bls *BllOicSesn) EncodeNmpMsg(msg *nmp.NmpMsg) ([]byte, error) {
 //     * nil: success.
 //     * nmxutil.SesnClosedError: session not open.
 //     * other error
-func (bls *BllOicSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
+func (s *BllSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 	nmp.NmpRsp, error) {
 
-	if !bls.IsOpen() {
+	if !s.IsOpen() {
 		return nil, nmxutil.NewSesnClosedError(
 			"Attempt to transmit over closed BLE session")
 	}
 
-	if bls.nmpReqChr == nil || bls.nmpRspChr == nil {
+	if s.nmpReqChr == nil || s.nmpRspChr == nil {
 		return nil, fmt.Errorf("Cannot send NMP request; peer doesn't " +
 			"support request or response characteristic")
 	}
 
-	b, err := bls.EncodeNmpMsg(msg)
-	if err != nil {
-		return nil, err
+	txRaw := func(b []byte) error {
+		return s.cln.WriteCharacteristic(s.nmpReqChr, b, true)
 	}
 
-	nl, err := bls.d.AddNmpListener(msg.Hdr.Seq)
-	if err != nil {
-		return nil, err
-	}
-	defer bls.d.RemoveNmpListener(msg.Hdr.Seq)
-
-	// Send request.
-	if err := bls.cln.WriteCharacteristic(bls.nmpReqChr, b, true); err != nil {
-		return nil, err
-	}
-
-	// Now wait for NMP response.
-	for {
-		select {
-		case err := <-nl.ErrChan:
-			return nil, err
-		case rsp := <-nl.RspChan:
-			return rsp, nil
-		case <-nl.AfterTimeout(opt.Timeout):
-			msg := fmt.Sprintf(
-				"NMP timeout; op=%d group=%d id=%d seq=%d",
-				msg.Hdr.Op, msg.Hdr.Group, msg.Hdr.Id, msg.Hdr.Seq)
-
-			return nil, nmxutil.NewRspTimeoutError(msg)
-		}
-	}
+	return s.txvr.TxNmp(txRaw, msg, opt.Timeout)
 }
 
-func (bls *BllOicSesn) resReqChr(resType sesn.ResourceType) (
+func (s *BllSesn) resReqChr(resType sesn.ResourceType) (
 	*ble.Characteristic, error) {
 
 	m := map[sesn.ResourceType]*ble.Characteristic{
-		sesn.RES_TYPE_PUBLIC: bls.publicReqChr,
-		sesn.RES_TYPE_UNAUTH: bls.unauthReqChr,
-		sesn.RES_TYPE_SECURE: bls.secureReqChr,
+		sesn.RES_TYPE_PUBLIC: s.publicReqChr,
+		sesn.RES_TYPE_UNAUTH: s.unauthReqChr,
+		sesn.RES_TYPE_SECURE: s.secureReqChr,
 	}
 
 	chr := m[resType]
@@ -362,82 +354,58 @@ func (bls *BllOicSesn) resReqChr(resType sesn.ResourceType) (
 	return chr, nil
 }
 
-func (bls *BllOicSesn) GetResourceOnce(resType sesn.ResourceType, uri string,
+func (s *BllSesn) GetResourceOnce(resType sesn.ResourceType, uri string,
 	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
 
-	chr, err := bls.resReqChr(resType)
+	chr, err := s.resReqChr(resType)
 	if err != nil {
 		return 0, nil, err
 	}
 
 	token := nmxutil.NextToken()
-
-	ol, err := bls.d.AddOicListener(token)
-	if err != nil {
-		return 0, nil, err
-	}
-	defer bls.d.RemoveOicListener(token)
-
-	req, err := oic.EncodeGet(true, uri, token)
+	req, err := oic.CreateGet(true, uri, token)
 	if err != nil {
 		return 0, nil, err
 	}
 
-	// Send request.
-	if err := bls.cln.WriteCharacteristic(chr, req, true); err != nil {
-		return 0, nil, err
+	txRaw := func(b []byte) error {
+		return s.cln.WriteCharacteristic(chr, b, true)
 	}
 
-	// Now wait for CoAP response.
-	for {
-		select {
-		case err := <-ol.ErrChan:
-			return 0, nil, err
-		case rsp := <-ol.RspChan:
-			return rsp.Code(), rsp.Payload(), nil
-		case <-ol.AfterTimeout(opt.Timeout):
-			msg := fmt.Sprintf("CoAP timeout; uri=%s", uri)
-			return 0, nil, nmxutil.NewRspTimeoutError(msg)
-		}
+	rsp, err := s.txvr.TxOic(txRaw, req, opt.Timeout)
+	if err != nil {
+		return 0, nil, err
+	} else if rsp == nil {
+		return 0, nil, nil
+	} else {
+		return rsp.Code(), rsp.Payload(), nil
 	}
 }
 
-func (bls *BllOicSesn) PutResourceOnce(resType sesn.ResourceType,
+func (s *BllSesn) PutResourceOnce(resType sesn.ResourceType,
 	uri string, value []byte, opt sesn.TxOptions) (coap.COAPCode, error) {
 
-	chr, err := bls.resReqChr(resType)
+	chr, err := s.resReqChr(resType)
 	if err != nil {
 		return 0, err
 	}
 
 	token := nmxutil.NextToken()
-
-	ol, err := bls.d.AddOicListener(token)
-	if err != nil {
-		return 0, err
-	}
-	defer bls.d.RemoveOicListener(token)
-
-	req, err := oic.EncodePut(true, uri, token, value)
+	req, err := oic.CreatePut(true, uri, token, value)
 	if err != nil {
 		return 0, err
 	}
 
-	// Send request.
-	if err := bls.cln.WriteCharacteristic(chr, req, true); err != nil {
-		return 0, err
+	txRaw := func(b []byte) error {
+		return s.cln.WriteCharacteristic(chr, b, true)
 	}
 
-	// Now wait for CoAP response.
-	for {
-		select {
-		case err := <-ol.ErrChan:
-			return 0, err
-		case rsp := <-ol.RspChan:
-			return rsp.Code(), nil
-		case <-ol.AfterTimeout(opt.Timeout):
-			msg := fmt.Sprintf("CoAP timeout; uri=%s", uri)
-			return 0, nmxutil.NewRspTimeoutError(msg)
-		}
+	rsp, err := s.txvr.TxOic(txRaw, req, opt.Timeout)
+	if err != nil {
+		return 0, err
+	} else if rsp == nil {
+		return 0, nil
+	} else {
+		return rsp.Code(), nil
 	}
 }

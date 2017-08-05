@@ -32,7 +32,7 @@ import (
 type BllSesnCfg struct {
 	MgmtProto    sesn.MgmtProto
 	AdvFilter    ble.AdvFilter
-	PreferredMtu int
+	PreferredMtu uint16
 	ConnTimeout  time.Duration
 	ConnTries    int
 }

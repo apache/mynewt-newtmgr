@@ -25,13 +25,11 @@ import (
 
 	"github.com/runtimeco/go-coap"
 
-	"mynewt.apache.org/newt/util"
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/mgmt"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/oic"
-	"mynewt.apache.org/newtmgr/nmxact/omp"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
@@ -98,6 +96,9 @@ func (s *BleSesn) disconnectListen() {
 		nmxutil.Assert(!s.IsOpen())
 
 		// Signal error to all listeners.
+		s.txvr.ErrorAll(err)
+
+		// Stop all go routines.
 		close(s.stopChan)
 		s.wg.Done()
 		s.wg.Wait()
@@ -146,8 +147,7 @@ func (s *BleSesn) notifyListen() {
 
 		for {
 			select {
-			case err := <-nmpRspNl.ErrChan:
-				s.txvr.ErrorAll(err)
+			case <-nmpRspNl.ErrChan:
 				return
 
 			case n, ok := <-nmpRspNl.NotifyChan:
@@ -266,17 +266,7 @@ func (s *BleSesn) IsOpen() bool {
 }
 
 func (s *BleSesn) EncodeNmpMsg(m *nmp.NmpMsg) ([]byte, error) {
-	switch s.cfg.MgmtProto {
-	case sesn.MGMT_PROTO_NMP:
-		return nmp.EncodeNmpPlain(m)
-
-	case sesn.MGMT_PROTO_OMP:
-		return omp.EncodeOmpTcp(m)
-
-	default:
-		return nil,
-			fmt.Errorf("invalid management protocol: %+v", s.cfg.MgmtProto)
-	}
+	return EncodeMgmtMsg(s.cfg.MgmtProto, m)
 }
 
 // Blocking.
@@ -296,18 +286,13 @@ func (s *BleSesn) TxNmpOnce(req *nmp.NmpMsg, opt sesn.TxOptions) (
 }
 
 func (s *BleSesn) MtuIn() int {
-	return s.conn.AttMtu() -
-		NOTIFY_CMD_BASE_SZ -
-		omp.OMP_MSG_OVERHEAD -
-		nmp.NMP_HDR_SIZE
+	mtu, _ := MtuIn(s.cfg.MgmtProto, s.conn.AttMtu())
+	return mtu
 }
 
 func (s *BleSesn) MtuOut() int {
-	mtu := s.conn.AttMtu() -
-		WRITE_CMD_BASE_SZ -
-		omp.OMP_MSG_OVERHEAD -
-		nmp.NMP_HDR_SIZE
-	return util.IntMin(mtu, BLE_ATT_ATTR_MAX_LEN)
+	mtu, _ := MtuOut(s.cfg.MgmtProto, s.conn.AttMtu())
+	return mtu
 }
 
 func (s *BleSesn) ConnInfo() (BleConnDesc, error) {
@@ -336,9 +321,11 @@ func (s *BleSesn) GetResourceOnce(resType sesn.ResourceType, uri string,
 	rsp, err := s.txvr.TxOic(txRaw, req, opt.Timeout)
 	if err != nil {
 		return 0, nil, err
+	} else if rsp == nil {
+		return 0, nil, nil
+	} else {
+		return rsp.Code(), rsp.Payload(), nil
 	}
-
-	return rsp.Code(), rsp.Payload(), nil
 }
 
 func (s *BleSesn) PutResourceOnce(resType sesn.ResourceType,
@@ -363,7 +350,9 @@ func (s *BleSesn) PutResourceOnce(resType sesn.ResourceType,
 	rsp, err := s.txvr.TxOic(txRaw, req, opt.Timeout)
 	if err != nil {
 		return 0, err
+	} else if rsp == nil {
+		return 0, nil
+	} else {
+		return rsp.Code(), nil
 	}
-
-	return rsp.Code(), nil
 }

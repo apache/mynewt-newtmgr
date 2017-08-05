@@ -58,16 +58,7 @@ func (bx *BllXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
 }
 
 func (bx *BllXport) BuildBllSesn(cfg BllSesnCfg) (sesn.Sesn, error) {
-	switch cfg.MgmtProto {
-	case sesn.MGMT_PROTO_NMP:
-		return NewBllPlainSesn(cfg), nil
-	case sesn.MGMT_PROTO_OMP:
-		return NewBllOicSesn(cfg), nil
-	default:
-		return nil, fmt.Errorf(
-			"Invalid management protocol: %d; expected NMP or OMP",
-			cfg.MgmtProto)
-	}
+	return NewBllSesn(cfg), nil
 }
 
 func (bx *BllXport) Start() error {

@@ -32,7 +32,7 @@ func NewNotifyListener() *NotifyListener {
 type Conn struct {
 	bx      *BleXport
 	rxvr    *Receiver
-	attMtu  int
+	attMtu  uint16
 	profile Profile
 	desc    BleConnDesc
 
@@ -153,7 +153,7 @@ func (c *Conn) eventListen(bl *Listener) error {
 					} else {
 						log.Debugf("BLE ATT MTU updated; from=%d to=%d",
 							c.attMtu, msg.Mtu)
-						c.attMtu = int(msg.Mtu)
+						c.attMtu = msg.Mtu
 					}
 
 				case *BleEncChangeEvt:
@@ -369,7 +369,7 @@ func (c *Conn) ConnInfo() BleConnDesc {
 	return c.desc
 }
 
-func (c *Conn) AttMtu() int {
+func (c *Conn) AttMtu() uint16 {
 	return c.attMtu
 }
 
@@ -558,7 +558,7 @@ func (c *Conn) ExchangeMtu() error {
 		return err
 	}
 
-	c.attMtu = mtu
+	c.attMtu = uint16(mtu)
 	return nil
 }
 
