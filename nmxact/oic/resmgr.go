@@ -38,12 +38,7 @@ func (rm *ResMgr) Add(r Resource) error {
 }
 
 func (rm *ResMgr) Access(m coap.Message) (coap.COAPCode, []byte) {
-	paths := m.Path()
-	if len(paths) == 0 {
-		log.Debugf("Incoming CoAP message does not specify a URI path")
-		return coap.NotFound, nil
-	}
-	path := paths[0]
+	path := m.PathString()
 
 	r, ok := rm.uriResMap[path]
 	if !ok {
@@ -73,7 +68,8 @@ func (rm *ResMgr) Access(m coap.Message) (coap.COAPCode, []byte) {
 	}
 }
 
-type FixedResourceWriteFn func(val map[string]interface{}) coap.COAPCode
+type FixedResourceWriteFn func(uri string,
+	val map[string]interface{}) coap.COAPCode
 
 func NewFixedResource(uri string, val map[string]interface{},
 	writeCb FixedResourceWriteFn) Resource {
@@ -95,11 +91,8 @@ func NewFixedResource(uri string, val map[string]interface{},
 				return coap.BadRequest
 			}
 
-			code := writeCb(m)
-			if code == coap.Created ||
-				code == coap.Deleted ||
-				code == coap.Changed {
-
+			code := writeCb(uri, m)
+			if code == coap.Created || code == coap.Changed {
 				val = m
 			}
 			return code

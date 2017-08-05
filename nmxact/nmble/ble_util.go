@@ -713,11 +713,25 @@ func GenCoapService(x *BleXport, svcUuid BleUuid, reqChrUuid BleUuid,
 	return svc, nil
 }
 
-func ResChrIdLookup(mgmtChrs BleMgmtChrs, resType sesn.ResourceType) *BleChrId {
+func ResChrReqIdLookup(mgmtChrs BleMgmtChrs,
+	resType sesn.ResourceType) *BleChrId {
+
 	m := map[sesn.ResourceType]*BleChrId{
 		sesn.RES_TYPE_PUBLIC: mgmtChrs.ResPublicReqChr,
 		sesn.RES_TYPE_UNAUTH: mgmtChrs.ResUnauthReqChr,
 		sesn.RES_TYPE_SECURE: mgmtChrs.ResSecureReqChr,
+	}
+
+	return m[resType]
+}
+
+func ResChrRspIdLookup(mgmtChrs BleMgmtChrs,
+	resType sesn.ResourceType) *BleChrId {
+
+	m := map[sesn.ResourceType]*BleChrId{
+		sesn.RES_TYPE_PUBLIC: mgmtChrs.ResPublicRspChr,
+		sesn.RES_TYPE_UNAUTH: mgmtChrs.ResUnauthRspChr,
+		sesn.RES_TYPE_SECURE: mgmtChrs.ResSecureRspChr,
 	}
 
 	return m[resType]

@@ -70,7 +70,7 @@ type PutResCmd struct {
 	CmdBase
 	Uri   string
 	Typ   sesn.ResourceType
-	Value map[string]interface{}
+	Value []byte
 }
 
 func NewPutResCmd() *PutResCmd {
@@ -88,7 +88,7 @@ func newPutResResult() *PutResResult {
 }
 
 func (r *PutResResult) Status() int {
-	if r.Code == coap.Content {
+	if r.Code == coap.Created || r.Code == coap.Changed {
 		return 0
 	} else {
 		return int(r.Code)

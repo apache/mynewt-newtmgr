@@ -57,16 +57,11 @@ func GetResource(s Sesn, resType ResourceType, uri string, o TxOptions) (
 }
 
 func PutResource(s Sesn, resType ResourceType, uri string,
-	value map[string]interface{}, o TxOptions) (coap.COAPCode, error) {
-
-	b, err := nmxutil.EncodeCborMap(value)
-	if err != nil {
-		return 0, err
-	}
+	value []byte, o TxOptions) (coap.COAPCode, error) {
 
 	retries := o.Tries - 1
 	for i := 0; ; i++ {
-		code, err := s.PutResourceOnce(resType, uri, b, o)
+		code, err := s.PutResourceOnce(resType, uri, value, o)
 		if err == nil {
 			return code, nil
 		}
@@ -75,4 +70,15 @@ func PutResource(s Sesn, resType ResourceType, uri string,
 			return code, err
 		}
 	}
+}
+
+func PutCborResource(s Sesn, resType ResourceType, uri string,
+	value map[string]interface{}, o TxOptions) (coap.COAPCode, error) {
+
+	b, err := nmxutil.EncodeCborMap(value)
+	if err != nil {
+		return 0, err
+	}
+
+	return PutResource(s, resType, uri, b, o)
 }

@@ -405,5 +405,39 @@ func (bls *BllOicSesn) GetResourceOnce(resType sesn.ResourceType, uri string,
 func (bls *BllOicSesn) PutResourceOnce(resType sesn.ResourceType,
 	uri string, value []byte, opt sesn.TxOptions) (coap.COAPCode, error) {
 
-	return 0, fmt.Errorf("BllOicSesn.PutResourceOnce() unsupported")
+	chr, err := bls.resReqChr(resType)
+	if err != nil {
+		return 0, err
+	}
+
+	token := nmxutil.NextToken()
+
+	ol, err := bls.d.AddOicListener(token)
+	if err != nil {
+		return 0, err
+	}
+	defer bls.d.RemoveOicListener(token)
+
+	req, err := oic.EncodePut(true, uri, token, value)
+	if err != nil {
+		return 0, err
+	}
+
+	// Send request.
+	if err := bls.cln.WriteCharacteristic(chr, req, true); err != nil {
+		return 0, err
+	}
+
+	// Now wait for CoAP response.
+	for {
+		select {
+		case err := <-ol.ErrChan:
+			return 0, err
+		case rsp := <-ol.RspChan:
+			return rsp.Code(), nil
+		case <-ol.AfterTimeout(opt.Timeout):
+			msg := fmt.Sprintf("CoAP timeout; uri=%s", uri)
+			return 0, nmxutil.NewRspTimeoutError(msg)
+		}
+	}
 }

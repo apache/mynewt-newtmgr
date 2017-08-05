@@ -16,8 +16,11 @@ func GwService(x *BleXport) (BleSvc, error) {
 	resources := []oic.Resource{
 		oic.NewFixedResource(
 			"mynewt.yourmom",
-			map[string]interface{}{"yourmom": "fat"},
-			func(val map[string]interface{}) coap.COAPCode {
+			map[string]interface{}{
+				"yourmom":     "fat",
+				"yourmomsmom": "hella fat",
+			},
+			func(uri string, val map[string]interface{}) coap.COAPCode {
 				return coap.Changed
 			},
 		)}

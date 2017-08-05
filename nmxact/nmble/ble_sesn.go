@@ -117,7 +117,7 @@ func (s *BleSesn) getChr(chrId *BleChrId) (*Characteristic, error) {
 	chr := s.conn.Profile().FindChrByUuid(*chrId)
 	if chr == nil {
 		return nil, fmt.Errorf("BLE peer doesn't support required "+
-			"characteristic: %s", *chrId)
+			"characteristic: %s", chrId.String())
 	}
 
 	return chr, nil
@@ -323,14 +323,14 @@ func (s *BleSesn) GetResourceOnce(resType sesn.ResourceType, uri string,
 		return 0, nil, err
 	}
 
-	chrId := ResChrIdLookup(s.mgmtChrs, resType)
+	chrId := ResChrReqIdLookup(s.mgmtChrs, resType)
 	chr, err := s.getChr(chrId)
 	if err != nil {
 		return 0, nil, err
 	}
 
 	txRaw := func(b []byte) error {
-		return s.conn.WriteChrNoRsp(chr, b, "oic")
+		return s.conn.WriteChrNoRsp(chr, b, "oic-get")
 	}
 
 	rsp, err := s.txvr.TxOic(txRaw, req, opt.Timeout)
@@ -344,5 +344,26 @@ func (s *BleSesn) GetResourceOnce(resType sesn.ResourceType, uri string,
 func (s *BleSesn) PutResourceOnce(resType sesn.ResourceType,
 	uri string, value []byte, opt sesn.TxOptions) (coap.COAPCode, error) {
 
-	return 0, fmt.Errorf("SerialPlainSesn.PutResourceOnce() unsupported")
+	token := nmxutil.NextToken()
+	req, err := oic.CreatePut(true, uri, token, value)
+	if err != nil {
+		return 0, err
+	}
+
+	chrId := ResChrReqIdLookup(s.mgmtChrs, resType)
+	chr, err := s.getChr(chrId)
+	if err != nil {
+		return 0, err
+	}
+
+	txRaw := func(b []byte) error {
+		return s.conn.WriteChrNoRsp(chr, b, "oic-put")
+	}
+
+	rsp, err := s.txvr.TxOic(txRaw, req, opt.Timeout)
+	if err != nil {
+		return 0, err
+	}
+
+	return rsp.Code(), nil
 }
