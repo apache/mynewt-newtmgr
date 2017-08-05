@@ -98,11 +98,18 @@ func main() {
 	}
 
 	for {
+		closeCh := make(chan struct{})
+
 		ac := adv.NewCfg()
 		ac.Ble.AdvFields.Flags = new(uint8)
 		*ac.Ble.AdvFields.Flags = 6
 		ac.Ble.AdvFields.Name = new(string)
 		*ac.Ble.AdvFields.Name = "gwadv"
+
+		ac.Ble.SesnCfg.OnCloseCb = func(s sesn.Sesn, err error) {
+			close(closeCh)
+		}
+
 		_, err := advertiser.Start(ac)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error starting advertise: %s\n",
@@ -110,7 +117,6 @@ func main() {
 			os.Exit(1)
 		}
 
-		//s.Close()
-		select {}
+		<-closeCh
 	}
 }

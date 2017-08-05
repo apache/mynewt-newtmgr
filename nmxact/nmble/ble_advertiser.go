@@ -127,9 +127,9 @@ func (a *Advertiser) buildSesn(cfg adv.Cfg, connHandle uint16, bl *Listener) (
 		return nil, err
 	}
 
-	//if err := s.OpenConnected(connHandle, bl); err != nil {
-	//return nil, err
-	//}
+	if err := s.OpenConnected(connHandle, bl); err != nil {
+		return nil, err
+	}
 
 	return s, nil
 }
