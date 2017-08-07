@@ -1,4 +1,4 @@
-// +build !windows
+// +build windows
 
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -22,29 +22,20 @@
 package bll
 
 import (
-	"encoding/binary"
-	"fmt"
+	"time"
 
-	"github.com/currantlabs/ble"
-
-	"mynewt.apache.org/newtmgr/nmxact/bledefs"
+	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
-func UuidFromBllUuid(bllUuid ble.UUID) (bledefs.BleUuid, error) {
-	uuid := bledefs.BleUuid{}
+type BllSesnCfg struct {
+	MgmtProto    sesn.MgmtProto
+	PreferredMtu int
+	ConnTimeout  time.Duration
+}
 
-	switch len(bllUuid) {
-	case 2:
-		uuid.U16 = bledefs.BleUuid16(binary.LittleEndian.Uint16(bllUuid))
-		return uuid, nil
-
-	case 16:
-		for i, b := range bllUuid {
-			uuid.U128[15-i] = b
-		}
-		return uuid, nil
-
-	default:
-		return uuid, fmt.Errorf("Invalid UUID: %#v", bllUuid)
+func NewBllSesnCfg() BllSesnCfg {
+	return BllSesnCfg{
+		PreferredMtu: 527,
+		ConnTimeout:  10 * time.Second,
 	}
 }

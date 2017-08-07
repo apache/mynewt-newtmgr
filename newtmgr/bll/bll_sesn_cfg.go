@@ -1,3 +1,5 @@
+// +build !windows
+
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -37,7 +39,7 @@ type BllSesnCfg struct {
 
 func NewBllSesnCfg() BllSesnCfg {
 	return BllSesnCfg{
-		PreferredMtu: 527,
+		PreferredMtu: 512,
 		ConnTimeout:  10 * time.Second,
 		ConnTries:    3,
 	}

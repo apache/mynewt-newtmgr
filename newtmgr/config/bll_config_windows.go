@@ -1,4 +1,4 @@
-// +build !windows
+// +build windows
 
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -19,32 +19,38 @@
  * under the License.
  */
 
-package bll
+package config
 
 import (
-	"encoding/binary"
 	"fmt"
 
-	"github.com/currantlabs/ble"
-
-	"mynewt.apache.org/newtmgr/nmxact/bledefs"
+	"mynewt.apache.org/newt/util"
+	"mynewt.apache.org/newtmgr/newtmgr/bll"
 )
 
-func UuidFromBllUuid(bllUuid ble.UUID) (bledefs.BleUuid, error) {
-	uuid := bledefs.BleUuid{}
+type BllConfig struct {
+	CtlrName string
+	PeerId   string
+	PeerName string
+}
 
-	switch len(bllUuid) {
-	case 2:
-		uuid.U16 = bledefs.BleUuid16(binary.LittleEndian.Uint16(bllUuid))
-		return uuid, nil
+func NewBllConfig() *BllConfig {
+	return &BllConfig{}
+}
 
-	case 16:
-		for i, b := range bllUuid {
-			uuid.U128[15-i] = b
-		}
-		return uuid, nil
+func einvalBllConnString(f string, args ...interface{}) error {
+	suffix := fmt.Sprintf(f, args)
+	return util.FmtNewtError("Invalid BLE connstring; %s", suffix)
+}
 
-	default:
-		return uuid, fmt.Errorf("Invalid UUID: %#v", bllUuid)
-	}
+func ParseBllConnString(cs string) (*BllConfig, error) {
+
+	return nil, util.FmtNewtError("Not Supported on Windows")
+}
+
+func BuildBllSesnCfg(bc *BllConfig) (bll.BllSesnCfg, error) {
+
+	sc := bll.NewBllSesnCfg()
+
+	return sc, util.FmtNewtError("Not Supported on Windows")
 }
