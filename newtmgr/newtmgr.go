@@ -88,8 +88,10 @@ func main() {
 			s := <-sigChan
 			switch s {
 			case os.Interrupt, syscall.SIGTERM:
-				cli.SilenceErrors()
-				cli.NmExit(1)
+				go func() {
+					cli.SilenceErrors()
+					cli.NmExit(1)
+				}()
 
 			case syscall.SIGQUIT:
 				util.PrintStacks()
