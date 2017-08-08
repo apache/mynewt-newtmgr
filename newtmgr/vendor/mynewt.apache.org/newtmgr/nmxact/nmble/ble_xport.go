@@ -254,11 +254,7 @@ func (bx *BleXport) initialSyncCheck() (bool, *Listener, error) {
 }
 
 func (bx *BleXport) shutdown(restart bool, err error) {
-	if !nmxutil.IsXport(err) {
-		panic(fmt.Sprintf(
-			"BleXport.shutdown() received error that isn't an XportError: %+v",
-			err))
-	}
+	nmxutil.Assert(nmxutil.IsXport(err))
 
 	log.Debugf("Shutting down BLE transport")
 

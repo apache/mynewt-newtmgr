@@ -716,7 +716,7 @@ func reset(x *BleXport, bl *Listener,
 }
 
 // Blocking
-func encInitiate(x *BleXport, bl *Listener,
+func securityInitiate(x *BleXport, bl *Listener,
 	r *BleSecurityInitiateReq) error {
 
 	const rspType = MSG_TYPE_SECURITY_INITIATE
@@ -741,6 +741,8 @@ func encInitiate(x *BleXport, bl *Listener,
 				bl.Acked = true
 				if msg.Status != 0 {
 					return StatusError(MSG_OP_RSP, rspType, msg.Status)
+				} else {
+					return nil
 				}
 
 			default:

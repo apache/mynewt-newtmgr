@@ -61,7 +61,7 @@ type Scanner interface {
 func BleOmpScanCfg(ScanCb ScanFn) Cfg {
 	sc := sesn.NewSesnCfg()
 	sc.MgmtProto = sesn.MGMT_PROTO_OMP
-	sc.Ble.EncryptWhen = bledefs.BLE_ENCRYPT_PRIV_ONLY
+	sc.Ble.EncryptWhen = bledefs.BLE_ENCRYPT_AS_REQD
 	sc.Ble.OwnAddrType = bledefs.BLE_ADDR_TYPE_RANDOM
 
 	cfg := Cfg{

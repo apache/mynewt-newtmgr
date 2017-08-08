@@ -20,7 +20,9 @@
 package nmxutil
 
 import (
+	"fmt"
 	"sync"
+	"time"
 )
 
 // Blocks a variable number of waiters until Unblock() is called.  Subsequent
@@ -28,15 +30,25 @@ import (
 type Blocker struct {
 	ch  chan struct{}
 	mtx sync.Mutex
+	val interface{}
 }
 
-func (b *Blocker) Wait() {
+func (b *Blocker) Wait(timeout time.Duration) (interface{}, error) {
 	b.mtx.Lock()
 	ch := b.ch
 	b.mtx.Unlock()
 
-	if ch != nil {
-		<-ch
+	if ch == nil {
+		return b.val, nil
+	}
+
+	timer := time.NewTimer(timeout)
+	select {
+	case <-ch:
+		StopAndDrainTimer(timer)
+		return b.val, nil
+	case <-timer.C:
+		return nil, fmt.Errorf("timeout after %s", timeout.String())
 	}
 }
 
@@ -49,11 +61,12 @@ func (b *Blocker) Block() {
 	}
 }
 
-func (b *Blocker) Unblock() {
+func (b *Blocker) Unblock(val interface{}) {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
 
 	if b.ch != nil {
+		b.val = val
 		close(b.ch)
 		b.ch = nil
 	}

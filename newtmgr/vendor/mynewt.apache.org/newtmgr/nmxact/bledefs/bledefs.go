@@ -653,7 +653,7 @@ type BleEncryptWhen int
 
 const (
 	BLE_ENCRYPT_NEVER BleEncryptWhen = iota
-	BLE_ENCRYPT_PRIV_ONLY
+	BLE_ENCRYPT_AS_REQD
 	BLE_ENCRYPT_ALWAYS
 )
 
