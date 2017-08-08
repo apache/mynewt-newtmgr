@@ -682,31 +682,46 @@ func GattService() BleSvc {
 	}
 }
 
-func GenCoapService(x *BleXport, svcUuid BleUuid, reqChrUuid BleUuid,
-	rspChrUuid BleUuid, resources []oic.Resource) (BleSvc, error) {
+type CoapServiceCfg struct {
+	x          *BleXport
+	svcUuid    BleUuid
+	reqChrUuid BleUuid
+	rspChrUuid BleUuid
+	enc        bool
+	auth       bool
+	resources  []oic.Resource
+}
 
-	svr := NewBleOicSvr(x, svcUuid, rspChrUuid)
-	for _, r := range resources {
+func GenCoapService(cfg CoapServiceCfg) (BleSvc, error) {
+	svr := NewBleOicSvr(cfg.x, cfg.svcUuid, cfg.rspChrUuid)
+	for _, r := range cfg.resources {
 		if err := svr.AddResource(r); err != nil {
 			return BleSvc{}, err
 		}
 	}
 
+	var secFlags BleChrFlags
+	if cfg.enc {
+		secFlags |= BLE_GATT_F_WRITE_ENC
+	}
+	if cfg.auth {
+		secFlags |= BLE_GATT_F_WRITE_AUTHEN
+	}
 	svc := BleSvc{
-		Uuid:    svcUuid,
+		Uuid:    cfg.svcUuid,
 		SvcType: BLE_SVC_TYPE_PRIMARY,
 		Chrs: []BleChr{
 			BleChr{
-				Uuid:       reqChrUuid,
-				Flags:      BLE_GATT_F_WRITE_NO_RSP, /* XXX: Security */
+				Uuid:       cfg.reqChrUuid,
+				Flags:      BLE_GATT_F_WRITE_NO_RSP | secFlags,
 				MinKeySize: 0,
 				AccessCb: func(access BleGattAccess) (uint8, []byte) {
 					return svr.Rx(access), nil
 				},
 			},
 			BleChr{
-				Uuid:       rspChrUuid,
-				Flags:      BLE_GATT_F_NOTIFY, /* XXX: Security */
+				Uuid:       cfg.rspChrUuid,
+				Flags:      BLE_GATT_F_NOTIFY,
 				MinKeySize: 0,
 				AccessCb:   nil,
 			},
