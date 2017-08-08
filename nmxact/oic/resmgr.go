@@ -68,34 +68,71 @@ func (rm *ResMgr) Access(m coap.Message) (coap.COAPCode, []byte) {
 	}
 }
 
-type FixedResourceWriteFn func(uri string,
+type CborResourceGetFn func(uri string) (coap.COAPCode, map[string]interface{})
+
+type CborResourcePutFn func(uri string,
 	val map[string]interface{}) coap.COAPCode
 
-func NewFixedResource(uri string, val map[string]interface{},
-	writeCb FixedResourceWriteFn) Resource {
+func NewCborResource(uri string,
+	getCb CborResourceGetFn, putCb CborResourcePutFn) Resource {
 
 	return Resource{
 		Uri: uri,
 
 		GetCb: func(uri string) (coap.COAPCode, []byte) {
-			b, err := nmxutil.EncodeCborMap(val)
+			if getCb == nil {
+				return coap.MethodNotAllowed, nil
+			}
+
+			code, m := getCb(uri)
+			if code >= coap.BadRequest {
+				return code, nil
+			}
+			b, err := nmxutil.EncodeCborMap(m)
 			if err != nil {
 				return coap.InternalServerError, nil
 			}
-			return coap.Content, b
+			return code, b
 		},
 
 		PutCb: func(uri string, data []byte) coap.COAPCode {
+			if putCb == nil {
+				return coap.MethodNotAllowed
+			}
+
 			m, err := nmxutil.DecodeCborMap(data)
 			if err != nil {
 				return coap.BadRequest
 			}
 
-			code := writeCb(uri, m)
+			return putCb(uri, m)
+		},
+	}
+}
+
+func NewFixedResource(uri string, val map[string]interface{},
+	putCb CborResourcePutFn) Resource {
+
+	return NewCborResource(
+		// URI.
+		uri,
+
+		// Get.
+		func(uri string) (coap.COAPCode, map[string]interface{}) {
+			return coap.Content, val
+		},
+
+		// Put.
+		func(uri string, newVal map[string]interface{}) coap.COAPCode {
+			if putCb == nil {
+				return coap.MethodNotAllowed
+			}
+
+			code := putCb(uri, newVal)
 			if code == coap.Created || code == coap.Changed {
-				val = m
+				val = newVal
 			}
 			return code
 		},
-	}
+	)
 }

@@ -126,6 +126,12 @@ func EncodeCborMap(value map[string]interface{}) ([]byte, error) {
 	return b, nil
 }
 
+func StopAndDrainTimer(timer *time.Timer) {
+	if !timer.Stop() {
+		<-timer.C
+	}
+}
+
 var nextId uint32
 
 func GetNextId() uint32 {

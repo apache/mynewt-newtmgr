@@ -30,17 +30,18 @@ func NewNotifyListener() *NotifyListener {
 }
 
 type Conn struct {
-	bx      *BleXport
-	rxvr    *Receiver
-	attMtu  uint16
-	profile Profile
-	desc    BleConnDesc
+	bx         *BleXport
+	rxvr       *Receiver
+	attMtu     uint16
+	profile    Profile
+	desc       BleConnDesc
+	connHandle uint16
 
-	connHandle     uint16
 	connecting     bool
 	stopped        bool
 	disconnectChan chan error
 	wg             sync.WaitGroup
+	encBlocker     nmxutil.Blocker
 
 	// Terminates all go routines.  Gets set to null after disconnect.
 	stopChan chan struct{}
@@ -139,11 +140,18 @@ func (c *Conn) eventListen(bl *Listener) error {
 			case <-c.stopChan:
 				return
 
-			case err := <-bl.ErrChan:
-				go c.shutdown(err)
-				return
+			case err, ok := <-bl.ErrChan:
+				if !ok {
+					return
+				}
 
-			case bm := <-bl.MsgChan:
+				go c.shutdown(err)
+
+			case bm, ok := <-bl.MsgChan:
+				if !ok {
+					return
+				}
+
 				switch msg := bm.(type) {
 				case *BleMtuChangeEvt:
 					if msg.Status != 0 {
@@ -167,7 +175,11 @@ func (c *Conn) eventListen(bl *Listener) error {
 					} else {
 						log.Debugf("Connection encrypted; conn_handle=%d",
 							msg.ConnHandle)
+						c.updateDescriptor()
 					}
+
+					// Unblock any initiate-security procedures.
+					c.encBlocker.Unblock(err)
 
 				case *BleDisconnectEvt:
 					go c.shutdown(c.newDisconnectError(msg.Reason))
@@ -226,7 +238,11 @@ func (c *Conn) notifyListen() error {
 			case <-bl.ErrChan:
 				return
 
-			case bm := <-bl.MsgChan:
+			case bm, ok := <-bl.MsgChan:
+				if !ok {
+					return
+				}
+
 				switch msg := bm.(type) {
 				case *BleNotifyRxEvt:
 					c.rxNotify(msg)
@@ -266,6 +282,16 @@ func (c *Conn) stopConnecting() {
 	c.connecting = false
 }
 
+func (c *Conn) updateDescriptor() error {
+	d, err := ConnFindXact(c.bx, c.connHandle)
+	if err != nil {
+		return err
+	}
+
+	c.desc = d
+	return nil
+}
+
 func (c *Conn) finalizeConnection(connHandle uint16,
 	eventListener *Listener) error {
 
@@ -284,11 +310,9 @@ func (c *Conn) finalizeConnection(connHandle uint16,
 		return err
 	}
 
-	d, err := ConnFindXact(c.bx, c.connHandle)
-	if err != nil {
+	if err := c.updateDescriptor(); err != nil {
 		return err
 	}
-	c.desc = d
 
 	return nil
 }
@@ -650,6 +674,32 @@ func (c *Conn) ListenForNotifications(chr *Characteristic) *NotifyListener {
 	c.notifyMap[chr] = slice
 
 	return nl
+}
+
+func (c *Conn) InitiateSecurity() error {
+	r := NewBleSecurityInitiateReq()
+	r.ConnHandle = c.connHandle
+
+	bl, err := c.rxvr.AddListener("security-initiate", SeqKey(r.Seq))
+	if err != nil {
+		return err
+	}
+	defer c.rxvr.RemoveListener("security-initiate", bl)
+
+	c.encBlocker.Block()
+	if err := securityInitiate(c.bx, bl, r); err != nil {
+		return err
+	}
+
+	encErr, tmoErr := c.encBlocker.Wait(time.Second * 15)
+	if encErr != nil {
+		return encErr.(error)
+	}
+	if tmoErr != nil {
+		return fmt.Errorf("Timeout waiting for security to be established")
+	}
+
+	return nil
 }
 
 func (c *Conn) terminate() error {

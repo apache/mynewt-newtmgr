@@ -89,7 +89,7 @@ func (s *BleSesn) disconnectListen() {
 	s.wg.Add(1)
 	go func() {
 		// If the session is being closed, unblock the close() call.
-		defer s.closeBlocker.Unblock()
+		defer s.closeBlocker.Unblock(nil)
 
 		// Block until disconnect.
 		err := <-s.conn.DisconnectChan()
@@ -151,9 +151,10 @@ func (s *BleSesn) notifyListen() {
 				return
 
 			case n, ok := <-nmpRspNl.NotifyChan:
-				if ok {
-					s.txvr.DispatchNmpRsp(n.Data)
+				if !ok {
+					return
 				}
+				s.txvr.DispatchNmpRsp(n.Data)
 
 			case <-s.stopChan:
 				return
@@ -205,6 +206,12 @@ func (s *BleSesn) openOnce() (bool, error) {
 		}
 	}
 
+	if s.cfg.Ble.EncryptWhen == BLE_ENCRYPT_ALWAYS {
+		if err := s.conn.InitiateSecurity(); err != nil {
+			return false, err
+		}
+	}
+
 	// Listen for incoming notifications in the background.
 	s.notifyListen()
 
@@ -234,7 +241,7 @@ func (s *BleSesn) OpenConnected(
 
 	if err := s.conn.Inherit(connHandle, eventListener); err != nil {
 		if !nmxutil.IsSesnAlreadyOpen(err) {
-			s.closeBlocker.Unblock()
+			s.closeBlocker.Unblock(nil)
 		}
 		return err
 	}
@@ -257,7 +264,7 @@ func (s *BleSesn) Close() error {
 	}
 
 	// Block until close completes.
-	s.closeBlocker.Wait()
+	s.closeBlocker.Wait(nmxutil.DURATION_FOREVER)
 	return nil
 }
 
