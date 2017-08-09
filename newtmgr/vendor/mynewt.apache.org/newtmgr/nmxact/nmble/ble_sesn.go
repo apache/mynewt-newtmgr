@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"sync"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/runtimeco/go-coap"
 
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
@@ -32,8 +33,6 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/oic"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
-
-var dummyNotifyListener = NewNotifyListener()
 
 type BleSesn struct {
 	cfg      sesn.SesnCfg
@@ -111,8 +110,8 @@ func (s *BleSesn) disconnectListen() {
 
 func (s *BleSesn) getChr(chrId *BleChrId) (*Characteristic, error) {
 	if chrId == nil {
-		return nil, fmt.Errorf("BLE session not configured with required "+
-			"characteristic: %s", *chrId)
+		return nil, fmt.Errorf("BLE session not configured with required " +
+			"characteristic")
 	}
 
 	chr := s.conn.Profile().FindChrByUuid(*chrId)
@@ -124,22 +123,25 @@ func (s *BleSesn) getChr(chrId *BleChrId) (*Characteristic, error) {
 	return chr, nil
 }
 
-func (s *BleSesn) createNotifyListener(chrId *BleChrId) *NotifyListener {
-	chr, _ := s.getChr(chrId)
-	if chr == nil {
-		return dummyNotifyListener
+func (s *BleSesn) createNotifyListener(chrId *BleChrId) (
+	*NotifyListener, error) {
+
+	chr, err := s.getChr(chrId)
+	if err != nil {
+		return nil, err
 	}
 
-	nl := s.conn.ListenForNotifications(chr)
-	if nl == nil {
-		return dummyNotifyListener
-	}
-
-	return nl
+	return s.conn.ListenForNotifications(chr), nil
 }
 
-func (s *BleSesn) notifyListen() {
-	nmpRspNl := s.createNotifyListener(s.mgmtChrs.NmpRspChr)
+func (s *BleSesn) notifyListenOnce(chrId *BleChrId,
+	dispatchCb func(b []byte)) {
+
+	nl, err := s.createNotifyListener(chrId)
+	if err != nil {
+		log.Debugf("error listening for notifications: %s", err.Error())
+		return
+	}
 
 	s.wg.Add(1)
 	go func() {
@@ -147,20 +149,27 @@ func (s *BleSesn) notifyListen() {
 
 		for {
 			select {
-			case <-nmpRspNl.ErrChan:
+			case <-nl.ErrChan:
 				return
 
-			case n, ok := <-nmpRspNl.NotifyChan:
+			case n, ok := <-nl.NotifyChan:
 				if !ok {
 					return
 				}
-				s.txvr.DispatchNmpRsp(n.Data)
+				dispatchCb(n.Data)
 
 			case <-s.stopChan:
 				return
 			}
 		}
 	}()
+}
+
+func (s *BleSesn) notifyListen() {
+	s.notifyListenOnce(s.mgmtChrs.NmpRspChr, s.txvr.DispatchNmpRsp)
+	s.notifyListenOnce(s.mgmtChrs.ResPublicRspChr, s.txvr.DispatchCoap)
+	s.notifyListenOnce(s.mgmtChrs.ResUnauthRspChr, s.txvr.DispatchCoap)
+	s.notifyListenOnce(s.mgmtChrs.ResSecureRspChr, s.txvr.DispatchCoap)
 }
 
 func (s *BleSesn) openOnce() (bool, error) {

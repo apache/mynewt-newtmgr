@@ -765,9 +765,17 @@ func BuildMgmtChrs(mgmtProto sesn.MgmtProto) (BleMgmtChrs, error) {
 	ompReqChrUuid, _ := ParseUuid(OmpUnsecReqChrUuid)
 	ompRspChrUuid, _ := ParseUuid(OmpUnsecRspChrUuid)
 
+	publicSvcUuid, _ := ParseUuid(PublicSvcUuid)
+	publicReqChrUuid, _ := ParseUuid(PublicReqChrUuid)
+	publicRspChrUuid, _ := ParseUuid(PublicRspChrUuid)
+
 	unauthSvcUuid, _ := ParseUuid(UnauthSvcUuid)
 	unauthReqChrUuid, _ := ParseUuid(UnauthReqChrUuid)
 	unauthRspChrUuid, _ := ParseUuid(UnauthRspChrUuid)
+
+	secureSvcUuid := NewBleUuid16(SecureSvcUuid)
+	secureReqChrUuid := NewBleUuid16(SecureReqChrUuid)
+	secureRspChrUuid := NewBleUuid16(SecureRspChrUuid)
 
 	switch mgmtProto {
 	case sesn.MGMT_PROTO_NMP:
@@ -783,8 +791,12 @@ func BuildMgmtChrs(mgmtProto sesn.MgmtProto) (BleMgmtChrs, error) {
 			fmt.Errorf("invalid management protocol: %+v", mgmtProto)
 	}
 
+	mgmtChrs.ResPublicReqChr = &BleChrId{publicSvcUuid, publicReqChrUuid}
+	mgmtChrs.ResPublicRspChr = &BleChrId{publicSvcUuid, publicRspChrUuid}
 	mgmtChrs.ResUnauthReqChr = &BleChrId{unauthSvcUuid, unauthReqChrUuid}
 	mgmtChrs.ResUnauthRspChr = &BleChrId{unauthSvcUuid, unauthRspChrUuid}
+	mgmtChrs.ResSecureReqChr = &BleChrId{secureSvcUuid, secureReqChrUuid}
+	mgmtChrs.ResSecureRspChr = &BleChrId{secureSvcUuid, secureRspChrUuid}
 
 	return mgmtChrs, nil
 }
