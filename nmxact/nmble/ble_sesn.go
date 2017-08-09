@@ -111,8 +111,8 @@ func (s *BleSesn) disconnectListen() {
 
 func (s *BleSesn) getChr(chrId *BleChrId) (*Characteristic, error) {
 	if chrId == nil {
-		return nil, fmt.Errorf("BLE session not configured with required "+
-			"characteristic: %s", *chrId)
+		return nil, fmt.Errorf("BLE session not configured with required " +
+			"characteristic")
 	}
 
 	chr := s.conn.Profile().FindChrByUuid(*chrId)
