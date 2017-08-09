@@ -97,8 +97,13 @@ func (s *BllSesn) connect() error {
 	return nil
 }
 
-func findChr(profile *ble.Profile, svcUuid bledefs.BleUuid,
-	chrUuid bledefs.BleUuid) (*ble.Characteristic, error) {
+func findChr(profile *ble.Profile, chrId *bledefs.BleChrId) (
+	*ble.Characteristic, error) {
+
+	if chrId == nil {
+		return nil, fmt.Errorf("BLE session not configured with required " +
+			"characteristic")
+	}
 
 	for _, s := range profile.Services {
 		uuid, err := UuidFromBllUuid(s.UUID)
@@ -106,14 +111,14 @@ func findChr(profile *ble.Profile, svcUuid bledefs.BleUuid,
 			return nil, err
 		}
 
-		if bledefs.CompareUuids(uuid, svcUuid) == 0 {
+		if bledefs.CompareUuids(uuid, chrId.SvcUuid) == 0 {
 			for _, c := range s.Characteristics {
 				uuid, err := UuidFromBllUuid(c.UUID)
 				if err != nil {
 					return nil, err
 				}
 
-				if bledefs.CompareUuids(uuid, chrUuid) == 0 {
+				if bledefs.CompareUuids(uuid, chrId.ChrUuid) == 0 {
 					return c, nil
 				}
 			}
@@ -130,49 +135,19 @@ func (s *BllSesn) discoverAll() error {
 		return err
 	}
 
-	nmpSvcUuid, _ := bledefs.ParseUuid(bledefs.NmpPlainSvcUuid)
-	nmpChrUuid, _ := bledefs.ParseUuid(bledefs.NmpPlainChrUuid)
-
-	ompSvcUuid, _ := bledefs.ParseUuid(bledefs.OmpUnsecSvcUuid)
-	ompReqChrUuid, _ := bledefs.ParseUuid(bledefs.OmpUnsecReqChrUuid)
-	ompRspChrUuid, _ := bledefs.ParseUuid(bledefs.OmpUnsecRspChrUuid)
-
-	unauthSvcUuid, _ := bledefs.ParseUuid(bledefs.UnauthSvcUuid)
-	unauthReqChrUuid, _ := bledefs.ParseUuid(bledefs.UnauthReqChrUuid)
-	unauthRspChrUuid, _ := bledefs.ParseUuid(bledefs.UnauthRspChrUuid)
-
-	switch s.cfg.MgmtProto {
-	case sesn.MGMT_PROTO_NMP:
-		s.nmpReqChr, err = findChr(p, nmpSvcUuid, nmpChrUuid)
-		if err != nil {
-			return err
-		}
-		s.nmpRspChr = s.nmpReqChr
-
-	case sesn.MGMT_PROTO_OMP:
-		s.nmpReqChr, err = findChr(p, ompSvcUuid, ompReqChrUuid)
-		if err != nil {
-			return err
-		}
-
-		s.nmpRspChr, err = findChr(p, ompSvcUuid, ompRspChrUuid)
-		if err != nil {
-			return err
-		}
-
-	default:
-		return fmt.Errorf("invalid management protocol: %s", s.cfg.MgmtProto)
-	}
-
-	s.unauthReqChr, err = findChr(p, unauthSvcUuid, unauthReqChrUuid)
+	mgmtChrs, err := nmble.BuildMgmtChrs(s.cfg.MgmtProto)
 	if err != nil {
 		return err
 	}
 
-	s.unauthRspChr, err = findChr(p, unauthSvcUuid, unauthRspChrUuid)
-	if err != nil {
-		return err
-	}
+	s.nmpReqChr, _ = findChr(p, mgmtChrs.NmpReqChr)
+	s.nmpRspChr, _ = findChr(p, mgmtChrs.NmpRspChr)
+	s.publicReqChr, _ = findChr(p, mgmtChrs.ResPublicReqChr)
+	s.publicRspChr, _ = findChr(p, mgmtChrs.ResPublicRspChr)
+	s.unauthReqChr, _ = findChr(p, mgmtChrs.ResUnauthReqChr)
+	s.unauthRspChr, _ = findChr(p, mgmtChrs.ResUnauthRspChr)
+	s.secureReqChr, _ = findChr(p, mgmtChrs.ResSecureReqChr)
+	s.secureRspChr, _ = findChr(p, mgmtChrs.ResSecureRspChr)
 
 	return nil
 }
@@ -192,8 +167,24 @@ func (s *BllSesn) subscribe() error {
 		}
 	}
 
+	if s.publicRspChr != nil {
+		if err := s.cln.Subscribe(s.publicRspChr, false,
+			onNotify); err != nil {
+
+			return err
+		}
+	}
+
 	if s.unauthRspChr != nil {
 		if err := s.cln.Subscribe(s.unauthRspChr, false,
+			onNotify); err != nil {
+
+			return err
+		}
+	}
+
+	if s.secureRspChr != nil {
+		if err := s.cln.Subscribe(s.secureRspChr, false,
 			onNotify); err != nil {
 
 			return err

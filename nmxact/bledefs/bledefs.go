@@ -33,6 +33,18 @@ const BLE_ATT_MTU_DFLT = 23
 
 const CccdUuid = 0x2902
 
+const PublicSvcUuid = "40e32721-9153-43a3-9ab3-ee7d4c84fcb2"
+const PublicReqChrUuid = "223387b6-63e6-4d16-8a58-988542253a54"
+const PublicRspChrUuid = "cb9564db-184c-4b9d-b221-6362679cad10"
+
+const UnauthSvcUuid = "0c08c213-98ed-4e43-a499-7e1137c39567"
+const UnauthReqChrUuid = "69b8a928-2ab2-487b-923e-54ce53a18bc1"
+const UnauthRspChrUuid = "bca10aea-5df1-4248-b72b-f52955ad9c88"
+
+const SecureSvcUuid = 0xfe18
+const SecureReqChrUuid = 0x1000
+const SecureRspChrUuid = 0x1001
+
 const NmpPlainSvcUuid = "8d53dc1d-1db7-4cd3-868b-8a527460aa84"
 const NmpPlainChrUuid = "da2e7828-fbce-4e01-ae9e-261174997c48"
 
@@ -40,13 +52,9 @@ const OmpUnsecSvcUuid = "ade3d529-c784-4f63-a987-eb69f70ee816"
 const OmpUnsecReqChrUuid = "ad7b334f-4637-4b86-90b6-9d787f03d218"
 const OmpUnsecRspChrUuid = "e9241982-4580-42c4-8831-95048216b256"
 
-const OmpSecSvcUuid = 0xfe18
-const OmpSecReqChrUuid = 0x1000
-const OmpSecRspChrUuid = 0x1001
-
-const UnauthSvcUuid = "0c08c213-98ed-4e43-a499-7e1137c39567"
-const UnauthReqChrUuid = "69b8a928-2ab2-487b-923e-54ce53a18bc1"
-const UnauthRspChrUuid = "bca10aea-5df1-4248-b72b-f52955ad9c88"
+const OmpSecSvcUuid = SecureSvcUuid
+const OmpSecReqChrUuid = SecureReqChrUuid
+const OmpSecRspChrUuid = SecureRspChrUuid
 
 type BleAddrType int
 
@@ -252,7 +260,6 @@ type BleUuid struct {
 	// Set to 0 if the 128-bit UUID should be used.
 	U16 BleUuid16
 
-	// Set to nil if the 16-bit UUID should be used.
 	U128 BleUuid128
 }
 
@@ -281,6 +288,10 @@ func ParseUuid(uuidStr string) (BleUuid, error) {
 	}
 
 	return bu, err
+}
+
+func NewBleUuid16(uuid16 uint16) BleUuid {
+	return BleUuid{BleUuid16(uuid16), BleUuid128{}}
 }
 
 func (bu *BleUuid) MarshalJSON() ([]byte, error) {
