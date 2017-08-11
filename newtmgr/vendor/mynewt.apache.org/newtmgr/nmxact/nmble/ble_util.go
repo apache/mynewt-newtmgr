@@ -683,36 +683,36 @@ func GattService() BleSvc {
 }
 
 type CoapServiceCfg struct {
-	x          *BleXport
-	svcUuid    BleUuid
-	reqChrUuid BleUuid
-	rspChrUuid BleUuid
-	enc        bool
-	auth       bool
-	resources  []oic.Resource
+	X          *BleXport
+	SvcUuid    BleUuid
+	ReqChrUuid BleUuid
+	RspChrUuid BleUuid
+	Enc        bool
+	Auth       bool
+	Resources  []oic.Resource
 }
 
 func GenCoapService(cfg CoapServiceCfg) (BleSvc, error) {
-	svr := NewBleOicSvr(cfg.x, cfg.svcUuid, cfg.rspChrUuid)
-	for _, r := range cfg.resources {
+	svr := NewBleOicSvr(cfg.X, cfg.SvcUuid, cfg.RspChrUuid)
+	for _, r := range cfg.Resources {
 		if err := svr.AddResource(r); err != nil {
 			return BleSvc{}, err
 		}
 	}
 
 	var secFlags BleChrFlags
-	if cfg.enc {
+	if cfg.Enc {
 		secFlags |= BLE_GATT_F_WRITE_ENC
 	}
-	if cfg.auth {
+	if cfg.Auth {
 		secFlags |= BLE_GATT_F_WRITE_AUTHEN
 	}
 	svc := BleSvc{
-		Uuid:    cfg.svcUuid,
+		Uuid:    cfg.SvcUuid,
 		SvcType: BLE_SVC_TYPE_PRIMARY,
 		Chrs: []BleChr{
 			BleChr{
-				Uuid:       cfg.reqChrUuid,
+				Uuid:       cfg.ReqChrUuid,
 				Flags:      BLE_GATT_F_WRITE_NO_RSP | secFlags,
 				MinKeySize: 0,
 				AccessCb: func(access BleGattAccess) (uint8, []byte) {
@@ -720,7 +720,7 @@ func GenCoapService(cfg CoapServiceCfg) (BleSvc, error) {
 				},
 			},
 			BleChr{
-				Uuid:       cfg.rspChrUuid,
+				Uuid:       cfg.RspChrUuid,
 				Flags:      BLE_GATT_F_NOTIFY,
 				MinKeySize: 0,
 				AccessCb:   nil,
@@ -765,9 +765,9 @@ func BuildMgmtChrs(mgmtProto sesn.MgmtProto) (BleMgmtChrs, error) {
 	ompReqChrUuid, _ := ParseUuid(OmpUnsecReqChrUuid)
 	ompRspChrUuid, _ := ParseUuid(OmpUnsecRspChrUuid)
 
-	publicSvcUuid, _ := ParseUuid(PublicSvcUuid)
-	publicReqChrUuid, _ := ParseUuid(PublicReqChrUuid)
-	publicRspChrUuid, _ := ParseUuid(PublicRspChrUuid)
+	publicSvcUuid, _ := ParseUuid(IotivitySvcUuid)
+	publicReqChrUuid, _ := ParseUuid(IotivityReqChrUuid)
+	publicRspChrUuid, _ := ParseUuid(IotivityRspChrUuid)
 
 	unauthSvcUuid, _ := ParseUuid(UnauthSvcUuid)
 	unauthReqChrUuid, _ := ParseUuid(UnauthReqChrUuid)

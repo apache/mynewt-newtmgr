@@ -33,9 +33,9 @@ const BLE_ATT_MTU_DFLT = 23
 
 const CccdUuid = 0x2902
 
-const PublicSvcUuid = "40e32721-9153-43a3-9ab3-ee7d4c84fcb2"
-const PublicReqChrUuid = "223387b6-63e6-4d16-8a58-988542253a54"
-const PublicRspChrUuid = "cb9564db-184c-4b9d-b221-6362679cad10"
+const IotivitySvcUuid = "ade3d529-c784-4f63-a987-eb69f70ee816"
+const IotivityReqChrUuid = "ad7b334f-4637-4b86-90b6-9d787f03d218"
+const IotivityRspChrUuid = "ad7b334f-4637-4b86-90b6-9d787f03d218"
 
 const UnauthSvcUuid = "0c08c213-98ed-4e43-a499-7e1137c39567"
 const UnauthReqChrUuid = "69b8a928-2ab2-487b-923e-54ce53a18bc1"
