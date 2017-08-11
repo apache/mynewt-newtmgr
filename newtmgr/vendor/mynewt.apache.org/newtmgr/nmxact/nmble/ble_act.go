@@ -384,11 +384,9 @@ func write(x *BleXport, bl *Listener, r *BleWriteReq) error {
 				bl.Acked = true
 				if msg.Status != 0 {
 					return StatusError(MSG_OP_RSP, rspType, msg.Status)
-				} else {
-					return nil
 				}
 
-			case *BleDiscChrEvt:
+			case *BleWriteAckEvt:
 				switch msg.Status {
 				case 0:
 					return nil

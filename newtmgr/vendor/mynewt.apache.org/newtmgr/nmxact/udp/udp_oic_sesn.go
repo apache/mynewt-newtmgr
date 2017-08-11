@@ -181,5 +181,31 @@ func (uos *UdpOicSesn) PutResourceOnce(resType sesn.ResourceType,
 	uri string, value []byte,
 	opt sesn.TxOptions) (coap.COAPCode, error) {
 
-	return 0, fmt.Errorf("UdpOicSesn.PutResourceOnce() unsupported")
+	token := nmxutil.NextToken()
+
+	ol, err := uos.d.AddOicListener(token)
+	if err != nil {
+		return 0, err
+	}
+	defer uos.d.RemoveOicListener(token)
+
+	req, err := oic.EncodePut(false, uri, token, value)
+	if err != nil {
+		return 0, err
+	}
+
+	if _, err := uos.conn.WriteToUDP(req, uos.addr); err != nil {
+		return 0, err
+	}
+
+	for {
+		select {
+		case err := <-ol.ErrChan:
+			return 0, err
+		case rsp := <-ol.RspChan:
+			return rsp.Code(), nil
+		case <-ol.AfterTimeout(opt.Timeout):
+			return 0, nmxutil.NewRspTimeoutError("OIC timeout")
+		}
+	}
 }
