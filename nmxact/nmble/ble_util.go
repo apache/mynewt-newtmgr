@@ -765,9 +765,9 @@ func BuildMgmtChrs(mgmtProto sesn.MgmtProto) (BleMgmtChrs, error) {
 	ompReqChrUuid, _ := ParseUuid(OmpUnsecReqChrUuid)
 	ompRspChrUuid, _ := ParseUuid(OmpUnsecRspChrUuid)
 
-	publicSvcUuid, _ := ParseUuid(PublicSvcUuid)
-	publicReqChrUuid, _ := ParseUuid(PublicReqChrUuid)
-	publicRspChrUuid, _ := ParseUuid(PublicRspChrUuid)
+	publicSvcUuid, _ := ParseUuid(IotivitySvcUuid)
+	publicReqChrUuid, _ := ParseUuid(IotivityReqChrUuid)
+	publicRspChrUuid, _ := ParseUuid(IotivityRspChrUuid)
 
 	unauthSvcUuid, _ := ParseUuid(UnauthSvcUuid)
 	unauthReqChrUuid, _ := ParseUuid(UnauthReqChrUuid)
