@@ -186,7 +186,7 @@ func (sos *SerialOicSesn) GetResourceOnce(resType sesn.ResourceType,
 
 func (sos *SerialOicSesn) PutResourceOnce(resType sesn.ResourceType,
 	uri string, value []byte,
-	opt sesn.TxOptions) (coap.COAPCode, error) {
+	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
 
-	return 0, fmt.Errorf("SerialOicSesn.PutResourceOnce() unsupported")
+	return 0, nil, fmt.Errorf("SerialOicSesn.PutResourceOnce() unsupported")
 }

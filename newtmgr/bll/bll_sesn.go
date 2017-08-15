@@ -374,17 +374,17 @@ func (s *BllSesn) GetResourceOnce(resType sesn.ResourceType, uri string,
 }
 
 func (s *BllSesn) PutResourceOnce(resType sesn.ResourceType,
-	uri string, value []byte, opt sesn.TxOptions) (coap.COAPCode, error) {
+	uri string, value []byte, opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
 
 	chr, err := s.resReqChr(resType)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 
 	token := nmxutil.NextToken()
 	req, err := oic.CreatePut(true, uri, token, value)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 
 	txRaw := func(b []byte) error {
@@ -393,10 +393,10 @@ func (s *BllSesn) PutResourceOnce(resType sesn.ResourceType,
 
 	rsp, err := s.txvr.TxOic(txRaw, req, opt.Timeout)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	} else if rsp == nil {
-		return 0, nil
+		return 0, nil, nil
 	} else {
-		return rsp.Code(), nil
+		return rsp.Code(), rsp.Payload(), nil
 	}
 }
