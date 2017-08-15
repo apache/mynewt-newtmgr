@@ -35,7 +35,7 @@ const CccdUuid = 0x2902
 
 const IotivitySvcUuid = "ade3d529-c784-4f63-a987-eb69f70ee816"
 const IotivityReqChrUuid = "ad7b334f-4637-4b86-90b6-9d787f03d218"
-const IotivityRspChrUuid = "ad7b334f-4637-4b86-90b6-9d787f03d218"
+const IotivityRspChrUuid = "e9241982-4580-42c4-8831-95048216b256"
 
 const UnauthSvcUuid = "0c08c213-98ed-4e43-a499-7e1137c39567"
 const UnauthReqChrUuid = "69b8a928-2ab2-487b-923e-54ce53a18bc1"
