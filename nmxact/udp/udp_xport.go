@@ -37,16 +37,7 @@ func NewUdpXport() *UdpXport {
 }
 
 func (ux *UdpXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
-	switch cfg.MgmtProto {
-	case sesn.MGMT_PROTO_NMP:
-		return NewUdpPlainSesn(cfg), nil
-	case sesn.MGMT_PROTO_OMP:
-		return NewUdpOicSesn(cfg), nil
-	default:
-		return nil, fmt.Errorf(
-			"Invalid management protocol: %d; expected NMP or OMP",
-			cfg.MgmtProto)
-	}
+	return NewUdpSesn(cfg)
 }
 
 func (ux *UdpXport) BuildScanner() (scan.Scanner, error) {

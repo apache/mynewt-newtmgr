@@ -24,6 +24,7 @@ package bll
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/currantlabs/ble"
@@ -345,16 +346,10 @@ func (s *BllSesn) resReqChr(resType sesn.ResourceType) (
 	return chr, nil
 }
 
-func (s *BllSesn) GetResourceOnce(resType sesn.ResourceType, uri string,
-	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
+func (s *BllSesn) txOic(m coap.Message, resType sesn.ResourceType,
+	timeout time.Duration) (coap.COAPCode, []byte, error) {
 
 	chr, err := s.resReqChr(resType)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	token := nmxutil.NextToken()
-	req, err := oic.CreateGet(true, uri, token)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -363,7 +358,7 @@ func (s *BllSesn) GetResourceOnce(resType sesn.ResourceType, uri string,
 		return s.cln.WriteCharacteristic(chr, b, true)
 	}
 
-	rsp, err := s.txvr.TxOic(txRaw, req, opt.Timeout)
+	rsp, err := s.txvr.TxOic(txRaw, m, timeout)
 	if err != nil {
 		return 0, nil, err
 	} else if rsp == nil {
@@ -373,30 +368,25 @@ func (s *BllSesn) GetResourceOnce(resType sesn.ResourceType, uri string,
 	}
 }
 
+func (s *BllSesn) GetResourceOnce(resType sesn.ResourceType, uri string,
+	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
+
+	req, err := oic.CreateGet(true, uri, nmxutil.NextToken())
+	if err != nil {
+		return 0, nil, err
+	}
+
+	return s.txOic(req, resType, opt.Timeout)
+}
+
 func (s *BllSesn) PutResourceOnce(resType sesn.ResourceType,
-	uri string, value []byte, opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
+	uri string, value []byte,
+	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
 
-	chr, err := s.resReqChr(resType)
+	req, err := oic.CreatePut(true, uri, nmxutil.NextToken(), value)
 	if err != nil {
 		return 0, nil, err
 	}
 
-	token := nmxutil.NextToken()
-	req, err := oic.CreatePut(true, uri, token, value)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	txRaw := func(b []byte) error {
-		return s.cln.WriteCharacteristic(chr, b, true)
-	}
-
-	rsp, err := s.txvr.TxOic(txRaw, req, opt.Timeout)
-	if err != nil {
-		return 0, nil, err
-	} else if rsp == nil {
-		return 0, nil, nil
-	} else {
-		return rsp.Code(), rsp.Payload(), nil
-	}
+	return s.txOic(req, resType, opt.Timeout)
 }

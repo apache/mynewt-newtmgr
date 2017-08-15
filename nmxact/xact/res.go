@@ -80,7 +80,7 @@ func NewPutResCmd() *PutResCmd {
 }
 
 type PutResResult struct {
-	Code coap.COAPCode
+	Code  coap.COAPCode
 	Value []byte
 }
 
