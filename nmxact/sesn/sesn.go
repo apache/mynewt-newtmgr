@@ -94,9 +94,6 @@ type Sesn interface {
 	//     * other error
 	TxNmpOnce(m *nmp.NmpMsg, opt TxOptions) (nmp.NmpRsp, error)
 
-	GetResourceOnce(resType ResourceType, uri string, opt TxOptions) (
-		coap.COAPCode, []byte, error)
-
-	PutResourceOnce(resType ResourceType, uri string,
-		value []byte, opt TxOptions) (coap.COAPCode, []byte, error)
+	TxCoapOnce(m coap.Message, resType ResourceType,
+		opt TxOptions) (coap.COAPCode, []byte, error)
 }

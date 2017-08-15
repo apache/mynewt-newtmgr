@@ -22,7 +22,6 @@ package nmble
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/runtimeco/go-coap"
@@ -31,7 +30,6 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/mgmt"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
-	"mynewt.apache.org/newtmgr/nmxact/oic"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
@@ -319,8 +317,9 @@ func (s *BleSesn) ConnInfo() (BleConnDesc, error) {
 	return s.conn.ConnInfo(), nil
 }
 
-func (s *BleSesn) txOic(name string, m coap.Message, resType sesn.ResourceType,
-	timeout time.Duration) (coap.COAPCode, []byte, error) {
+func (s *BleSesn) TxCoapOnce(m coap.Message,
+	resType sesn.ResourceType,
+	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
 
 	chrId := ResChrReqIdLookup(s.mgmtChrs, resType)
 	chr, err := s.getChr(chrId)
@@ -328,10 +327,10 @@ func (s *BleSesn) txOic(name string, m coap.Message, resType sesn.ResourceType,
 		return 0, nil, err
 	}
 	txRaw := func(b []byte) error {
-		return s.conn.WriteChrNoRsp(chr, b, name)
+		return s.conn.WriteChrNoRsp(chr, b, "coap")
 	}
 
-	rsp, err := s.txvr.TxOic(txRaw, m, timeout)
+	rsp, err := s.txvr.TxOic(txRaw, m, opt.Timeout)
 	if err != nil {
 		return 0, nil, err
 	} else if rsp == nil {
@@ -339,27 +338,4 @@ func (s *BleSesn) txOic(name string, m coap.Message, resType sesn.ResourceType,
 	} else {
 		return rsp.Code(), rsp.Payload(), nil
 	}
-}
-
-func (s *BleSesn) GetResourceOnce(resType sesn.ResourceType, uri string,
-	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
-
-	req, err := oic.CreateGet(true, uri, nmxutil.NextToken())
-	if err != nil {
-		return 0, nil, err
-	}
-
-	return s.txOic("oic-get", req, resType, opt.Timeout)
-}
-
-func (s *BleSesn) PutResourceOnce(resType sesn.ResourceType,
-	uri string, value []byte,
-	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
-
-	req, err := oic.CreatePut(true, uri, nmxutil.NextToken(), value)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	return s.txOic("oic-put", req, resType, opt.Timeout)
 }

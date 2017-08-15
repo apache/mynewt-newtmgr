@@ -24,7 +24,6 @@ package bll
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/currantlabs/ble"
@@ -37,7 +36,6 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/nmble"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
-	"mynewt.apache.org/newtmgr/nmxact/oic"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
@@ -346,8 +344,8 @@ func (s *BllSesn) resReqChr(resType sesn.ResourceType) (
 	return chr, nil
 }
 
-func (s *BllSesn) txOic(m coap.Message, resType sesn.ResourceType,
-	timeout time.Duration) (coap.COAPCode, []byte, error) {
+func (s *BllSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
+	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
 
 	chr, err := s.resReqChr(resType)
 	if err != nil {
@@ -358,7 +356,7 @@ func (s *BllSesn) txOic(m coap.Message, resType sesn.ResourceType,
 		return s.cln.WriteCharacteristic(chr, b, true)
 	}
 
-	rsp, err := s.txvr.TxOic(txRaw, m, timeout)
+	rsp, err := s.txvr.TxOic(txRaw, m, opt.Timeout)
 	if err != nil {
 		return 0, nil, err
 	} else if rsp == nil {
@@ -366,27 +364,4 @@ func (s *BllSesn) txOic(m coap.Message, resType sesn.ResourceType,
 	} else {
 		return rsp.Code(), rsp.Payload(), nil
 	}
-}
-
-func (s *BllSesn) GetResourceOnce(resType sesn.ResourceType, uri string,
-	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
-
-	req, err := oic.CreateGet(true, uri, nmxutil.NextToken())
-	if err != nil {
-		return 0, nil, err
-	}
-
-	return s.txOic(req, resType, opt.Timeout)
-}
-
-func (s *BllSesn) PutResourceOnce(resType sesn.ResourceType,
-	uri string, value []byte,
-	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
-
-	req, err := oic.CreatePut(true, uri, nmxutil.NextToken(), value)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	return s.txOic(req, resType, opt.Timeout)
 }
