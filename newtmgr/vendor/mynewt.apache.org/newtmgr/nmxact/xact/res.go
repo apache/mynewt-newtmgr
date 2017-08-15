@@ -81,6 +81,7 @@ func NewPutResCmd() *PutResCmd {
 
 type PutResResult struct {
 	Code coap.COAPCode
+	Value []byte
 }
 
 func newPutResResult() *PutResResult {
@@ -88,7 +89,7 @@ func newPutResResult() *PutResResult {
 }
 
 func (r *PutResResult) Status() int {
-	if r.Code == coap.Created || r.Code == coap.Changed {
+	if r.Code == coap.Created || r.Code == coap.Changed || r.Code == coap.Content {
 		return 0
 	} else {
 		return int(r.Code)
@@ -96,12 +97,13 @@ func (r *PutResResult) Status() int {
 }
 
 func (c *PutResCmd) Run(s sesn.Sesn) (Result, error) {
-	status, err := sesn.PutResource(s, c.Typ, c.Uri, c.Value, c.TxOptions())
+	status, r, err := sesn.PutResource(s, c.Typ, c.Uri, c.Value, c.TxOptions())
 	if err != nil {
 		return nil, err
 	}
 
 	res := newPutResResult()
 	res.Code = status
+	res.Value = r
 	return res, nil
 }

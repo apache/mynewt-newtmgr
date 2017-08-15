@@ -179,33 +179,33 @@ func (uos *UdpOicSesn) GetResourceOnce(resType sesn.ResourceType, uri string,
 
 func (uos *UdpOicSesn) PutResourceOnce(resType sesn.ResourceType,
 	uri string, value []byte,
-	opt sesn.TxOptions) (coap.COAPCode, error) {
+	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
 
 	token := nmxutil.NextToken()
 
 	ol, err := uos.d.AddOicListener(token)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	defer uos.d.RemoveOicListener(token)
 
 	req, err := oic.EncodePut(false, uri, token, value)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 
 	if _, err := uos.conn.WriteToUDP(req, uos.addr); err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 
 	for {
 		select {
 		case err := <-ol.ErrChan:
-			return 0, err
+			return 0, nil, err
 		case rsp := <-ol.RspChan:
-			return rsp.Code(), nil
+			return rsp.Code(), rsp.Payload(), nil
 		case <-ol.AfterTimeout(opt.Timeout):
-			return 0, nmxutil.NewRspTimeoutError("OIC timeout")
+			return 0, nil, nmxutil.NewRspTimeoutError("OIC timeout")
 		}
 	}
 }
