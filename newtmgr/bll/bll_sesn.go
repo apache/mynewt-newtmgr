@@ -212,7 +212,7 @@ func (s *BllSesn) openOnce() (bool, error) {
 			"Attempt to open an already-open bll session")
 	}
 
-	txvr, err := mgmt.NewTransceiver(s.cfg.MgmtProto, 3)
+	txvr, err := mgmt.NewTransceiver(true, s.cfg.MgmtProto, 3)
 	if err != nil {
 		return false, err
 	}

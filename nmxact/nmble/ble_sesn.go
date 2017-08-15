@@ -50,7 +50,7 @@ func (s *BleSesn) init() error {
 
 	s.stopChan = make(chan struct{})
 
-	txvr, err := mgmt.NewTransceiver(s.cfg.MgmtProto, 3)
+	txvr, err := mgmt.NewTransceiver(true, s.cfg.MgmtProto, 3)
 	if err != nil {
 		return err
 	}

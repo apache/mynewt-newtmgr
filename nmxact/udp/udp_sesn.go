@@ -43,7 +43,7 @@ func NewUdpSesn(cfg sesn.SesnCfg) (*UdpSesn, error) {
 	s := &UdpSesn{
 		cfg: cfg,
 	}
-	txvr, err := mgmt.NewTransceiver(cfg.MgmtProto, 3)
+	txvr, err := mgmt.NewTransceiver(false, cfg.MgmtProto, 3)
 	if err != nil {
 		return nil, err
 	}

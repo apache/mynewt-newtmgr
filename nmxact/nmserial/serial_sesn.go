@@ -48,7 +48,7 @@ func NewSerialSesn(sx *SerialXport, cfg sesn.SesnCfg) (*SerialSesn, error) {
 		sx: sx,
 	}
 
-	txvr, err := mgmt.NewTransceiver(cfg.MgmtProto, 3)
+	txvr, err := mgmt.NewTransceiver(false, cfg.MgmtProto, 3)
 	if err != nil {
 		return nil, err
 	}
@@ -122,13 +122,39 @@ func (s *SerialSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 			"Attempt to transmit over closed serial session")
 	}
 
-	return s.txvr.TxNmp(s.sx.Tx, m, opt.Timeout)
+	txFn := func(b []byte) error {
+		if err := s.sx.Tx(b); err != nil {
+			return err
+		}
+
+		rsp, err := s.sx.Rx()
+		if err != nil {
+			return err
+		}
+		s.txvr.DispatchNmpRsp(rsp)
+		return nil
+	}
+
+	return s.txvr.TxNmp(txFn, m, opt.Timeout)
 }
 
 func (s *SerialSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
 	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
 
-	rsp, err := s.txvr.TxOic(s.sx.Tx, m, opt.Timeout)
+	txFn := func(b []byte) error {
+		if err := s.sx.Tx(b); err != nil {
+			return err
+		}
+
+		rsp, err := s.sx.Rx()
+		if err != nil {
+			return err
+		}
+		s.txvr.DispatchCoap(rsp)
+		return nil
+	}
+
+	rsp, err := s.txvr.TxOic(txFn, m, opt.Timeout)
 	if err != nil {
 		return 0, nil, err
 	} else if rsp == nil {
