@@ -12,6 +12,7 @@ import (
 	"io"
 	"io/ioutil"
 	"math/rand"
+	"os"
 	"reflect"
 	"regexp"
 	"sort"
@@ -27,7 +28,6 @@ import (
 // ---------------------------------------------------
 // codecgen supports the full cycle of reflection-based codec:
 //    - RawExt
-//    - Raw
 //    - Builtins
 //    - Extensions
 //    - (Binary|Text|JSON)(Unm|M)arshal
@@ -78,7 +78,7 @@ import (
 // codecgen will panic if the file was generated with an old version of the library in use.
 //
 // Note:
-//   It was a conscious decision to have gen.go always explicitly call EncodeNil or TryDecodeAsNil.
+//   It was a concious decision to have gen.go always explicitly call EncodeNil or TryDecodeAsNil.
 //   This way, there isn't a function call overhead just to see that we should not enter a block of code.
 
 // GenVersion is the current version of codecgen.
@@ -126,7 +126,6 @@ var (
 	genExpectArrayOrMapErr = errors.New("unexpected type. Expecting array/map/slice")
 	genBase64enc           = base64.NewEncoding("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789__")
 	genQNameRegex          = regexp.MustCompile(`[A-Za-z_.]+`)
-	genCheckVendor         bool
 )
 
 // genRunner holds some state used during a Gen run.
@@ -165,9 +164,15 @@ type genRunner struct {
 //
 // Library users: *DO NOT USE IT DIRECTLY. IT WILL CHANGE CONTINOUSLY WITHOUT NOTICE.*
 func Gen(w io.Writer, buildTags, pkgName, uid string, useUnsafe bool, ti *TypeInfos, typ ...reflect.Type) {
-	// All types passed to this method do not have a codec.Selfer method implemented directly.
-	// codecgen already checks the AST and skips any types that define the codec.Selfer methods.
-	// Consequently, there's no need to check and trim them if they implement codec.Selfer
+	// trim out all types which already implement Selfer
+	typ2 := make([]reflect.Type, 0, len(typ))
+	for _, t := range typ {
+		if reflect.PtrTo(t).Implements(selferTyp) || t.Implements(selferTyp) {
+			continue
+		}
+		typ2 = append(typ2, t)
+	}
+	typ = typ2
 
 	if len(typ) == 0 {
 		return
@@ -206,7 +211,7 @@ func Gen(w io.Writer, buildTags, pkgName, uid string, useUnsafe bool, ti *TypeIn
 		x.genRefPkgs(t)
 	}
 	if buildTags != "" {
-		x.line("// +build " + buildTags)
+		x.line("//+build " + buildTags)
 		x.line("")
 	}
 	x.line(`
@@ -696,17 +701,13 @@ func (x *genRunner) enc(varname string, t reflect.Type) {
 	}
 
 	// check if
-	//   - type is RawExt, Raw
+	//   - type is RawExt
 	//   - the type implements (Text|JSON|Binary)(Unm|M)arshal
 	x.linef("%sm%s := z.EncBinary()", genTempVarPfx, mi)
 	x.linef("_ = %sm%s", genTempVarPfx, mi)
 	x.line("if false {")           //start if block
 	defer func() { x.line("}") }() //end if block
 
-	if t == rawTyp {
-		x.linef("} else { z.EncRaw(%v)", varname)
-		return
-	}
 	if t == rawExtTyp {
 		x.linef("} else { r.EncodeRawExt(%v, e)", varname)
 		return
@@ -986,14 +987,6 @@ func (x *genRunner) encStruct(varname string, rtid uintptr, t reflect.Type) {
 }
 
 func (x *genRunner) encListFallback(varname string, t reflect.Type) {
-	if t.AssignableTo(uint8SliceTyp) {
-		x.linef("r.EncodeStringBytes(codecSelferC_RAW%s, []byte(%s))", x.xs, varname)
-		return
-	}
-	if t.Kind() == reflect.Array && t.Elem().Kind() == reflect.Uint8 {
-		x.linef("r.EncodeStringBytes(codecSelferC_RAW%s, ([%v]byte(%s))[:])", x.xs, t.Len(), varname)
-		return
-	}
 	i := x.varsfx()
 	g := genTempVarPfx
 	x.line("r.EncodeArrayStart(len(" + varname + "))")
@@ -1130,7 +1123,7 @@ func (x *genRunner) dec(varname string, t reflect.Type) {
 	}
 
 	// check if
-	//   - type is Raw, RawExt
+	//   - type is RawExt
 	//   - the type implements (Text|JSON|Binary)(Unm|M)arshal
 	mi := x.varsfx()
 	x.linef("%sm%s := z.DecBinary()", genTempVarPfx, mi)
@@ -1138,10 +1131,6 @@ func (x *genRunner) dec(varname string, t reflect.Type) {
 	x.line("if false {")           //start if block
 	defer func() { x.line("}") }() //end if block
 
-	if t == rawTyp {
-		x.linef("} else { *%v = z.DecRaw()", varname)
-		return
-	}
 	if t == rawExtTyp {
 		x.linef("} else { r.DecodeExt(%v, 0, nil)", varname)
 		return
@@ -1317,14 +1306,6 @@ func (x *genRunner) decTryAssignPrimitive(varname string, t reflect.Type) (tryAs
 }
 
 func (x *genRunner) decListFallback(varname string, rtid uintptr, t reflect.Type) {
-	if t.AssignableTo(uint8SliceTyp) {
-		x.line("*" + varname + " = r.DecodeBytes(*((*[]byte)(" + varname + ")), false, false)")
-		return
-	}
-	if t.Kind() == reflect.Array && t.Elem().Kind() == reflect.Uint8 {
-		x.linef("r.DecodeBytes( ((*[%s]byte)(%s))[:], false, true)", t.Len(), varname)
-		return
-	}
 	type tstruc struct {
 		TempVar   string
 		Rand      string
@@ -1440,7 +1421,7 @@ func (x *genRunner) decStructMapSwitch(kName string, varname string, rtid uintpt
 		if si.i != -1 {
 			t2 = t.Field(int(si.i))
 		} else {
-			//we must accommodate anonymous fields, where the embedded field is a nil pointer in the value.
+			//we must accomodate anonymous fields, where the embedded field is a nil pointer in the value.
 			// t2 = t.FieldByIndex(si.is)
 			t2typ := t
 			varname3 := varname
@@ -1528,7 +1509,7 @@ func (x *genRunner) decStructArray(varname, lenvarname, breakString string, rtid
 		if si.i != -1 {
 			t2 = t.Field(int(si.i))
 		} else {
-			//we must accommodate anonymous fields, where the embedded field is a nil pointer in the value.
+			//we must accomodate anonymous fields, where the embedded field is a nil pointer in the value.
 			// t2 = t.FieldByIndex(si.is)
 			t2typ := t
 			varname3 := varname
@@ -1645,6 +1626,8 @@ func (x *genV) MethodNamePfx(prefix string, prim bool) string {
 
 }
 
+var genCheckVendor = os.Getenv("GO15VENDOREXPERIMENT") == "1"
+
 // genImportPath returns import path of a non-predeclared named typed, or an empty string otherwise.
 //
 // This handles the misbehaviour that occurs when 1.5-style vendoring is enabled,
@@ -1653,8 +1636,15 @@ func (x *genV) MethodNamePfx(prefix string, prim bool) string {
 func genImportPath(t reflect.Type) (s string) {
 	s = t.PkgPath()
 	if genCheckVendor {
-		// HACK: always handle vendoring. It should be typically on in go 1.6, 1.7
-		s = stripVendor(s)
+		// HACK: Misbehaviour occurs in go 1.5. May have to re-visit this later.
+		// if s contains /vendor/ OR startsWith vendor/, then return everything after it.
+		const vendorStart = "vendor/"
+		const vendorInline = "/vendor/"
+		if i := strings.LastIndex(s, vendorInline); i >= 0 {
+			s = s[i+len(vendorInline):]
+		} else if strings.HasPrefix(s, vendorStart) {
+			s = s[len(vendorStart):]
+		}
 	}
 	return
 }
@@ -1688,7 +1678,7 @@ func genNonPtr(t reflect.Type) reflect.Type {
 
 func genTitleCaseName(s string) string {
 	switch s {
-	case "interface{}", "interface {}":
+	case "interface{}":
 		return "Intf"
 	default:
 		return strings.ToUpper(s[0:1]) + s[1:]
@@ -1791,7 +1781,7 @@ func (x genInternal) FastpathLen() (l int) {
 
 func genInternalZeroValue(s string) string {
 	switch s {
-	case "interface{}", "interface {}":
+	case "interface{}":
 		return "nil"
 	case "bool":
 		return "false"
@@ -1877,19 +1867,6 @@ func genInternalSortType(s string, elem bool) string {
 	panic("sorttype: unexpected type: " + s)
 }
 
-func stripVendor(s string) string {
-	// HACK: Misbehaviour occurs in go 1.5. May have to re-visit this later.
-	// if s contains /vendor/ OR startsWith vendor/, then return everything after it.
-	const vendorStart = "vendor/"
-	const vendorInline = "/vendor/"
-	if i := strings.LastIndex(s, vendorInline); i >= 0 {
-		s = s[i+len(vendorInline):]
-	} else if strings.HasPrefix(s, vendorStart) {
-		s = s[len(vendorStart):]
-	}
-	return s
-}
-
 // var genInternalMu sync.Mutex
 var genInternalV genInternal
 var genInternalTmplFuncs template.FuncMap
@@ -1956,7 +1933,7 @@ func genInternalInit() {
 	}
 	var gt genInternal
 
-	// For each slice or map type, there must be a (symmetrical) Encode and Decode fast-path function
+	// For each slice or map type, there must be a (symetrical) Encode and Decode fast-path function
 	for _, s := range types {
 		gt.Values = append(gt.Values, genV{Primitive: s, Size: mapvaltypes2[s]})
 		if s != "uint8" { // do not generate fast path for slice of bytes. Treat specially already.
