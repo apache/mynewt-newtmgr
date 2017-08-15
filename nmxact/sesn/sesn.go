@@ -98,5 +98,5 @@ type Sesn interface {
 		coap.COAPCode, []byte, error)
 
 	PutResourceOnce(resType ResourceType, uri string,
-		value []byte, opt TxOptions) (coap.COAPCode, error)
+		value []byte, opt TxOptions) (coap.COAPCode, []byte, error)
 }
