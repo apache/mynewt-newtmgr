@@ -33,15 +33,18 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/xact"
 )
 
+const scanRetryRate = time.Second
+
 // Implements scan.Scanner.
 type BleScanner struct {
 	cfg scan.Cfg
 
-	bx           *BleXport
-	discoverer   *Discoverer
-	reportedDevs map[BleDev]string
-	bos          *BleSesn
-	enabled      bool
+	bx             *BleXport
+	discoverer     *Discoverer
+	reportedDevs   map[BleDev]string
+	bos            *BleSesn
+	enabled        bool
+	suspendBlocker nmxutil.Blocker
 
 	// Protects accesses to the reported devices map.
 	mtx sync.Mutex
@@ -64,11 +67,7 @@ func (s *BleScanner) discover() (*BleDev, error) {
 	})
 	s.mtx.Unlock()
 
-	defer func() {
-		s.mtx.Lock()
-		defer s.mtx.Unlock()
-		s.discoverer = nil
-	}()
+	defer func() { s.discoverer = nil }()
 
 	var dev *BleDev
 	advRptCb := func(r BleAdvReport) {
@@ -90,13 +89,13 @@ func (s *BleScanner) discover() (*BleDev, error) {
 
 func (s *BleScanner) connect(dev BleDev) error {
 	s.cfg.SesnCfg.PeerSpec.Ble = dev
-	session, err := s.bx.BuildSesn(s.cfg.SesnCfg)
+	bs, err := NewBleSesn(s.bx, s.cfg.SesnCfg, MASTER_PRIO_SCAN)
 	if err != nil {
 		return err
 	}
 
 	s.mtx.Lock()
-	s.bos = session.(*BleSesn)
+	s.bos = bs
 	s.mtx.Unlock()
 
 	if err := s.bos.Open(); err != nil {
@@ -116,7 +115,7 @@ func (s *BleScanner) readHwId() (string, error) {
 	}
 	if res.Status() != 0 {
 		return "",
-			fmt.Errorf("failed to read hardware ID; NMP status=%discoverer",
+			fmt.Errorf("failed to read hardware ID; NMP status=%d",
 				res.Status())
 	}
 	cres := res.(*xact.ConfigReadResult)
@@ -124,6 +123,12 @@ func (s *BleScanner) readHwId() (string, error) {
 }
 
 func (s *BleScanner) scan() (*scan.ScanPeer, error) {
+	// Ensure subsequent calls to suspend() block.
+	s.suspendBlocker.Block()
+
+	// If the scanner is being suspended, unblock the suspend() call.
+	defer s.suspendBlocker.Unblock(nil)
+
 	// Discover the first device which matches the specified predicate.
 	dev, err := s.discover()
 	if err != nil {
@@ -192,10 +197,7 @@ func (s *BleScanner) Start(cfg scan.Cfg) error {
 			p, err := s.scan()
 			if err != nil {
 				log.Debugf("Scan error: %s", err.Error())
-				if nmxutil.IsXport(err) {
-					// Transport stopped; abort the scan.
-					s.enabled = false
-				}
+				time.Sleep(scanRetryRate)
 			} else if p != nil {
 				s.mtx.Lock()
 				s.reportedDevs[p.PeerSpec.Ble] = p.HwId
@@ -209,29 +211,49 @@ func (s *BleScanner) Start(cfg scan.Cfg) error {
 	return nil
 }
 
-func (s *BleScanner) Stop() error {
-	if !s.enabled {
-		return nmxutil.NewAlreadyError("Attempt to stop BLE scanner twice")
-	}
-	s.enabled = false
-
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
+func (s *BleScanner) suspend() error {
 	discoverer := s.discoverer
 	bos := s.bos
 
 	if discoverer != nil {
 		discoverer.Stop()
-		s.discoverer = nil
 	}
 
 	if bos != nil {
 		bos.Close()
-		s.bos = nil
 	}
 
+	// Block until scan is fully terminated.
+	s.suspendBlocker.Wait(nmxutil.DURATION_FOREVER)
+
+	s.discoverer = nil
+	s.bos = nil
+
 	return nil
+}
+
+// Aborts the current scan but leaves the scanner enabled.  This function is
+// called when a higher priority procedure (e.g., connecting) needs to acquire
+// master privileges.  When the high priority procedures are complete, scanning
+// will resume.
+func (s *BleScanner) Preempt() error {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	return s.suspend()
+}
+
+// Stops the scanner.  Scanning won't resume unless Start() gets called.
+func (s *BleScanner) Stop() error {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	if !s.enabled {
+		return nmxutil.NewAlreadyError("Attempt to stop BLE scanner twice")
+	}
+	s.enabled = false
+
+	return s.suspend()
 }
 
 // @return                      true if the specified device was found and

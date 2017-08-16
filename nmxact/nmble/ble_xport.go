@@ -107,15 +107,15 @@ type BleXport struct {
 	cfg          XportCfg
 	d            *Dispatcher
 	client       *unixchild.Client
+	scanner      *BleScanner
 	state        BleXportState
 	stopChan     chan struct{}
 	shutdownChan chan bool
 	readyBcast   nmxutil.Bcaster
-	master       nmxutil.SingleResource
+	master       Master
 	slave        nmxutil.SingleResource
 	randAddr     *BleAddr
 	mtx          sync.Mutex
-	scanner      *BleScanner
 	advertiser   *Advertiser
 	cm           ChrMgr
 	sesns        map[uint16]*BleSesn
@@ -127,10 +127,12 @@ func NewBleXport(cfg XportCfg) (*BleXport, error) {
 		d:            NewDispatcher(),
 		shutdownChan: make(chan bool),
 		readyBcast:   nmxutil.Bcaster{},
-		master:       nmxutil.NewSingleResource(),
 		slave:        nmxutil.NewSingleResource(),
 		sesns:        map[uint16]*BleSesn{},
 	}
+
+	bx.scanner = NewBleScanner(bx)
+	bx.master = NewMaster(bx, bx.scanner)
 
 	return bx, nil
 }
@@ -166,10 +168,6 @@ func (bx *BleXport) BuildScanner() (scan.Scanner, error) {
 	// The transport only allows a single scanner.  This is because the
 	// master privileges need to managed among the scanner and the
 	// sessions.
-	if bx.scanner == nil {
-		bx.scanner = NewBleScanner(bx)
-	}
-
 	return bx.scanner, nil
 }
 
@@ -184,7 +182,7 @@ func (bx *BleXport) BuildAdvertiser() (adv.Advertiser, error) {
 }
 
 func (bx *BleXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
-	return NewBleSesn(bx, cfg)
+	return NewBleSesn(bx, cfg, MASTER_PRIO_CONNECT)
 }
 
 func (bx *BleXport) addSyncListener() (*Listener, error) {
@@ -640,16 +638,24 @@ func (bx *BleXport) RspTimeout() time.Duration {
 	return bx.cfg.BlehostdRspTimeout
 }
 
-func (bx *BleXport) AcquireMaster(token interface{}) error {
-	return bx.master.Acquire(token)
+func (bx *BleXport) AcquireMasterConnect(token interface{}) error {
+	return bx.master.AcquireConnect(token)
+}
+
+func (bx *BleXport) AcquireMasterScan(token interface{}) error {
+	return bx.master.AcquireScan(token)
 }
 
 func (bx *BleXport) ReleaseMaster() {
 	bx.master.Release()
 }
 
-func (bx *BleXport) StopWaitingForMaster(token interface{}, err error) {
-	bx.master.StopWaiting(token, err)
+func (bx *BleXport) StopWaitingForMasterConnect(token interface{}, err error) {
+	bx.master.StopWaitingConnect(token, err)
+}
+
+func (bx *BleXport) StopWaitingForMasterScan(token interface{}, err error) {
+	bx.master.StopWaitingScan(token, err)
 }
 
 func (bx *BleXport) AcquireSlave(token interface{}) error {

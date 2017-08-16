@@ -65,19 +65,21 @@ func (s *SingleResource) Acquire(token interface{}) error {
 	return nil
 }
 
-func (s *SingleResource) Release() {
+// @return                      true if a pending waiter acquired the resource;
+//                              false if the resource is now free.
+func (s *SingleResource) Release() bool {
 	s.mtx.Lock()
 
 	if !s.acquired {
 		panic("SingleResource release without acquire")
 		s.mtx.Unlock()
-		return
+		return false
 	}
 
 	if len(s.waitQueue) == 0 {
 		s.acquired = false
 		s.mtx.Unlock()
-		return
+		return false
 	}
 
 	w := s.waitQueue[0]
@@ -86,6 +88,8 @@ func (s *SingleResource) Release() {
 	s.mtx.Unlock()
 
 	w.c <- nil
+
+	return true
 }
 
 func (s *SingleResource) StopWaiting(token interface{}, err error) {
@@ -108,4 +112,11 @@ func (s *SingleResource) Abort(err error) {
 		w.c <- err
 	}
 	s.waitQueue = nil
+}
+
+func (s *SingleResource) Acquired() bool {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	return s.acquired
 }

@@ -37,6 +37,7 @@ import (
 type BleSesn struct {
 	cfg      sesn.SesnCfg
 	bx       *BleXport
+	prio     MasterPrio
 	conn     *Conn
 	mgmtChrs BleMgmtChrs
 	txvr     *mgmt.Transceiver
@@ -47,7 +48,7 @@ type BleSesn struct {
 }
 
 func (s *BleSesn) init() error {
-	s.conn = NewConn(s.bx)
+	s.conn = NewConn(s.bx, s.prio)
 	s.stopChan = make(chan struct{})
 
 	if s.txvr != nil {
@@ -63,7 +64,9 @@ func (s *BleSesn) init() error {
 	return nil
 }
 
-func NewBleSesn(bx *BleXport, cfg sesn.SesnCfg) (*BleSesn, error) {
+func NewBleSesn(bx *BleXport, cfg sesn.SesnCfg, prio MasterPrio) (
+	*BleSesn, error) {
+
 	mgmtChrs, err := BuildMgmtChrs(cfg.MgmtProto)
 	if err != nil {
 		return nil, err
@@ -72,6 +75,7 @@ func NewBleSesn(bx *BleXport, cfg sesn.SesnCfg) (*BleSesn, error) {
 	s := &BleSesn{
 		cfg:      cfg,
 		bx:       bx,
+		prio:     prio,
 		mgmtChrs: mgmtChrs,
 	}
 

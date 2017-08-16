@@ -71,7 +71,7 @@ func (d *Discoverer) Start(advRptCb BleAdvRptFn) error {
 	}
 
 	// Scanning requires dedicated master privileges.
-	if err := d.params.Bx.AcquireMaster(d); err != nil {
+	if err := AcquireMaster(d.params.Bx, MASTER_PRIO_SCAN, d); err != nil {
 		return err
 	}
 	defer d.params.Bx.ReleaseMaster()

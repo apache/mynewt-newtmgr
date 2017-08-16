@@ -122,7 +122,7 @@ func (a *Advertiser) stopAdvertising() error {
 func (a *Advertiser) buildSesn(cfg adv.Cfg, connHandle uint16, bl *Listener) (
 	sesn.Sesn, error) {
 
-	s, err := NewBleSesn(a.bx, cfg.Ble.SesnCfg)
+	s, err := NewBleSesn(a.bx, cfg.Ble.SesnCfg, MASTER_PRIO_CONNECT)
 	if err != nil {
 		return nil, err
 	}

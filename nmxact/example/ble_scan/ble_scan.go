@@ -33,6 +33,7 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/scan"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
+	"mynewt.apache.org/newtmgr/nmxact/xact"
 	"mynewt.apache.org/newtmgr/nmxact/xport"
 )
 
@@ -63,7 +64,23 @@ func configExitHandler(x xport.Xport, s sesn.Sesn) {
 	}()
 }
 
+func sendEcho(s sesn.Sesn) {
+	c := xact.NewEchoCmd()
+	c.Payload = "hello"
+
+	res, err := c.Run(s)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error executing echo command: %s\n",
+			err.Error())
+		return
+	}
+
+	eres := res.(*xact.EchoResult)
+	fmt.Printf("Peer echoed back: %s\n", eres.Rsp.Payload)
+}
+
 func main() {
+	nmxutil.Debug = true
 	//nmxutil.SetLogLevel(log.DebugLevel)
 	nmxutil.SetLogLevel(log.InfoLevel)
 
@@ -71,7 +88,7 @@ func main() {
 	params := nmble.NewXportCfg()
 	params.SockPath = "/tmp/blehostd-uds"
 	params.BlehostdPath = "blehostd"
-	params.DevPath = "/dev/cu.usbmodem142111"
+	params.DevPath = "/dev/cu.usbmodem142141"
 
 	x, err := nmble.NewBleXport(params)
 	if err != nil {
@@ -90,7 +107,7 @@ func main() {
 
 	scanChan := make(chan scan.ScanPeer)
 	scanCb := func(peer scan.ScanPeer) {
-		fmt.Printf("discovered peer: %#v\n", peer)
+		fmt.Printf("Discovered peer: %s\n", peer.String())
 		scanChan <- peer
 	}
 
@@ -103,22 +120,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	for {
-		sc := scan.BleOmpScanCfg(scanCb)
-		if err := scanner.Start(sc); err != nil {
-			fmt.Fprintf(os.Stderr, "error starting scan: %s\n", err.Error())
-			os.Exit(1)
-		}
+	sc := scan.BleOmpScanCfg(scanCb)
+	if err := scanner.Start(sc); err != nil {
+		fmt.Fprintf(os.Stderr, "error starting scan: %s\n", err.Error())
+		os.Exit(1)
+	}
 
+	for {
 		p := <-scanChan
 
-		// Found a peer; stop scanning.
-		if err := scanner.Stop(); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to stop scan: %s\n", err.Error())
-			os.Exit(1)
-		}
-
-		fmt.Printf("Connecting to %#v\n", p)
+		// Found a peer; connect, send a command, and disconnect.
+		fmt.Printf("Connecting to %s\n", p.String())
 		c := sesn.NewSesnCfg()
 		c.MgmtProto = sesn.MGMT_PROTO_OMP
 		c.Ble.OwnAddrType = bledefs.BLE_ADDR_TYPE_RANDOM
@@ -138,6 +150,7 @@ func main() {
 		}
 
 		fmt.Printf("Connected\n")
+		sendEcho(s)
 		fmt.Printf("Closing\n")
 		s.Close()
 	}
