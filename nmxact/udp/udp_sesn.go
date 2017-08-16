@@ -79,6 +79,7 @@ func (s *UdpSesn) Close() error {
 
 	s.conn.Close()
 	s.txvr.ErrorAll(fmt.Errorf("closed"))
+	s.txvr.Stop()
 	s.conn = nil
 	s.addr = nil
 	return nil

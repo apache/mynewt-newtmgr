@@ -208,3 +208,7 @@ func (t *Transceiver) ErrorAll(err error) {
 func (t *Transceiver) AbortRx(seq uint8) {
 	t.ErrorOne(seq, fmt.Errorf("rx aborted"))
 }
+
+func (t *Transceiver) Stop() {
+	t.od.Stop()
+}

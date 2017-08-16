@@ -69,6 +69,7 @@ func (s *BllSesn) listenDisconnect() {
 
 		s.mtx.Lock()
 		s.txvr.ErrorAll(fmt.Errorf("disconnected"))
+		s.txvr.Stop()
 		s.mtx.Unlock()
 
 		s.cln = nil

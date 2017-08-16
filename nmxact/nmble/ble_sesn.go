@@ -47,14 +47,18 @@ type BleSesn struct {
 
 func (s *BleSesn) init() error {
 	s.conn = NewConn(s.bx)
-
 	s.stopChan = make(chan struct{})
+
+	if s.txvr != nil {
+		s.txvr.Stop()
+	}
 
 	txvr, err := mgmt.NewTransceiver(true, s.cfg.MgmtProto, 3)
 	if err != nil {
 		return err
 	}
 	s.txvr = txvr
+
 	return nil
 }
 
@@ -70,9 +74,7 @@ func NewBleSesn(bx *BleXport, cfg sesn.SesnCfg) (*BleSesn, error) {
 		mgmtChrs: mgmtChrs,
 	}
 
-	if err := s.init(); err != nil {
-		return nil, err
-	}
+	s.init()
 
 	return s, nil
 }
@@ -95,6 +97,7 @@ func (s *BleSesn) disconnectListen() {
 
 		// Signal error to all listeners.
 		s.txvr.ErrorAll(err)
+		s.txvr.Stop()
 
 		// Stop all go routines.
 		close(s.stopChan)

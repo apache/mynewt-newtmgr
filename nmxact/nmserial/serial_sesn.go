@@ -80,6 +80,7 @@ func (s *SerialSesn) Close() error {
 	}
 
 	s.txvr.ErrorAll(fmt.Errorf("closed"))
+	s.txvr.Stop()
 	s.isOpen = false
 
 	return nil
