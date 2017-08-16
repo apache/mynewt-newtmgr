@@ -167,9 +167,12 @@ func (s *BleSesn) notifyListenOnce(chrId *BleChrId,
 
 func (s *BleSesn) notifyListen() {
 	s.notifyListenOnce(s.mgmtChrs.NmpRspChr, s.txvr.DispatchNmpRsp)
-	s.notifyListenOnce(s.mgmtChrs.ResPublicRspChr, s.txvr.DispatchCoap)
 	s.notifyListenOnce(s.mgmtChrs.ResUnauthRspChr, s.txvr.DispatchCoap)
 	s.notifyListenOnce(s.mgmtChrs.ResSecureRspChr, s.txvr.DispatchCoap)
+
+	// XXX: Don't listen for public resource responses for now; characteristic
+	// may conflict with newtmgr.
+	//s.notifyListenOnce(s.mgmtChrs.ResPublicRspChr, s.txvr.DispatchCoap)
 }
 
 func (s *BleSesn) openOnce() (bool, error) {
