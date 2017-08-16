@@ -24,6 +24,7 @@ import (
 
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
+	"mynewt.apache.org/newtmgr/nmxact/oic"
 )
 
 func TxNmp(s Sesn, m *nmp.NmpMsg, o TxOptions) (nmp.NmpRsp, error) {
@@ -40,12 +41,58 @@ func TxNmp(s Sesn, m *nmp.NmpMsg, o TxOptions) (nmp.NmpRsp, error) {
 	}
 }
 
-func GetResource(s Sesn, resType ResourceType, uri string, o TxOptions) (
-	coap.COAPCode, []byte, error) {
+func getResourceOnce(s Sesn, resType ResourceType,
+	uri string, opt TxOptions) (coap.COAPCode, []byte, error) {
 
-	retries := o.Tries - 1
+	req, err := oic.CreateGet(true, uri, nmxutil.NextToken())
+	if err != nil {
+		return 0, nil, err
+	}
+
+	return s.TxCoapOnce(req, resType, opt)
+}
+
+func putResourceOnce(s Sesn, resType ResourceType,
+	uri string, value []byte,
+	opt TxOptions) (coap.COAPCode, []byte, error) {
+
+	req, err := oic.CreatePut(true, uri, nmxutil.NextToken(), value)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	return s.TxCoapOnce(req, resType, opt)
+}
+
+func postResourceOnce(s Sesn, resType ResourceType,
+	uri string, value []byte,
+	opt TxOptions) (coap.COAPCode, []byte, error) {
+
+	req, err := oic.CreatePost(true, uri, nmxutil.NextToken(), value)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	return s.TxCoapOnce(req, resType, opt)
+}
+
+func deleteResourceOnce(s Sesn, resType ResourceType,
+	uri string, opt TxOptions) (coap.COAPCode, []byte, error) {
+
+	req, err := oic.CreateDelete(true, uri, nmxutil.NextToken())
+	if err != nil {
+		return 0, nil, err
+	}
+
+	return s.TxCoapOnce(req, resType, opt)
+}
+
+func txCoap(txCb func() (coap.COAPCode, []byte, error),
+	tries int) (coap.COAPCode, []byte, error) {
+
+	retries := tries - 1
 	for i := 0; ; i++ {
-		code, r, err := s.GetResourceOnce(resType, uri, o)
+		code, r, err := txCb()
 		if err == nil {
 			return code, r, nil
 		}
@@ -54,31 +101,54 @@ func GetResource(s Sesn, resType ResourceType, uri string, o TxOptions) (
 			return code, nil, err
 		}
 	}
+}
+
+func GetResource(s Sesn, resType ResourceType, uri string, o TxOptions) (
+	coap.COAPCode, []byte, error) {
+
+	return txCoap(func() (coap.COAPCode, []byte, error) {
+		return getResourceOnce(s, resType, uri, o)
+	}, o.Tries)
 }
 
 func PutResource(s Sesn, resType ResourceType, uri string,
 	value []byte, o TxOptions) (coap.COAPCode, []byte, error) {
 
-	retries := o.Tries - 1
-	for i := 0; ; i++ {
-		code, r, err := s.PutResourceOnce(resType, uri, value, o)
-		if err == nil {
-			return code, r, nil
-		}
+	return txCoap(func() (coap.COAPCode, []byte, error) {
+		return putResourceOnce(s, resType, uri, value, o)
+	}, o.Tries)
+}
 
-		if !nmxutil.IsRspTimeout(err) || i >= retries {
-			return code, nil, err
-		}
-	}
+func PostResource(s Sesn, resType ResourceType, uri string,
+	value []byte, o TxOptions) (coap.COAPCode, []byte, error) {
+
+	return txCoap(func() (coap.COAPCode, []byte, error) {
+		return postResourceOnce(s, resType, uri, value, o)
+	}, o.Tries)
+}
+
+func DeleteResource(s Sesn, resType ResourceType, uri string,
+	value []byte, o TxOptions) (coap.COAPCode, []byte, error) {
+
+	return txCoap(func() (coap.COAPCode, []byte, error) {
+		return deleteResourceOnce(s, resType, uri, o)
+	}, o.Tries)
 }
 
 func PutCborResource(s Sesn, resType ResourceType, uri string,
-	value map[string]interface{}, o TxOptions) (coap.COAPCode, []byte, error) {
+	value map[string]interface{},
+	o TxOptions) (coap.COAPCode, map[string]interface{}, error) {
 
 	b, err := nmxutil.EncodeCborMap(value)
 	if err != nil {
 		return 0, nil, err
 	}
 
-	return PutResource(s, resType, uri, b, o)
+	code, r, err := PutResource(s, resType, uri, b, o)
+	m, err := nmxutil.DecodeCborMap(r)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	return code, m, nil
 }

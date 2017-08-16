@@ -30,7 +30,6 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/mgmt"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
-	"mynewt.apache.org/newtmgr/nmxact/oic"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
@@ -48,14 +47,18 @@ type BleSesn struct {
 
 func (s *BleSesn) init() error {
 	s.conn = NewConn(s.bx)
-
 	s.stopChan = make(chan struct{})
 
-	txvr, err := mgmt.NewTransceiver(s.cfg.MgmtProto, 3)
+	if s.txvr != nil {
+		s.txvr.Stop()
+	}
+
+	txvr, err := mgmt.NewTransceiver(true, s.cfg.MgmtProto, 3)
 	if err != nil {
 		return err
 	}
 	s.txvr = txvr
+
 	return nil
 }
 
@@ -71,9 +74,7 @@ func NewBleSesn(bx *BleXport, cfg sesn.SesnCfg) (*BleSesn, error) {
 		mgmtChrs: mgmtChrs,
 	}
 
-	if err := s.init(); err != nil {
-		return nil, err
-	}
+	s.init()
 
 	return s, nil
 }
@@ -96,6 +97,7 @@ func (s *BleSesn) disconnectListen() {
 
 		// Signal error to all listeners.
 		s.txvr.ErrorAll(err)
+		s.txvr.Stop()
 
 		// Stop all go routines.
 		close(s.stopChan)
@@ -318,55 +320,20 @@ func (s *BleSesn) ConnInfo() (BleConnDesc, error) {
 	return s.conn.ConnInfo(), nil
 }
 
-func (s *BleSesn) GetResourceOnce(resType sesn.ResourceType, uri string,
+func (s *BleSesn) TxCoapOnce(m coap.Message,
+	resType sesn.ResourceType,
 	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
 
-	token := nmxutil.NextToken()
-	req, err := oic.CreateGet(true, uri, token)
-	if err != nil {
-		return 0, nil, err
-	}
-
 	chrId := ResChrReqIdLookup(s.mgmtChrs, resType)
 	chr, err := s.getChr(chrId)
 	if err != nil {
 		return 0, nil, err
 	}
-
 	txRaw := func(b []byte) error {
-		return s.conn.WriteChrNoRsp(chr, b, "oic-get")
+		return s.conn.WriteChrNoRsp(chr, b, "coap")
 	}
 
-	rsp, err := s.txvr.TxOic(txRaw, req, opt.Timeout)
-	if err != nil {
-		return 0, nil, err
-	} else if rsp == nil {
-		return 0, nil, nil
-	} else {
-		return rsp.Code(), rsp.Payload(), nil
-	}
-}
-
-func (s *BleSesn) PutResourceOnce(resType sesn.ResourceType,
-	uri string, value []byte, opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
-
-	token := nmxutil.NextToken()
-	req, err := oic.CreatePut(true, uri, token, value)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	chrId := ResChrReqIdLookup(s.mgmtChrs, resType)
-	chr, err := s.getChr(chrId)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	txRaw := func(b []byte) error {
-		return s.conn.WriteChrNoRsp(chr, b, "oic-put")
-	}
-
-	rsp, err := s.txvr.TxOic(txRaw, req, opt.Timeout)
+	rsp, err := s.txvr.TxOic(txRaw, m, opt.Timeout)
 	if err != nil {
 		return 0, nil, err
 	} else if rsp == nil {

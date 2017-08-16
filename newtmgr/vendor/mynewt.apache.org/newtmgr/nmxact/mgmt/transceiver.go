@@ -25,19 +25,22 @@ type Transceiver struct {
 	// Used for OMP and CoAP resource requests.
 	od *omp.Dispatcher
 
-	wg sync.WaitGroup
+	isTcp bool
+	wg    sync.WaitGroup
 }
 
-func NewTransceiver(mgmtProto sesn.MgmtProto, logDepth int) (
+func NewTransceiver(isTcp bool, mgmtProto sesn.MgmtProto, logDepth int) (
 	*Transceiver, error) {
 
-	t := &Transceiver{}
+	t := &Transceiver{
+		isTcp: isTcp,
+	}
 
 	if mgmtProto == sesn.MGMT_PROTO_NMP {
 		t.nd = nmp.NewDispatcher(logDepth)
 	}
 
-	od, err := omp.NewDispatcher(true, logDepth)
+	od, err := omp.NewDispatcher(isTcp, logDepth)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +91,12 @@ func (t *Transceiver) txOmp(txCb TxFn, req *nmp.NmpMsg, timeout time.Duration) (
 	}
 	defer t.od.RemoveNmpListener(req.Hdr.Seq)
 
-	b, err := omp.EncodeOmpTcp(req)
+	var b []byte
+	if t.isTcp {
+		b, err = omp.EncodeOmpTcp(req)
+	} else {
+		b, err = omp.EncodeOmpDgram(req)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -199,4 +207,8 @@ func (t *Transceiver) ErrorAll(err error) {
 
 func (t *Transceiver) AbortRx(seq uint8) {
 	t.ErrorOne(seq, fmt.Errorf("rx aborted"))
+}
+
+func (t *Transceiver) Stop() {
+	t.od.Stop()
 }
