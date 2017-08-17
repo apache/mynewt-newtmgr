@@ -101,7 +101,6 @@ func (c *Conn) shutdown(err error) {
 	if !c.initiateShutdown() {
 		return
 	}
-	defer func() { c.stopped = false }()
 
 	c.connecting = false
 	c.connHandle = BLE_CONN_HANDLE_NONE
@@ -755,8 +754,10 @@ func (c *Conn) Stop() error {
 		if err := c.terminate(); err != nil {
 			go c.shutdown(err)
 		}
-	} else if c.connecting {
-		c.connCancel()
+	} else {
+		if c.connecting {
+			c.connCancel()
+		}
 		go c.shutdown(fmt.Errorf("Stopped"))
 	}
 
