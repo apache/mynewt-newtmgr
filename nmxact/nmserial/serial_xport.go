@@ -65,16 +65,7 @@ func NewSerialXport(cfg *XportCfg) *SerialXport {
 }
 
 func (sx *SerialXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
-	switch cfg.MgmtProto {
-	case sesn.MGMT_PROTO_NMP:
-		return NewSerialPlainSesn(sx), nil
-	case sesn.MGMT_PROTO_OMP:
-		return NewSerialOicSesn(sx), nil
-	default:
-		return nil, fmt.Errorf(
-			"Invalid management protocol: %d; expected NMP or OMP",
-			cfg.MgmtProto)
-	}
+	return NewSerialSesn(sx, cfg)
 }
 
 func (sx *SerialXport) BuildScanner() (scan.Scanner, error) {

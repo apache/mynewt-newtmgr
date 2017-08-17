@@ -85,19 +85,26 @@ func DecodeOmp(m coap.Message) (nmp.NmpRsp, error) {
 }
 
 type encodeRecord struct {
-	tm       *coap.TcpMessage
+	m        coap.Message
 	hdrBytes []byte
 	fieldMap map[string]interface{}
 }
 
-func encodeOmpBase(nmr *nmp.NmpMsg) (encodeRecord, error) {
-	er := encodeRecord{
-		tm: coap.NewTcpMessage(coap.MessageParams{
-			Type: coap.Confirmable,
-			Code: coap.PUT,
-		}),
+func encodeOmpBase(isTcp bool, nmr *nmp.NmpMsg) (encodeRecord, error) {
+	er := encodeRecord{}
+
+	mp := coap.MessageParams{
+		Type: coap.Confirmable,
+		Code: coap.PUT,
 	}
-	er.tm.SetPathString("/omgr")
+
+	if isTcp {
+		er.m = coap.NewTcpMessage(mp)
+	} else {
+		er.m = coap.NewDgramMessage(mp)
+	}
+
+	er.m.SetPathString("/omgr")
 
 	payload := []byte{}
 	enc := codec.NewEncoderBytes(&payload, new(codec.CborHandle))
@@ -117,44 +124,44 @@ func encodeOmpBase(nmr *nmp.NmpMsg) (encodeRecord, error) {
 	if err := enc.Encode(er.fieldMap); err != nil {
 		return er, err
 	}
-	er.tm.SetPayload(payload)
+	er.m.SetPayload(payload)
 
 	return er, nil
 }
 
 func EncodeOmpTcp(nmr *nmp.NmpMsg) ([]byte, error) {
-	er, err := encodeOmpBase(nmr)
+	er, err := encodeOmpBase(true, nmr)
 	if err != nil {
 		return nil, err
 	}
 
-	data, err := er.tm.MarshalBinary()
+	data, err := er.m.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("Failed to encode: %s\n", err.Error())
 	}
 
 	log.Debugf("Serialized OMP TCP request:\n"+
 		"Hdr %+v:\n%s\nPayload:%s\nData:\n%s",
-		nmr.Hdr, hex.Dump(er.hdrBytes), hex.Dump(er.tm.Payload()),
+		nmr.Hdr, hex.Dump(er.hdrBytes), hex.Dump(er.m.Payload()),
 		hex.Dump(data))
 
 	return data, nil
 }
 
 func EncodeOmpDgram(nmr *nmp.NmpMsg) ([]byte, error) {
-	er, err := encodeOmpBase(nmr)
+	er, err := encodeOmpBase(false, nmr)
 	if err != nil {
 		return nil, err
 	}
 
-	data, err := er.tm.MarshalBinary()
+	data, err := er.m.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("Failed to encode: %s\n", err.Error())
 	}
 
 	log.Debugf("Serialized OMP datagram request:\n"+
 		"Hdr %+v:\n%s\nPayload:%s\nData:\n%s",
-		nmr.Hdr, hex.Dump(er.hdrBytes), hex.Dump(er.tm.Payload()),
+		nmr.Hdr, hex.Dump(er.hdrBytes), hex.Dump(er.m.Payload()),
 		hex.Dump(data))
 
 	return data, nil

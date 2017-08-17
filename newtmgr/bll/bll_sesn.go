@@ -36,7 +36,6 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/nmble"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
-	"mynewt.apache.org/newtmgr/nmxact/oic"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
@@ -70,6 +69,7 @@ func (s *BllSesn) listenDisconnect() {
 
 		s.mtx.Lock()
 		s.txvr.ErrorAll(fmt.Errorf("disconnected"))
+		s.txvr.Stop()
 		s.mtx.Unlock()
 
 		s.cln = nil
@@ -213,7 +213,7 @@ func (s *BllSesn) openOnce() (bool, error) {
 			"Attempt to open an already-open bll session")
 	}
 
-	txvr, err := mgmt.NewTransceiver(s.cfg.MgmtProto, 3)
+	txvr, err := mgmt.NewTransceiver(true, s.cfg.MgmtProto, 3)
 	if err != nil {
 		return false, err
 	}
@@ -345,7 +345,7 @@ func (s *BllSesn) resReqChr(resType sesn.ResourceType) (
 	return chr, nil
 }
 
-func (s *BllSesn) GetResourceOnce(resType sesn.ResourceType, uri string,
+func (s *BllSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
 	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
 
 	chr, err := s.resReqChr(resType)
@@ -353,45 +353,11 @@ func (s *BllSesn) GetResourceOnce(resType sesn.ResourceType, uri string,
 		return 0, nil, err
 	}
 
-	token := nmxutil.NextToken()
-	req, err := oic.CreateGet(true, uri, token)
-	if err != nil {
-		return 0, nil, err
-	}
-
 	txRaw := func(b []byte) error {
 		return s.cln.WriteCharacteristic(chr, b, true)
 	}
 
-	rsp, err := s.txvr.TxOic(txRaw, req, opt.Timeout)
-	if err != nil {
-		return 0, nil, err
-	} else if rsp == nil {
-		return 0, nil, nil
-	} else {
-		return rsp.Code(), rsp.Payload(), nil
-	}
-}
-
-func (s *BllSesn) PutResourceOnce(resType sesn.ResourceType,
-	uri string, value []byte, opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
-
-	chr, err := s.resReqChr(resType)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	token := nmxutil.NextToken()
-	req, err := oic.CreatePut(true, uri, token, value)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	txRaw := func(b []byte) error {
-		return s.cln.WriteCharacteristic(chr, b, true)
-	}
-
-	rsp, err := s.txvr.TxOic(txRaw, req, opt.Timeout)
+	rsp, err := s.txvr.TxOic(txRaw, m, opt.Timeout)
 	if err != nil {
 		return 0, nil, err
 	} else if rsp == nil {

@@ -21,6 +21,7 @@ package omp
 
 import (
 	"sync"
+	"sync/atomic"
 
 	log "github.com/Sirupsen/logrus"
 
@@ -31,10 +32,11 @@ import (
 // The dispatcher is the owner of the listeners it points to.  Only the
 // dispatcher writes to these listeners.
 type Dispatcher struct {
-	nmpd   *nmp.Dispatcher
-	oicd   *oic.Dispatcher
-	stopCh chan struct{}
-	wg     sync.WaitGroup
+	nmpd    *nmp.Dispatcher
+	oicd    *oic.Dispatcher
+	stopCh  chan struct{}
+	wg      sync.WaitGroup
+	stopped uint32
 }
 
 func NewDispatcher(isTcp bool, logDepth int) (*Dispatcher, error) {
@@ -91,7 +93,11 @@ func (d *Dispatcher) addOmpListener() error {
 }
 
 func (d *Dispatcher) Stop() {
-	d.stopCh <- struct{}{}
+	if !atomic.CompareAndSwapUint32(&d.stopped, 0, 1) {
+		return
+	}
+
+	close(d.stopCh)
 	d.wg.Wait()
 }
 

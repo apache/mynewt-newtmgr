@@ -150,7 +150,7 @@ func (d *Dispatcher) dispatchRsp(ot Token, msg coap.Message) bool {
 	ol := d.tokenListenerMap[ot]
 
 	if ol == nil {
-		log.Printf("No listener for incoming OIC message; token=%#v", ot)
+		log.Debugf("No listener for incoming OIC message; token=%#v", ot)
 		return false
 	}
 

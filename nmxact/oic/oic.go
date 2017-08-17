@@ -80,20 +80,6 @@ func CreateGet(isTcp bool, resUri string, token []byte) (coap.Message, error) {
 	return m, nil
 }
 
-func EncodeGet(isTcp bool, resUri string, token []byte) ([]byte, error) {
-	m, err := CreateGet(isTcp, resUri, token)
-	if err != nil {
-		return nil, err
-	}
-
-	b, err := Encode(m)
-	if err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
-
 func CreatePut(isTcp bool, resUri string, token []byte,
 	val []byte) (coap.Message, error) {
 
@@ -114,18 +100,39 @@ func CreatePut(isTcp bool, resUri string, token []byte,
 	return m, nil
 }
 
-func EncodePut(isTcp bool, resUri string, token []byte, val []byte) (
-	[]byte, error) {
+func CreatePost(isTcp bool, resUri string, token []byte,
+	val []byte) (coap.Message, error) {
 
-	m, err := CreatePut(isTcp, resUri, token, val)
-	if err != nil {
+	if err := validateToken(token); err != nil {
 		return nil, err
 	}
 
-	b, err := Encode(m)
-	if err != nil {
+	p := coap.MessageParams{
+		Type:    coap.Confirmable,
+		Code:    coap.POST,
+		Token:   token,
+		Payload: val,
+	}
+
+	m := buildMessage(isTcp, p)
+	m.SetPathString(resUri)
+
+	return m, nil
+}
+
+func CreateDelete(isTcp bool, resUri string, token []byte) (coap.Message, error) {
+	if err := validateToken(token); err != nil {
 		return nil, err
 	}
 
-	return b, nil
+	p := coap.MessageParams{
+		Type:  coap.Confirmable,
+		Code:  coap.DELETE,
+		Token: token,
+	}
+
+	m := buildMessage(isTcp, p)
+	m.SetPathString(resUri)
+
+	return m, nil
 }
