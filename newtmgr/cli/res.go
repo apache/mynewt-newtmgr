@@ -34,6 +34,30 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/xact"
 )
 
+func indent(s string, numSpaces int) string {
+	b := make([]byte, numSpaces)
+	for i, _ := range b {
+		b[i] = ' '
+	}
+	tab := string(b)
+
+	nltab := "\n" + tab
+	return tab + strings.Replace(s, "\n", nltab, -1)
+}
+
+func cborValStr(itf interface{}) string {
+	switch v := itf.(type) {
+	case string:
+		return v
+
+	case []byte:
+		return hex.Dump(v)
+
+	default:
+		return fmt.Sprintf("%#v", v)
+	}
+}
+
 func extractResKv(params []string) (map[string]interface{}, error) {
 	m := map[string]interface{}{}
 
@@ -76,17 +100,13 @@ func resGetRunCmd(s sesn.Sesn, resType sesn.ResourceType, uri string) {
 		valstr = hex.Dump(sres.Value)
 	} else if len(m) == 0 {
 		valstr = "<empty>"
-	} else if len(m) == 1 {
-		for k, v := range m {
-			valstr = fmt.Sprintf("%s=%+v", k, v)
-		}
 	} else {
 		for k, v := range m {
-			valstr += fmt.Sprintf("\n    %s=%+v", k, v)
+			valstr += fmt.Sprintf("\n    %s\n%s", k, indent(cborValStr(v), 8))
 		}
 	}
 
-	fmt.Printf("%s: %s\n", uri, valstr)
+	fmt.Printf("%s%s\n", uri, valstr)
 }
 
 func resPutRunCmd(s sesn.Sesn, resType sesn.ResourceType, uri string,
@@ -150,7 +170,7 @@ func resRunCmd(cmd *cobra.Command, args []string) {
 }
 
 func resCmd() *cobra.Command {
-	resEx := "   newtmgr -c olimex res public mynewt.value.0\n"
+	resEx := "   newtmgr -c olimex res public /dev\n"
 
 	resCmd := &cobra.Command{
 		Use:     "res <type> <uri> [k=v] [k=v] [...]",
