@@ -46,7 +46,7 @@ type Conn struct {
 	// Terminates all go routines.  Gets set to null after disconnect.
 	stopChan chan struct{}
 
-	notifyMap map[*Characteristic][](*NotifyListener)
+	notifyMap map[*Characteristic]*NotifyListener
 
 	// Protects:
 	// * connHandle
@@ -64,7 +64,7 @@ func NewConn(bx *BleXport) *Conn {
 		attMtu:         BLE_ATT_MTU_DFLT,
 		disconnectChan: make(chan error, 1),
 		stopChan:       make(chan struct{}),
-		notifyMap:      map[*Characteristic][](*NotifyListener){},
+		notifyMap:      map[*Characteristic]*NotifyListener{},
 	}
 }
 
@@ -88,12 +88,10 @@ func (c *Conn) initiateShutdown() bool {
 func (c *Conn) abortNotifyListeners(err error) {
 	// No need to lock mutex; this should only be called after all go routines
 	// have terminated.
-	for _, nls := range c.notifyMap {
-		for _, nl := range nls {
-			nl.ErrChan <- err
-			close(nl.NotifyChan)
-			close(nl.ErrChan)
-		}
+	for _, nl := range c.notifyMap {
+		nl.ErrChan <- err
+		close(nl.NotifyChan)
+		close(nl.ErrChan)
 	}
 }
 
@@ -201,18 +199,15 @@ func (c *Conn) rxNotify(msg *BleNotifyRxEvt) {
 		return
 	}
 
-	nls := c.notifyMap[chr]
-	if nls == nil {
+	nl := c.notifyMap[chr]
+	if nl == nil {
 		return
 	}
 
-	n := Notification{
+	nl.NotifyChan <- Notification{
 		Chr:        chr,
 		Data:       msg.Data.Bytes,
 		Indication: msg.Indication,
-	}
-	for _, nl := range nls {
-		nl.NotifyChan <- n
 	}
 }
 
@@ -662,17 +657,22 @@ func (c *Conn) Subscribe(chr *Characteristic) error {
 	return c.WriteHandle(dsc.Handle, payload, "subscribe")
 }
 
-func (c *Conn) ListenForNotifications(chr *Characteristic) *NotifyListener {
+func (c *Conn) ListenForNotifications(chr *Characteristic) (
+	*NotifyListener, error) {
+
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
+	if _, ok := c.notifyMap[chr]; ok {
+		return nil, fmt.Errorf(
+			"Already listening for notifications on characteristic %s",
+			chr.String())
+	}
+
 	nl := NewNotifyListener()
-	slice := c.notifyMap[chr]
+	c.notifyMap[chr] = nl
 
-	slice = append(slice, nl)
-	c.notifyMap[chr] = slice
-
-	return nl
+	return nl, nil
 }
 
 func (c *Conn) InitiateSecurity() error {
