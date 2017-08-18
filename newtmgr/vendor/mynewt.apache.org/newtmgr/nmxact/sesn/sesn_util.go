@@ -128,7 +128,7 @@ func PostResource(s Sesn, resType ResourceType, uri string,
 }
 
 func DeleteResource(s Sesn, resType ResourceType, uri string,
-	value []byte, o TxOptions) (coap.COAPCode, []byte, error) {
+	o TxOptions) (coap.COAPCode, []byte, error) {
 
 	return txCoap(func() (coap.COAPCode, []byte, error) {
 		return deleteResourceOnce(s, resType, uri, o)

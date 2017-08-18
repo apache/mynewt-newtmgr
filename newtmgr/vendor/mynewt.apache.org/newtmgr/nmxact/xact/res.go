@@ -27,8 +27,8 @@ import (
 
 type GetResCmd struct {
 	CmdBase
-	Uri string
-	Typ sesn.ResourceType
+	Path string
+	Typ  sesn.ResourceType
 }
 
 func NewGetResCmd() *GetResCmd {
@@ -55,7 +55,7 @@ func (r *GetResResult) Status() int {
 }
 
 func (c *GetResCmd) Run(s sesn.Sesn) (Result, error) {
-	status, val, err := sesn.GetResource(s, c.Typ, c.Uri, c.TxOptions())
+	status, val, err := sesn.GetResource(s, c.Typ, c.Path, c.TxOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func (c *GetResCmd) Run(s sesn.Sesn) (Result, error) {
 
 type PutResCmd struct {
 	CmdBase
-	Uri   string
+	Path  string
 	Typ   sesn.ResourceType
 	Value []byte
 }
@@ -89,7 +89,10 @@ func newPutResResult() *PutResResult {
 }
 
 func (r *PutResResult) Status() int {
-	if r.Code == coap.Created || r.Code == coap.Changed || r.Code == coap.Content {
+	if r.Code == coap.Created ||
+		r.Code == coap.Changed ||
+		r.Code == coap.Content {
+
 		return 0
 	} else {
 		return int(r.Code)
@@ -97,7 +100,7 @@ func (r *PutResResult) Status() int {
 }
 
 func (c *PutResCmd) Run(s sesn.Sesn) (Result, error) {
-	status, r, err := sesn.PutResource(s, c.Typ, c.Uri, c.Value, c.TxOptions())
+	status, r, err := sesn.PutResource(s, c.Typ, c.Path, c.Value, c.TxOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -105,5 +108,91 @@ func (c *PutResCmd) Run(s sesn.Sesn) (Result, error) {
 	res := newPutResResult()
 	res.Code = status
 	res.Value = r
+	return res, nil
+}
+
+type PostResCmd struct {
+	CmdBase
+	Path  string
+	Typ   sesn.ResourceType
+	Value []byte
+}
+
+func NewPostResCmd() *PostResCmd {
+	return &PostResCmd{
+		CmdBase: NewCmdBase(),
+	}
+}
+
+type PostResResult struct {
+	Code  coap.COAPCode
+	Value []byte
+}
+
+func newPostResResult() *PostResResult {
+	return &PostResResult{}
+}
+
+func (r *PostResResult) Status() int {
+	if r.Code == coap.Created ||
+		r.Code == coap.Changed ||
+		r.Code == coap.Content {
+
+		return 0
+	} else {
+		return int(r.Code)
+	}
+}
+
+func (c *PostResCmd) Run(s sesn.Sesn) (Result, error) {
+	status, r, err := sesn.PostResource(s, c.Typ, c.Path, c.Value, c.TxOptions())
+	if err != nil {
+		return nil, err
+	}
+
+	res := newPostResResult()
+	res.Code = status
+	res.Value = r
+	return res, nil
+}
+
+type DeleteResCmd struct {
+	CmdBase
+	Path string
+	Typ  sesn.ResourceType
+}
+
+func NewDeleteResCmd() *DeleteResCmd {
+	return &DeleteResCmd{
+		CmdBase: NewCmdBase(),
+	}
+}
+
+type DeleteResResult struct {
+	Code  coap.COAPCode
+	Value []byte
+}
+
+func newDeleteResResult() *DeleteResResult {
+	return &DeleteResResult{}
+}
+
+func (r *DeleteResResult) Status() int {
+	if r.Code == coap.Deleted {
+		return 0
+	} else {
+		return int(r.Code)
+	}
+}
+
+func (c *DeleteResCmd) Run(s sesn.Sesn) (Result, error) {
+	status, val, err := sesn.DeleteResource(s, c.Typ, c.Path, c.TxOptions())
+	if err != nil {
+		return nil, err
+	}
+
+	res := newDeleteResResult()
+	res.Code = status
+	res.Value = val
 	return res, nil
 }

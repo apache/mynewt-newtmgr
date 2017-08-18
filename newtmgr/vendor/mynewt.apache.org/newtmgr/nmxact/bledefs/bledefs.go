@@ -824,6 +824,16 @@ func (b *BleChrId) String() string {
 	return fmt.Sprintf("s=%s c=%s", b.SvcUuid.String(), b.ChrUuid.String())
 }
 
+func CompareChrIds(a BleChrId, b BleChrId) int {
+	if rc := CompareUuids(a.SvcUuid, b.SvcUuid); rc != 0 {
+		return rc
+	}
+	if rc := CompareUuids(a.ChrUuid, b.ChrUuid); rc != 0 {
+		return rc
+	}
+	return 0
+}
+
 type BleMgmtChrs struct {
 	NmpReqChr       *BleChrId
 	NmpRspChr       *BleChrId

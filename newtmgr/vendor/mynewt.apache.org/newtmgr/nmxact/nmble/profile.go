@@ -31,6 +31,10 @@ type Profile struct {
 	attrs map[uint16]*Characteristic
 }
 
+func (c *Characteristic) String() string {
+	return c.Uuid.String()
+}
+
 func (c *Characteristic) SubscribeType() BleChrFlags {
 	if c.Properties&BLE_GATT_F_NOTIFY != 0 {
 		return BLE_GATT_F_NOTIFY
