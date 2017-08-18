@@ -51,7 +51,7 @@ func cborValStr(itf interface{}) string {
 		return v
 
 	case []byte:
-		return hex.Dump(v)
+		return strings.TrimSuffix(hex.Dump(v), "\n")
 
 	default:
 		return fmt.Sprintf("%#v", v)
@@ -75,11 +75,44 @@ func extractResKv(params []string) (map[string]interface{}, error) {
 	return m, nil
 }
 
-func resGetRunCmd(s sesn.Sesn, resType sesn.ResourceType, uri string) {
+func resResponseStr(path string, cbor []byte) string {
+	s := path
+
+	m, err := nmxutil.DecodeCborMap(cbor)
+	if err != nil {
+		s += fmt.Sprintf("\n    invalid incoming cbor:\n%s", hex.Dump(cbor))
+	} else if len(m) == 0 {
+		s += "\n    <empty>"
+	} else {
+		for k, v := range m {
+			s += fmt.Sprintf("\n    %s\n%s", k, indent(cborValStr(v), 8))
+		}
+	}
+
+	return s
+}
+
+func resGetCmd(cmd *cobra.Command, args []string) {
+	if len(args) < 2 {
+		nmUsage(cmd, nil)
+	}
+
+	s, err := GetSesn()
+	if err != nil {
+		nmUsage(nil, err)
+	}
+
+	rt, err := sesn.ParseResType(args[0])
+	if err != nil {
+		nmUsage(cmd, err)
+	}
+
+	path := args[1]
+
 	c := xact.NewGetResCmd()
 	c.SetTxOptions(nmutil.TxOptions())
-	c.Uri = uri
-	c.Typ = resType
+	c.Path = path
+	c.Typ = rt
 
 	res, err := c.Run(s)
 	if err != nil {
@@ -93,34 +126,43 @@ func resGetRunCmd(s sesn.Sesn, resType sesn.ResourceType, uri string) {
 		return
 	}
 
-	var valstr string
-
-	m, err := nmxutil.DecodeCborMap(sres.Value)
-	if err != nil {
-		valstr = hex.Dump(sres.Value)
-	} else if len(m) == 0 {
-		valstr = "<empty>"
-	} else {
-		for k, v := range m {
-			valstr += fmt.Sprintf("\n    %s\n%s", k, indent(cborValStr(v), 8))
-		}
+	if sres.Value != nil {
+		fmt.Printf("%s\n", resResponseStr(c.Path, sres.Value))
 	}
-
-	fmt.Printf("%s%s\n", uri, valstr)
 }
 
-func resPutRunCmd(s sesn.Sesn, resType sesn.ResourceType, uri string,
-	value map[string]interface{}) {
+func resPutCmd(cmd *cobra.Command, args []string) {
+	if len(args) < 3 {
+		nmUsage(cmd, nil)
+	}
 
-	b, err := nmxutil.EncodeCborMap(value)
+	s, err := GetSesn()
+	if err != nil {
+		nmUsage(nil, err)
+	}
+
+	rt, err := sesn.ParseResType(args[0])
+	if err != nil {
+		nmUsage(cmd, err)
+	}
+
+	path := args[1]
+
+	var m map[string]interface{}
+	m, err = extractResKv(args[2:])
+	if err != nil {
+		nmUsage(cmd, err)
+	}
+
+	b, err := nmxutil.EncodeCborMap(m)
 	if err != nil {
 		nmUsage(nil, util.ChildNewtError(err))
 	}
 
 	c := xact.NewPutResCmd()
 	c.SetTxOptions(nmutil.TxOptions())
-	c.Uri = uri
-	c.Typ = resType
+	c.Path = path
+	c.Typ = rt
 	c.Value = b
 
 	res, err := c.Run(s)
@@ -132,29 +174,17 @@ func resPutRunCmd(s sesn.Sesn, resType sesn.ResourceType, uri string,
 	if sres.Status() != 0 {
 		fmt.Printf("Error: %s (%d)\n",
 			coap.COAPCode(sres.Status()), sres.Status())
-	} else {
-		fmt.Printf("Done\n")
+		return
+	}
+
+	if sres.Value != nil {
+		fmt.Printf("%s\n", resResponseStr(c.Path, sres.Value))
 	}
 }
 
-func resRunCmd(cmd *cobra.Command, args []string) {
-	if len(args) < 2 {
+func resPostCmd(cmd *cobra.Command, args []string) {
+	if len(args) < 3 {
 		nmUsage(cmd, nil)
-	}
-
-	rt, err := sesn.ParseResType(args[0])
-	if err != nil {
-		nmUsage(cmd, err)
-	}
-
-	uri := args[1]
-
-	var m map[string]interface{}
-	if len(args) >= 3 {
-		m, err = extractResKv(args[2:])
-		if err != nil {
-			nmUsage(cmd, err)
-		}
 	}
 
 	s, err := GetSesn()
@@ -162,22 +192,118 @@ func resRunCmd(cmd *cobra.Command, args []string) {
 		nmUsage(nil, err)
 	}
 
-	if m == nil {
-		resGetRunCmd(s, rt, uri)
-	} else {
-		resPutRunCmd(s, rt, uri, m)
+	rt, err := sesn.ParseResType(args[0])
+	if err != nil {
+		nmUsage(cmd, err)
+	}
+
+	path := args[1]
+
+	var m map[string]interface{}
+	m, err = extractResKv(args[2:])
+	if err != nil {
+		nmUsage(cmd, err)
+	}
+
+	b, err := nmxutil.EncodeCborMap(m)
+	if err != nil {
+		nmUsage(nil, util.ChildNewtError(err))
+	}
+
+	c := xact.NewPostResCmd()
+	c.SetTxOptions(nmutil.TxOptions())
+	c.Path = path
+	c.Typ = rt
+	c.Value = b
+
+	res, err := c.Run(s)
+	if err != nil {
+		nmUsage(nil, util.ChildNewtError(err))
+	}
+
+	sres := res.(*xact.PostResResult)
+	if sres.Status() != 0 {
+		fmt.Printf("Error: %s (%d)\n",
+			coap.COAPCode(sres.Status()), sres.Status())
+		return
+	}
+
+	if sres.Value != nil {
+		fmt.Printf("%s\n", resResponseStr(c.Path, sres.Value))
+	}
+}
+
+func resDeleteCmd(cmd *cobra.Command, args []string) {
+	if len(args) < 2 {
+		nmUsage(cmd, nil)
+	}
+
+	s, err := GetSesn()
+	if err != nil {
+		nmUsage(nil, err)
+	}
+
+	rt, err := sesn.ParseResType(args[0])
+	if err != nil {
+		nmUsage(cmd, err)
+	}
+
+	path := args[1]
+
+	c := xact.NewDeleteResCmd()
+	c.SetTxOptions(nmutil.TxOptions())
+	c.Path = path
+	c.Typ = rt
+
+	res, err := c.Run(s)
+	if err != nil {
+		nmUsage(nil, util.ChildNewtError(err))
+	}
+
+	sres := res.(*xact.DeleteResResult)
+	if sres.Status() != 0 {
+		fmt.Printf("Error: %s (%d)\n",
+			coap.COAPCode(sres.Status()), sres.Status())
+		return
+	}
+
+	if sres.Value != nil {
+		fmt.Printf("%s\n", resResponseStr(c.Path, sres.Value))
 	}
 }
 
 func resCmd() *cobra.Command {
-	resEx := "   newtmgr -c olimex res public /dev\n"
-
 	resCmd := &cobra.Command{
-		Use:     "res <type> <uri> [k=v] [k=v] [...]",
-		Short:   "Read or write a CoAP resource on a device",
-		Example: resEx,
-		Run:     resRunCmd,
+		Use:   "res",
+		Short: "Access a CoAP resource on a device",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmd.HelpFunc()(cmd, args)
+		},
 	}
+
+	resCmd.AddCommand(&cobra.Command{
+		Use:   "get <type> <path>",
+		Short: "Send a CoAP GET request",
+		Run:   resGetCmd,
+	})
+
+	resCmd.AddCommand(&cobra.Command{
+		Use:   "put <type> <path> <k=v> [k=v] [k=v]",
+		Short: "Send a CoAP PUT request",
+		Run:   resPutCmd,
+	})
+
+	resCmd.AddCommand(&cobra.Command{
+		Use:   "post <type> <path> <k=v> [k=v] [k=v]",
+		Short: "Send a CoAP POST request",
+		Run:   resPostCmd,
+	})
+
+	resCmd.AddCommand(&cobra.Command{
+		Use:   "delete <type> <path>",
+		Short: "Send a CoAP DELETE request",
+		Run:   resDeleteCmd,
+	})
 
 	return resCmd
 }
