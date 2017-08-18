@@ -110,6 +110,13 @@ func (s *BleSesn) disconnectListen() {
 	}()
 }
 
+func (s *BleSesn) errIfClosed() error {
+	if !s.IsOpen() {
+		return nmxutil.NewSesnClosedError("Attempt to use closed BLE session")
+	}
+	return nil
+}
+
 func (s *BleSesn) getChr(chrId *BleChrId) (*Characteristic, error) {
 	if chrId == nil {
 		return nil, fmt.Errorf("BLE session not configured with required " +
@@ -180,7 +187,7 @@ func (s *BleSesn) notifyListen() {
 func (s *BleSesn) openOnce() (bool, error) {
 	if s.IsOpen() {
 		return false, nmxutil.NewSesnAlreadyOpenError(
-			"Attempt to open an already-open bll session")
+			"Attempt to open an already-open BLE session")
 	}
 
 	if err := s.init(); err != nil {
@@ -290,22 +297,6 @@ func (s *BleSesn) EncodeNmpMsg(m *nmp.NmpMsg) ([]byte, error) {
 	return EncodeMgmtMsg(s.cfg.MgmtProto, m)
 }
 
-// Blocking.
-func (s *BleSesn) TxNmpOnce(req *nmp.NmpMsg, opt sesn.TxOptions) (
-	nmp.NmpRsp, error) {
-
-	chr, err := s.getChr(s.mgmtChrs.NmpReqChr)
-	if err != nil {
-		return nil, err
-	}
-
-	txRaw := func(b []byte) error {
-		return s.conn.WriteChrNoRsp(chr, b, "nmp")
-	}
-
-	return s.txvr.TxNmp(txRaw, req, opt.Timeout)
-}
-
 func (s *BleSesn) MtuIn() int {
 	mtu, _ := MtuIn(s.cfg.MgmtProto, s.conn.AttMtu())
 	return mtu
@@ -320,9 +311,32 @@ func (s *BleSesn) ConnInfo() (BleConnDesc, error) {
 	return s.conn.ConnInfo(), nil
 }
 
+func (s *BleSesn) TxNmpOnce(req *nmp.NmpMsg, opt sesn.TxOptions) (
+	nmp.NmpRsp, error) {
+
+	if err := s.errIfClosed(); err != nil {
+		return nil, err
+	}
+
+	chr, err := s.getChr(s.mgmtChrs.NmpReqChr)
+	if err != nil {
+		return nil, err
+	}
+
+	txRaw := func(b []byte) error {
+		return s.conn.WriteChrNoRsp(chr, b, "nmp")
+	}
+
+	return s.txvr.TxNmp(txRaw, req, opt.Timeout)
+}
+
 func (s *BleSesn) TxCoapOnce(m coap.Message,
 	resType sesn.ResourceType,
 	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
+
+	if err := s.errIfClosed(); err != nil {
+		return 0, nil, err
+	}
 
 	chrId := ResChrReqIdLookup(s.mgmtChrs, resType)
 	chr, err := s.getChr(chrId)
