@@ -382,6 +382,14 @@ func NewFindChrReq() *BleFindChrReq {
 	}
 }
 
+func NewSyncReq() *BleSyncReq {
+	return &BleSyncReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_SYNC,
+		Seq:  NextSeq(),
+	}
+}
+
 func ConnFindXact(x *BleXport, connHandle uint16) (BleConnDesc, error) {
 	r := NewBleConnFindReq()
 	r.ConnHandle = connHandle
@@ -796,4 +804,42 @@ func BuildMgmtChrs(mgmtProto sesn.MgmtProto) (BleMgmtChrs, error) {
 	mgmtChrs.ResSecureRspChr = &BleChrId{secureSvcUuid, secureRspChrUuid}
 
 	return mgmtChrs, nil
+}
+
+type MasterPrio int
+
+const (
+	// Lower number = higher priority.
+	MASTER_PRIO_CONNECT = 0
+	MASTER_PRIO_SCAN    = 1
+)
+
+func AcquireMaster(bx *BleXport, prio MasterPrio, token interface{}) error {
+	switch prio {
+	case MASTER_PRIO_CONNECT:
+		return bx.AcquireMasterConnect(token)
+
+	case MASTER_PRIO_SCAN:
+		return bx.AcquireMasterScan(token)
+
+	default:
+		return fmt.Errorf("Invalid session priority: %+v", prio)
+	}
+}
+
+func StopWaitingForMaster(bx *BleXport, prio MasterPrio, token interface{},
+	err error) error {
+
+	switch prio {
+	case MASTER_PRIO_CONNECT:
+		bx.StopWaitingForMasterConnect(token, err)
+		return nil
+
+	case MASTER_PRIO_SCAN:
+		bx.StopWaitingForMasterScan(token, err)
+		return nil
+
+	default:
+		return fmt.Errorf("Invalid session priority: %+v", prio)
+	}
 }

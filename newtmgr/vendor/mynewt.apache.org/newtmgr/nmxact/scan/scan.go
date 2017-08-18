@@ -20,6 +20,8 @@
 package scan
 
 import (
+	"fmt"
+
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
@@ -27,6 +29,10 @@ import (
 type ScanPeer struct {
 	HwId     string
 	PeerSpec sesn.PeerSpec
+}
+
+func (p *ScanPeer) String() string {
+	return fmt.Sprintf("%s, %s", p.PeerSpec.Ble.String(), p.HwId)
 }
 
 type ScanFn func(peer ScanPeer)

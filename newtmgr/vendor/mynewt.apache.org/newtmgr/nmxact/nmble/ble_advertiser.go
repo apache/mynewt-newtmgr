@@ -88,7 +88,7 @@ func (a *Advertiser) advertise(cfg adv.Cfg) (uint16, *Listener, error) {
 		return 0, nil, err
 	}
 
-	connHandle, err := advStart(a.bx, bl, r)
+	connHandle, err := advStart(a.bx, bl, a.stopChan, r)
 	if err != nil {
 		a.bx.RemoveListener(bl)
 		if !nmxutil.IsXport(err) {
@@ -122,7 +122,7 @@ func (a *Advertiser) stopAdvertising() error {
 func (a *Advertiser) buildSesn(cfg adv.Cfg, connHandle uint16, bl *Listener) (
 	sesn.Sesn, error) {
 
-	s, err := NewBleSesn(a.bx, cfg.Ble.SesnCfg)
+	s, err := NewBleSesn(a.bx, cfg.Ble.SesnCfg, MASTER_PRIO_CONNECT)
 	if err != nil {
 		return nil, err
 	}

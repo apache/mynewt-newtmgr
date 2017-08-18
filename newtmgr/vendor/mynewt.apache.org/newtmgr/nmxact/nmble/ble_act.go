@@ -753,7 +753,9 @@ func securityInitiate(x *BleXport, bl *Listener,
 }
 
 // Blocking
-func advStart(x *BleXport, bl *Listener, r *BleAdvStartReq) (uint16, error) {
+func advStart(x *BleXport, bl *Listener, stopChan chan struct{},
+	r *BleAdvStartReq) (uint16, error) {
+
 	const rspType = MSG_TYPE_ADV_START
 
 	j, err := json.Marshal(r)
@@ -794,6 +796,9 @@ func advStart(x *BleXport, bl *Listener, r *BleAdvStartReq) (uint16, error) {
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
 			return 0, BhdTimeoutError(rspType, r.Seq)
+
+		case <-stopChan:
+			return 0, fmt.Errorf("advertise aborted")
 		}
 	}
 }
@@ -1182,6 +1187,28 @@ func setPreferredMtu(x *BleXport, bl *Listener,
 		case <-bl.AfterTimeout(x.RspTimeout()):
 			return BhdTimeoutError(rspType, r.Seq)
 
+		}
+	}
+}
+
+func checkSync(x *BleXport, bl *Listener, r *BleSyncReq) (bool, error) {
+	j, err := json.Marshal(r)
+	if err != nil {
+		return false, err
+	}
+
+	if err := x.txNoSync(j); err != nil {
+		return false, err
+	}
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return false, err
+		case bm := <-bl.MsgChan:
+			switch msg := bm.(type) {
+			case *BleSyncRsp:
+				return msg.Synced, nil
+			}
 		}
 	}
 }

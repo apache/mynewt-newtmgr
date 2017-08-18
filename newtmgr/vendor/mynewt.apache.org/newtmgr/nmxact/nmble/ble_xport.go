@@ -21,7 +21,6 @@ package nmble
 
 import (
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -88,7 +87,7 @@ func NewXportCfg() XportCfg {
 		BlehostdRspTimeout:    10 * time.Second,
 		Restart:               true,
 		SyncTimeout:           10 * time.Second,
-		PreferredMtu:          264,
+		PreferredMtu:          512,
 	}
 }
 
@@ -104,33 +103,37 @@ const (
 
 // Implements xport.Xport.
 type BleXport struct {
-	cfg          XportCfg
-	d            *Dispatcher
-	client       *unixchild.Client
-	state        BleXportState
-	stopChan     chan struct{}
-	shutdownChan chan bool
-	readyBcast   nmxutil.Bcaster
-	master       nmxutil.SingleResource
-	slave        nmxutil.SingleResource
-	randAddr     *BleAddr
-	mtx          sync.Mutex
-	scanner      *BleScanner
-	advertiser   *Advertiser
-	cm           ChrMgr
-	sesns        map[uint16]*BleSesn
+	advertiser      *Advertiser
+	cfg             XportCfg
+	client          *unixchild.Client
+	cm              ChrMgr
+	d               *Dispatcher
+	master          Master
+	mtx             sync.Mutex
+	randAddr        *BleAddr
+	readyBcast      nmxutil.Bcaster
+	scanner         *BleScanner
+	sesns           map[uint16]*BleSesn
+	shutdownBlocker nmxutil.Blocker
+	slave           nmxutil.SingleResource
+	state           BleXportState
+	stopChan        chan struct{}
+	syncer          Syncer
+	wg              sync.WaitGroup
 }
 
 func NewBleXport(cfg XportCfg) (*BleXport, error) {
 	bx := &BleXport{
-		cfg:          cfg,
-		d:            NewDispatcher(),
-		shutdownChan: make(chan bool),
-		readyBcast:   nmxutil.Bcaster{},
-		master:       nmxutil.NewSingleResource(),
-		slave:        nmxutil.NewSingleResource(),
-		sesns:        map[uint16]*BleSesn{},
+		cfg:        cfg,
+		d:          NewDispatcher(),
+		readyBcast: nmxutil.Bcaster{},
+		slave:      nmxutil.NewSingleResource(),
+		sesns:      map[uint16]*BleSesn{},
 	}
+
+	bx.advertiser = NewAdvertiser(bx)
+	bx.scanner = NewBleScanner(bx)
+	bx.master = NewMaster(bx, bx.scanner)
 
 	return bx, nil
 }
@@ -166,37 +169,17 @@ func (bx *BleXport) BuildScanner() (scan.Scanner, error) {
 	// The transport only allows a single scanner.  This is because the
 	// master privileges need to managed among the scanner and the
 	// sessions.
-	if bx.scanner == nil {
-		bx.scanner = NewBleScanner(bx)
-	}
-
 	return bx.scanner, nil
 }
 
 func (bx *BleXport) BuildAdvertiser() (adv.Advertiser, error) {
 	// The transport only allows a single advertiser.  This is because the
 	// slave privileges need to managed among all the advertise operations.
-	if bx.advertiser == nil {
-		bx.advertiser = NewAdvertiser(bx)
-	}
-
 	return bx.advertiser, nil
 }
 
 func (bx *BleXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
-	return NewBleSesn(bx, cfg)
-}
-
-func (bx *BleXport) addSyncListener() (*Listener, error) {
-	key := TchKey(MSG_TYPE_SYNC_EVT, -1)
-	nmxutil.LogAddListener(3, key, 0, "sync")
-	return bx.AddListener(key)
-}
-
-func (bx *BleXport) addResetListener() (*Listener, error) {
-	key := TchKey(MSG_TYPE_RESET_EVT, -1)
-	nmxutil.LogAddListener(3, key, 0, "reset")
-	return bx.AddListener(key)
+	return NewBleSesn(bx, cfg, MASTER_PRIO_CONNECT)
 }
 
 func (bx *BleXport) addAccessListener() (*Listener, error) {
@@ -205,121 +188,83 @@ func (bx *BleXport) addAccessListener() (*Listener, error) {
 	return bx.AddListener(key)
 }
 
-func (bx *BleXport) querySyncStatus() (bool, error) {
-	req := &BleSyncReq{
-		Op:   MSG_OP_REQ,
-		Type: MSG_TYPE_SYNC,
-		Seq:  NextSeq(),
-	}
-
-	j, err := json.Marshal(req)
-	if err != nil {
-		return false, err
-	}
-
-	key := SeqKey(req.Seq)
-	bl, err := bx.AddListener(key)
-	if err != nil {
-		return false, err
-	}
-	defer bx.RemoveListener(bl)
-
-	if err := bx.txNoSync(j); err != nil {
-		return false, err
-	}
-	for {
-		select {
-		case err := <-bl.ErrChan:
-			return false, err
-		case bm := <-bl.MsgChan:
-			switch msg := bm.(type) {
-			case *BleSyncRsp:
-				return msg.Synced, nil
-			}
-		}
-	}
-}
-
-func (bx *BleXport) initialSyncCheck() (bool, *Listener, error) {
-	bl, err := bx.addSyncListener()
-	if err != nil {
-		return false, nil, err
-	}
-
-	synced, err := bx.querySyncStatus()
-	if err != nil {
-		bx.RemoveListener(bl)
-		return false, nil, err
-	}
-
-	return synced, bl, nil
-}
-
 func (bx *BleXport) shutdown(restart bool, err error) {
 	nmxutil.Assert(nmxutil.IsXport(err))
 
-	log.Debugf("Shutting down BLE transport")
+	// Prevents repeated shutdowns without keeping the mutex locked throughout
+	// the duration of the shutdown.
+	//
+	// @return bool             true if a shutdown was successfully initiated.
+	initiate := func() bool {
+		bx.mtx.Lock()
+		defer bx.mtx.Unlock()
 
-	bx.mtx.Lock()
+		if bx.state == BLE_XPORT_STATE_STARTED ||
+			bx.state == BLE_XPORT_STATE_STARTING {
 
-	var fullyStarted bool
-	var already bool
-
-	switch bx.state {
-	case BLE_XPORT_STATE_STARTED:
-		already = false
-		fullyStarted = true
-	case BLE_XPORT_STATE_STARTING:
-		already = false
-		fullyStarted = false
-	default:
-		already = true
+			bx.state = BLE_XPORT_STATE_STOPPING
+			return true
+		} else {
+			return false
+		}
 	}
 
-	if !already {
-		bx.state = BLE_XPORT_STATE_STOPPING
-	}
+	go func() {
+		log.Debugf("Shutting down BLE transport")
 
-	bx.mtx.Unlock()
+		success := initiate()
+		if !success {
+			// Shutdown already in progress.
+			return
+		}
 
-	if already {
-		// Shutdown already in progress.
-		return
-	}
+		bx.sesns = map[uint16]*BleSesn{}
 
-	bx.sesns = map[uint16]*BleSesn{}
+		// Indicate error to all clients who are waiting for the master
+		// resource.
+		log.Debugf("Aborting BLE master")
+		bx.master.Abort(err)
 
-	// Indicate error to all clients who are waiting for the master resource.
-	log.Debugf("Aborting BLE master")
-	bx.master.Abort(err)
+		// Indicate an error to all of this transport's listeners.  This
+		// prevents them from blocking endlessly while awaiting a BLE message.
+		log.Debugf("Stopping BLE dispatcher")
+		bx.d.ErrorAll(err)
 
-	// Indicate an error to all of this transport's listeners.  This prevents
-	// them from blocking endlessly while awaiting a BLE message.
-	log.Debugf("Stopping BLE dispatcher")
-	bx.d.ErrorAll(err)
+		synced, err := bx.syncer.Refresh()
+		if err == nil && synced {
+			// Reset controller so that all outstanding connections terminate.
+			ResetXact(bx)
+		}
 
-	synced, err := bx.querySyncStatus()
-	if err == nil && synced {
-		// Reset controller so that all outstanding connections terminate.
-		ResetXact(bx)
-	}
+		bx.syncer.Stop()
 
-	// Stop all of this transport's go routines.
-	close(bx.stopChan)
+		// Stop all of this transport's go routines.
+		close(bx.stopChan)
+		bx.wg.Wait()
 
-	// Stop the unixchild instance (blehostd + socket).
-	if bx.client != nil {
-		log.Debugf("Stopping unixchild")
-		bx.client.Stop()
-	}
+		// Stop the unixchild instance (blehostd + socket).
+		if bx.client != nil {
+			log.Debugf("Stopping unixchild")
+			bx.client.Stop()
+		}
 
-	bx.setStateFrom(BLE_XPORT_STATE_STOPPING, BLE_XPORT_STATE_STOPPED)
+		bx.setStateFrom(BLE_XPORT_STATE_STOPPING, BLE_XPORT_STATE_STOPPED)
 
-	// Indicate that the shutdown is complete.  If restarts are enabled on this
-	// transport, this signals that the transport should be started again.
-	if fullyStarted {
-		bx.shutdownChan <- restart
-	}
+		// Indicate that the shutdown is complete.  If restarts are enabled on
+		// this transport, this signals that the transport should be started
+		// again.
+		bx.shutdownBlocker.UnblockAndRestart(restart)
+	}()
+}
+
+func (bx *BleXport) waitForShutdown() bool {
+	itf, _ := bx.shutdownBlocker.Wait(nmxutil.DURATION_FOREVER, nil)
+	return itf.(bool)
+}
+
+func (bx *BleXport) blockingShutdown(restart bool, err error) {
+	bx.shutdown(restart, err)
+	bx.waitForShutdown()
 }
 
 func (bx *BleXport) blockUntilReady() error {
@@ -379,7 +324,7 @@ func (bx *BleXport) setStateFrom(from BleXportState, to BleXportState) bool {
 }
 
 func (bx *BleXport) Stop() error {
-	bx.shutdown(false, nmxutil.NewXportError("xport stopped"))
+	bx.blockingShutdown(false, nmxutil.NewXportError("xport stopped"))
 	return nil
 }
 
@@ -391,12 +336,15 @@ func (bx *BleXport) startOnce() error {
 	bx.stopChan = make(chan struct{})
 
 	if err := bx.startUnixChild(); err != nil {
-		bx.shutdown(true, err)
+		bx.blockingShutdown(true, err)
 		return err
 	}
 
 	// Listen for errors and data from the blehostd process.
+	bx.wg.Add(1)
 	go func() {
+		defer bx.wg.Done()
+
 		for {
 			select {
 			case err := <-bx.client.ErrChild:
@@ -416,49 +364,28 @@ func (bx *BleXport) startOnce() error {
 		}
 	}()
 
-	synced, syncl, err := bx.initialSyncCheck()
-	if err != nil {
-		bx.shutdown(true, err)
+	if err := bx.syncer.Start(bx); err != nil {
+		bx.blockingShutdown(true, err)
 		return err
 	}
 
 	// Block until host and controller are synced.
-	if !synced {
-	SyncLoop:
-		for {
-			select {
-			case err := <-syncl.ErrChan:
-				bx.shutdown(true, err)
-				return err
-			case bm := <-syncl.MsgChan:
-				switch msg := bm.(type) {
-				case *BleSyncEvt:
-					if msg.Synced {
-						break SyncLoop
-					}
-				}
-			case <-time.After(bx.cfg.SyncTimeout):
-				err := nmxutil.NewXportError(
-					"Timeout waiting for host <-> controller sync")
-				bx.shutdown(true, err)
-				return err
-			case <-bx.stopChan:
-				return nmxutil.NewXportError("Transport startup aborted")
-			}
-		}
+	if err := bx.syncer.BlockUntilSynced(
+		bx.cfg.SyncTimeout, bx.stopChan); err != nil {
+
+		err = nmxutil.NewXportError(
+			"Error waiting for host <-> controller sync: " + err.Error())
+		bx.blockingShutdown(true, err)
+		return err
 	}
 
 	// Host and controller are synced.  Listen for events in the background:
 	//     * sync loss
 	//     * stack reset
 	//     * GATT access
+	bx.wg.Add(1)
 	go func() {
-		resetl, err := bx.addResetListener()
-		if err != nil {
-			bx.shutdown(true, err)
-			return
-		}
-		defer bx.RemoveListener(resetl)
+		defer bx.wg.Done()
 
 		accessl, err := bx.addAccessListener()
 		if err != nil {
@@ -469,24 +396,8 @@ func (bx *BleXport) startOnce() error {
 
 		for {
 			select {
-			case err := <-syncl.ErrChan:
-				bx.shutdown(true, err)
-				return
-			case bm := <-syncl.MsgChan:
-				switch msg := bm.(type) {
-				case *BleSyncEvt:
-					if !msg.Synced {
-						bx.shutdown(true, nmxutil.NewXportError(
-							"BLE host <-> controller sync lost"))
-					}
-				}
-
-			case err := <-resetl.ErrChan:
-				bx.shutdown(true, err)
-				return
-			case bm := <-resetl.MsgChan:
-				switch msg := bm.(type) {
-				case *BleResetEvt:
+			case reasonItf, ok := <-bx.syncer.ListenReset():
+				if ok {
 					// Only process the reset event if the transport is not
 					// already shutting down.  If in mid-shutdown, the reset
 					// event was likely elicited by the shutdown itself.
@@ -494,23 +405,36 @@ func (bx *BleXport) startOnce() error {
 					if state == BLE_XPORT_STATE_STARTING ||
 						state == BLE_XPORT_STATE_STARTED {
 
+						reason := reasonItf.(int)
 						bx.shutdown(true, nmxutil.NewXportError(fmt.Sprintf(
 							"The BLE controller has been reset by the host; "+
 								"reason=%s (%d)",
-							ErrCodeToString(msg.Reason), msg.Reason)))
-						return
+							ErrCodeToString(reason), reason)))
 					}
 				}
 
-			case err := <-accessl.ErrChan:
-				bx.shutdown(true, err)
-				return
-			case bm := <-accessl.MsgChan:
-				switch msg := bm.(type) {
-				case *BleAccessEvt:
-					if err := bx.cm.Access(bx, msg); err != nil {
-						log.Debugf("Error sending access status: %s",
-							err.Error())
+			case syncedItf, ok := <-bx.syncer.ListenSync():
+				if ok {
+					synced := syncedItf.(bool)
+					if !synced {
+						bx.shutdown(true, nmxutil.NewXportError(
+							"BLE host <-> controller sync lost"))
+					}
+				}
+
+			case err, ok := <-accessl.ErrChan:
+				if ok {
+					bx.shutdown(true, err)
+				}
+
+			case bm, ok := <-accessl.MsgChan:
+				if ok {
+					switch msg := bm.(type) {
+					case *BleAccessEvt:
+						if err := bx.cm.Access(bx, msg); err != nil {
+							log.Debugf("Error sending access status: %s",
+								err.Error())
+						}
 					}
 				}
 
@@ -524,7 +448,7 @@ func (bx *BleXport) startOnce() error {
 	if bx.randAddr == nil {
 		addr, err := GenRandAddrXact(bx)
 		if err != nil {
-			bx.shutdown(true, err)
+			bx.blockingShutdown(true, err)
 			return err
 		}
 
@@ -533,20 +457,19 @@ func (bx *BleXport) startOnce() error {
 
 	// Set the random address on the controller.
 	if err := SetRandAddrXact(bx, *bx.randAddr); err != nil {
-		bx.shutdown(true, err)
+		bx.blockingShutdown(true, err)
 		return err
 	}
 
 	// Set the preferred ATT MTU in the host.
 	if err := SetPreferredMtuXact(bx, bx.cfg.PreferredMtu); err != nil {
-		bx.shutdown(true, err)
+		bx.blockingShutdown(true, err)
 		return err
 	}
 
 	if !bx.setStateFrom(BLE_XPORT_STATE_STARTING, BLE_XPORT_STATE_STARTED) {
-		bx.shutdown(true, err)
-		return nmxutil.NewXportError(
-			"Internal error; BLE transport in unexpected state")
+		bx.blockingShutdown(true, nmxutil.NewXportError(
+			"Internal error; BLE transport in unexpected state"))
 	}
 
 	return nil
@@ -556,6 +479,8 @@ func (bx *BleXport) Start() error {
 	if !bx.setStateFrom(BLE_XPORT_STATE_DORMANT, BLE_XPORT_STATE_STOPPED) {
 		return nmxutil.NewXportError("BLE xport started twice")
 	}
+
+	bx.shutdownBlocker.Start()
 
 	// Try to start the transport.  If this first attempt fails, report the
 	// error and don't retry.
@@ -567,10 +492,12 @@ func (bx *BleXport) Start() error {
 	}
 
 	// Now that the first start attempt has succeeded, start a restart loop in
-	// the background.
+	// the background.  This Go routine does not participate in the wait group
+	// because it terminates itself independent of the others.
 	go func() {
 		// Block until transport shuts down.
-		restart := <-bx.shutdownChan
+		restart := bx.waitForShutdown()
+
 		for {
 			// If restarts are disabled, or if the shutdown was a result of an
 			// explicit stop call (instead of an unexpected error), stop
@@ -592,7 +519,7 @@ func (bx *BleXport) Start() error {
 					err.Error())
 			} else {
 				// Success.  Block until the transport shuts down.
-				restart = <-bx.shutdownChan
+				restart = bx.waitForShutdown()
 			}
 		}
 	}()
@@ -640,16 +567,24 @@ func (bx *BleXport) RspTimeout() time.Duration {
 	return bx.cfg.BlehostdRspTimeout
 }
 
-func (bx *BleXport) AcquireMaster(token interface{}) error {
-	return bx.master.Acquire(token)
+func (bx *BleXport) AcquireMasterConnect(token interface{}) error {
+	return bx.master.AcquireConnect(token)
+}
+
+func (bx *BleXport) AcquireMasterScan(token interface{}) error {
+	return bx.master.AcquireScan(token)
 }
 
 func (bx *BleXport) ReleaseMaster() {
 	bx.master.Release()
 }
 
-func (bx *BleXport) StopWaitingForMaster(token interface{}, err error) {
-	bx.master.StopWaiting(token, err)
+func (bx *BleXport) StopWaitingForMasterConnect(token interface{}, err error) {
+	bx.master.StopWaitingConnect(token, err)
+}
+
+func (bx *BleXport) StopWaitingForMasterScan(token interface{}, err error) {
+	bx.master.StopWaitingScan(token, err)
 }
 
 func (bx *BleXport) AcquireSlave(token interface{}) error {

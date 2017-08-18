@@ -37,6 +37,7 @@ import (
 type BleSesn struct {
 	cfg      sesn.SesnCfg
 	bx       *BleXport
+	prio     MasterPrio
 	conn     *Conn
 	mgmtChrs BleMgmtChrs
 	txvr     *mgmt.Transceiver
@@ -47,7 +48,7 @@ type BleSesn struct {
 }
 
 func (s *BleSesn) init() error {
-	s.conn = NewConn(s.bx)
+	s.conn = NewConn(s.bx, s.prio)
 	s.stopChan = make(chan struct{})
 
 	if s.txvr != nil {
@@ -63,7 +64,9 @@ func (s *BleSesn) init() error {
 	return nil
 }
 
-func NewBleSesn(bx *BleXport, cfg sesn.SesnCfg) (*BleSesn, error) {
+func NewBleSesn(bx *BleXport, cfg sesn.SesnCfg, prio MasterPrio) (
+	*BleSesn, error) {
+
 	mgmtChrs, err := BuildMgmtChrs(cfg.MgmtProto)
 	if err != nil {
 		return nil, err
@@ -72,6 +75,7 @@ func NewBleSesn(bx *BleXport, cfg sesn.SesnCfg) (*BleSesn, error) {
 	s := &BleSesn{
 		cfg:      cfg,
 		bx:       bx,
+		prio:     prio,
 		mgmtChrs: mgmtChrs,
 	}
 
@@ -85,13 +89,10 @@ func (s *BleSesn) AbortRx(seq uint8) error {
 	return nil
 }
 
+// Listens for disconnect in the background.
 func (s *BleSesn) disconnectListen() {
-	// Listen for disconnect in the background.
 	s.wg.Add(1)
 	go func() {
-		// If the session is being closed, unblock the close() call.
-		defer s.closeBlocker.Unblock(nil)
-
 		// Block until disconnect.
 		err := <-s.conn.DisconnectChan()
 		nmxutil.Assert(!s.IsOpen())
@@ -110,6 +111,9 @@ func (s *BleSesn) disconnectListen() {
 		if s.cfg.OnCloseCb != nil {
 			s.cfg.OnCloseCb(s, err)
 		}
+
+		// Finally, unblock the close() call, if any.
+		s.closeBlocker.Unblock(nil)
 	}()
 }
 
@@ -195,7 +199,7 @@ func (s *BleSesn) openOnce() (bool, error) {
 	}
 
 	// Ensure subsequent calls to Close() block.
-	s.closeBlocker.Block()
+	s.closeBlocker.Start()
 
 	// Listen for disconnect in the background.
 	s.disconnectListen()
@@ -266,13 +270,14 @@ func (s *BleSesn) OpenConnected(
 
 	if err := s.conn.Inherit(connHandle, eventListener); err != nil {
 		if !nmxutil.IsSesnAlreadyOpen(err) {
-			s.closeBlocker.Unblock(nil)
+			//s.closeBlocker.Unblock(nil)
+			s.Close()
 		}
 		return err
 	}
 
 	// Ensure subsequent calls to Close() block.
-	s.closeBlocker.Block()
+	s.closeBlocker.Start()
 
 	// Listen for disconnect in the background.
 	s.disconnectListen()
@@ -291,7 +296,7 @@ func (s *BleSesn) Close() error {
 	}
 
 	// Block until close completes.
-	s.closeBlocker.Wait(nmxutil.DURATION_FOREVER)
+	s.closeBlocker.Wait(nmxutil.DURATION_FOREVER, nil)
 	return nil
 }
 

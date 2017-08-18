@@ -33,13 +33,33 @@ type Blocker struct {
 	val interface{}
 }
 
-func (b *Blocker) Wait(timeout time.Duration) (interface{}, error) {
+func (b *Blocker) unblockNoLock(val interface{}) {
+	if b.ch != nil {
+		b.val = val
+		close(b.ch)
+		b.ch = nil
+	}
+}
+
+func (b *Blocker) startNoLock() {
+	if b.ch == nil {
+		b.ch = make(chan struct{})
+	}
+}
+
+func (b *Blocker) Wait(timeout time.Duration, stopChan <-chan struct{}) (
+	interface{}, error) {
+
 	b.mtx.Lock()
 	ch := b.ch
 	b.mtx.Unlock()
 
 	if ch == nil {
 		return b.val, nil
+	}
+
+	if stopChan == nil {
+		stopChan = make(chan struct{})
 	}
 
 	timer := time.NewTimer(timeout)
@@ -49,25 +69,29 @@ func (b *Blocker) Wait(timeout time.Duration) (interface{}, error) {
 		return b.val, nil
 	case <-timer.C:
 		return nil, fmt.Errorf("timeout after %s", timeout.String())
+	case <-stopChan:
+		return nil, fmt.Errorf("aborted")
 	}
 }
 
-func (b *Blocker) Block() {
+func (b *Blocker) Start() {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
 
-	if b.ch == nil {
-		b.ch = make(chan struct{})
-	}
+	b.startNoLock()
 }
 
 func (b *Blocker) Unblock(val interface{}) {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
 
-	if b.ch != nil {
-		b.val = val
-		close(b.ch)
-		b.ch = nil
-	}
+	b.unblockNoLock(val)
+}
+
+func (b *Blocker) UnblockAndRestart(val interface{}) {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+
+	b.unblockNoLock(val)
+	b.startNoLock()
 }
