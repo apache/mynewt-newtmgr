@@ -643,6 +643,10 @@ type BleConnDesc struct {
 	PeerOtaAddrType BleAddrType
 	PeerOtaAddr     BleAddr
 	Role            BleRole
+	Encrypted       bool
+	Authenticated   bool
+	Bonded          bool
+	KeySize         int
 }
 
 func (d *BleConnDesc) String() string {
@@ -783,6 +787,19 @@ const (
 	BLE_ATT_F_WRITE_ENC                = 0x20
 	BLE_ATT_F_WRITE_AUTHEN             = 0x40
 	BLE_ATT_F_WRITE_AUTHOR             = 0x80
+)
+
+type BleDiscChrProperties int
+
+const (
+	BLE_DISC_CHR_PROP_BROADCAST       BleDiscChrProperties = 0x01
+	BLE_DISC_CHR_PROP_READ                                 = 0x02
+	BLE_DISC_CHR_PROP_WRITE_NO_RSP                         = 0x04
+	BLE_DISC_CHR_PROP_WRITE                                = 0x08
+	BLE_DISC_CHR_PROP_NOTIFY                               = 0x10
+	BLE_DISC_CHR_PROP_INDICATE                             = 0x20
+	BLE_DISC_CHR_PROP_AUTH_SIGN_WRITE                      = 0x40
+	BLE_DISC_CHR_PROP_EXTENDED                             = 0x80
 )
 
 type BleGattAccess struct {

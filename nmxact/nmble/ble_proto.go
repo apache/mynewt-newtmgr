@@ -956,6 +956,11 @@ type BleConnFindRsp struct {
 	PeerIdAddr      BleAddr     `json:"peer_id_addr"`
 	PeerOtaAddrType BleAddrType `json:"peer_ota_addr_type"`
 	PeerOtaAddr     BleAddr     `json:"peer_ota_addr"`
+	Role            BleRole     `json:"role"`
+	Encrypted       bool        `json:"encrypted"`
+	Authenticated   bool        `json:"authenticated"`
+	Bonded          bool        `json:"bonded"`
+	KeySize         int         `json:"key_size"`
 }
 
 type BleResetReq struct {
