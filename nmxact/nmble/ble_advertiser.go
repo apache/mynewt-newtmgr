@@ -88,7 +88,7 @@ func (a *Advertiser) advertise(cfg adv.Cfg) (uint16, *Listener, error) {
 		return 0, nil, err
 	}
 
-	connHandle, err := advStart(a.bx, bl, r)
+	connHandle, err := advStart(a.bx, bl, a.stopChan, r)
 	if err != nil {
 		a.bx.RemoveListener(bl)
 		if !nmxutil.IsXport(err) {

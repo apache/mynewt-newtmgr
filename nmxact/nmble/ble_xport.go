@@ -131,6 +131,7 @@ func NewBleXport(cfg XportCfg) (*BleXport, error) {
 		sesns:        map[uint16]*BleSesn{},
 	}
 
+	bx.advertiser = NewAdvertiser(bx)
 	bx.scanner = NewBleScanner(bx)
 	bx.master = NewMaster(bx, bx.scanner)
 
@@ -174,10 +175,6 @@ func (bx *BleXport) BuildScanner() (scan.Scanner, error) {
 func (bx *BleXport) BuildAdvertiser() (adv.Advertiser, error) {
 	// The transport only allows a single advertiser.  This is because the
 	// slave privileges need to managed among all the advertise operations.
-	if bx.advertiser == nil {
-		bx.advertiser = NewAdvertiser(bx)
-	}
-
 	return bx.advertiser, nil
 }
 
