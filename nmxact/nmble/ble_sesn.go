@@ -92,11 +92,11 @@ func (s *BleSesn) disconnectListen() {
 		// If the session is being closed, unblock the close() call.
 		defer s.closeBlocker.Unblock(nil)
 
-		s.bx.removeSesn(s.conn.connHandle)
-
 		// Block until disconnect.
 		err := <-s.conn.DisconnectChan()
 		nmxutil.Assert(!s.IsOpen())
+
+		s.bx.removeSesn(s.conn.connHandle)
 
 		// Signal error to all listeners.
 		s.txvr.ErrorAll(err)
