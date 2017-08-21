@@ -49,7 +49,7 @@ func NewTransceiver(isTcp bool, mgmtProto sesn.MgmtProto, logDepth int) (
 	return t, nil
 }
 
-func (t *Transceiver) txPlain(txCb TxFn, req *nmp.NmpMsg,
+func (t *Transceiver) txPlain(txCb TxFn, req *nmp.NmpMsg, mtu int,
 	timeout time.Duration) (nmp.NmpRsp, error) {
 
 	nl, err := t.nd.AddListener(req.Hdr.Seq)
@@ -65,8 +65,11 @@ func (t *Transceiver) txPlain(txCb TxFn, req *nmp.NmpMsg,
 
 	log.Debugf("Tx NMP request: %s", hex.Dump(b))
 
-	if err := txCb(b); err != nil {
-		return nil, err
+	frags := nmxutil.Fragment(b, mtu)
+	for _, frag := range frags {
+		if err := txCb(frag); err != nil {
+			return nil, err
+		}
 	}
 
 	// Now wait for NMP response.
@@ -82,8 +85,8 @@ func (t *Transceiver) txPlain(txCb TxFn, req *nmp.NmpMsg,
 	}
 }
 
-func (t *Transceiver) txOmp(txCb TxFn, req *nmp.NmpMsg, timeout time.Duration) (
-	nmp.NmpRsp, error) {
+func (t *Transceiver) txOmp(txCb TxFn, req *nmp.NmpMsg, mtu int,
+	timeout time.Duration) (nmp.NmpRsp, error) {
 
 	nl, err := t.od.AddNmpListener(req.Hdr.Seq)
 	if err != nil {
@@ -103,8 +106,11 @@ func (t *Transceiver) txOmp(txCb TxFn, req *nmp.NmpMsg, timeout time.Duration) (
 
 	log.Debugf("Tx OMP request: %s", hex.Dump(b))
 
-	if err := txCb(b); err != nil {
-		return nil, err
+	frags := nmxutil.Fragment(b, mtu)
+	for _, frag := range frags {
+		if err := txCb(frag); err != nil {
+			return nil, err
+		}
 	}
 
 	// Now wait for NMP response.
@@ -120,17 +126,17 @@ func (t *Transceiver) txOmp(txCb TxFn, req *nmp.NmpMsg, timeout time.Duration) (
 	}
 }
 
-func (t *Transceiver) TxNmp(txCb TxFn, req *nmp.NmpMsg, timeout time.Duration) (
-	nmp.NmpRsp, error) {
+func (t *Transceiver) TxNmp(txCb TxFn, req *nmp.NmpMsg, mtu int,
+	timeout time.Duration) (nmp.NmpRsp, error) {
 
 	if t.nd != nil {
-		return t.txPlain(txCb, req, timeout)
+		return t.txPlain(txCb, req, mtu, timeout)
 	} else {
-		return t.txOmp(txCb, req, timeout)
+		return t.txOmp(txCb, req, mtu, timeout)
 	}
 }
 
-func (t *Transceiver) TxOic(txCb TxFn, req coap.Message,
+func (t *Transceiver) TxOic(txCb TxFn, req coap.Message, mtu int,
 	timeout time.Duration) (coap.Message, error) {
 
 	b, err := oic.Encode(req)
@@ -158,8 +164,11 @@ func (t *Transceiver) TxOic(txCb TxFn, req coap.Message,
 	}
 
 	log.Debugf("Tx OIC request: %s", hex.Dump(b))
-	if err := txCb(b); err != nil {
-		return nil, err
+	frags := nmxutil.Fragment(b, mtu)
+	for _, frag := range frags {
+		if err := txCb(frag); err != nil {
+			return nil, err
+		}
 	}
 
 	if !rspExpected {

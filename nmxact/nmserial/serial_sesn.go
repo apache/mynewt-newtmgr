@@ -33,6 +33,7 @@ import (
 )
 
 type SerialSesn struct {
+	cfg    sesn.SesnCfg
 	sx     *SerialXport
 	txvr   *mgmt.Transceiver
 	isOpen bool
@@ -45,7 +46,8 @@ type SerialSesn struct {
 
 func NewSerialSesn(sx *SerialXport, cfg sesn.SesnCfg) (*SerialSesn, error) {
 	s := &SerialSesn{
-		sx: sx,
+		cfg: cfg,
+		sx:  sx,
 	}
 
 	txvr, err := mgmt.NewTransceiver(false, cfg.MgmtProto, 3)
@@ -108,10 +110,6 @@ func (s *SerialSesn) AbortRx(seq uint8) error {
 	return nil
 }
 
-func (s *SerialSesn) EncodeNmpMsg(m *nmp.NmpMsg) ([]byte, error) {
-	return omp.EncodeOmpDgram(m)
-}
-
 func (s *SerialSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 	nmp.NmpRsp, error) {
 
@@ -136,7 +134,7 @@ func (s *SerialSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 		return nil
 	}
 
-	return s.txvr.TxNmp(txFn, m, opt.Timeout)
+	return s.txvr.TxNmp(txFn, m, s.MtuOut(), opt.Timeout)
 }
 
 func (s *SerialSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
@@ -155,7 +153,7 @@ func (s *SerialSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
 		return nil
 	}
 
-	rsp, err := s.txvr.TxOic(txFn, m, opt.Timeout)
+	rsp, err := s.txvr.TxOic(txFn, m, s.MtuOut(), opt.Timeout)
 	if err != nil {
 		return 0, nil, err
 	} else if rsp == nil {
@@ -163,4 +161,8 @@ func (s *SerialSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
 	} else {
 		return rsp.Code(), rsp.Payload(), nil
 	}
+}
+
+func (s *SerialSesn) MgmtProto() sesn.MgmtProto {
+	return s.cfg.MgmtProto
 }

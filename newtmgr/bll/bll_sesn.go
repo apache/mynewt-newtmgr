@@ -30,6 +30,7 @@ import (
 	"github.com/runtimeco/go-coap"
 	"golang.org/x/net/context"
 
+	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/mgmt"
@@ -281,14 +282,12 @@ func (s *BllSesn) IsOpen() bool {
 
 // Retrieves the maximum data payload for incoming NMP responses.
 func (s *BllSesn) MtuIn() int {
-	mtu, _ := nmble.MtuIn(s.cfg.MgmtProto, s.attMtu)
-	return mtu
+	return int(s.attMtu) - nmble.NOTIFY_CMD_BASE_SZ
 }
 
 // Retrieves the maximum data payload for outgoing NMP requests.
 func (s *BllSesn) MtuOut() int {
-	mtu, _ := nmble.MtuOut(s.cfg.MgmtProto, s.attMtu)
-	return mtu
+	return util.IntMin(s.MtuIn(), bledefs.BLE_ATT_ATTR_MAX_LEN)
 }
 
 // Stops a receive operation in progress.  This must be called from a
@@ -296,10 +295,6 @@ func (s *BllSesn) MtuOut() int {
 func (s *BllSesn) AbortRx(nmpSeq uint8) error {
 	s.txvr.ErrorOne(nmpSeq, fmt.Errorf("Rx aborted"))
 	return nil
-}
-
-func (s *BllSesn) EncodeNmpMsg(msg *nmp.NmpMsg) ([]byte, error) {
-	return nmble.EncodeMgmtMsg(s.cfg.MgmtProto, msg)
 }
 
 // Performs a blocking transmit a single NMP message and listens for the
@@ -324,7 +319,7 @@ func (s *BllSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 		return s.cln.WriteCharacteristic(s.nmpReqChr, b, true)
 	}
 
-	return s.txvr.TxNmp(txRaw, msg, opt.Timeout)
+	return s.txvr.TxNmp(txRaw, msg, s.MtuOut(), opt.Timeout)
 }
 
 func (s *BllSesn) resReqChr(resType sesn.ResourceType) (
@@ -357,7 +352,7 @@ func (s *BllSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
 		return s.cln.WriteCharacteristic(chr, b, true)
 	}
 
-	rsp, err := s.txvr.TxOic(txRaw, m, opt.Timeout)
+	rsp, err := s.txvr.TxOic(txRaw, m, s.MtuOut(), opt.Timeout)
 	if err != nil {
 		return 0, nil, err
 	} else if rsp == nil {
@@ -365,4 +360,8 @@ func (s *BllSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
 	} else {
 		return rsp.Code(), rsp.Payload(), nil
 	}
+}
+
+func (s *BllSesn) MgmtProto() sesn.MgmtProto {
+	return s.cfg.MgmtProto
 }

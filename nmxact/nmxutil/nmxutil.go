@@ -132,6 +132,21 @@ func StopAndDrainTimer(timer *time.Timer) {
 	}
 }
 
+func Fragment(b []byte, mtu int) [][]byte {
+	frags := [][]byte{}
+
+	for off := 0; off < len(b); off += mtu {
+		fragEnd := off + mtu
+		if fragEnd > len(b) {
+			fragEnd = len(b)
+		}
+		frag := b[off:fragEnd]
+		frags = append(frags, frag)
+	}
+
+	return frags
+}
+
 var nextId uint32
 
 func GetNextId() uint32 {

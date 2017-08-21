@@ -26,6 +26,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/runtimeco/go-coap"
 
+	"mynewt.apache.org/newt/util"
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/mgmt"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
@@ -298,18 +299,16 @@ func (s *BleSesn) IsOpen() bool {
 	return s.conn.IsConnected()
 }
 
-func (s *BleSesn) EncodeNmpMsg(m *nmp.NmpMsg) ([]byte, error) {
-	return EncodeMgmtMsg(s.cfg.MgmtProto, m)
-}
-
 func (s *BleSesn) MtuIn() int {
-	mtu, _ := MtuIn(s.cfg.MgmtProto, s.conn.AttMtu())
-	return mtu
+	return int(s.conn.AttMtu()) - NOTIFY_CMD_BASE_SZ
 }
 
 func (s *BleSesn) MtuOut() int {
-	mtu, _ := MtuOut(s.cfg.MgmtProto, s.conn.AttMtu())
-	return mtu
+	return util.IntMin(s.MtuIn(), BLE_ATT_ATTR_MAX_LEN)
+}
+
+func (s *BleSesn) MgmtProto() sesn.MgmtProto {
+	return s.cfg.MgmtProto
 }
 
 func (s *BleSesn) ConnInfo() (BleConnDesc, error) {
@@ -332,7 +331,7 @@ func (s *BleSesn) TxNmpOnce(req *nmp.NmpMsg, opt sesn.TxOptions) (
 		return s.conn.WriteChrNoRsp(chr, b, "nmp")
 	}
 
-	return s.txvr.TxNmp(txRaw, req, opt.Timeout)
+	return s.txvr.TxNmp(txRaw, req, s.MtuOut(), opt.Timeout)
 }
 
 func (s *BleSesn) TxCoapOnce(m coap.Message,
@@ -352,7 +351,7 @@ func (s *BleSesn) TxCoapOnce(m coap.Message,
 		return s.conn.WriteChrNoRsp(chr, b, "coap")
 	}
 
-	rsp, err := s.txvr.TxOic(txRaw, m, opt.Timeout)
+	rsp, err := s.txvr.TxOic(txRaw, m, s.MtuOut(), opt.Timeout)
 	if err != nil {
 		return 0, nil, err
 	} else if rsp == nil {
