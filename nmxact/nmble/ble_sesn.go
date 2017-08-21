@@ -91,6 +91,8 @@ func (s *BleSesn) disconnectListen() {
 		// If the session is being closed, unblock the close() call.
 		defer s.closeBlocker.Unblock(nil)
 
+		s.bx.removeSesn(s.conn.connHandle)
+
 		// Block until disconnect.
 		err := <-s.conn.DisconnectChan()
 		nmxutil.Assert(!s.IsOpen())
@@ -251,6 +253,10 @@ func (s *BleSesn) Open() error {
 		}
 	}
 
+	if err != nil {
+		s.bx.addSesn(s.conn.connHandle, s)
+	}
+
 	return err
 }
 
@@ -272,6 +278,8 @@ func (s *BleSesn) OpenConnected(
 
 	// Listen for incoming notifications in the background.
 	s.notifyListen()
+
+	s.bx.addSesn(connHandle, s)
 
 	return nil
 }

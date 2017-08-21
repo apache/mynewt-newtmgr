@@ -41,6 +41,12 @@ func (b *BleOicSvr) Rx(access BleGattAccess) uint8 {
 		return 0
 	}
 
+	s := b.x.findSesn(access.ConnHandle)
+	if s == nil {
+		// The sender is no longer connected.
+		return ERR_CODE_ATT_UNLIKELY
+	}
+
 	data, err := ml.MarshalBinary()
 	if err != nil {
 		return ERR_CODE_ATT_UNLIKELY
@@ -51,8 +57,19 @@ func (b *BleOicSvr) Rx(access BleGattAccess) uint8 {
 		return ERR_CODE_ATT_UNLIKELY
 	}
 
-	if err := NotifyXact(b.x, access.ConnHandle, valHandle, data); err != nil {
-		return ERR_CODE_ATT_UNLIKELY
+	mtu := s.MtuOut()
+	for off := 0; off < len(data); off += mtu {
+		chunkEnd := off + mtu
+		if chunkEnd > len(data) {
+			chunkEnd = len(data)
+		}
+		chunk := data[off:chunkEnd]
+
+		if err := NotifyXact(b.x, access.ConnHandle, valHandle,
+			chunk); err != nil {
+
+			return ERR_CODE_ATT_UNLIKELY
+		}
 	}
 
 	return 0
