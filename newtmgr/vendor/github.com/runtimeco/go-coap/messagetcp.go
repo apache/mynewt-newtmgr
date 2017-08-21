@@ -247,7 +247,7 @@ func PullTcp(data []byte) (*TcpMessage, []byte, error) {
 	r := bytes.NewReader(data)
 	m, err := Decode(r)
 	if err != nil {
-		if err == io.EOF {
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
 			// Packet is incomplete.
 			return nil, data, nil
 		} else {

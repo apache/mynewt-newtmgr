@@ -114,20 +114,22 @@ type BleXport struct {
 	master       nmxutil.SingleResource
 	slave        nmxutil.SingleResource
 	randAddr     *BleAddr
-	stateMtx     sync.Mutex
+	mtx          sync.Mutex
 	scanner      *BleScanner
 	advertiser   *Advertiser
 	cm           ChrMgr
+	sesns        map[uint16]*BleSesn
 }
 
 func NewBleXport(cfg XportCfg) (*BleXport, error) {
 	bx := &BleXport{
+		cfg:          cfg,
 		d:            NewDispatcher(),
 		shutdownChan: make(chan bool),
 		readyBcast:   nmxutil.Bcaster{},
 		master:       nmxutil.NewSingleResource(),
 		slave:        nmxutil.NewSingleResource(),
-		cfg:          cfg,
+		sesns:        map[uint16]*BleSesn{},
 	}
 
 	return bx, nil
@@ -258,7 +260,7 @@ func (bx *BleXport) shutdown(restart bool, err error) {
 
 	log.Debugf("Shutting down BLE transport")
 
-	bx.stateMtx.Lock()
+	bx.mtx.Lock()
 
 	var fullyStarted bool
 	var already bool
@@ -278,12 +280,14 @@ func (bx *BleXport) shutdown(restart bool, err error) {
 		bx.state = BLE_XPORT_STATE_STOPPING
 	}
 
-	bx.stateMtx.Unlock()
+	bx.mtx.Unlock()
 
 	if already {
 		// Shutdown already in progress.
 		return
 	}
+
+	bx.sesns = map[uint16]*BleSesn{}
 
 	// Indicate error to all clients who are waiting for the master resource.
 	log.Debugf("Aborting BLE master")
@@ -321,22 +325,22 @@ func (bx *BleXport) shutdown(restart bool, err error) {
 func (bx *BleXport) blockUntilReady() error {
 	var ch chan interface{}
 
-	bx.stateMtx.Lock()
+	bx.mtx.Lock()
 	switch bx.state {
 	case BLE_XPORT_STATE_STARTED:
 		// Already started; don't block.
-		bx.stateMtx.Unlock()
+		bx.mtx.Unlock()
 		return nil
 
 	case BLE_XPORT_STATE_DORMANT:
 		// Not in the process of starting; the user will be waiting forever.
-		bx.stateMtx.Unlock()
+		bx.mtx.Unlock()
 		return fmt.Errorf("Attempt to use BLE transport without starting it")
 
 	default:
 		ch = bx.readyBcast.Listen()
 	}
-	bx.stateMtx.Unlock()
+	bx.mtx.Unlock()
 
 	itf := <-ch
 	if itf == nil {
@@ -347,15 +351,15 @@ func (bx *BleXport) blockUntilReady() error {
 }
 
 func (bx *BleXport) getState() BleXportState {
-	bx.stateMtx.Lock()
-	defer bx.stateMtx.Unlock()
+	bx.mtx.Lock()
+	defer bx.mtx.Unlock()
 
 	return bx.state
 }
 
 func (bx *BleXport) setStateFrom(from BleXportState, to BleXportState) bool {
-	bx.stateMtx.Lock()
-	defer bx.stateMtx.Unlock()
+	bx.mtx.Lock()
+	defer bx.mtx.Unlock()
 
 	if bx.state != from {
 		return false
@@ -658,4 +662,29 @@ func (bx *BleXport) ReleaseSlave() {
 
 func (bx *BleXport) StopWaitingForSlave(token interface{}, err error) {
 	bx.slave.StopWaiting(token, err)
+}
+
+func (bx *BleXport) addSesn(connHandle uint16, s *BleSesn) {
+	bx.mtx.Lock()
+	defer bx.mtx.Unlock()
+
+	bx.sesns[connHandle] = s
+}
+
+func (bx *BleXport) removeSesn(connHandle uint16) *BleSesn {
+	bx.mtx.Lock()
+	defer bx.mtx.Unlock()
+
+	s := bx.sesns[connHandle]
+	if s != nil {
+		delete(bx.sesns, connHandle)
+	}
+	return s
+}
+
+func (bx *BleXport) findSesn(connHandle uint16) *BleSesn {
+	bx.mtx.Lock()
+	defer bx.mtx.Unlock()
+
+	return bx.sesns[connHandle]
 }
