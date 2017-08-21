@@ -4,6 +4,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
+	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/oic"
 )
 
@@ -44,30 +45,34 @@ func (b *BleOicSvr) Rx(access BleGattAccess) uint8 {
 	s := b.x.findSesn(access.ConnHandle)
 	if s == nil {
 		// The sender is no longer connected.
+		log.Debugf("Failed to send CoAP response; peer no longer "+
+			"connected (conn_handle=%d)", access.ConnHandle)
 		return ERR_CODE_ATT_UNLIKELY
 	}
 
 	data, err := ml.MarshalBinary()
 	if err != nil {
+		log.Debugf("Failed to send CoAP response; error marshalling "+
+			"response: %s", err.Error())
 		return ERR_CODE_ATT_UNLIKELY
 	}
 
 	_, valHandle, err := FindChrXact(b.x, b.rspSvcUuid, b.rspChrUuid)
 	if err != nil {
+		log.Debugf("Failed to send CoAP response; cannot find response "+
+			"characteristic: (s=%s c=%s)",
+			b.rspSvcUuid.String(), b.rspChrUuid.String())
 		return ERR_CODE_ATT_UNLIKELY
 	}
 
 	mtu := s.MtuOut()
-	for off := 0; off < len(data); off += mtu {
-		chunkEnd := off + mtu
-		if chunkEnd > len(data) {
-			chunkEnd = len(data)
-		}
-		chunk := data[off:chunkEnd]
-
+	frags := nmxutil.Fragment(data, mtu)
+	for _, frag := range frags {
 		if err := NotifyXact(b.x, access.ConnHandle, valHandle,
-			chunk); err != nil {
+			frag); err != nil {
 
+			log.Debugf("Failed to send CoAP response; failed to send "+
+				"fragment: %s", err.Error())
 			return ERR_CODE_ATT_UNLIKELY
 		}
 	}

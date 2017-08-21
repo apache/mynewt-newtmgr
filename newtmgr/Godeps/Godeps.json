@@ -127,73 +127,73 @@
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/adv",
-			"Comment": "mynewt_1_1_0_tag-56-ged10653",
-			"Rev": "ed106535065bac6b091b69766f48f1cffae85411"
+			"Comment": "mynewt_1_1_0_tag-61-g3ed2b09",
+			"Rev": "3ed2b09d6f3ba39b79570aaab934447dae9ed426"
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/bledefs",
-			"Comment": "mynewt_1_1_0_tag-56-ged10653",
-			"Rev": "ed106535065bac6b091b69766f48f1cffae85411"
+			"Comment": "mynewt_1_1_0_tag-61-g3ed2b09",
+			"Rev": "3ed2b09d6f3ba39b79570aaab934447dae9ed426"
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/mgmt",
-			"Comment": "mynewt_1_1_0_tag-56-ged10653",
-			"Rev": "ed106535065bac6b091b69766f48f1cffae85411"
+			"Comment": "mynewt_1_1_0_tag-61-g3ed2b09",
+			"Rev": "3ed2b09d6f3ba39b79570aaab934447dae9ed426"
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/nmble",
-			"Comment": "mynewt_1_1_0_tag-56-ged10653",
-			"Rev": "ed106535065bac6b091b69766f48f1cffae85411"
+			"Comment": "mynewt_1_1_0_tag-61-g3ed2b09",
+			"Rev": "3ed2b09d6f3ba39b79570aaab934447dae9ed426"
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/nmp",
-			"Comment": "mynewt_1_1_0_tag-56-ged10653",
-			"Rev": "ed106535065bac6b091b69766f48f1cffae85411"
+			"Comment": "mynewt_1_1_0_tag-61-g3ed2b09",
+			"Rev": "3ed2b09d6f3ba39b79570aaab934447dae9ed426"
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/nmserial",
-			"Comment": "mynewt_1_1_0_tag-56-ged10653",
-			"Rev": "ed106535065bac6b091b69766f48f1cffae85411"
+			"Comment": "mynewt_1_1_0_tag-61-g3ed2b09",
+			"Rev": "3ed2b09d6f3ba39b79570aaab934447dae9ed426"
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/nmxutil",
-			"Comment": "mynewt_1_1_0_tag-56-ged10653",
-			"Rev": "ed106535065bac6b091b69766f48f1cffae85411"
+			"Comment": "mynewt_1_1_0_tag-61-g3ed2b09",
+			"Rev": "3ed2b09d6f3ba39b79570aaab934447dae9ed426"
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/oic",
-			"Comment": "mynewt_1_1_0_tag-56-ged10653",
-			"Rev": "ed106535065bac6b091b69766f48f1cffae85411"
+			"Comment": "mynewt_1_1_0_tag-61-g3ed2b09",
+			"Rev": "3ed2b09d6f3ba39b79570aaab934447dae9ed426"
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/omp",
-			"Comment": "mynewt_1_1_0_tag-56-ged10653",
-			"Rev": "ed106535065bac6b091b69766f48f1cffae85411"
+			"Comment": "mynewt_1_1_0_tag-61-g3ed2b09",
+			"Rev": "3ed2b09d6f3ba39b79570aaab934447dae9ed426"
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/scan",
-			"Comment": "mynewt_1_1_0_tag-56-ged10653",
-			"Rev": "ed106535065bac6b091b69766f48f1cffae85411"
+			"Comment": "mynewt_1_1_0_tag-61-g3ed2b09",
+			"Rev": "3ed2b09d6f3ba39b79570aaab934447dae9ed426"
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/sesn",
-			"Comment": "mynewt_1_1_0_tag-56-ged10653",
-			"Rev": "ed106535065bac6b091b69766f48f1cffae85411"
+			"Comment": "mynewt_1_1_0_tag-61-g3ed2b09",
+			"Rev": "3ed2b09d6f3ba39b79570aaab934447dae9ed426"
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/udp",
-			"Comment": "mynewt_1_1_0_tag-56-ged10653",
-			"Rev": "ed106535065bac6b091b69766f48f1cffae85411"
+			"Comment": "mynewt_1_1_0_tag-61-g3ed2b09",
+			"Rev": "3ed2b09d6f3ba39b79570aaab934447dae9ed426"
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/xact",
-			"Comment": "mynewt_1_1_0_tag-56-ged10653",
-			"Rev": "ed106535065bac6b091b69766f48f1cffae85411"
+			"Comment": "mynewt_1_1_0_tag-61-g3ed2b09",
+			"Rev": "3ed2b09d6f3ba39b79570aaab934447dae9ed426"
 		},
 		{
 			"ImportPath": "mynewt.apache.org/newtmgr/nmxact/xport",
-			"Comment": "mynewt_1_1_0_tag-56-ged10653",
-			"Rev": "ed106535065bac6b091b69766f48f1cffae85411"
+			"Comment": "mynewt_1_1_0_tag-61-g3ed2b09",
+			"Rev": "3ed2b09d6f3ba39b79570aaab934447dae9ed426"
 		}
 	]
 }

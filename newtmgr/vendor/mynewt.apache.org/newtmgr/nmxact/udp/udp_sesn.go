@@ -101,10 +101,6 @@ func (s *UdpSesn) MtuOut() int {
 		nmp.NMP_HDR_SIZE
 }
 
-func (s *UdpSesn) EncodeNmpMsg(m *nmp.NmpMsg) ([]byte, error) {
-	return omp.EncodeOmpDgram(m)
-}
-
 func (s *UdpSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 	nmp.NmpRsp, error) {
 
@@ -116,7 +112,7 @@ func (s *UdpSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 		_, err := s.conn.WriteToUDP(b, s.addr)
 		return err
 	}
-	return s.txvr.TxNmp(txRaw, m, opt.Timeout)
+	return s.txvr.TxNmp(txRaw, m, s.MtuOut(), opt.Timeout)
 }
 
 func (s *UdpSesn) AbortRx(seq uint8) error {
@@ -132,7 +128,7 @@ func (s *UdpSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
 		return err
 	}
 
-	rsp, err := s.txvr.TxOic(txRaw, m, opt.Timeout)
+	rsp, err := s.txvr.TxOic(txRaw, m, s.MtuOut(), opt.Timeout)
 	if err != nil {
 		return 0, nil, err
 	} else if rsp == nil {
@@ -140,4 +136,8 @@ func (s *UdpSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
 	} else {
 		return rsp.Code(), rsp.Payload(), nil
 	}
+}
+
+func (s *UdpSesn) MgmtProto() sesn.MgmtProto {
+	return s.cfg.MgmtProto
 }

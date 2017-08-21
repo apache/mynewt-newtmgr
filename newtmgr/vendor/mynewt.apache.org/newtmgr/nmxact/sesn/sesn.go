@@ -71,11 +71,13 @@ type Sesn interface {
 	// Indicates whether the session is currently open.
 	IsOpen() bool
 
-	// Retrieves the maximum data payload for outgoing NMP requests.
+	// Retrieves the maximum data payload for incoming data packets.
+	MtuIn() int
+
+	// Retrieves the maximum data payload for outgoing data packets.
 	MtuOut() int
 
-	// Retrieves the maximum data payload for incoming NMP responses.
-	MtuIn() int
+	MgmtProto() MgmtProto
 
 	// Stops a receive operation in progress.  This must be called from a
 	// separate thread, as sesn receive operations are blocking.
@@ -84,8 +86,6 @@ type Sesn interface {
 	// XXX AbortResource(seq uint8) error
 
 	////// Internal to nmxact:
-
-	EncodeNmpMsg(msg *nmp.NmpMsg) ([]byte, error)
 
 	// Performs a blocking transmit a single NMP message and listens for the
 	// response.
