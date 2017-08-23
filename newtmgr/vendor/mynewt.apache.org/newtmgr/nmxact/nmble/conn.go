@@ -476,7 +476,7 @@ func (c *Conn) discAllChrsOnce(svc Service) ([]*Characteristic, error) {
 			Uuid:       rc.Uuid,
 			DefHandle:  uint16(rc.DefHandle),
 			ValHandle:  uint16(rc.ValHandle),
-			Properties: BleChrFlags(rc.Properties),
+			Properties: BleDiscChrProperties(rc.Properties),
 		}
 	}
 
@@ -651,9 +651,9 @@ func (c *Conn) Subscribe(chr *Characteristic) error {
 
 	var payload []byte
 	switch chr.SubscribeType() {
-	case BLE_GATT_F_NOTIFY:
+	case BLE_DISC_CHR_PROP_NOTIFY:
 		payload = []byte{1, 0}
-	case BLE_GATT_F_INDICATE:
+	case BLE_DISC_CHR_PROP_INDICATE:
 		payload = []byte{2, 0}
 	default:
 		return fmt.Errorf("Cannot subscribe to characteristic %s; "+

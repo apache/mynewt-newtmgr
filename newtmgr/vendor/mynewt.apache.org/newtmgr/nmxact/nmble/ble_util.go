@@ -89,6 +89,11 @@ func BleDescFromConnFindRsp(r *BleConnFindRsp) BleConnDesc {
 		PeerIdAddr:      r.PeerIdAddr,
 		PeerOtaAddrType: r.PeerOtaAddrType,
 		PeerOtaAddr:     r.PeerOtaAddr,
+		Role:            r.Role,
+		Encrypted:       r.Encrypted,
+		Authenticated:   r.Authenticated,
+		Bonded:          r.Bonded,
+		KeySize:         r.KeySize,
 	}
 }
 
@@ -841,5 +846,46 @@ func StopWaitingForMaster(bx *BleXport, prio MasterPrio, token interface{},
 
 	default:
 		return fmt.Errorf("Invalid session priority: %+v", prio)
+	}
+}
+
+func IsSecErr(err error) bool {
+	bhdErr := nmxutil.ToBleHost(err)
+	if bhdErr == nil {
+		return false
+	}
+
+	switch bhdErr.Status - ERR_CODE_ATT_BASE {
+	case ERR_CODE_ATT_INSUFFICIENT_AUTHEN,
+		ERR_CODE_ATT_INSUFFICIENT_AUTHOR,
+		ERR_CODE_ATT_INSUFFICIENT_KEY_SZ,
+		ERR_CODE_ATT_INSUFFICIENT_ENC:
+
+		return true
+
+	default:
+		return false
+	}
+}
+
+// Indicates the minimum security requirements for accessing the specified
+// resource type.
+//
+// @return bool                 Whether encryption is required.
+// @return bool                 Whether authentiation is required.
+// @return error                Error.
+func ResTypeSecReqs(resType sesn.ResourceType) (bool, bool, error) {
+	switch resType {
+	case sesn.RES_TYPE_PUBLIC:
+		return false, false, nil
+
+	case sesn.RES_TYPE_UNAUTH:
+		return true, false, nil
+
+	case sesn.RES_TYPE_SECURE:
+		return true, true, nil
+
+	default:
+		return false, false, fmt.Errorf("invalid resource type: %+v", resType)
 	}
 }

@@ -14,7 +14,7 @@ type Characteristic struct {
 	Uuid       BleUuid
 	DefHandle  uint16
 	ValHandle  uint16
-	Properties BleChrFlags
+	Properties BleDiscChrProperties
 	Dscs       []*Descriptor
 }
 
@@ -35,11 +35,11 @@ func (c *Characteristic) String() string {
 	return c.Uuid.String()
 }
 
-func (c *Characteristic) SubscribeType() BleChrFlags {
+func (c *Characteristic) SubscribeType() BleDiscChrProperties {
 	if c.Properties&BLE_GATT_F_NOTIFY != 0 {
 		return BLE_GATT_F_NOTIFY
 	} else {
-		return c.Properties & BLE_GATT_F_INDICATE
+		return c.Properties & BLE_DISC_CHR_PROP_INDICATE
 	}
 }
 
