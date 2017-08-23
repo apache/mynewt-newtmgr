@@ -110,7 +110,6 @@ type BleXport struct {
 	d               *Dispatcher
 	master          Master
 	mtx             sync.Mutex
-	randAddr        *BleAddr
 	readyBcast      nmxutil.Bcaster
 	scanner         *BleScanner
 	sesns           map[uint16]*BleSesn
@@ -445,18 +444,20 @@ func (bx *BleXport) startOnce() error {
 	}()
 
 	// Generate a new random address if none was specified.
-	if bx.randAddr == nil {
-		addr, err := GenRandAddrXact(bx)
+	var addr BleAddr
+	if bx.cfg.RandAddr != nil {
+		addr = *bx.cfg.RandAddr
+	} else {
+		var err error
+		addr, err = GenRandAddrXact(bx)
 		if err != nil {
 			bx.blockingShutdown(true, err)
 			return err
 		}
-
-		bx.randAddr = &addr
 	}
 
 	// Set the random address on the controller.
-	if err := SetRandAddrXact(bx, *bx.randAddr); err != nil {
+	if err := SetRandAddrXact(bx, addr); err != nil {
 		bx.blockingShutdown(true, err)
 		return err
 	}
