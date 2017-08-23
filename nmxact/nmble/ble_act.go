@@ -1190,3 +1190,25 @@ func setPreferredMtu(x *BleXport, bl *Listener,
 		}
 	}
 }
+
+func checkSync(x *BleXport, bl *Listener, r *BleSyncReq) (bool, error) {
+	j, err := json.Marshal(r)
+	if err != nil {
+		return false, err
+	}
+
+	if err := x.txNoSync(j); err != nil {
+		return false, err
+	}
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return false, err
+		case bm := <-bl.MsgChan:
+			switch msg := bm.(type) {
+			case *BleSyncRsp:
+				return msg.Synced, nil
+			}
+		}
+	}
+}

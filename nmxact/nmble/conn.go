@@ -84,11 +84,11 @@ func (c *Conn) abortNotifyListeners(err error) {
 	}
 }
 
-func (c *Conn) shutdown(err error) {
+func (c *Conn) shutdown(delay time.Duration, err error) {
 	// Returns true if a shutdown was successfully initiated.  Prevents
 	// repeated shutdowns without keeping the mutex locked throughout the
 	// duration of the shutdown.
-	commit := func() bool {
+	initiate := func() bool {
 		c.mtx.Lock()
 		defer c.mtx.Unlock()
 
@@ -101,16 +101,14 @@ func (c *Conn) shutdown(err error) {
 		return true
 	}
 
-	// This function runs in a Go routine to prevent deadlock.  The caller
-	// likely needs to return and release the wait group before this function
-	// can complete.
 	go func() {
-		if !commit() {
-			return
+		if delay > 0 {
+			time.Sleep(delay)
 		}
 
-		c.connecting = false
-		c.connHandle = BLE_CONN_HANDLE_NONE
+		if !initiate() {
+			return
+		}
 
 		StopWaitingForMaster(c.bx, c.prio, c, err)
 
@@ -119,17 +117,14 @@ func (c *Conn) shutdown(err error) {
 
 		c.wg.Wait()
 
+		c.connecting = false
+		c.connHandle = BLE_CONN_HANDLE_NONE
+
 		c.abortNotifyListeners(err)
 
 		c.disconnectChan <- err
 		close(c.disconnectChan)
 	}()
-}
-
-// Forces a shutdown after the specified delay.  If a shutdown happens in the
-// meantime, the delayed procedure is a no-op.
-func (c *Conn) shutdownIn(delay time.Duration, err error) {
-
 }
 
 func (c *Conn) newDisconnectError(reason int) error {
@@ -155,7 +150,7 @@ func (c *Conn) eventListen(bl *Listener) error {
 
 			case err, ok := <-bl.ErrChan:
 				if ok {
-					go c.shutdown(err)
+					c.shutdown(0, err)
 				}
 				return
 
@@ -194,7 +189,7 @@ func (c *Conn) eventListen(bl *Listener) error {
 					c.encBlocker.Unblock(err)
 
 				case *BleDisconnectEvt:
-					go c.shutdown(c.newDisconnectError(msg.Reason))
+					c.shutdown(0, c.newDisconnectError(msg.Reason))
 					return
 
 				default:
@@ -696,12 +691,12 @@ func (c *Conn) InitiateSecurity() error {
 	}
 	defer c.rxvr.RemoveListener("security-initiate", bl)
 
-	c.encBlocker.Block()
+	c.encBlocker.Start()
 	if err := securityInitiate(c.bx, bl, r); err != nil {
 		return err
 	}
 
-	encErr, tmoErr := c.encBlocker.Wait(time.Second * 15)
+	encErr, tmoErr := c.encBlocker.Wait(time.Second*15, c.stopChan)
 	if encErr != nil {
 		return encErr.(error)
 	}
@@ -758,19 +753,30 @@ func (c *Conn) Stop() error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
+	var shutdownDelay time.Duration
+	var shutdownErr error
+
 	if c.connHandle != BLE_CONN_HANDLE_NONE {
 		// Terminate the connection.  On success, the conn object will shut
 		// down upon receipt of the disconnect event.  On failure, just force a
 		// shutdown manually.
 		if err := c.terminate(); err != nil {
-			go c.shutdown(err)
+			shutdownDelay = 0
+			shutdownErr = err
+		} else {
+			// Force a shutdown in 10 seconds in case we never receive a
+			// disconnect event.
+			shutdownDelay = 10 * time.Second
+			shutdownErr = fmt.Errorf("forced shutdown; disconnect timeout")
 		}
 	} else {
 		if c.connecting {
 			c.connCancel()
 		}
-		go c.shutdown(fmt.Errorf("Stopped"))
+		shutdownDelay = 0
+		shutdownErr = fmt.Errorf("Stopped before connect complete")
 	}
 
+	c.shutdown(shutdownDelay, shutdownErr)
 	return nil
 }

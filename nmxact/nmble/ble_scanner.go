@@ -123,10 +123,8 @@ func (s *BleScanner) readHwId() (string, error) {
 }
 
 func (s *BleScanner) scan() (*scan.ScanPeer, error) {
-	// Ensure subsequent calls to suspend() block.
-	s.suspendBlocker.Block()
-
-	// If the scanner is being suspended, unblock the suspend() call.
+	// Ensure subsequent calls to suspend() block until scanning has stopped.
+	s.suspendBlocker.Start()
 	defer s.suspendBlocker.Unblock(nil)
 
 	// Discover the first device which matches the specified predicate.
@@ -224,7 +222,7 @@ func (s *BleScanner) suspend() error {
 	}
 
 	// Block until scan is fully terminated.
-	s.suspendBlocker.Wait(nmxutil.DURATION_FOREVER)
+	s.suspendBlocker.Wait(nmxutil.DURATION_FOREVER, nil)
 
 	s.discoverer = nil
 	s.bos = nil
