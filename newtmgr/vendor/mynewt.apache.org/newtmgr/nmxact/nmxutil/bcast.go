@@ -40,18 +40,33 @@ func (b *Bcaster) Listen() chan interface{} {
 
 func (b *Bcaster) Send(val interface{}) {
 	b.mtx.Lock()
-	chs := b.chs
-	b.mtx.Unlock()
+	defer b.mtx.Unlock()
 
-	for _, ch := range chs {
+	for _, ch := range b.chs {
 		ch <- val
-		close(ch)
+	}
+}
+
+func (b *Bcaster) StopListening(ch chan interface{}) {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+
+	for i, c := range b.chs {
+		if c == ch {
+			b.chs[i] = b.chs[len(b.chs)-1]
+			b.chs = b.chs[:len(b.chs)-1]
+			break
+		}
 	}
 }
 
 func (b *Bcaster) Clear() {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
+
+	for _, ch := range b.chs {
+		close(ch)
+	}
 
 	b.chs = nil
 }
