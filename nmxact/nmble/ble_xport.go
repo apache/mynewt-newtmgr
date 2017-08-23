@@ -229,9 +229,8 @@ func (bx *BleXport) shutdown(restart bool, err error) {
 		log.Debugf("Stopping BLE dispatcher")
 		bx.d.ErrorAll(err)
 
-		synced, err := bx.syncer.Refresh()
-		if err == nil && synced {
-			// Reset controller so that all outstanding connections terminate.
+		// Reset controller so that all outstanding connections terminate.
+		if bx.syncer.Synced() {
 			ResetXact(bx)
 		}
 
@@ -252,7 +251,7 @@ func (bx *BleXport) shutdown(restart bool, err error) {
 		// Indicate that the shutdown is complete.  If restarts are enabled on
 		// this transport, this signals that the transport should be started
 		// again.
-		bx.shutdownBlocker.UnblockAndRestart(restart)
+		bx.shutdownBlocker.Unblock(restart)
 	}()
 }
 
@@ -332,6 +331,7 @@ func (bx *BleXport) startOnce() error {
 		return nmxutil.NewXportError("BLE xport started twice")
 	}
 
+	bx.shutdownBlocker.Start()
 	bx.stopChan = make(chan struct{})
 
 	if err := bx.startUnixChild(); err != nil {
@@ -363,22 +363,7 @@ func (bx *BleXport) startOnce() error {
 		}
 	}()
 
-	if err := bx.syncer.Start(bx); err != nil {
-		bx.blockingShutdown(true, err)
-		return err
-	}
-
-	// Block until host and controller are synced.
-	if err := bx.syncer.BlockUntilSynced(
-		bx.cfg.SyncTimeout, bx.stopChan); err != nil {
-
-		err = nmxutil.NewXportError(
-			"Error waiting for host <-> controller sync: " + err.Error())
-		bx.blockingShutdown(true, err)
-		return err
-	}
-
-	// Host and controller are synced.  Listen for events in the background:
+	// Listen for events in the background:
 	//     * sync loss
 	//     * stack reset
 	//     * GATT access
@@ -393,9 +378,12 @@ func (bx *BleXport) startOnce() error {
 		}
 		defer bx.RemoveListener(accessl)
 
+		resetCh := bx.syncer.ListenReset()
+		syncCh := bx.syncer.ListenSync()
+
 		for {
 			select {
-			case reasonItf, ok := <-bx.syncer.ListenReset():
+			case reasonItf, ok := <-resetCh:
 				if ok {
 					// Only process the reset event if the transport is not
 					// already shutting down.  If in mid-shutdown, the reset
@@ -412,7 +400,7 @@ func (bx *BleXport) startOnce() error {
 					}
 				}
 
-			case syncedItf, ok := <-bx.syncer.ListenSync():
+			case syncedItf, ok := <-syncCh:
 				if ok {
 					synced := syncedItf.(bool)
 					if !synced {
@@ -442,6 +430,21 @@ func (bx *BleXport) startOnce() error {
 			}
 		}
 	}()
+
+	if err := bx.syncer.Start(bx); err != nil {
+		bx.blockingShutdown(true, err)
+		return err
+	}
+
+	// Block until host and controller are synced.
+	if err := bx.syncer.BlockUntilSynced(
+		bx.cfg.SyncTimeout, bx.stopChan); err != nil {
+
+		err = nmxutil.NewXportError(
+			"Error waiting for host <-> controller sync: " + err.Error())
+		bx.blockingShutdown(true, err)
+		return err
+	}
 
 	// Generate a new random address if none was specified.
 	var addr BleAddr
@@ -480,8 +483,6 @@ func (bx *BleXport) Start() error {
 	if !bx.setStateFrom(BLE_XPORT_STATE_DORMANT, BLE_XPORT_STATE_STOPPED) {
 		return nmxutil.NewXportError("BLE xport started twice")
 	}
-
-	bx.shutdownBlocker.Start()
 
 	// Try to start the transport.  If this first attempt fails, report the
 	// error and don't retry.

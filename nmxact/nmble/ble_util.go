@@ -21,7 +21,6 @@ package nmble
 
 import (
 	"fmt"
-	"runtime"
 	"sync"
 	"time"
 
@@ -58,11 +57,6 @@ func BhdTimeoutError(rspType MsgType, seq BleSeq) error {
 		MsgTypeToString(rspType), seq)
 
 	log.Debug(str)
-
-	// XXX: Print stack trace; temporary change to debug timeout.
-	buf := make([]byte, 1024*1024)
-	stacklen := runtime.Stack(buf, true)
-	log.Debug(buf[:stacklen])
 
 	return nmxutil.NewXportError(str)
 }

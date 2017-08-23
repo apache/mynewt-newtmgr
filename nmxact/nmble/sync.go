@@ -39,6 +39,10 @@ func (s *Syncer) Refresh() (bool, error) {
 	return synced, nil
 }
 
+func (s *Syncer) Synced() bool {
+	return s.synced
+}
+
 func (s *Syncer) checkSyncLoop() {
 	doneCh := make(chan struct{})
 
@@ -157,15 +161,10 @@ func (s *Syncer) listen() error {
 	return <-errChan
 }
 
-func (s *Syncer) shutdown() {
-	s.syncBcaster.Clear()
-	s.resetBcaster.Clear()
-	s.syncBlocker.Unblock(nil)
-
-	s.stopCh = nil
-}
-
 func (s *Syncer) Start(x *BleXport) error {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
 	s.x = x
 	s.stopCh = make(chan struct{})
 	s.syncBlocker.Start()
@@ -174,14 +173,27 @@ func (s *Syncer) Start(x *BleXport) error {
 }
 
 func (s *Syncer) Stop() error {
-	if s.stopCh == nil {
-		return fmt.Errorf("Syncer already stopped")
+	initiate := func() error {
+		s.mtx.Lock()
+		defer s.mtx.Unlock()
+
+		if s.stopCh == nil {
+			return fmt.Errorf("Syncer already stopped")
+		}
+		close(s.stopCh)
+		return nil
 	}
 
-	close(s.stopCh)
+	if err := initiate(); err != nil {
+		return err
+	}
 	s.wg.Wait()
 
-	s.shutdown()
+	s.syncBcaster.Clear()
+	s.resetBcaster.Clear()
+	s.syncBlocker.Unblock(nil)
+
+	s.stopCh = nil
 
 	return nil
 }

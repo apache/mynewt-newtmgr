@@ -54,8 +54,10 @@ func configExitHandler(x xport.Xport, s sesn.Sesn) {
 			s := <-sigChan
 			switch s {
 			case os.Interrupt, syscall.SIGTERM:
-				onExit()
-				os.Exit(0)
+				go func() {
+					onExit()
+					os.Exit(0)
+				}()
 
 			case syscall.SIGQUIT:
 				util.PrintStacks()
@@ -81,8 +83,8 @@ func sendEcho(s sesn.Sesn) {
 
 func main() {
 	nmxutil.Debug = true
-	//nmxutil.SetLogLevel(log.DebugLevel)
-	nmxutil.SetLogLevel(log.InfoLevel)
+	nmxutil.SetLogLevel(log.DebugLevel)
+	//nmxutil.SetLogLevel(log.InfoLevel)
 
 	// Initialize the BLE transport.
 	params := nmble.NewXportCfg()
