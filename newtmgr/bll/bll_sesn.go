@@ -40,10 +40,13 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
+// A session that uses the host machine's native BLE support.
 type BllSesn struct {
 	cfg BllSesnCfg
 
-	cln    ble.Client
+	// The native BLE client.  All accesses must be protected by the mutex.
+	cln ble.Client
+
 	txvr   *mgmt.Transceiver
 	mtx    sync.Mutex
 	attMtu uint16
@@ -71,19 +74,79 @@ func (s *BllSesn) listenDisconnect() {
 		s.mtx.Lock()
 		s.txvr.ErrorAll(fmt.Errorf("disconnected"))
 		s.txvr.Stop()
-		s.mtx.Unlock()
-
 		s.cln = nil
+		s.mtx.Unlock()
 	}()
+}
+
+func (s *BllSesn) txConnect(f ble.AdvFilter) (ble.Client, error) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	ctx := ble.WithSigHandler(context.WithTimeout(context.Background(),
+		s.cfg.ConnTimeout))
+
+	client, err := ble.Connect(ctx, s.cfg.AdvFilter)
+	if err != nil {
+		if nmutil.ErrorCausedBy(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("Failed to connect to peer after %s",
+				s.cfg.ConnTimeout.String())
+		} else {
+			return nil, err
+		}
+	}
+
+	return client, nil
+}
+
+func (s *BllSesn) txDiscoverProfile() (*ble.Profile, error) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	return s.cln.DiscoverProfile(true)
+}
+
+func (s *BllSesn) txSubscribe(
+	c *ble.Characteristic,
+	ind bool,
+	fn ble.NotificationHandler) error {
+
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	return s.cln.Subscribe(c, ind, fn)
+}
+
+func (s *BllSesn) txExchangeMtu(mtu uint16) (uint16, error) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	return exchangeMtu(s.cln, uint16(mtu))
+}
+
+func (s *BllSesn) txCancelConnection() error {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	return s.cln.CancelConnection()
+}
+
+func (s *BllSesn) txWriteCharacteristic(
+	c *ble.Characteristic,
+	b []byte,
+	noRsp bool) error {
+
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	return s.cln.WriteCharacteristic(c, b, noRsp)
 }
 
 func (s *BllSesn) connect() error {
 	log.Debugf("Connecting to peer")
-	ctx := ble.WithSigHandler(context.WithTimeout(context.Background(),
-		s.cfg.ConnTimeout))
 
 	var err error
-	s.cln, err = ble.Connect(ctx, s.cfg.AdvFilter)
+	s.cln, err = s.txConnect(s.cfg.AdvFilter)
 	if err != nil {
 		if nmutil.ErrorCausedBy(err, context.DeadlineExceeded) {
 			return fmt.Errorf("Failed to connect to peer after %s",
@@ -131,7 +194,8 @@ func findChr(profile *ble.Profile, chrId *bledefs.BleChrId) (
 
 func (s *BllSesn) discoverAll() error {
 	log.Debugf("Discovering profile")
-	p, err := s.cln.DiscoverProfile(true)
+
+	p, err := s.txDiscoverProfile()
 	if err != nil {
 		return err
 	}
@@ -156,38 +220,31 @@ func (s *BllSesn) discoverAll() error {
 // Subscribes to the peer's characteristic implementing NMP.
 func (s *BllSesn) subscribe() error {
 	log.Debugf("Subscribing to NMP response characteristic")
+
 	onNotify := func(data []byte) {
 		s.txvr.DispatchNmpRsp(data)
 	}
 
 	if s.nmpRspChr != nil {
-		if err := s.cln.Subscribe(s.nmpRspChr, false,
-			onNotify); err != nil {
-
+		if err := s.txSubscribe(s.nmpRspChr, false, onNotify); err != nil {
 			return err
 		}
 	}
 
 	if s.publicRspChr != nil {
-		if err := s.cln.Subscribe(s.publicRspChr, false,
-			onNotify); err != nil {
-
+		if err := s.txSubscribe(s.publicRspChr, false, onNotify); err != nil {
 			return err
 		}
 	}
 
 	if s.unauthRspChr != nil {
-		if err := s.cln.Subscribe(s.unauthRspChr, false,
-			onNotify); err != nil {
-
+		if err := s.txSubscribe(s.unauthRspChr, false, onNotify); err != nil {
 			return err
 		}
 	}
 
 	if s.secureRspChr != nil {
-		if err := s.cln.Subscribe(s.secureRspChr, false,
-			onNotify); err != nil {
-
+		if err := s.txSubscribe(s.secureRspChr, false, onNotify); err != nil {
 			return err
 		}
 	}
@@ -196,7 +253,7 @@ func (s *BllSesn) subscribe() error {
 }
 
 func (s *BllSesn) exchangeMtu() error {
-	mtu, err := exchangeMtu(s.cln, s.cfg.PreferredMtu)
+	mtu, err := s.txExchangeMtu(s.cfg.PreferredMtu)
 	if err != nil {
 		return err
 	}
@@ -266,7 +323,7 @@ func (s *BllSesn) Close() error {
 			"Attempt to close an unopened bll session")
 	}
 
-	if err := s.cln.CancelConnection(); err != nil {
+	if err := s.txCancelConnection(); err != nil {
 		return err
 	}
 
@@ -316,7 +373,7 @@ func (s *BllSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 	}
 
 	txRaw := func(b []byte) error {
-		return s.cln.WriteCharacteristic(s.nmpReqChr, b, true)
+		return s.txWriteCharacteristic(s.nmpReqChr, b, true)
 	}
 
 	return s.txvr.TxNmp(txRaw, msg, s.MtuOut(), opt.Timeout)
@@ -349,7 +406,7 @@ func (s *BllSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
 	}
 
 	txRaw := func(b []byte) error {
-		return s.cln.WriteCharacteristic(chr, b, true)
+		return s.txWriteCharacteristic(chr, b, true)
 	}
 
 	rsp, err := s.txvr.TxOic(txRaw, m, s.MtuOut(), opt.Timeout)
