@@ -31,6 +31,9 @@ reason these are not vendored is to prevent errors during elicited by `go get
 mynewt.apache.org/newtmgr/...` on linux.  These two dependencies contain
 OS-specific code, something `go get` seems to trip over when it is vendored.
 
+In addition, the `nmxact` library is excluded from newtmgr's vendor directory.
+This package is in the newtmgr repo, and is always in sync with newtmgr.
+
 To build newtmgr from source, you will need to manually acquire the missing
 dependencies.  OS-specific instructions are below:
 
