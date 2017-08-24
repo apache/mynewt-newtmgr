@@ -83,6 +83,7 @@ func (bl *Listener) Close() {
 	// time.
 	if t := bl.timer; t != nil {
 		nmxutil.StopAndDrainTimer(t)
+		bl.timer = nil
 	}
 
 	// Mark the command as acked in case the race condition mentioned above
