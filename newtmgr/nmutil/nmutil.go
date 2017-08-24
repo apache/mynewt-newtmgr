@@ -31,6 +31,7 @@ var Timeout float64
 var Tries int
 var ConnProfile string
 var DeviceName string
+var BleWriteRsp bool
 
 func TxOptions() sesn.TxOptions {
 	return sesn.TxOptions{

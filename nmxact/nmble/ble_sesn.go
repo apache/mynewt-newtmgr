@@ -365,7 +365,11 @@ func (s *BleSesn) TxNmpOnce(req *nmp.NmpMsg, opt sesn.TxOptions) (
 	}
 
 	txRaw := func(b []byte) error {
-		return s.conn.WriteChrNoRsp(chr, b, "nmp")
+		if s.cfg.Ble.WriteRsp {
+			return s.conn.WriteChr(chr, b, "nmp")
+		} else {
+			return s.conn.WriteChrNoRsp(chr, b, "nmp")
+		}
 	}
 
 	return s.txvr.TxNmp(txRaw, req, s.MtuOut(), opt.Timeout)
@@ -394,7 +398,11 @@ func (s *BleSesn) TxCoapOnce(m coap.Message,
 	}
 
 	txRaw := func(b []byte) error {
-		return s.conn.WriteChrNoRsp(chr, b, "coap")
+		if s.cfg.Ble.WriteRsp {
+			return s.conn.WriteChr(chr, b, "coap")
+		} else {
+			return s.conn.WriteChrNoRsp(chr, b, "coap")
+		}
 	}
 
 	rsp, err := s.txvr.TxOic(txRaw, m, s.MtuOut(), opt.Timeout)

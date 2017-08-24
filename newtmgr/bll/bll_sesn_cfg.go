@@ -35,6 +35,7 @@ type BllSesnCfg struct {
 	PreferredMtu uint16
 	ConnTimeout  time.Duration
 	ConnTries    int
+	WriteRsp     bool
 }
 
 func NewBllSesnCfg() BllSesnCfg {
@@ -42,5 +43,6 @@ func NewBllSesnCfg() BllSesnCfg {
 		PreferredMtu: 512,
 		ConnTimeout:  10 * time.Second,
 		ConnTries:    3,
+		WriteRsp:     false,
 	}
 }

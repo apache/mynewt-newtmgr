@@ -68,6 +68,9 @@ func Commands() *cobra.Command {
 	nmCmd.PersistentFlags().StringVar(&nmutil.DeviceName, "name",
 		"", "name of target BLE device; overrides profile setting")
 
+	nmCmd.PersistentFlags().BoolVar(&nmutil.BleWriteRsp, "write-rsp", false,
+		"Send BLE acked write requests instead of unacked write commands")
+
 	nmCmd.AddCommand(crashCmd())
 	nmCmd.AddCommand(dateTimeCmd())
 	nmCmd.AddCommand(fsCmd())

@@ -406,7 +406,7 @@ func (s *BllSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
 	}
 
 	txRaw := func(b []byte) error {
-		return s.txWriteCharacteristic(chr, b, true)
+		return s.txWriteCharacteristic(chr, b, !s.cfg.WriteRsp)
 	}
 
 	rsp, err := s.txvr.TxOic(txRaw, m, s.MtuOut(), opt.Timeout)

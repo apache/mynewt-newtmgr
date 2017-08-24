@@ -79,6 +79,7 @@ type SesnCfgBle struct {
 	OwnAddrType  bledefs.BleAddrType
 	EncryptWhen  bledefs.BleEncryptWhen
 	CloseTimeout time.Duration
+	WriteRsp     bool
 
 	// Central configuration.
 	Central SesnCfgBleCentral
@@ -102,6 +103,7 @@ func NewSesnCfg() SesnCfg {
 		Ble: SesnCfgBle{
 			OwnAddrType:  bledefs.BLE_ADDR_TYPE_RANDOM,
 			CloseTimeout: 30 * time.Second,
+			WriteRsp:     false,
 
 			Central: SesnCfgBleCentral{
 				ConnTries:   3,

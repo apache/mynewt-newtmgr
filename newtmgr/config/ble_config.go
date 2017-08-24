@@ -141,6 +141,8 @@ func FillSesnCfg(bx *nmble.BleXport, bc *BleConfig, sc *sesn.SesnCfg) error {
 	// We don't need to stick around until a connection closes.
 	sc.Ble.CloseTimeout = 10000 * time.Millisecond
 
+	sc.Ble.WriteRsp = nmutil.BleWriteRsp
+
 	return nil
 }
 

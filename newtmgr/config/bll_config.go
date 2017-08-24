@@ -99,5 +99,7 @@ func BuildBllSesnCfg(bc *BllConfig) (bll.BllSesnCfg, error) {
 		return sc, util.NewNewtError("bll session lacks a peer specifier")
 	}
 
+	sc.WriteRsp = nmutil.BleWriteRsp
+
 	return sc, nil
 }
