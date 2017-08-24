@@ -81,8 +81,8 @@ func (bl *Listener) AfterTimeout(tmo time.Duration) <-chan time.Time {
 func (bl *Listener) Close() {
 	// This provokes a race condition.  The timer may get initialized at any
 	// time.
-	if bl.timer != nil {
-		bl.timer.Stop()
+	if t := bl.timer; t != nil {
+		nmxutil.StopAndDrainTimer(t)
 	}
 
 	// Mark the command as acked in case the race condition mentioned above
