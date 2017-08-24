@@ -75,8 +75,9 @@ func (c *Conn) DisconnectChan() <-chan error {
 }
 
 func (c *Conn) abortNotifyListeners(err error) {
-	// No need to lock mutex; this should only be called after all go routines
-	// have terminated.
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
 	for _, nl := range c.notifyMap {
 		nl.ErrChan <- err
 		close(nl.NotifyChan)
@@ -378,6 +379,7 @@ func (c *Conn) Connect(bx *BleXport, ownAddrType BleAddrType, peer BleDev,
 	return nil
 }
 
+// Opens the session for an already-established BLE connection.
 func (c *Conn) Inherit(connHandle uint16, bl *Listener) error {
 	if err := c.startConnecting(); err != nil {
 		return err
@@ -546,13 +548,14 @@ func (c *Conn) Profile() *Profile {
 	return &c.profile
 }
 
+// Indicates whether an error reported during MTU exchange is a "real" error or
+// not.  If the error was reported because MTU exchange already took place,
+// that isn't considered a real error.
 func isExchangeMtuError(err error) bool {
 	if err == nil {
 		return false
 	}
 
-	// If the operation failed because the peer already initiated the
-	// exchange, just pretend it was successful.
 	bhe := nmxutil.ToBleHost(err)
 	if bhe == nil {
 		return true
