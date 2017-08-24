@@ -716,8 +716,10 @@ func GenCoapService(cfg CoapServiceCfg) (BleSvc, error) {
 		SvcType: BLE_SVC_TYPE_PRIMARY,
 		Chrs: []BleChr{
 			BleChr{
-				Uuid:       cfg.ReqChrUuid,
-				Flags:      BLE_GATT_F_WRITE_NO_RSP | secFlags,
+				Uuid: cfg.ReqChrUuid,
+				Flags: BLE_GATT_F_WRITE |
+					BLE_GATT_F_WRITE_NO_RSP |
+					secFlags,
 				MinKeySize: 0,
 				AccessCb: func(access BleGattAccess) (uint8, []byte) {
 					return svr.Rx(access), nil
