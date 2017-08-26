@@ -44,6 +44,7 @@ type BleScanner struct {
 	reportedDevs   map[BleDev]string
 	bos            *BleSesn
 	enabled        bool
+	scanBlocker    nmxutil.Blocker
 	suspendBlocker nmxutil.Blocker
 
 	// Protects accesses to the reported devices map.
@@ -124,8 +125,8 @@ func (s *BleScanner) readHwId() (string, error) {
 
 func (s *BleScanner) scan() (*scan.ScanPeer, error) {
 	// Ensure subsequent calls to suspend() block until scanning has stopped.
-	s.suspendBlocker.Start()
-	defer s.suspendBlocker.Unblock(nil)
+	s.scanBlocker.Start()
+	defer s.scanBlocker.Unblock(nil)
 
 	// Discover the first device which matches the specified predicate.
 	dev, err := s.discover()
@@ -191,7 +192,14 @@ func (s *BleScanner) Start(cfg scan.Cfg) error {
 
 	// Start background scanning.
 	go func() {
-		for s.enabled {
+		for {
+			// Wait for suspend-in-progress to complete, if any.
+			s.suspendBlocker.Wait(nmxutil.DURATION_FOREVER, nil)
+
+			if !s.enabled {
+				break
+			}
+
 			p, err := s.scan()
 			if err != nil {
 				log.Debugf("Scan error: %s", err.Error())
@@ -210,6 +218,9 @@ func (s *BleScanner) Start(cfg scan.Cfg) error {
 }
 
 func (s *BleScanner) suspend() error {
+	s.suspendBlocker.Start()
+	defer s.suspendBlocker.Unblock(nil)
+
 	discoverer := s.discoverer
 	bos := s.bos
 
@@ -222,7 +233,7 @@ func (s *BleScanner) suspend() error {
 	}
 
 	// Block until scan is fully terminated.
-	s.suspendBlocker.Wait(nmxutil.DURATION_FOREVER, nil)
+	s.scanBlocker.Wait(nmxutil.DURATION_FOREVER, nil)
 
 	s.discoverer = nil
 	s.bos = nil
@@ -235,22 +246,26 @@ func (s *BleScanner) suspend() error {
 // master privileges.  When the high priority procedures are complete, scanning
 // will resume.
 func (s *BleScanner) Preempt() error {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
 	return s.suspend()
 }
 
 // Stops the scanner.  Scanning won't resume unless Start() gets called.
 func (s *BleScanner) Stop() error {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
+	initiate := func() error {
+		s.mtx.Lock()
+		defer s.mtx.Unlock()
 
-	if !s.enabled {
-		return nmxutil.NewAlreadyError("Attempt to stop BLE scanner twice")
+		if !s.enabled {
+			return nmxutil.NewAlreadyError("Attempt to stop BLE scanner twice")
+		}
+		s.enabled = false
+
+		return nil
 	}
-	s.enabled = false
 
+	if err := initiate(); err != nil {
+		return err
+	}
 	return s.suspend()
 }
 
