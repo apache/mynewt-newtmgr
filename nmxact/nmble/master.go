@@ -40,6 +40,9 @@ func NewMaster(x *BleXport, s *BleScanner) Master {
 
 // Unblocks a waiting scanner.
 func (m *Master) unblockScanner(err error) bool {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
 	if m.scanWait == nil {
 		return false
 	}
@@ -54,29 +57,27 @@ func (m *Master) AcquireConnect(token interface{}) error {
 	// Stop the scanner in case it is active; connections take priority.
 	m.scanner.Preempt()
 
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-
+	// XXX: No guarantee that the scanner won't try again before the connector.
+	// Single resource should return a channel that the caller can block on
+	// after unlocking a mutex.
 	return m.res.Acquire(token)
 }
 
 func (m *Master) AcquireScan(token interface{}) error {
-	m.mtx.Lock()
-
 	// If the resource is unused, just acquire it.
 	if !m.res.Acquired() {
 		err := m.res.Acquire(token)
-		m.mtx.Unlock()
 		return err
 	}
 
 	// Otherwise, wait until no one wants to connect.
+	m.mtx.Lock()
 	if m.scanWait != nil {
 		m.mtx.Unlock()
 		return fmt.Errorf("Scanner already waiting for master privileges")
 	}
-	m.scanWait = make(chan error)
-
+	scanWait := make(chan error)
+	m.scanWait = scanWait
 	m.mtx.Unlock()
 
 	// Now we have to wait until someone releases the resource.  When this
@@ -86,7 +87,7 @@ func (m *Master) AcquireScan(token interface{}) error {
 	defer func() { m.scanAcq <- struct{}{} }()
 
 	// Wait for the resource to be released.
-	if err := <-m.scanWait; err != nil {
+	if err := <-scanWait; err != nil {
 		return err
 	}
 
@@ -94,9 +95,6 @@ func (m *Master) AcquireScan(token interface{}) error {
 }
 
 func (m *Master) Release() {
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-
 	if m.res.Release() {
 		// Next waiting connector acquired the resource.
 		return
@@ -119,17 +117,11 @@ func (m *Master) StopWaitingConnect(token interface{}, err error) {
 
 // Removes the specified scanner from the wait queue.
 func (m *Master) StopWaitingScan(token interface{}, err error) {
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-
 	m.unblockScanner(err)
 }
 
 // Releases the resource and clears the wait queue.
 func (m *Master) Abort(err error) {
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-
 	m.unblockScanner(err)
 	m.res.Abort(err)
 }
