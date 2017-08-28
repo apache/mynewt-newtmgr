@@ -422,3 +422,7 @@ func (s *BllSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
 func (s *BllSesn) MgmtProto() sesn.MgmtProto {
 	return s.cfg.MgmtProto
 }
+
+func (s *BllSesn) CoapIsTcp() bool {
+	return true
+}

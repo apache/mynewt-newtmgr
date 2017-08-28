@@ -79,6 +79,9 @@ type Sesn interface {
 
 	MgmtProto() MgmtProto
 
+	// Indicates whether the session uses the TCP form of CoAP.
+	CoapIsTcp() bool
+
 	// Stops a receive operation in progress.  This must be called from a
 	// separate thread, as sesn receive operations are blocking.
 	AbortRx(nmpSeq uint8) error

@@ -141,3 +141,7 @@ func (s *UdpSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
 func (s *UdpSesn) MgmtProto() sesn.MgmtProto {
 	return s.cfg.MgmtProto
 }
+
+func (s *UdpSesn) CoapIsTcp() bool {
+	return false
+}

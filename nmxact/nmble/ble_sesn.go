@@ -312,6 +312,10 @@ func (s *BleSesn) MtuOut() int {
 	return util.IntMin(s.MtuIn(), BLE_ATT_ATTR_MAX_LEN)
 }
 
+func (s *BleSesn) CoapIsTcp() bool {
+	return true
+}
+
 func (s *BleSesn) MgmtProto() sesn.MgmtProto {
 	return s.cfg.MgmtProto
 }

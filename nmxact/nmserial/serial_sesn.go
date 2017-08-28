@@ -166,3 +166,7 @@ func (s *SerialSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
 func (s *SerialSesn) MgmtProto() sesn.MgmtProto {
 	return s.cfg.MgmtProto
 }
+
+func (s *SerialSesn) CoapIsTcp() bool {
+	return false
+}
