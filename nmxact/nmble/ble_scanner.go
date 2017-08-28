@@ -25,6 +25,7 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/runtimeco/go-coap"
 
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
@@ -107,20 +108,39 @@ func (s *BleScanner) connect(dev BleDev) error {
 }
 
 func (s *BleScanner) readHwId() (string, error) {
-	c := xact.NewConfigReadCmd()
-	c.Name = "id/hwid"
+	c := xact.NewGetResCmd()
+	c.Path = "dev"
+	c.Typ = sesn.RES_TYPE_PUBLIC
 
 	res, err := c.Run(s.bos)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to read hardware ID; %s", err.Error())
 	}
-	if res.Status() != 0 {
+	cres := res.(*xact.GetResResult)
+	if cres.Code != coap.Content {
 		return "",
-			fmt.Errorf("failed to read hardware ID; NMP status=%d",
-				res.Status())
+			fmt.Errorf("failed to read hardware ID; CoAP status=%s",
+				cres.Code.String())
 	}
-	cres := res.(*xact.ConfigReadResult)
-	return cres.Rsp.Val, nil
+
+	m, err := nmxutil.DecodeCborMap(cres.Value)
+	if err != nil {
+		return "", fmt.Errorf("failed to read hardware ID; %s", err.Error())
+	}
+
+	itf := m["hwid"]
+	if itf == nil {
+		return "", fmt.Errorf("failed to read hardware ID; \"hwid\" " +
+			"item missing from dev resource")
+	}
+
+	str, ok := itf.(string)
+	if !ok {
+		return "", fmt.Errorf("failed to read hardware ID; invalid \"hwid\" "+
+			"item: %#v", itf)
+	}
+
+	return str, nil
 }
 
 func (s *BleScanner) scan() (*scan.ScanPeer, error) {
