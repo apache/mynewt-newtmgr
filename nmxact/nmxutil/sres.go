@@ -38,13 +38,20 @@ func NewSingleResource() SingleResource {
 	return SingleResource{}
 }
 
-func (s *SingleResource) Acquire(token interface{}) error {
+// Appends an entry to the wait queue and returns a channel for the caller to
+// block on.  The caller must either read from the channel or call
+// StopWaiting().
+func (s *SingleResource) Acquire(token interface{}) <-chan error {
 	s.mtx.Lock()
 
 	if !s.acquired {
 		s.acquired = true
 		s.mtx.Unlock()
-		return nil
+
+		// Indicate immediate acquisition.
+		ch := make(chan error)
+		close(ch)
+		return ch
 	}
 
 	// XXX: Verify no duplicates.
@@ -57,12 +64,7 @@ func (s *SingleResource) Acquire(token interface{}) error {
 
 	s.mtx.Unlock()
 
-	err := <-w.c
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return w.c
 }
 
 // @return                      true if a pending waiter acquired the resource;

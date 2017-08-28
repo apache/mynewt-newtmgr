@@ -590,7 +590,7 @@ func (bx *BleXport) StopWaitingForMasterScan(token interface{}, err error) {
 }
 
 func (bx *BleXport) AcquireSlave(token interface{}) error {
-	return bx.slave.Acquire(token)
+	return <-bx.slave.Acquire(token)
 }
 
 func (bx *BleXport) ReleaseSlave() {

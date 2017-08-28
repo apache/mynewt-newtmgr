@@ -54,44 +54,74 @@ func (m *Master) unblockScanner(err error) bool {
 }
 
 func (m *Master) AcquireConnect(token interface{}) error {
-	// Stop the scanner in case it is active; connections take priority.
-	m.scanner.Preempt()
+	m.mtx.Lock()
 
-	// XXX: No guarantee that the scanner won't try again before the connector.
-	// Single resource should return a channel that the caller can block on
-	// after unlocking a mutex.
-	return m.res.Acquire(token)
+	// Append the connector to the wait queue.
+	ch := m.res.Acquire(token)
+
+	m.mtx.Unlock()
+
+	// Stop the scanner in case it is active; connections take priority.  We do
+	// this in a Goroutine so that this call doesn't block indefinitely.  We
+	// need to be reading from the acquisition channel when the scanner frees
+	// the resource.
+	go func() {
+		m.scanner.Preempt()
+	}()
+
+	// Unblocks when either:
+	// 1. Master resource becomes available.
+	// 2. Waiter aborts via call to StopWaitingConnect().
+	return <-ch
 }
 
 func (m *Master) AcquireScan(token interface{}) error {
-	// If the resource is unused, just acquire it.
-	if !m.res.Acquired() {
-		err := m.res.Acquire(token)
+	// Gets an acquisition channel in a thread-safe manner.
+	// @return chan             Acquisition channel if scanner must wait for
+	//                              resource;
+	//                          Nil if scanner was able to acquire resource.
+	//         error            Error.
+	getChan := func() (<-chan error, error) {
+		m.mtx.Lock()
+		defer m.mtx.Unlock()
+
+		// If the resource is unused, just acquire it.
+		if !m.res.Acquired() {
+			<-m.res.Acquire(token)
+			return nil, nil
+		} else {
+			// Otherwise, wait until there are no waiting connectors.
+			if m.scanWait != nil {
+				return nil,
+					fmt.Errorf("Scanner already waiting for master resource")
+			}
+			m.scanWait = make(chan error)
+			return m.scanWait, nil
+		}
+	}
+
+	ch, err := getChan()
+	if err != nil {
 		return err
 	}
-
-	// Otherwise, wait until no one wants to connect.
-	m.mtx.Lock()
-	if m.scanWait != nil {
-		m.mtx.Unlock()
-		return fmt.Errorf("Scanner already waiting for master privileges")
+	if ch == nil {
+		// Resource acquired.
+		return nil
 	}
-	scanWait := make(chan error)
-	m.scanWait = scanWait
-	m.mtx.Unlock()
 
-	// Now we have to wait until someone releases the resource.  When this
-	// happens, let the releaser know when the scanner has finished acquiring
-	// the resource.  At that time, the call to Release() can unlock and
-	// return.
+	// Otherwise, we have to wait until someone releases the resource.  When
+	// this happens, let the releaser know when the scanner has finished
+	// acquiring the resource.  At that time, the call to Release() can unlock
+	// and return.
 	defer func() { m.scanAcq <- struct{}{} }()
 
 	// Wait for the resource to be released.
-	if err := <-scanWait; err != nil {
+	if err := <-ch; err != nil {
 		return err
 	}
 
-	return m.res.Acquire(token)
+	// Grab the resource; shouldn't block. */
+	return <-m.res.Acquire(token)
 }
 
 func (m *Master) Release() {
