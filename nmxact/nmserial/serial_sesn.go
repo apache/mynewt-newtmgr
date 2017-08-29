@@ -68,6 +68,12 @@ func (s *SerialSesn) Open() error {
 			"Attempt to open an already-open serial session")
 	}
 
+	txvr, err := mgmt.NewTransceiver(false, s.cfg.MgmtProto, 3)
+	if err != nil {
+		return err
+	}
+	s.txvr = txvr
+
 	s.isOpen = true
 	return nil
 }
