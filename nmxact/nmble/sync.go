@@ -40,6 +40,9 @@ func (s *Syncer) Refresh() (bool, error) {
 }
 
 func (s *Syncer) Synced() bool {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
 	return s.synced
 }
 
@@ -201,8 +204,15 @@ func (s *Syncer) Stop() error {
 func (s *Syncer) BlockUntilSynced(timeout time.Duration,
 	stopChan <-chan struct{}) error {
 
-	_, err := s.syncBlocker.Wait(timeout, stopChan)
-	return err
+	if _, err := s.syncBlocker.Wait(timeout, stopChan); err != nil {
+		return err
+	}
+
+	if !s.Synced() {
+		return fmt.Errorf("stopped")
+	}
+
+	return nil
 }
 
 func (s *Syncer) ListenSync() chan interface{} {
