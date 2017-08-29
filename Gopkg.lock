@@ -8,6 +8,12 @@
   version = "v1.0.3"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/currantlabs/ble"
+  packages = [".","darwin","examples/lib/dev","linux","linux/adv","linux/att","linux/gatt","linux/hci","linux/hci/cmd","linux/hci/evt","linux/hci/socket"]
+  revision = "ba3b00e87511deec53b2d0e8df691426a1d37bf7"
+
+[[projects]]
   name = "github.com/fatih/structs"
   packages = ["."]
   revision = "a720dfa8df582c51dee1b36feabb906bde1588bd"
@@ -78,6 +84,12 @@
   packages = ["."]
   revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
   version = "v0.8.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/raff/goble"
+  packages = ["xpc"]
+  revision = "b12b34f940c4cf4363660073539b5fa9fd96bd16"
 
 [[projects]]
   branch = "master"
@@ -154,6 +166,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "852b2af2b4da6688403961270fc59f01e519ca103325797388b678239b75b3f6"
+  inputs-digest = "e608391fefffe106d6f8148f2c92789f96ee5425c775a3437266586da886dff7"
   solver-name = "gps-cdcl"
   solver-version = 1
