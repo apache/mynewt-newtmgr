@@ -36,10 +36,11 @@ type DiscovererParams struct {
 }
 
 // Listens for advertisements; reports the ones that match the specified
-// predicate.
+// predicate.  This type is not thread-safe.
 type Discoverer struct {
 	params    DiscovererParams
 	abortChan chan struct{}
+	blocker   nmxutil.Blocker
 }
 
 func NewDiscoverer(params DiscovererParams) *Discoverer {
@@ -51,8 +52,7 @@ func NewDiscoverer(params DiscovererParams) *Discoverer {
 func (d *Discoverer) scanCancel() error {
 	r := NewBleScanCancelReq()
 
-	key := SeqKey(r.Seq)
-	bl, err := d.params.Bx.AddListener(key)
+	bl, err := d.params.Bx.AddListener(SeqKey(r.Seq))
 	if err != nil {
 		return err
 	}
@@ -84,17 +84,26 @@ func (d *Discoverer) Start(advRptCb BleAdvRptFn) error {
 	r.Passive = d.params.Passive
 	r.FilterDuplicates = true
 
-	key := SeqKey(r.Seq)
-	bl, err := d.params.Bx.AddListener(key)
+	bl, err := d.params.Bx.AddListener(SeqKey(r.Seq))
 	if err != nil {
 		return err
 	}
 	defer d.params.Bx.RemoveListener(bl)
 
+	// Set up the abort channel to allow discovery to be cancelled.
 	d.abortChan = make(chan struct{}, 1)
 	defer func() { d.abortChan = nil }()
 
-	err = actScan(d.params.Bx, bl, r, d.abortChan, advRptCb)
+	// Ensure subsequent calls to Stop() block until discovery is fully
+	// stopped.
+	d.blocker.Start()
+	defer d.blocker.Unblock(nil)
+
+	// Report devices in a separate Goroutine.  This is done to prevent
+	// deadlock in case the callback tries to stop the discoverer.
+	cb := func(r BleAdvReport) { go advRptCb(r) }
+
+	err = actScan(d.params.Bx, bl, r, d.abortChan, cb)
 	if !nmxutil.IsXport(err) {
 		// The transport did not restart; always attempt to cancel the scan
 		// operation.  In some cases, the host has already stopped scanning
@@ -108,14 +117,18 @@ func (d *Discoverer) Start(advRptCb BleAdvRptFn) error {
 	return err
 }
 
+// Ensures the discoverer is stopped.  Errors can typically be ignored.
 func (d *Discoverer) Stop() error {
 	ch := d.abortChan
 
 	if ch == nil {
 		return nmxutil.NewAlreadyError("Attempt to stop inactive discoverer")
 	}
-
 	close(ch)
+
+	// Don't return until discovery is fully stopped.
+	d.blocker.Wait(nmxutil.DURATION_FOREVER, nil)
+
 	return nil
 }
 

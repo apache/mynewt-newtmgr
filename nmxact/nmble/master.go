@@ -38,11 +38,8 @@ func NewMaster(x *BleXport, s *BleScanner) Master {
 	}
 }
 
-// Unblocks a waiting scanner.
+// Unblocks a waiting scanner.  The caller must lock the mutex.
 func (m *Master) unblockScanner(err error) bool {
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-
 	if m.scanWait == nil {
 		return false
 	}
@@ -54,11 +51,9 @@ func (m *Master) unblockScanner(err error) bool {
 }
 
 func (m *Master) AcquireConnect(token interface{}) error {
-	m.mtx.Lock()
-
 	// Append the connector to the wait queue.
+	m.mtx.Lock()
 	ch := m.res.Acquire(token)
-
 	m.mtx.Unlock()
 
 	// Stop the scanner in case it is active; connections take priority.  We do
@@ -125,6 +120,9 @@ func (m *Master) AcquireScan(token interface{}) error {
 }
 
 func (m *Master) Release() {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
 	if m.res.Release() {
 		// Next waiting connector acquired the resource.
 		return
@@ -147,11 +145,17 @@ func (m *Master) StopWaitingConnect(token interface{}, err error) {
 
 // Removes the specified scanner from the wait queue.
 func (m *Master) StopWaitingScan(token interface{}, err error) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
 	m.unblockScanner(err)
 }
 
 // Releases the resource and clears the wait queue.
 func (m *Master) Abort(err error) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
 	m.unblockScanner(err)
 	m.res.Abort(err)
 }

@@ -271,6 +271,9 @@ func (c *Conn) startConnecting() error {
 		return nmxutil.NewSesnAlreadyOpenError(
 			"BLE connection already being established")
 	}
+	if c.stopped {
+		return fmt.Errorf("Attempt to re-use Conn object")
+	}
 
 	c.connecting = true
 	return nil

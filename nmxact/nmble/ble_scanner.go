@@ -41,16 +41,17 @@ type BleScanner struct {
 	cfg scan.Cfg
 
 	bx             *BleXport
-	discoverer     *Discoverer
-	reportedDevs   map[BleDev]string
-	failedDevs     map[BleDev]struct{}
-	ses            *BleSesn
-	enabled        bool
 	scanBlocker    nmxutil.Blocker
 	suspendBlocker nmxutil.Blocker
 
-	// Protects accesses to the reported devices map.
 	mtx sync.Mutex
+
+	// Protected by the mutex.
+	discoverer   *Discoverer
+	reportedDevs map[BleDev]string
+	failedDevs   map[BleDev]struct{}
+	ses          *BleSesn
+	enabled      bool
 }
 
 func NewBleScanner(bx *BleXport) *BleScanner {
@@ -59,6 +60,48 @@ func NewBleScanner(bx *BleXport) *BleScanner {
 		reportedDevs: map[BleDev]string{},
 		failedDevs:   map[BleDev]struct{}{},
 	}
+}
+
+func (s *BleScanner) isEnabled() bool {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	return s.enabled
+}
+
+// Performs a compare-and-swap of the enabled state.
+func (s *BleScanner) toggleEnabled(to bool) bool {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	if s.enabled == to {
+		return false
+	}
+
+	s.enabled = to
+	return true
+}
+
+func (s *BleScanner) setSession(ses *BleSesn) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	nmxutil.Assert(s.ses == nil || ses == nil)
+	s.ses = ses
+}
+
+func (s *BleScanner) addReportedDev(dev BleDev, hwid string) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	s.reportedDevs[dev] = hwid
+}
+
+func (s *BleScanner) addFailedDev(dev BleDev) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	s.failedDevs[dev] = struct{}{}
 }
 
 func (s *BleScanner) discover() (*BleDev, error) {
@@ -75,15 +118,12 @@ func (s *BleScanner) discover() (*BleDev, error) {
 
 	var dev *BleDev
 	advRptCb := func(r BleAdvReport) {
-		if dev == nil {
-			if s.cfg.Ble.ScanPred(r) {
-				s.mtx.Lock()
+		if s.cfg.Ble.ScanPred(r) {
+			s.mtx.Lock()
+			defer s.mtx.Unlock()
 
-				dev = &r.Sender
-				s.discoverer.Stop()
-
-				s.mtx.Unlock()
-			}
+			dev = &r.Sender
+			s.discoverer.Stop()
 		}
 	}
 	if err := s.discoverer.Start(advRptCb); err != nil {
@@ -95,15 +135,12 @@ func (s *BleScanner) discover() (*BleDev, error) {
 
 func (s *BleScanner) connect(dev BleDev) error {
 	s.cfg.SesnCfg.PeerSpec.Ble = dev
-	bs, err := NewBleSesn(s.bx, s.cfg.SesnCfg, MASTER_PRIO_SCAN)
+	ses, err := NewBleSesn(s.bx, s.cfg.SesnCfg, MASTER_PRIO_SCAN)
 	if err != nil {
 		return err
 	}
 
-	s.mtx.Lock()
-	s.ses = bs
-	s.mtx.Unlock()
-
+	s.setSession(ses)
 	if err := s.ses.Open(); err != nil {
 		return err
 	}
@@ -164,7 +201,10 @@ func (s *BleScanner) scan() (*scan.ScanPeer, error) {
 	if err := s.connect(*dev); err != nil {
 		return nil, err
 	}
-	defer s.ses.Close()
+	defer func() {
+		s.ses.Close()
+		s.setSession(nil)
+	}()
 
 	// Now that we have successfully connected to this device, we will report
 	// it regardless of success or failure.
@@ -184,7 +224,11 @@ func (s *BleScanner) scan() (*scan.ScanPeer, error) {
 	return &peer, nil
 }
 
+// Caller must lock mutex.
 func (s *BleScanner) seenDevice(dev BleDev) bool {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
 	if _, ok := s.reportedDevs[dev]; ok {
 		return true
 	}
@@ -197,7 +241,7 @@ func (s *BleScanner) seenDevice(dev BleDev) bool {
 }
 
 func (s *BleScanner) Start(cfg scan.Cfg) error {
-	if s.enabled {
+	if !s.toggleEnabled(true) {
 		return nmxutil.NewAlreadyError("Attempt to start BLE scanner twice")
 	}
 
@@ -205,18 +249,12 @@ func (s *BleScanner) Start(cfg scan.Cfg) error {
 	innerPred := cfg.Ble.ScanPred
 	cfg.Ble.ScanPred = func(adv BleAdvReport) bool {
 		// Filter devices that have already been reported.
-		s.mtx.Lock()
-		seen := s.seenDevice(adv.Sender)
-		s.mtx.Unlock()
-
-		if seen {
+		if s.seenDevice(adv.Sender) {
 			return false
 		} else {
 			return innerPred(adv)
 		}
 	}
-
-	s.enabled = true
 	s.cfg = cfg
 
 	// Start background scanning.
@@ -225,7 +263,7 @@ func (s *BleScanner) Start(cfg scan.Cfg) error {
 			// Wait for suspend-in-progress to complete, if any.
 			s.suspendBlocker.Wait(nmxutil.DURATION_FOREVER, nil)
 
-			if !s.enabled {
+			if !s.isEnabled() {
 				break
 			}
 
@@ -233,14 +271,11 @@ func (s *BleScanner) Start(cfg scan.Cfg) error {
 			if err != nil {
 				log.Debugf("Scan error: %s", err.Error())
 				if p != nil {
-					s.failedDevs[p.PeerSpec.Ble] = struct{}{}
+					s.addFailedDev(p.PeerSpec.Ble)
 				}
 				time.Sleep(scanRetryRate)
 			} else if p != nil {
-				s.mtx.Lock()
-				s.reportedDevs[p.PeerSpec.Ble] = p.HwId
-				s.mtx.Unlock()
-
+				s.addReportedDev(p.PeerSpec.Ble, p.HwId)
 				s.cfg.ScanCb(*p)
 			}
 		}
@@ -283,21 +318,10 @@ func (s *BleScanner) Preempt() error {
 
 // Stops the scanner.  Scanning won't resume unless Start() gets called.
 func (s *BleScanner) Stop() error {
-	initiate := func() error {
-		s.mtx.Lock()
-		defer s.mtx.Unlock()
-
-		if !s.enabled {
-			return nmxutil.NewAlreadyError("Attempt to stop BLE scanner twice")
-		}
-		s.enabled = false
-
-		return nil
+	if !s.toggleEnabled(false) {
+		return nmxutil.NewAlreadyError("Attempt to stop BLE scanner twice")
 	}
 
-	if err := initiate(); err != nil {
-		return err
-	}
 	return s.suspend()
 }
 
