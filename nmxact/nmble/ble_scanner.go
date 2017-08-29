@@ -43,7 +43,8 @@ type BleScanner struct {
 	bx             *BleXport
 	discoverer     *Discoverer
 	reportedDevs   map[BleDev]string
-	bos            *BleSesn
+	failedDevs     map[BleDev]struct{}
+	ses            *BleSesn
 	enabled        bool
 	scanBlocker    nmxutil.Blocker
 	suspendBlocker nmxutil.Blocker
@@ -56,6 +57,7 @@ func NewBleScanner(bx *BleXport) *BleScanner {
 	return &BleScanner{
 		bx:           bx,
 		reportedDevs: map[BleDev]string{},
+		failedDevs:   map[BleDev]struct{}{},
 	}
 }
 
@@ -73,13 +75,15 @@ func (s *BleScanner) discover() (*BleDev, error) {
 
 	var dev *BleDev
 	advRptCb := func(r BleAdvReport) {
-		if s.cfg.Ble.ScanPred(r) {
-			s.mtx.Lock()
+		if dev == nil {
+			if s.cfg.Ble.ScanPred(r) {
+				s.mtx.Lock()
 
-			dev = &r.Sender
-			s.discoverer.Stop()
+				dev = &r.Sender
+				s.discoverer.Stop()
 
-			s.mtx.Unlock()
+				s.mtx.Unlock()
+			}
 		}
 	}
 	if err := s.discoverer.Start(advRptCb); err != nil {
@@ -97,10 +101,10 @@ func (s *BleScanner) connect(dev BleDev) error {
 	}
 
 	s.mtx.Lock()
-	s.bos = bs
+	s.ses = bs
 	s.mtx.Unlock()
 
-	if err := s.bos.Open(); err != nil {
+	if err := s.ses.Open(); err != nil {
 		return err
 	}
 
@@ -112,7 +116,7 @@ func (s *BleScanner) readHwId() (string, error) {
 	c.Path = "dev"
 	c.Typ = sesn.RES_TYPE_PUBLIC
 
-	res, err := c.Run(s.bos)
+	res, err := c.Run(s.ses)
 	if err != nil {
 		return "", fmt.Errorf("failed to read hardware ID; %s", err.Error())
 	}
@@ -160,31 +164,36 @@ func (s *BleScanner) scan() (*scan.ScanPeer, error) {
 	if err := s.connect(*dev); err != nil {
 		return nil, err
 	}
-	defer s.bos.Close()
+	defer s.ses.Close()
 
-	// Now we are connected (and paired if required).  Read the peer's hardware
-	// ID and report it upstream.
-	hwId, err := s.readHwId()
-	if err != nil {
-		return nil, err
-	}
-
-	desc, err := s.bos.ConnInfo()
-	if err != nil {
-		return nil, err
-	}
-
+	// Now that we have successfully connected to this device, we will report
+	// it regardless of success or failure.
 	peer := scan.ScanPeer{
-		HwId: hwId,
+		HwId: "",
 		PeerSpec: sesn.PeerSpec{
-			Ble: BleDev{
-				AddrType: desc.PeerIdAddrType,
-				Addr:     desc.PeerIdAddr,
-			},
+			Ble: *dev,
 		},
 	}
 
+	hwId, err := s.readHwId()
+	if err != nil {
+		return &peer, err
+	}
+
+	peer.HwId = hwId
 	return &peer, nil
+}
+
+func (s *BleScanner) seenDevice(dev BleDev) bool {
+	if _, ok := s.reportedDevs[dev]; ok {
+		return true
+	}
+
+	if _, ok := s.failedDevs[dev]; ok {
+		return true
+	}
+
+	return false
 }
 
 func (s *BleScanner) Start(cfg scan.Cfg) error {
@@ -197,7 +206,7 @@ func (s *BleScanner) Start(cfg scan.Cfg) error {
 	cfg.Ble.ScanPred = func(adv BleAdvReport) bool {
 		// Filter devices that have already been reported.
 		s.mtx.Lock()
-		seen := s.reportedDevs[adv.Sender] != ""
+		seen := s.seenDevice(adv.Sender)
 		s.mtx.Unlock()
 
 		if seen {
@@ -223,6 +232,9 @@ func (s *BleScanner) Start(cfg scan.Cfg) error {
 			p, err := s.scan()
 			if err != nil {
 				log.Debugf("Scan error: %s", err.Error())
+				if p != nil {
+					s.failedDevs[p.PeerSpec.Ble] = struct{}{}
+				}
 				time.Sleep(scanRetryRate)
 			} else if p != nil {
 				s.mtx.Lock()
@@ -242,21 +254,21 @@ func (s *BleScanner) suspend() error {
 	defer s.suspendBlocker.Unblock(nil)
 
 	discoverer := s.discoverer
-	bos := s.bos
+	ses := s.ses
 
 	if discoverer != nil {
 		discoverer.Stop()
 	}
 
-	if bos != nil {
-		bos.Close()
+	if ses != nil {
+		ses.Close()
 	}
 
 	// Block until scan is fully terminated.
 	s.scanBlocker.Wait(nmxutil.DURATION_FOREVER, nil)
 
 	s.discoverer = nil
-	s.bos = nil
+	s.ses = nil
 
 	return nil
 }
@@ -312,5 +324,8 @@ func (s *BleScanner) ForgetAllDevices() {
 
 	for discoverer, _ := range s.reportedDevs {
 		delete(s.reportedDevs, discoverer)
+	}
+	for discoverer, _ := range s.failedDevs {
+		delete(s.failedDevs, discoverer)
 	}
 }
