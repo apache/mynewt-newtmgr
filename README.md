@@ -25,7 +25,11 @@ Newt Manager (newtmgr) is the application tool that enables a user to communicat
 
 ### Building
 
-newtmgr is vendored using the dep tool (https://github.com/golang/dep).
+newtmgr is vendored using the dep tool (https://github.com/golang/dep).  Some
+dependencies are intentially excluded from the vendor directory.  The reason
+these are not vendored is to prevent errors during elicited by `go get
+mynewt.apache.org/newtmgr/...` on linux.  These two dependencies contain
+OS-specific code, something `go get` seems to trip over when it is vendored.
 
 To build newtmgr from source, you will need to manually acquire the missing
 dependencies.  OS-specific instructions are below:
