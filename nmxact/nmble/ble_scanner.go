@@ -82,6 +82,13 @@ func (s *BleScanner) toggleEnabled(to bool) bool {
 	return true
 }
 
+func (s *BleScanner) setDiscoverer(d *Discoverer) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	s.discoverer = d
+}
+
 func (s *BleScanner) setSession(ses *BleSesn) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
@@ -105,16 +112,13 @@ func (s *BleScanner) addFailedDev(dev BleDev) {
 }
 
 func (s *BleScanner) discover() (*BleDev, error) {
-	s.mtx.Lock()
-	s.discoverer = NewDiscoverer(DiscovererParams{
+	s.setDiscoverer(NewDiscoverer(DiscovererParams{
 		Bx:          s.bx,
 		OwnAddrType: s.cfg.SesnCfg.Ble.OwnAddrType,
 		Passive:     false,
 		Duration:    15 * time.Second,
-	})
-	s.mtx.Unlock()
-
-	defer func() { s.discoverer = nil }()
+	}))
+	defer s.setDiscoverer(nil)
 
 	var dev *BleDev
 	advRptCb := func(r BleAdvReport) {
@@ -142,6 +146,7 @@ func (s *BleScanner) connect(dev BleDev) error {
 
 	s.setSession(ses)
 	if err := s.ses.Open(); err != nil {
+		s.setSession(nil)
 		return err
 	}
 
