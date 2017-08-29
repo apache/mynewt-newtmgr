@@ -1,0 +1,70 @@
+# Can't easily add license to rat-excludes file.
+.rat-excludes
+
+# Temporary user files.
+.gdb_history
+.gdb_out
+tags
+
+# Non-source files
+COMPATIBLE
+COPYING
+INSTALLING.md
+RELEASE_NOTES.md
+Godeps.json
+.gitignore
+
+
+# Viper - MIT license.
+viper
+
+# kr/pretty, ky/text - MIT license
+kr
+
+# goproperties - 2-clause BSD.
+magiconair
+
+# go-sqlite3 - MIT license.
+mattn
+
+# mapstructure - MIT license.
+mitchellh
+
+# logrus - MIT license.
+Sirupsen
+
+# Cast - MIT license.
+cast
+
+# Cobra - Apache.
+cobra
+
+# jWalterWeatherman - MIT license.
+jwalterweatherman
+
+# pflag - 3-clause BSD.
+pflag
+
+# fsnotify.v1 - 3-clause BSD.
+fsnotify.v1
+
+# unix go package - 3-clause BSD.
+x
+
+# mousetrap - Apache.
+mousetrap
+
+# go-crc16 - MIT license.
+joaojeronimo
+
+# GATT (BLE library) - 3-clause BSD.
+gatt
+
+# TARM (serial library) - 3-clause BSD.
+tarm
+
+# Codec (used for CBOR) - MIT license.
+ugorji
+
+# go-coap - MIT license.
+go-coap
