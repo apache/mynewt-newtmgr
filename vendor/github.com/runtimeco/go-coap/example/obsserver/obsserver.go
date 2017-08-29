@@ -6,19 +6,19 @@ import (
 	"net"
 	"time"
 
-	"github.com/dustin/go-coap"
+	"github.com/runtimeco/go-coap"
 )
 
-func periodicTransmitter(l *net.UDPConn, a *net.UDPAddr, m *coap.MessageBase) {
+func periodicTransmitter(l *net.UDPConn, a *net.UDPAddr, m coap.Message) {
 	subded := time.Now()
 
 	for {
-		msg := coap.MessageBase{
+		msg := coap.NewDgramMessage(coap.MessageParams{
 			Type:      coap.Acknowledgement,
 			Code:      coap.Content,
-			MessageID: m.MessageID,
+			MessageID: m.MessageID(),
 			Payload:   []byte(fmt.Sprintf("Been running for %v", time.Since(subded))),
-		}
+		})
 
 		msg.SetOption(coap.ContentFormat, coap.TextPlain)
 		msg.SetOption(coap.LocationPath, m.Path())
@@ -36,9 +36,9 @@ func periodicTransmitter(l *net.UDPConn, a *net.UDPAddr, m *coap.MessageBase) {
 
 func main() {
 	log.Fatal(coap.ListenAndServe("udp", ":5683",
-		coap.FuncHandler(func(l *net.UDPConn, a *net.UDPAddr, m *coap.MessageBase) *coap.MessageBase {
+		coap.FuncHandler(func(l *net.UDPConn, a *net.UDPAddr, m coap.Message) coap.Message {
 			log.Printf("Got message path=%q: %#v from %v", m.Path(), m, a)
-			if m.Code == coap.GET && m.Option(coap.Observe) != nil {
+			if m.Code() == coap.GET && m.Option(coap.Observe) != nil {
 				if value, ok := m.Option(coap.Observe).([]uint8); ok &&
 					len(value) >= 1 && value[0] == 1 {
 					go periodicTransmitter(l, a, m)

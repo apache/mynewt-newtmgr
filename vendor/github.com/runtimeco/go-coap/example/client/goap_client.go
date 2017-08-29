@@ -4,17 +4,17 @@ import (
 	"log"
 	"os"
 
-	"github.com/dustin/go-coap"
+	"github.com/runtimeco/go-coap"
 )
 
 func main() {
 
-	req := coap.MessageBase{
+	req := coap.NewDgramMessage(coap.MessageParams{
 		Type:      coap.Confirmable,
 		Code:      coap.GET,
 		MessageID: 12345,
 		Payload:   []byte("hello, world!"),
-	}
+	})
 
 	path := "/some/path"
 	if len(os.Args) > 1 {

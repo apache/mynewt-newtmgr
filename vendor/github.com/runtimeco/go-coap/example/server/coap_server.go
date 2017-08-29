@@ -4,19 +4,19 @@ import (
 	"log"
 	"net"
 
-	"github.com/dustin/go-coap"
+	"github.com/runtimeco/go-coap"
 )
 
-func handleA(l *net.UDPConn, a *net.UDPAddr, m *coap.MessageBase) *coap.MessageBase {
+func handleA(l *net.UDPConn, a *net.UDPAddr, m coap.Message) coap.Message {
 	log.Printf("Got message in handleA: path=%q: %#v from %v", m.Path(), m, a)
 	if m.IsConfirmable() {
-		res := &coap.MessageBase{
+		res := coap.NewDgramMessage(coap.MessageParams{
 			Type:      coap.Acknowledgement,
 			Code:      coap.Content,
-			MessageID: m.MessageID,
-			Token:     m.Token,
+			MessageID: m.MessageID(),
+			Token:     m.Token(),
 			Payload:   []byte("hello to you!"),
-		}
+		})
 		res.SetOption(coap.ContentFormat, coap.TextPlain)
 
 		log.Printf("Transmitting from A %#v", res)
@@ -25,16 +25,16 @@ func handleA(l *net.UDPConn, a *net.UDPAddr, m *coap.MessageBase) *coap.MessageB
 	return nil
 }
 
-func handleB(l *net.UDPConn, a *net.UDPAddr, m *coap.MessageBase) *coap.MessageBase {
+func handleB(l *net.UDPConn, a *net.UDPAddr, m coap.Message) coap.Message {
 	log.Printf("Got message in handleB: path=%q: %#v from %v", m.Path(), m, a)
 	if m.IsConfirmable() {
-		res := &coap.MessageBase{
+		res := coap.NewDgramMessage(coap.MessageParams{
 			Type:      coap.Acknowledgement,
 			Code:      coap.Content,
-			MessageID: m.MessageID,
-			Token:     m.Token,
+			MessageID: m.MessageID(),
+			Token:     m.Token(),
 			Payload:   []byte("good bye!"),
-		}
+		})
 		res.SetOption(coap.ContentFormat, coap.TextPlain)
 
 		log.Printf("Transmitting from B %#v", res)

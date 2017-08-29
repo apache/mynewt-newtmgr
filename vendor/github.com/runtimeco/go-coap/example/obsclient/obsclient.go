@@ -3,16 +3,16 @@ package main
 import (
 	"log"
 
-	"github.com/dustin/go-coap"
+	"github.com/runtimeco/go-coap"
 )
 
 func main() {
 
-	req := coap.MessageBase{
+	req := coap.NewDgramMessage(coap.MessageParams{
 		Type:      coap.NonConfirmable,
 		Code:      coap.GET,
 		MessageID: 12345,
-	}
+	})
 
 	req.AddOption(coap.Observe, 1)
 	req.SetPathString("/some/path")
