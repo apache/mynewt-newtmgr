@@ -21,7 +21,10 @@
 
 # Newtmgr
 
-Newt Manager (newtmgr) is the application tool that enables a user to communicate with and manage remote devices running the Mynewt OS. It uses a connection profile to establish a connection with a device and sends command requests to the device.  Thew newtmgr tool is documented at http://mynewt.apache.org/latest/newtmgr/overview/
+Newt Manager (newtmgr) is the application tool that enables a user to communicate with and manage
+remote devices running the Mynewt OS. It uses a connection profile to establish a connection with
+a device and sends command requests to the device.
+Thew newtmgr tool is documented at http://mynewt.apache.org/latest/newtmgr/overview/
 
 ### Building
 
@@ -33,7 +36,7 @@ dependencies.  OS-specific instructions are below:
 #### Linux
 
 1. Unpack newtmgr source.
-2. Rename resulting `apache-mynewt-newtmgr-1.1.0` directory to `$GOPATH/src/mynewt.apache.org/newtmgr`
+2. Rename resulting `apache-mynewt-newtmgr-1.2.0` directory to `$GOPATH/src/mynewt.apache.org/newtmgr`
 3. `cd $GOPATH/src/mynewt.apache.org/newtmgr/newtmgr`
 4. `go get github.com/currantlabs/ble github.com/mgutz/logxi/v1 golang.org/x/sys/unix`
 5. `go build`
@@ -41,7 +44,7 @@ dependencies.  OS-specific instructions are below:
 #### macOS
 
 1. Unpack newtmgr source.
-2. Rename resulting `apache-mynewt-newtmgr-1.1.0` directory to `$GOPATH/src/mynewt.apache.org/newtmgr`
+2. Rename resulting `apache-mynewt-newtmgr-1.2.0` directory to `$GOPATH/src/mynewt.apache.org/newtmgr`
 3. `cd $GOPATH/src/mynewt.apache.org/newtmgr/newtmgr`
 4. `go get github.com/currantlabs/ble github.com/mgutz/logxi/v1 github.com/raff/goble/xpc`
 5. `go build`

@@ -1,11 +1,14 @@
 # RELEASE NOTES
 
-24 July 2017 - Apache Newtmgr v1.1.0
+05 September 2017 - Apache Newtmgr v1.2.0
 
 For full release notes, please visit the
 [Apache Mynewt Wiki](https://cwiki.apache.org/confluence/display/MYNEWT/Release+Notes).
 
-Newt Manager (newtmgr) is the application tool that enables a user to communicate with and manage remote devices running the Mynewt OS. It uses a connection profile to establish a connection with a device and sends command requests to the device.  Thew newtmgr tool is documented at http://mynewt.apache.org/latest/newtmgr/overview/
+Newt Manager (newtmgr) is the application tool that enables a user to communicate with and manage
+remote devices running the Mynewt OS. It uses a connection profile to establish a connection with
+a device and sends command requests to the device.
+Thew newtmgr tool is documented at http://mynewt.apache.org/latest/newtmgr/overview/
 
 New features in this version of newtmgr include:
 
