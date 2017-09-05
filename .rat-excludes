@@ -16,6 +16,9 @@ Godeps.json
 .gitignore
 .travis.yml
 appveyor.yml
+Gopkg.lock
+Gopkg.toml
+bleholog
 
 # Viper - MIT license.
 viper
@@ -80,3 +83,9 @@ mgutz
 
 # errors - BSD license
 errors
+
+# currantlabs BLE - BSD license
+currantlabs
+
+# goble - BSD license
+goble
