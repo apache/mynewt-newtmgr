@@ -20,6 +20,7 @@
 package nmble
 
 import (
+	"sync"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -41,6 +42,7 @@ type Discoverer struct {
 	params    DiscovererParams
 	abortChan chan struct{}
 	blocker   nmxutil.Blocker
+	mtx       sync.Mutex
 }
 
 func NewDiscoverer(params DiscovererParams) *Discoverer {
@@ -66,9 +68,33 @@ func (d *Discoverer) scanCancel() error {
 }
 
 func (d *Discoverer) Start(advRptCb BleAdvRptFn) error {
-	if d.abortChan != nil {
-		return nmxutil.NewAlreadyError("Attempt to start BLE discoverer twice")
+	// Sets up the abort channel to allow discovery to be cancelled.  Ensures
+	// only one discovery procedure is active at a time.
+	initiate := func() error {
+		d.mtx.Lock()
+		defer d.mtx.Unlock()
+
+		if d.abortChan != nil {
+			return nmxutil.NewAlreadyError(
+				"Attempt to start BLE discoverer twice")
+		}
+
+		d.abortChan = make(chan struct{})
+
+		return nil
 	}
+
+	finalize := func() {
+		d.mtx.Lock()
+		defer d.mtx.Unlock()
+
+		d.abortChan = nil
+	}
+
+	if err := initiate(); err != nil {
+		return err
+	}
+	defer finalize()
 
 	// Scanning requires dedicated master privileges.
 	if err := AcquireMaster(d.params.Bx, MASTER_PRIO_SCAN, d); err != nil {
@@ -89,10 +115,6 @@ func (d *Discoverer) Start(advRptCb BleAdvRptFn) error {
 		return err
 	}
 	defer d.params.Bx.RemoveListener(bl)
-
-	// Set up the abort channel to allow discovery to be cancelled.
-	d.abortChan = make(chan struct{}, 1)
-	defer func() { d.abortChan = nil }()
 
 	// Ensure subsequent calls to Stop() block until discovery is fully
 	// stopped.
@@ -119,12 +141,22 @@ func (d *Discoverer) Start(advRptCb BleAdvRptFn) error {
 
 // Ensures the discoverer is stopped.  Errors can typically be ignored.
 func (d *Discoverer) Stop() error {
-	ch := d.abortChan
+	initiate := func() error {
+		d.mtx.Lock()
+		defer d.mtx.Unlock()
 
-	if ch == nil {
-		return nmxutil.NewAlreadyError("Attempt to stop inactive discoverer")
+		if d.abortChan == nil {
+			return nmxutil.NewAlreadyError(
+				"Attempt to stop inactive discoverer")
+		}
+
+		close(d.abortChan)
+		return nil
 	}
-	close(ch)
+
+	if err := initiate(); err != nil {
+		return err
+	}
 
 	// Don't return until discovery is fully stopped.
 	d.blocker.Wait(nmxutil.DURATION_FOREVER, nil)
