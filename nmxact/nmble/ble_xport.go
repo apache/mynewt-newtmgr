@@ -389,8 +389,7 @@ func (bx *BleXport) startOnce() error {
 					// already shutting down.  If in mid-shutdown, the reset
 					// event was likely elicited by the shutdown itself.
 					state := bx.getState()
-					if state == BLE_XPORT_STATE_STARTING ||
-						state == BLE_XPORT_STATE_STARTED {
+					if state == BLE_XPORT_STATE_STARTED {
 
 						reason := reasonItf.(int)
 						bx.shutdown(true, nmxutil.NewXportError(fmt.Sprintf(
