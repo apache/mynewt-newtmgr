@@ -290,25 +290,28 @@ func (s *BleScanner) Start(cfg scan.Cfg) error {
 }
 
 func (s *BleScanner) suspend() error {
+	initiate := func() {
+		s.mtx.Lock()
+		defer s.mtx.Unlock()
+
+		if s.discoverer != nil {
+			s.discoverer.Stop()
+			s.discoverer = nil
+		}
+
+		if s.ses != nil {
+			s.ses.Close()
+			s.ses = nil
+		}
+	}
+
 	s.suspendBlocker.Start()
 	defer s.suspendBlocker.Unblock(nil)
 
-	discoverer := s.discoverer
-	ses := s.ses
-
-	if discoverer != nil {
-		discoverer.Stop()
-	}
-
-	if ses != nil {
-		ses.Close()
-	}
+	initiate()
 
 	// Block until scan is fully terminated.
 	s.scanBlocker.Wait(nmxutil.DURATION_FOREVER, nil)
-
-	s.discoverer = nil
-	s.ses = nil
 
 	return nil
 }
