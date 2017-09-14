@@ -378,7 +378,7 @@ func (c *Conn) Connect(bx *BleXport, ownAddrType BleAddrType, peer BleDev,
 		if bhe != nil && bhe.Status == ERR_CODE_EDONE {
 			// Already connected.
 			c.rxvr.RemoveListener("connect", bl)
-			return fmt.Errorf("Already connected to peer %s", peer)
+			return fmt.Errorf("Already connected to peer %s", &peer)
 		} else if !nmxutil.IsXport(err) {
 			// The transport did not restart; always attempt to cancel the
 			// connect operation.  In most cases, the host has already stopped
