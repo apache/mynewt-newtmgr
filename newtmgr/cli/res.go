@@ -78,12 +78,16 @@ func extractResKv(params []string) (map[string]interface{}, error) {
 func resResponseStr(path string, cbor []byte) string {
 	s := path
 
-	m, err := nmxutil.DecodeCbor(cbor)
-	if err != nil {
-		s += fmt.Sprintf("\n    invalid incoming cbor:%v\n%s",
-			err, hex.Dump(cbor))
+	if len(cbor) > 0 {
+		m, err := nmxutil.DecodeCbor(cbor)
+		if err != nil {
+			s += fmt.Sprintf("\n    invalid incoming cbor:%v\n%s",
+				err, hex.Dump(cbor))
+		}
+		s += fmt.Sprintf("\n%v", m)
+	} else {
+		s += "\n    <empty>"
 	}
-	s += fmt.Sprintf("\n%v", m)
 	return s
 }
 
