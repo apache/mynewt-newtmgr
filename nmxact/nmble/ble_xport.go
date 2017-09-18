@@ -79,6 +79,9 @@ type XportCfg struct {
 	// The value to specify during ATT MTU exchange.
 	// Default: 264.
 	PreferredMtu uint16
+
+	// Additional args to blehostd
+	BlehostdArgs []string
 }
 
 func NewXportCfg() XportCfg {
@@ -147,6 +150,7 @@ func (bx *BleXport) startUnixChild() error {
 		AcceptTimeout: bx.cfg.BlehostdAcceptTimeout,
 	}
 
+	config.ChildArgs = append(config.ChildArgs, bx.cfg.BlehostdArgs...)
 	bx.client = unixchild.New(config)
 
 	if err := bx.client.Start(); err != nil {
