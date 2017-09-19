@@ -126,6 +126,28 @@ func EncodeCborMap(value map[string]interface{}) ([]byte, error) {
 	return b, nil
 }
 
+func DecodeCbor(cbor []byte) (interface{}, error) {
+	var m interface{}
+
+	dec := codec.NewDecoderBytes(cbor, new(codec.CborHandle))
+	if err := dec.Decode(&m); err != nil {
+		log.Debugf("Attempt to decode invalid cbor: %#v", cbor)
+		return nil, fmt.Errorf("failure decoding cbor; %s", err.Error())
+	}
+
+	return m, nil
+}
+
+func EncodeCbor(value interface{}) ([]byte, error) {
+	b := []byte{}
+	enc := codec.NewEncoderBytes(&b, new(codec.CborHandle))
+	if err := enc.Encode(value); err != nil {
+		return nil, fmt.Errorf("failure encoding cbor; %s", err.Error())
+	}
+
+	return b, nil
+}
+
 func StopAndDrainTimer(timer *time.Timer) {
 	if !timer.Stop() {
 		<-timer.C
