@@ -34,7 +34,6 @@ import (
 	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/nmxact/adv"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
-	"mynewt.apache.org/newtmgr/nmxact/scan"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
@@ -66,10 +65,6 @@ func NewSerialXport(cfg *XportCfg) *SerialXport {
 
 func (sx *SerialXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
 	return NewSerialSesn(sx, cfg)
-}
-
-func (sx *SerialXport) BuildScanner() (scan.Scanner, error) {
-	return nil, fmt.Errorf("Attempt to build serial scanner")
 }
 
 func (sx *SerialXport) Start() error {

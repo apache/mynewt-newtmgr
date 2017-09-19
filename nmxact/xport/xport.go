@@ -21,7 +21,6 @@ package xport
 
 import (
 	"mynewt.apache.org/newtmgr/nmxact/adv"
-	"mynewt.apache.org/newtmgr/nmxact/scan"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
@@ -32,7 +31,6 @@ type Xport interface {
 	Stop() error
 
 	BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error)
-	BuildScanner() (scan.Scanner, error)
 	BuildAdvertiser() (adv.Advertiser, error)
 
 	Tx(data []byte) error
