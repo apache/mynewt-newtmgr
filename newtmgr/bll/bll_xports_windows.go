@@ -24,7 +24,6 @@ package bll
 import (
 	"fmt"
 
-	"mynewt.apache.org/newtmgr/nmxact/adv"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 

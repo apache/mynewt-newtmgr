@@ -32,7 +32,6 @@ import (
 	"github.com/tarm/serial"
 
 	"mynewt.apache.org/newt/util"
-	"mynewt.apache.org/newtmgr/nmxact/adv"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
@@ -225,8 +224,4 @@ func (sx *SerialXport) Rx() ([]byte, error) {
 		sx.scanner = bufio.NewScanner(sx.port)
 	}
 	return nil, err
-}
-
-func (sx *SerialXport) BuildAdvertiser() (adv.Advertiser, error) {
-	return nil, fmt.Errorf("SerialXport#BuildAdvertiser unsupported")
 }

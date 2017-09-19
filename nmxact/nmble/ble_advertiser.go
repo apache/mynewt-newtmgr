@@ -24,11 +24,36 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 
-	"mynewt.apache.org/newtmgr/nmxact/adv"
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
+
+type AdvertiseCfg struct {
+	// Mandatory
+	OwnAddrType   BleAddrType
+	ConnMode      BleAdvConnMode
+	DiscMode      BleAdvDiscMode
+	ItvlMin       uint16
+	ItvlMax       uint16
+	ChannelMap    uint8
+	FilterPolicy  BleAdvFilterPolicy
+	HighDutyCycle bool
+	AdvFields     BleAdvFields
+	RspFields     BleAdvFields
+	SesnCfg       sesn.SesnCfg
+
+	// Only required for direct advertisements
+	PeerAddr *BleAddr
+}
+
+func NewAdvertiseCfg() AdvertiseCfg {
+	return AdvertiseCfg{
+		OwnAddrType: BLE_ADDR_TYPE_RANDOM,
+		ConnMode:    BLE_ADV_CONN_MODE_UND,
+		DiscMode:    BLE_ADV_DISC_MODE_GEN,
+	}
+}
 
 type Advertiser struct {
 	bx          *BleXport
@@ -88,19 +113,19 @@ func (a *Advertiser) setRspData(data []byte) error {
 	return nil
 }
 
-func (a *Advertiser) advertise(cfg adv.Cfg) (uint16, *Listener, error) {
+func (a *Advertiser) advertise(cfg AdvertiseCfg) (uint16, *Listener, error) {
 	r := NewBleAdvStartReq()
 
-	r.OwnAddrType = cfg.Ble.OwnAddrType
+	r.OwnAddrType = cfg.OwnAddrType
 	r.DurationMs = 0x7fffffff
-	r.ConnMode = cfg.Ble.ConnMode
-	r.DiscMode = cfg.Ble.DiscMode
-	r.ItvlMin = cfg.Ble.ItvlMin
-	r.ItvlMax = cfg.Ble.ItvlMax
-	r.ChannelMap = cfg.Ble.ChannelMap
-	r.FilterPolicy = cfg.Ble.FilterPolicy
-	r.HighDutyCycle = cfg.Ble.HighDutyCycle
-	r.PeerAddr = cfg.Ble.PeerAddr
+	r.ConnMode = cfg.ConnMode
+	r.DiscMode = cfg.DiscMode
+	r.ItvlMin = cfg.ItvlMin
+	r.ItvlMax = cfg.ItvlMax
+	r.ChannelMap = cfg.ChannelMap
+	r.FilterPolicy = cfg.FilterPolicy
+	r.HighDutyCycle = cfg.HighDutyCycle
+	r.PeerAddr = cfg.PeerAddr
 
 	bl, err := a.bx.AddListener(SeqKey(r.Seq))
 	if err != nil {
@@ -116,7 +141,7 @@ func (a *Advertiser) advertise(cfg adv.Cfg) (uint16, *Listener, error) {
 			// advertising and will respond with an "ealready" error that can be
 			// ignored.
 			if err := a.stopAdvertising(); err != nil {
-				log.Errorf("Failed to cancel advertise in progress: %s",
+				log.Debugf("Failed to cancel advertise in progress: %s",
 					err.Error())
 			}
 		}
@@ -138,10 +163,10 @@ func (a *Advertiser) stopAdvertising() error {
 	return advStop(a.bx, bl, r)
 }
 
-func (a *Advertiser) buildSesn(cfg adv.Cfg, connHandle uint16, bl *Listener) (
-	sesn.Sesn, error) {
+func (a *Advertiser) buildSesn(cfg AdvertiseCfg, connHandle uint16,
+	bl *Listener) (sesn.Sesn, error) {
 
-	s, err := NewBleSesn(a.bx, cfg.Ble.SesnCfg, MASTER_PRIO_CONNECT)
+	s, err := NewBleSesn(a.bx, cfg.SesnCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +178,7 @@ func (a *Advertiser) buildSesn(cfg adv.Cfg, connHandle uint16, bl *Listener) (
 	return s, nil
 }
 
-func (a *Advertiser) Start(cfg adv.Cfg) (sesn.Sesn, error) {
+func (a *Advertiser) Start(cfg AdvertiseCfg) (sesn.Sesn, error) {
 	var advData []byte
 	var rspData []byte
 	var connHandle uint16
@@ -163,7 +188,7 @@ func (a *Advertiser) Start(cfg adv.Cfg) (sesn.Sesn, error) {
 	fns := []func() error{
 		// Convert advertising fields to data.
 		func() error {
-			advData, err = a.fields(cfg.Ble.AdvFields)
+			advData, err = a.fields(cfg.AdvFields)
 			return err
 		},
 
@@ -174,7 +199,7 @@ func (a *Advertiser) Start(cfg adv.Cfg) (sesn.Sesn, error) {
 
 		// Convert response fields to data.
 		func() error {
-			rspData, err = a.fields(cfg.Ble.RspFields)
+			rspData, err = a.fields(cfg.RspFields)
 			return err
 		},
 

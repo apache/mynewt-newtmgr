@@ -27,7 +27,6 @@ import (
 	"github.com/currantlabs/ble"
 	"github.com/currantlabs/ble/examples/lib/dev"
 
-	"mynewt.apache.org/newtmgr/nmxact/adv"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
@@ -81,8 +80,4 @@ func (bx *BllXport) Stop() error {
 
 func (bx *BllXport) Tx(data []byte) error {
 	return fmt.Errorf("BllXport.Tx() not supported")
-}
-
-func (bx *BllXport) BuildAdvertiser() (adv.Advertiser, error) {
-	return nil, fmt.Errorf("BllXport#BuildAdvertiser unsupported")
 }
