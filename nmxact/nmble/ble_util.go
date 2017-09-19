@@ -28,7 +28,6 @@ import (
 
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
-	"mynewt.apache.org/newtmgr/nmxact/oic"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
@@ -684,57 +683,6 @@ func GattService() BleSvc {
 			},
 		},
 	}
-}
-
-type CoapServiceCfg struct {
-	X          *BleXport
-	SvcUuid    BleUuid
-	ReqChrUuid BleUuid
-	RspChrUuid BleUuid
-	Enc        bool
-	Auth       bool
-	Resources  []oic.Resource
-}
-
-func GenCoapService(cfg CoapServiceCfg) (BleSvc, error) {
-	svr := NewBleOicSvr(cfg.X, cfg.SvcUuid, cfg.RspChrUuid)
-	for _, r := range cfg.Resources {
-		if err := svr.AddResource(r); err != nil {
-			return BleSvc{}, err
-		}
-	}
-
-	var secFlags BleChrFlags
-	if cfg.Enc {
-		secFlags |= BLE_GATT_F_WRITE_ENC
-	}
-	if cfg.Auth {
-		secFlags |= BLE_GATT_F_WRITE_AUTHEN
-	}
-	svc := BleSvc{
-		Uuid:    cfg.SvcUuid,
-		SvcType: BLE_SVC_TYPE_PRIMARY,
-		Chrs: []BleChr{
-			BleChr{
-				Uuid: cfg.ReqChrUuid,
-				Flags: BLE_GATT_F_WRITE |
-					BLE_GATT_F_WRITE_NO_RSP |
-					secFlags,
-				MinKeySize: 0,
-				AccessCb: func(access BleGattAccess) (uint8, []byte) {
-					return svr.Rx(access), nil
-				},
-			},
-			BleChr{
-				Uuid:       cfg.RspChrUuid,
-				Flags:      BLE_GATT_F_NOTIFY,
-				MinKeySize: 0,
-				AccessCb:   nil,
-			},
-		},
-	}
-
-	return svc, nil
 }
 
 func ResChrReqIdLookup(mgmtChrs BleMgmtChrs,
