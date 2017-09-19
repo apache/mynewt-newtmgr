@@ -47,6 +47,13 @@ func (b *Blocker) startNoLock() {
 	}
 }
 
+func (b *Blocker) Started() bool {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+
+	return b.ch != nil
+}
+
 func (b *Blocker) Wait(timeout time.Duration, stopChan <-chan struct{}) (
 	interface{}, error) {
 

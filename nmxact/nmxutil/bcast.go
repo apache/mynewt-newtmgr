@@ -28,21 +28,48 @@ type Bcaster struct {
 	mtx sync.Mutex
 }
 
-func (b *Bcaster) Listen() chan interface{} {
+func (b *Bcaster) clearNoLock() {
+	for _, ch := range b.chs {
+		close(ch)
+	}
+
+	b.chs = nil
+}
+
+func (b *Bcaster) copyChansNoLock() []chan interface{} {
+	chans := make([]chan interface{}, len(b.chs))
+	for i, _ := range b.chs {
+		chans[i] = b.chs[i]
+	}
+
+	return chans
+}
+
+func (b *Bcaster) sendNoLock(val interface{}) {
+	for _, ch := range b.copyChansNoLock() {
+		ch <- val
+	}
+}
+
+func (b *Bcaster) Listen(depth int) chan interface{} {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
 
-	ch := make(chan interface{})
+	ch := make(chan interface{}, depth)
 	b.chs = append(b.chs, ch)
 
 	return ch
 }
 
-func (b *Bcaster) Send(val interface{}) {
+func (b *Bcaster) copyChans() []chan interface{} {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
 
-	for _, ch := range b.chs {
+	return b.copyChansNoLock()
+}
+
+func (b *Bcaster) Send(val interface{}) {
+	for _, ch := range b.copyChans() {
 		ch <- val
 	}
 }
@@ -53,6 +80,8 @@ func (b *Bcaster) StopListening(ch chan interface{}) {
 
 	for i, c := range b.chs {
 		if c == ch {
+			close(c)
+
 			b.chs[i] = b.chs[len(b.chs)-1]
 			b.chs = b.chs[:len(b.chs)-1]
 			break
@@ -64,14 +93,13 @@ func (b *Bcaster) Clear() {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
 
-	for _, ch := range b.chs {
-		close(ch)
-	}
-
-	b.chs = nil
+	b.clearNoLock()
 }
 
 func (b *Bcaster) SendAndClear(val interface{}) {
-	b.Send(val)
-	b.Clear()
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+
+	b.sendNoLock(val)
+	b.clearNoLock()
 }

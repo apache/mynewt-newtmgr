@@ -25,15 +25,15 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 
+	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
-	"mynewt.apache.org/newtmgr/nmxact/oic"
 )
 
 // The dispatcher is the owner of the listeners it points to.  Only the
 // dispatcher writes to these listeners.
 type Dispatcher struct {
 	nmpd    *nmp.Dispatcher
-	oicd    *oic.Dispatcher
+	oicd    *nmcoap.Dispatcher
 	stopCh  chan struct{}
 	wg      sync.WaitGroup
 	stopped uint32
@@ -42,7 +42,7 @@ type Dispatcher struct {
 func NewDispatcher(isTcp bool, logDepth int) (*Dispatcher, error) {
 	d := &Dispatcher{
 		nmpd:   nmp.NewDispatcher(logDepth + 1),
-		oicd:   oic.NewDispatcher(isTcp, logDepth+1),
+		oicd:   nmcoap.NewDispatcher(isTcp, logDepth+1),
 		stopCh: make(chan struct{}),
 	}
 
@@ -105,11 +105,11 @@ func (d *Dispatcher) Dispatch(data []byte) bool {
 	return d.oicd.Dispatch(data)
 }
 
-func (d *Dispatcher) AddOicListener(token []byte) (*oic.Listener, error) {
+func (d *Dispatcher) AddOicListener(token []byte) (*nmcoap.Listener, error) {
 	return d.oicd.AddListener(token)
 }
 
-func (d *Dispatcher) RemoveOicListener(token []byte) *oic.Listener {
+func (d *Dispatcher) RemoveOicListener(token []byte) *nmcoap.Listener {
 	return d.oicd.RemoveListener(token)
 }
 

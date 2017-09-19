@@ -28,9 +28,9 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/runtimeco/go-coap"
 
+	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
-	"mynewt.apache.org/newtmgr/nmxact/oic"
 	"mynewt.apache.org/newtmgr/nmxact/omp"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
@@ -158,7 +158,7 @@ func (t *Transceiver) TxNmp(txCb TxFn, req *nmp.NmpMsg, mtu int,
 func (t *Transceiver) TxOic(txCb TxFn, req coap.Message, mtu int,
 	timeout time.Duration) (coap.Message, error) {
 
-	b, err := oic.Encode(req)
+	b, err := nmcoap.Encode(req)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func (t *Transceiver) TxOic(txCb TxFn, req coap.Message, mtu int,
 		rspExpected = false
 	}
 
-	var ol *oic.Listener
+	var ol *nmcoap.Listener
 	if rspExpected {
 		ol, err = t.od.AddOicListener(req.Token())
 		if err != nil {

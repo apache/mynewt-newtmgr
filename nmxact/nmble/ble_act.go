@@ -31,9 +31,7 @@ import (
 )
 
 // Blocking
-func connect(x *BleXport, bl *Listener, r *BleConnectReq,
-	timeout time.Duration) (uint16, error) {
-
+func connect(x *BleXport, bl *Listener, r *BleConnectReq) (uint16, error) {
 	j, err := json.Marshal(r)
 	if err != nil {
 		return 0, err
@@ -42,6 +40,10 @@ func connect(x *BleXport, bl *Listener, r *BleConnectReq,
 	if err := x.Tx(j); err != nil {
 		return 0, err
 	}
+
+	// Give blehostd three seconds of leeway to tell us the connection attempt
+	// timed out.
+	timeout := time.Duration(r.DurationMs+3000) * time.Millisecond
 
 	for {
 		select {
@@ -133,6 +135,9 @@ func connCancel(x *BleXport, bl *Listener, r *BleConnCancelReq) error {
 		return err
 	}
 
+	// Allow 10 seconds for the controller to cancel the connection.
+	timeout := 10 * time.Second
+
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -146,6 +151,8 @@ func connCancel(x *BleXport, bl *Listener, r *BleConnCancelReq) error {
 					return StatusError(MSG_OP_RSP, rspType, msg.Status)
 				}
 
+			case *BleConnCancelEvt:
+				// Connection successfully cancelled.
 				return nil
 
 			default:
@@ -153,6 +160,10 @@ func connCancel(x *BleXport, bl *Listener, r *BleConnCancelReq) error {
 
 		case <-bl.AfterTimeout(x.RspTimeout()):
 			return BhdTimeoutError(rspType, r.Seq)
+
+		case <-time.After(timeout):
+			return fmt.Errorf("No connection-cancel event after %s",
+				timeout.String())
 		}
 	}
 }
@@ -561,50 +572,67 @@ func exchangeMtu(x *BleXport, bl *Listener, r *BleExchangeMtuReq) (
 	}
 }
 
-func actScan(x *BleXport, bl *Listener, r *BleScanReq, abortChan chan struct{},
-	advRptCb BleAdvRptFn) error {
+func actScan(x *BleXport, bl *Listener, r *BleScanReq) (
+	<-chan BleAdvReport, <-chan error, error) {
 
 	const rspType = MSG_TYPE_SCAN
 
 	j, err := json.Marshal(r)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	if err := x.Tx(j); err != nil {
-		return err
+		return nil, nil, err
 	}
 
-	for {
-		select {
-		case err := <-bl.ErrChan:
-			return err
+	ach := make(chan BleAdvReport)
+	ech := make(chan error)
 
-		case bm := <-bl.MsgChan:
-			switch msg := bm.(type) {
-			case *BleScanRsp:
-				bl.Acked = true
-				if msg.Status != 0 {
-					return StatusError(MSG_OP_RSP, rspType, msg.Status)
+	nmxutil.Assert(bl != nil)
+
+	go func() {
+		defer close(ach)
+		defer close(ech)
+
+		for {
+			select {
+			case err := <-bl.ErrChan:
+				ech <- err
+				return
+
+			case bm, ok := <-bl.MsgChan:
+				if ok {
+					switch msg := bm.(type) {
+					case *BleScanRsp:
+						bl.Acked = true
+						if msg.Status != 0 {
+							ech <- StatusError(MSG_OP_RSP, rspType, msg.Status)
+							return
+						}
+
+					case *BleScanEvt:
+						r := BleAdvReportFromScanEvt(msg)
+						ach <- r
+
+					case *BleScanTmoEvt:
+						ech <- nmxutil.NewScanTmoError("scan duration expired")
+						return
+
+					default:
+					}
 				}
 
-			case *BleScanEvt:
-				r := BleAdvReportFromScanEvt(msg)
-				advRptCb(r)
-
-			case *BleScanTmoEvt:
-				return nmxutil.NewScanTmoError("scan duration expired")
-
-			default:
+			case _, ok := <-bl.AfterTimeout(x.RspTimeout()):
+				if ok {
+					ech <- BhdTimeoutError(rspType, r.Seq)
+					return
+				}
 			}
-
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			return BhdTimeoutError(rspType, r.Seq)
-
-		case <-abortChan:
-			return nil
 		}
-	}
+	}()
+
+	return ach, ech, nil
 }
 
 func scanCancel(x *BleXport, bl *Listener, r *BleScanCancelReq) error {

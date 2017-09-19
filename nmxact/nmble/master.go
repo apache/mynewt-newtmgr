@@ -26,148 +26,259 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 )
 
+type masterState int
+
+const (
+	MASTER_STATE_IDLE masterState = iota
+	MASTER_STATE_SECONDARY
+	MASTER_STATE_PRIMARY
+	MASTER_STATE_PRIMARY_SECONDARY_PENDING
+)
+
+type primary struct {
+	token interface{}
+	ch    chan error
+}
+
+type Preemptable interface {
+	Preempt() error
+}
+
 // Represents the Bluetooth device's "master privileges."  The device can only
 // do one of the following actions at a time:
 // * initiate connection
 // * scan
 //
-// ("connector": client who wants to connect)
-// ("scanner": client who wants to scan)
+// Clients are divided into two groups:
+// * primary
+// * secondary
 //
 // This struct restricts master privileges to a single client at a time.  It
 // uses the following procedure to determine which of several clients to serve:
-//     If there is one or more waiting connectors:
-//         If a scanner is active, suspend it.
-//         Service the connectors in the order of their requests.
-//     Else (no waiting connectors):
-//         Service waiting scanner if there is one.
+//     If there is one or more waiting primaries:
+//         If a secondary is active, preempt it.
+//         Service the primaries in the order of their requests.
+//     Else (no waiting primaries):
+//         Service waiting secondary if there is one.
 type Master struct {
-	res      nmxutil.SingleResource
-	scanner  *BleScanner
-	scanWait chan error
-	scanAcq  chan struct{}
-	mtx      sync.Mutex
+	primaries        []primary
+	secondary        Preemptable
+	state            masterState
+	secondaryReadyCh chan error
+
+	mtx sync.Mutex
 }
 
-func NewMaster(x *BleXport, s *BleScanner) Master {
+func NewMaster(x *BleXport) Master {
 	return Master{
-		res:     nmxutil.NewSingleResource(),
-		scanner: s,
-		scanAcq: make(chan struct{}),
+		secondaryReadyCh: make(chan error),
 	}
 }
 
-// Unblocks a waiting scanner.  The caller must lock the mutex.
-func (m *Master) unblockScanner(err error) bool {
-	if m.scanWait == nil {
-		return false
-	}
-
-	m.scanWait <- err
-	close(m.scanWait)
-	m.scanWait = nil
-	return true
+func (m *Master) GetSecondary() Preemptable {
+	return m.secondary
 }
 
-func (m *Master) AcquireConnect(token interface{}) error {
-	// Append the connector to the wait queue.
+func (m *Master) SetSecondary(s Preemptable) error {
 	m.mtx.Lock()
-	ch := m.res.Acquire(token)
-	m.mtx.Unlock()
+	defer m.mtx.Unlock()
 
-	// Stop the scanner in case it is active; connections take priority.  We do
-	// this in a Goroutine so that this call doesn't block indefinitely.  We
-	// need to be reading from the acquisition channel when the scanner frees
-	// the resource.
-	go func() {
-		m.scanner.Preempt()
-	}()
+	if m.state == MASTER_STATE_SECONDARY ||
+		m.state == MASTER_STATE_PRIMARY_SECONDARY_PENDING {
 
-	// Unblocks when either:
-	// 1. Master resource becomes available.
-	// 2. Waiter aborts via call to StopWaitingConnect().
-	return <-ch
+		return fmt.Errorf("cannot replace master secondary while it is in use")
+	}
+
+	m.secondary = s
+	return nil
 }
 
-func (m *Master) AcquireScan(token interface{}) error {
-	// Gets an acquisition channel in a thread-safe manner.
-	// @return chan             Acquisition channel if scanner must wait for
-	//                              resource;
-	//                          Nil if scanner was able to acquire resource.
-	//         error            Error.
-	getChan := func() (<-chan error, error) {
+func (m *Master) appendPrimary(token interface{}) primary {
+	c := primary{
+		token: token,
+		ch:    make(chan error),
+	}
+	m.primaries = append(m.primaries, c)
+
+	return c
+}
+
+func (m *Master) AcquirePrimary(token interface{}) error {
+	initiate := func() (*primary, error) {
 		m.mtx.Lock()
 		defer m.mtx.Unlock()
 
-		// If the resource is unused, just acquire it.
-		if !m.res.Acquired() {
-			<-m.res.Acquire(token)
+		switch m.state {
+		case MASTER_STATE_IDLE:
+			m.state = MASTER_STATE_PRIMARY
 			return nil, nil
-		} else {
-			// Otherwise, wait until there are no waiting connectors.
-			if m.scanWait != nil {
-				return nil,
-					fmt.Errorf("Scanner already waiting for master resource")
-			}
-			m.scanWait = make(chan error)
-			return m.scanWait, nil
+
+		case MASTER_STATE_SECONDARY:
+			c := m.appendPrimary(token)
+			go m.secondary.Preempt()
+			return &c, nil
+
+		case MASTER_STATE_PRIMARY, MASTER_STATE_PRIMARY_SECONDARY_PENDING:
+			c := m.appendPrimary(token)
+			return &c, nil
+
+		default:
+			nmxutil.Assert(false)
+			return nil, fmt.Errorf("internal error: invalid master state=%+v",
+				m.state)
 		}
 	}
 
-	ch, err := getChan()
+	c, err := initiate()
 	if err != nil {
 		return err
 	}
-	if ch == nil {
-		// Resource acquired.
+
+	if c == nil {
 		return nil
 	}
 
-	// Otherwise, we have to wait until someone releases the resource.  When
-	// this happens, let the releaser know when the scanner has finished
-	// acquiring the resource.  At that time, the call to Release() can unlock
-	// and return.
-	defer func() { m.scanAcq <- struct{}{} }()
+	return <-c.ch
+}
 
-	// Wait for the resource to be released.
-	if err := <-ch; err != nil {
+func (m *Master) AcquireSecondary() error {
+	initiate := func() (chan error, error) {
+		m.mtx.Lock()
+		defer m.mtx.Unlock()
+
+		switch m.state {
+		case MASTER_STATE_IDLE:
+			// The resource is unused; just acquire it.
+			m.state = MASTER_STATE_SECONDARY
+			return nil, nil
+
+		case MASTER_STATE_SECONDARY, MASTER_STATE_PRIMARY_SECONDARY_PENDING:
+			nmxutil.Assert(false)
+			return nil, fmt.Errorf("Attempt to perform more than one " +
+				"secondary master procedure")
+
+		case MASTER_STATE_PRIMARY:
+			m.state = MASTER_STATE_PRIMARY_SECONDARY_PENDING
+			return m.secondaryReadyCh, nil
+
+		default:
+			nmxutil.Assert(false)
+			return nil, fmt.Errorf(
+				"internal error: invalid master state=%+v", m.state)
+		}
+	}
+
+	ch, err := initiate()
+	if err != nil {
 		return err
 	}
 
-	// Grab the resource; shouldn't block. */
-	return <-m.res.Acquire(token)
+	if ch == nil {
+		return nil
+	}
+
+	return <-ch
+}
+
+func (m *Master) serviceSecondary() {
+	m.secondaryReadyCh <- nil
+}
+
+func (m *Master) servicePrimary() {
+	nmxutil.Assert(len(m.primaries) > 0)
+
+	next := m.primaries[0]
+	m.primaries = m.primaries[1:]
+
+	next.ch <- nil
+}
+
+func (m *Master) abortSecondaryWait(err error) {
+	m.secondaryReadyCh <- err
 }
 
 func (m *Master) Release() {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	if m.res.Release() {
-		// Next waiting connector acquired the resource.
+	switch m.state {
+	case MASTER_STATE_IDLE:
+		nmxutil.Assert(false)
+
+	case MASTER_STATE_SECONDARY:
+		if len(m.primaries) == 0 {
+			m.state = MASTER_STATE_IDLE
+		} else {
+			m.state = MASTER_STATE_PRIMARY
+			m.servicePrimary()
+		}
+
+	case MASTER_STATE_PRIMARY:
+		if len(m.primaries) == 0 {
+			m.state = MASTER_STATE_IDLE
+		} else {
+			m.servicePrimary()
+		}
+
+	case MASTER_STATE_PRIMARY_SECONDARY_PENDING:
+		if len(m.primaries) == 0 {
+			m.state = MASTER_STATE_SECONDARY
+			m.serviceSecondary()
+		} else {
+			m.servicePrimary()
+		}
+
+	default:
+		nmxutil.Assert(false)
+	}
+}
+
+func (m *Master) findPrimaryIdx(token interface{}) int {
+	for i, c := range m.primaries {
+		if c.token == token {
+			return i
+		}
+	}
+
+	return -1
+}
+
+// Removes the specified primary from the wait queue.
+func (m *Master) StopWaitingPrimary(token interface{}, err error) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	if m.state != MASTER_STATE_PRIMARY &&
+		m.state != MASTER_STATE_PRIMARY_SECONDARY_PENDING {
+
 		return
 	}
 
-	// No pending connects; hand resource to scanner if it wants it.
-	if m.unblockScanner(nil) {
-		// Don't return until scanner has fully acquired the resource.
-		<-m.scanAcq
+	idx := m.findPrimaryIdx(token)
+	if idx == -1 {
+		return
+	}
+
+	m.primaries = append(
+		m.primaries[0:idx], m.primaries[idx+1:len(m.primaries)]...)
+
+	if len(m.primaries) == 0 &&
+		m.state == MASTER_STATE_PRIMARY_SECONDARY_PENDING {
+
+		m.state = MASTER_STATE_SECONDARY
+		m.serviceSecondary()
 	}
 }
 
-// Removes the specified connector from the wait queue.
-func (m *Master) StopWaitingConnect(token interface{}, err error) {
+// Removes the specified secondary from the wait queue.
+func (m *Master) StopWaitingSecondary(err error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	m.res.StopWaiting(token, err)
-}
-
-// Removes the specified scanner from the wait queue.
-func (m *Master) StopWaitingScan(token interface{}, err error) {
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-
-	m.unblockScanner(err)
+	if m.state == MASTER_STATE_PRIMARY_SECONDARY_PENDING {
+		m.state = MASTER_STATE_PRIMARY
+		m.abortSecondaryWait(fmt.Errorf("secondary aborted master acquisition"))
+	}
 }
 
 // Releases the resource and clears the wait queue.
@@ -175,6 +286,11 @@ func (m *Master) Abort(err error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	m.unblockScanner(err)
-	m.res.Abort(err)
+	for _, p := range m.primaries {
+		p.ch <- err
+	}
+
+	if m.state == MASTER_STATE_PRIMARY_SECONDARY_PENDING {
+		m.abortSecondaryWait(err)
+	}
 }

@@ -22,9 +22,9 @@ package sesn
 import (
 	"github.com/runtimeco/go-coap"
 
+	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
-	"mynewt.apache.org/newtmgr/nmxact/oic"
 )
 
 func TxNmp(s Sesn, m *nmp.NmpMsg, o TxOptions) (nmp.NmpRsp, error) {
@@ -44,7 +44,7 @@ func TxNmp(s Sesn, m *nmp.NmpMsg, o TxOptions) (nmp.NmpRsp, error) {
 func getResourceOnce(s Sesn, resType ResourceType,
 	uri string, opt TxOptions) (coap.COAPCode, []byte, error) {
 
-	req, err := oic.CreateGet(s.CoapIsTcp(), uri, nmxutil.NextToken())
+	req, err := nmcoap.CreateGet(s.CoapIsTcp(), uri, nmxutil.NextToken())
 	if err != nil {
 		return 0, nil, err
 	}
@@ -56,7 +56,8 @@ func putResourceOnce(s Sesn, resType ResourceType,
 	uri string, value []byte,
 	opt TxOptions) (coap.COAPCode, []byte, error) {
 
-	req, err := oic.CreatePut(s.CoapIsTcp(), uri, nmxutil.NextToken(), value)
+	req, err := nmcoap.CreatePut(s.CoapIsTcp(), uri, nmxutil.NextToken(),
+		value)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -68,7 +69,8 @@ func postResourceOnce(s Sesn, resType ResourceType,
 	uri string, value []byte,
 	opt TxOptions) (coap.COAPCode, []byte, error) {
 
-	req, err := oic.CreatePost(s.CoapIsTcp(), uri, nmxutil.NextToken(), value)
+	req, err := nmcoap.CreatePost(s.CoapIsTcp(), uri, nmxutil.NextToken(),
+		value)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -79,7 +81,7 @@ func postResourceOnce(s Sesn, resType ResourceType,
 func deleteResourceOnce(s Sesn, resType ResourceType,
 	uri string, opt TxOptions) (coap.COAPCode, []byte, error) {
 
-	req, err := oic.CreateDelete(s.CoapIsTcp(), uri, nmxutil.NextToken())
+	req, err := nmcoap.CreateDelete(s.CoapIsTcp(), uri, nmxutil.NextToken())
 	if err != nil {
 		return 0, nil, err
 	}

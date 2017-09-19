@@ -35,6 +35,7 @@ type ListenerKey struct {
 	ConnHandle int
 }
 
+// Listener that matches by sequence number.
 func SeqKey(seq BleSeq) ListenerKey {
 	return ListenerKey{
 		Seq:        seq,
@@ -43,6 +44,7 @@ func SeqKey(seq BleSeq) ListenerKey {
 	}
 }
 
+// Listener that matches by TCH (type and conn-handle).
 func TchKey(typ MsgType, connHandle int) ListenerKey {
 	return ListenerKey{
 		Seq:        BLE_SEQ_NONE,
@@ -90,8 +92,25 @@ func (bl *Listener) Close() {
 	bl.Acked = true
 
 	close(bl.MsgChan)
+	for {
+		if _, ok := <-bl.MsgChan; !ok {
+			break
+		}
+	}
+
 	close(bl.ErrChan)
+	for {
+		if _, ok := <-bl.ErrChan; !ok {
+			break
+		}
+	}
+
 	close(bl.TmoChan)
+	for {
+		if _, ok := <-bl.TmoChan; !ok {
+			break
+		}
+	}
 }
 
 // Not thread safe.

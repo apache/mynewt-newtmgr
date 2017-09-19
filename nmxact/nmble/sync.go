@@ -30,32 +30,18 @@ import (
 const syncPollRate = time.Second
 
 type Syncer struct {
-	x           *BleXport
-	stopCh      chan struct{}
-	wg          sync.WaitGroup
-	synced      bool
-	syncBlocker nmxutil.Blocker
-	mtx         sync.Mutex
+	x      *BleXport
+	synced bool
+	active bool
 
-	resetBcaster nmxutil.Bcaster
-	syncBcaster  nmxutil.Bcaster
-}
+	stopCh  chan struct{}
+	syncCh  chan bool
+	resetCh chan int
 
-func (s *Syncer) Refresh() (bool, error) {
-	r := NewSyncReq()
-	bl, err := s.x.AddListener(SeqKey(r.Seq))
-	if err != nil {
-		return false, err
-	}
-	defer s.x.RemoveListener(bl)
+	wg sync.WaitGroup
 
-	synced, err := checkSync(s.x, bl, r)
-	if err != nil {
-		return false, err
-	}
-
-	s.setSynced(synced)
-	return synced, nil
+	// Protects synced and active.
+	mtx sync.Mutex
 }
 
 func (s *Syncer) Synced() bool {
@@ -65,55 +51,22 @@ func (s *Syncer) Synced() bool {
 	return s.synced
 }
 
-func (s *Syncer) checkSyncLoop() {
-	doneCh := make(chan struct{})
-
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-
-		s.BlockUntilSynced(nmxutil.DURATION_FOREVER, s.stopCh)
-		close(doneCh)
-	}()
-
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-
-		for {
-			s.Refresh()
-
-			select {
-			case <-doneCh:
-				return
-
-			case <-s.stopCh:
-				return
-
-			case <-time.After(syncPollRate):
-			}
-		}
-	}()
-}
-
 func (s *Syncer) setSynced(synced bool) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
+	initiate := func() bool {
+		s.mtx.Lock()
+		defer s.mtx.Unlock()
 
-	if synced == s.synced {
-		return
+		if synced == s.synced {
+			return false
+		}
+
+		s.synced = synced
+		return true
 	}
 
-	s.synced = synced
-	if s.synced {
-		s.syncBlocker.Unblock(nil)
-	} else {
-		s.syncBlocker.Start()
-
-		// Listen for sync loss and reset in the background.
-		s.checkSyncLoop()
+	if initiate() {
+		s.syncCh <- synced
 	}
-	s.syncBcaster.Send(s.synced)
 }
 
 func (s *Syncer) addSyncListener() (*Listener, error) {
@@ -171,10 +124,12 @@ func (s *Syncer) listen() error {
 				switch msg := bm.(type) {
 				case *BleResetEvt:
 					s.setSynced(false)
-					s.resetBcaster.Send(msg.Reason)
+					s.resetCh <- msg.Reason
 				}
 
 			case <-s.stopCh:
+				// It is OK to strand the two listeners.  Their deferred
+				// removal will drain them.
 				return
 			}
 		}
@@ -183,15 +138,20 @@ func (s *Syncer) listen() error {
 	return <-errChan
 }
 
-func (s *Syncer) Start(x *BleXport) error {
+func (s *Syncer) Start(x *BleXport) (<-chan bool, <-chan int, error) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
 	s.x = x
 	s.stopCh = make(chan struct{})
-	s.syncBlocker.Start()
-	s.checkSyncLoop()
-	return s.listen()
+	s.syncCh = make(chan bool)
+	s.resetCh = make(chan int)
+
+	if err := s.listen(); err != nil {
+		return nil, nil, err
+	}
+
+	return s.syncCh, s.resetCh, nil
 }
 
 func (s *Syncer) Stop() error {
@@ -199,45 +159,35 @@ func (s *Syncer) Stop() error {
 		s.mtx.Lock()
 		defer s.mtx.Unlock()
 
-		if s.stopCh == nil {
+		if !s.active {
 			return fmt.Errorf("Syncer already stopped")
 		}
-		close(s.stopCh)
+
+		s.active = false
 		return nil
 	}
 
 	if err := initiate(); err != nil {
 		return err
 	}
+
+	close(s.stopCh)
+
+	close(s.syncCh)
+	for {
+		if _, ok := <-s.syncCh; !ok {
+			break
+		}
+	}
+
+	close(s.resetCh)
+	for {
+		if _, ok := <-s.resetCh; !ok {
+			break
+		}
+	}
+
 	s.wg.Wait()
 
-	s.syncBcaster.Clear()
-	s.resetBcaster.Clear()
-	s.syncBlocker.Unblock(nil)
-
-	s.stopCh = nil
-
 	return nil
-}
-
-func (s *Syncer) BlockUntilSynced(timeout time.Duration,
-	stopChan <-chan struct{}) error {
-
-	if _, err := s.syncBlocker.Wait(timeout, stopChan); err != nil {
-		return err
-	}
-
-	if !s.Synced() {
-		return fmt.Errorf("stopped")
-	}
-
-	return nil
-}
-
-func (s *Syncer) ListenSync() chan interface{} {
-	return s.syncBcaster.Listen()
-}
-
-func (s *Syncer) ListenReset() chan interface{} {
-	return s.resetBcaster.Listen()
 }
