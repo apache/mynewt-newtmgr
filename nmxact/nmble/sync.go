@@ -30,9 +30,9 @@ import (
 const syncPollRate = time.Second
 
 type Syncer struct {
-	x      *BleXport
-	synced bool
-	active bool
+	x       *BleXport
+	synced  bool
+	enabled bool
 
 	stopCh  chan struct{}
 	syncCh  chan bool
@@ -40,7 +40,7 @@ type Syncer struct {
 
 	wg sync.WaitGroup
 
-	// Protects synced and active.
+	// Protects synced and enabled.
 	mtx sync.Mutex
 }
 
@@ -110,24 +110,24 @@ func (s *Syncer) listen() error {
 
 		for {
 			select {
-			case <-syncl.ErrChan:
+			case err, ok := <-syncl.ErrChan:
 				// XXX
-			case bm := <-syncl.MsgChan:
+			case bm, ok := <-syncl.MsgChan:
 				switch msg := bm.(type) {
 				case *BleSyncEvt:
 					s.setSynced(msg.Synced)
 				}
 
-			case <-resetl.ErrChan:
+			case _, ok := <-resetl.ErrChan:
 				// XXX
-			case bm := <-resetl.MsgChan:
+			case bm, ok := <-resetl.MsgChan:
 				switch msg := bm.(type) {
 				case *BleResetEvt:
 					s.setSynced(false)
 					s.resetCh <- msg.Reason
 				}
 
-			case <-s.stopCh:
+			case _, ok := <-s.stopCh:
 				// It is OK to strand the two listeners.  Their deferred
 				// removal will drain them.
 				return
@@ -151,6 +151,8 @@ func (s *Syncer) Start(x *BleXport) (<-chan bool, <-chan int, error) {
 		return nil, nil, err
 	}
 
+	s.enabled = true
+
 	return s.syncCh, s.resetCh, nil
 }
 
@@ -159,11 +161,11 @@ func (s *Syncer) Stop() error {
 		s.mtx.Lock()
 		defer s.mtx.Unlock()
 
-		if !s.active {
+		if !s.enabled {
 			return fmt.Errorf("Syncer already stopped")
 		}
 
-		s.active = false
+		s.enabled = false
 		return nil
 	}
 

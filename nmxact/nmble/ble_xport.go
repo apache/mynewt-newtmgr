@@ -267,18 +267,20 @@ func (bx *BleXport) shutdown(cause error) error {
 	log.Debugf("Aborting BLE master")
 	bx.master.Abort(cause)
 
-	// Indicate an error to all of this transport's listeners.  This
-	// prevents them from blocking endlessly while awaiting a BLE message.
-	log.Debugf("Stopping BLE dispatcher")
-	bx.d.ErrorAll(cause)
-
 	// Reset controller so that all outstanding connections terminate.
 	if bx.syncer.Synced() {
+		log.Debugf("Resetting host")
 		ResetXact(bx)
 	}
 
 	// Stop monitoring host-controller sync.
+	log.Debugf("Stopping BLE syncer")
 	bx.syncer.Stop()
+
+	// Indicate an error to all of this transport's listeners.  This
+	// prevents them from blocking endlessly while awaiting a BLE message.
+	log.Debugf("Stopping BLE dispatcher")
+	bx.d.ErrorAll(cause)
 
 	// Stop all of this transport's go routines.
 	close(bx.stopChan)
