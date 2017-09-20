@@ -100,6 +100,8 @@ func NewConn(bx *BleXport) *Conn {
 		notifyMap:      map[*Characteristic]*NotifyListener{},
 	}
 
+	c.tq = task.NewTaskQueue("conn")
+
 	if err := c.tq.Start(10); err != nil {
 		nmxutil.Assert(false)
 	}

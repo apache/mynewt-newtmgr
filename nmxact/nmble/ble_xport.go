@@ -87,6 +87,8 @@ type BleXport struct {
 	// Whether the transport should restart on failure.
 	enabled bool
 
+	shuttingDown bool
+
 	advertiser *Advertiser
 	cfg        XportCfg
 	client     *unixchild.Client
@@ -253,12 +255,31 @@ func (bx *BleXport) setAddr() error {
 func (bx *BleXport) shutdown(cause error) error {
 	nmxutil.Assert(nmxutil.IsXport(cause))
 
-	log.Debugf("Shutting down BLE transport")
+	initiate := func() error {
+		bx.mtx.Lock()
+		defer bx.mtx.Unlock()
 
-	if err := bx.tq.StopNoWait(cause); err != nil {
-		// Shutdown already in progress.
+		if bx.shuttingDown || !bx.enabled {
+			return nmxutil.NewXportError("BLE xport stopped more than once")
+		}
+		bx.shuttingDown = true
+		return nil
+	}
+
+	if err := initiate(); err != nil {
 		return err
 	}
+	defer func() {
+		bx.mtx.Lock()
+		bx.mtx.Unlock()
+
+		bx.shuttingDown = false
+	}()
+
+	log.Debugf("Shutting down BLE transport")
+
+	log.Debugf("Stopping advertiser")
+	bx.advertiser.Stop()
 
 	bx.sesns = map[uint16]*NakedSesn{}
 
@@ -284,6 +305,10 @@ func (bx *BleXport) shutdown(cause error) error {
 
 	// Stop all of this transport's go routines.
 	close(bx.stopChan)
+
+	if err := bx.tq.StopNoWait(cause); err != nil {
+		return err
+	}
 
 	// Stop the unixchild instance (blehostd + socket).
 	if bx.client != nil {
@@ -444,7 +469,7 @@ func (bx *BleXport) Stop() error {
 }
 
 func (bx *BleXport) Restart(reason string) error {
-	cause := nmxutil.NewXportError(reason)
+	cause := nmxutil.NewXportError("Restarting BLE transport; " + reason)
 	return <-bx.enqueueShutdown(cause)
 }
 
@@ -564,6 +589,8 @@ func NewBleXport(cfg XportCfg) (*BleXport, error) {
 		slave: nmxutil.NewSingleResource(),
 		sesns: map[uint16]*NakedSesn{},
 	}
+
+	bx.tq = task.NewTaskQueue("ble_xport")
 
 	bx.advertiser = NewAdvertiser(bx)
 	bx.master = NewMaster(bx)

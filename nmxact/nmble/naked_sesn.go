@@ -97,6 +97,8 @@ func NewNakedSesn(bx *BleXport, cfg sesn.SesnCfg) (*NakedSesn, error) {
 		mgmtChrs: mgmtChrs,
 	}
 
+	s.tq = task.NewTaskQueue("naked_sesn")
+
 	if err := s.tq.Start(10); err != nil {
 		nmxutil.Assert(false)
 		return nil, err
@@ -271,8 +273,19 @@ func (s *NakedSesn) OpenConnected(
 	return nil
 }
 
+func (s *NakedSesn) failIfNotOpen() error {
+	if !s.IsOpen() {
+		return nmxutil.NewSesnClosedError("Attempt to use closed session")
+	}
+	return nil
+}
+
 func (s *NakedSesn) TxNmpOnce(req *nmp.NmpMsg, opt sesn.TxOptions) (
 	nmp.NmpRsp, error) {
+
+	if err := s.failIfNotOpen(); err != nil {
+		return nil, err
+	}
 
 	var rsp nmp.NmpRsp
 
@@ -304,6 +317,10 @@ func (s *NakedSesn) TxNmpOnce(req *nmp.NmpMsg, opt sesn.TxOptions) (
 func (s *NakedSesn) TxCoapOnce(m coap.Message,
 	resType sesn.ResourceType,
 	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
+
+	if err := s.failIfNotOpen(); err != nil {
+		return 0, nil, err
+	}
 
 	var rspCode coap.COAPCode
 	var rspPayload []byte
@@ -347,6 +364,10 @@ func (s *NakedSesn) TxCoapOnce(m coap.Message,
 }
 
 func (s *NakedSesn) AbortRx(seq uint8) error {
+	if err := s.failIfNotOpen(); err != nil {
+		return err
+	}
+
 	fn := func() error {
 		s.txvr.AbortRx(seq)
 		return nil
@@ -355,6 +376,10 @@ func (s *NakedSesn) AbortRx(seq uint8) error {
 }
 
 func (s *NakedSesn) Close() error {
+	if err := s.failIfNotOpen(); err != nil {
+		return err
+	}
+
 	fn := func() error {
 		return s.shutdown(fmt.Errorf("BLE session manually closed"))
 	}
@@ -386,6 +411,10 @@ func (s *NakedSesn) MgmtProto() sesn.MgmtProto {
 }
 
 func (s *NakedSesn) ConnInfo() (BleConnDesc, error) {
+	if err := s.failIfNotOpen(); err != nil {
+		return BleConnDesc{}, err
+	}
+
 	return s.conn.ConnInfo(), nil
 }
 

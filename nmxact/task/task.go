@@ -16,9 +16,18 @@ type TaskQueue struct {
 	actCh  chan action
 	stopCh chan struct{}
 	active bool
+	name   string
 	mtx    sync.Mutex
 	wg     sync.WaitGroup
 }
+
+func NewTaskQueue(name string) TaskQueue {
+	return TaskQueue{
+		name: name,
+	}
+}
+
+var InactiveError = fmt.Errorf("inactive task queue")
 
 // Pushes the specified function onto the task queue.  When the job completes,
 // the result is sent over the returned channel
@@ -36,7 +45,7 @@ func (q *TaskQueue) Enqueue(fn func() error) chan error {
 	}
 
 	if !isActive() {
-		act.ch <- fmt.Errorf("enqueue to inactive task queue")
+		act.ch <- InactiveError
 	} else {
 		q.actCh <- act
 	}
@@ -56,7 +65,7 @@ func (q *TaskQueue) Start(depth int) error {
 	defer q.mtx.Unlock()
 
 	if q.active {
-		return fmt.Errorf("Task queue started twice")
+		return fmt.Errorf("Task queue started twice \"%s\"", q.name)
 	}
 	q.active = true
 
@@ -112,7 +121,7 @@ func (q *TaskQueue) StopNoWait(cause error) error {
 	defer q.mtx.Unlock()
 
 	if !q.active {
-		return fmt.Errorf("Task queue stopped twice")
+		return fmt.Errorf("Task queue stopped twice \"%s\"", q.name)
 	}
 
 	// Stop the task loop.
