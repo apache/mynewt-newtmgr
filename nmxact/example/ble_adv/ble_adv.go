@@ -28,7 +28,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 
 	"mynewt.apache.org/newt/util"
-	"mynewt.apache.org/newtmgr/nmxact/adv"
 	"mynewt.apache.org/newtmgr/nmxact/nmble"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
@@ -71,7 +70,7 @@ func main() {
 	params := nmble.NewXportCfg()
 	params.SockPath = "/tmp/blehostd-uds"
 	params.BlehostdPath = "blehostd"
-	params.DevPath = "/dev/cu.usbmodem142111"
+	params.DevPath = "/dev/cu.usbmodem141131"
 
 	x, err := nmble.NewBleXport(params)
 	if err != nil {
@@ -90,23 +89,17 @@ func main() {
 
 	configExitHandler(x, nil)
 
-	advertiser, err := x.BuildAdvertiser()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error building BLE advertiser: %s\n",
-			err.Error())
-		os.Exit(1)
-	}
-
+	advertiser := x.Advertiser()
 	for {
 		closeCh := make(chan struct{})
 
-		ac := adv.NewCfg()
-		ac.Ble.AdvFields.Flags = new(uint8)
-		*ac.Ble.AdvFields.Flags = 6
-		ac.Ble.AdvFields.Name = new(string)
-		*ac.Ble.AdvFields.Name = "gwadv"
+		ac := nmble.NewAdvertiseCfg()
+		ac.AdvFields.Flags = new(uint8)
+		*ac.AdvFields.Flags = 6
+		ac.AdvFields.Name = new(string)
+		*ac.AdvFields.Name = "gwadv"
 
-		ac.Ble.SesnCfg.OnCloseCb = func(s sesn.Sesn, err error) {
+		ac.SesnCfg.OnCloseCb = func(s sesn.Sesn, err error) {
 			close(closeCh)
 		}
 

@@ -27,8 +27,6 @@ import (
 	"github.com/currantlabs/ble"
 	"github.com/currantlabs/ble/examples/lib/dev"
 
-	"mynewt.apache.org/newtmgr/nmxact/adv"
-	"mynewt.apache.org/newtmgr/nmxact/scan"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
@@ -80,14 +78,6 @@ func (bx *BllXport) Stop() error {
 	return nil
 }
 
-func (bx *BllXport) BuildScanner() (scan.Scanner, error) {
-	return nil, fmt.Errorf("BllXport.BuildScanner() not supported")
-}
-
 func (bx *BllXport) Tx(data []byte) error {
 	return fmt.Errorf("BllXport.Tx() not supported")
-}
-
-func (bx *BllXport) BuildAdvertiser() (adv.Advertiser, error) {
-	return nil, fmt.Errorf("BllXport#BuildAdvertiser unsupported")
 }

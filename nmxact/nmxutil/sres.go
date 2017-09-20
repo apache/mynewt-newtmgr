@@ -70,39 +70,52 @@ func (s *SingleResource) Acquire(token interface{}) <-chan error {
 // @return                      true if a pending waiter acquired the resource;
 //                              false if the resource is now free.
 func (s *SingleResource) Release() bool {
-	s.mtx.Lock()
+	initiate := func() *SRWaiter {
+		s.mtx.Lock()
+		defer s.mtx.Unlock()
 
-	if !s.acquired {
-		panic("SingleResource release without acquire")
-		s.mtx.Unlock()
-		return false
+		if !s.acquired {
+			panic("SingleResource release without acquire")
+			return nil
+		}
+
+		if len(s.waitQueue) == 0 {
+			s.acquired = false
+			return nil
+		}
+
+		w := s.waitQueue[0]
+		s.waitQueue = s.waitQueue[1:]
+
+		return &w
 	}
 
-	if len(s.waitQueue) == 0 {
-		s.acquired = false
-		s.mtx.Unlock()
+	w := initiate()
+	if w == nil {
 		return false
 	}
-
-	w := s.waitQueue[0]
-	s.waitQueue = s.waitQueue[1:]
-
-	s.mtx.Unlock()
 
 	w.c <- nil
-
 	return true
 }
 
 func (s *SingleResource) StopWaiting(token interface{}, err error) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
+	getw := func() *SRWaiter {
+		s.mtx.Lock()
+		defer s.mtx.Unlock()
 
-	for _, w := range s.waitQueue {
-		if w.token == token {
-			w.c <- err
-			return
+		for i, w := range s.waitQueue {
+			if w.token == token {
+				s.waitQueue = append(s.waitQueue[:i], s.waitQueue[i+1:]...)
+				return &w
+			}
 		}
+
+		return nil
+	}
+
+	if w := getw(); w != nil {
+		w.c <- err
 	}
 }
 

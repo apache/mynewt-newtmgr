@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package oic
+package nmcoap
 
 import (
 	"fmt"

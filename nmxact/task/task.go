@@ -1,0 +1,136 @@
+package task
+
+import (
+	"fmt"
+	"sync"
+)
+
+// A single action that runs in the main loop.
+type action struct {
+	fn func() error
+	ch chan error
+}
+
+// A queue for running jobs serially.
+type TaskQueue struct {
+	actCh  chan action
+	stopCh chan struct{}
+	active bool
+	mtx    sync.Mutex
+	wg     sync.WaitGroup
+}
+
+// Pushes the specified function onto the task queue.  When the job completes,
+// the result is sent over the returned channel
+func (q *TaskQueue) Enqueue(fn func() error) chan error {
+	isActive := func() bool {
+		q.mtx.Lock()
+		defer q.mtx.Unlock()
+
+		return q.active
+	}
+
+	act := action{
+		fn: fn,
+		ch: make(chan error, 1),
+	}
+
+	if !isActive() {
+		act.ch <- fmt.Errorf("enqueue to inactive task queue")
+	} else {
+		q.actCh <- act
+	}
+
+	return act.ch
+}
+
+// Enqueues the specified function and waits for it to complete.
+func (q *TaskQueue) Run(fn func() error) error {
+	return <-q.Enqueue(fn)
+}
+
+// Starts the task queue.  A task queue must be started before jobs can be
+// enqueued to it.
+func (q *TaskQueue) Start(depth int) error {
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
+
+	if q.active {
+		return fmt.Errorf("Task queue started twice")
+	}
+	q.active = true
+
+	actCh := make(chan action, depth)
+	q.actCh = actCh
+
+	stopCh := make(chan struct{})
+	q.stopCh = stopCh
+
+	q.wg.Add(1)
+	go func() {
+		defer q.wg.Done()
+
+		for {
+			select {
+			case act, ok := <-actCh:
+				if ok {
+					err := act.fn()
+					act.ch <- err
+					close(act.ch)
+				}
+
+			case <-stopCh:
+				return
+			}
+		}
+	}()
+
+	return nil
+}
+
+// Stops the task queue.  If there are any queued jobs, this causes them to
+// fail with the specified error.  The task queue must be started again before
+// it can be reused.  This function blocks until the task loop returns, so
+// alling this from within a job results in deadlock.  If a job needs to stop
+// the task queue, it should use StopNoWait instead.
+func (q *TaskQueue) Stop(cause error) error {
+	if err := q.StopNoWait(cause); err != nil {
+		return err
+	}
+
+	// Wait for task loop to terminate.
+	q.wg.Wait()
+	return nil
+}
+
+// Stops the task queue.  If there are any queued jobs, this causes them to
+// fail with the specified error.  The task queue must be started again before
+// it can be reused.  If this function returns success, the stop procedure has
+// successfully initiated, but not necessarily completed.
+func (q *TaskQueue) StopNoWait(cause error) error {
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
+
+	if !q.active {
+		return fmt.Errorf("Task queue stopped twice")
+	}
+
+	// Stop the task loop.
+	close(q.stopCh)
+
+	// Drain unprocessed actions from the action channel.
+	close(q.actCh)
+	for {
+		next, ok := <-q.actCh
+		if !ok {
+			break
+		}
+
+		next.ch <- cause
+		close(next.ch)
+	}
+
+	q.active = false
+
+	return nil
+}

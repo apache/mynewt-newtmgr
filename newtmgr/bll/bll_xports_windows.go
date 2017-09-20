@@ -24,8 +24,6 @@ package bll
 import (
 	"fmt"
 
-	"mynewt.apache.org/newtmgr/nmxact/adv"
-	"mynewt.apache.org/newtmgr/nmxact/scan"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
@@ -58,16 +56,11 @@ func (bx *BllXport) BuildBllSesn(cfg BllSesnCfg) (sesn.Sesn, error) {
 }
 
 func (bx *BllXport) Start() error {
-
 	return fmt.Errorf("Not Supported On Windows")
 }
 
 func (bx *BllXport) Stop() error {
 	return fmt.Errorf("Not Supported On Windows")
-}
-
-func (bx *BllXport) BuildScanner() (scan.Scanner, error) {
-	return nil, fmt.Errorf("BllXport.BuildScanner() not supported")
 }
 
 func (bx *BllXport) Tx(data []byte) error {

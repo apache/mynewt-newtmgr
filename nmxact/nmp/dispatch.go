@@ -134,7 +134,7 @@ func (d *Dispatcher) DispatchRsp(r NmpRsp) bool {
 
 	nl := d.seqListenerMap[r.Hdr().Seq]
 	if nl == nil {
-		log.Printf("No listener for incoming NMP message")
+		log.Debugf("No listener for incoming NMP message")
 		return false
 	}
 
@@ -152,7 +152,7 @@ func (d *Dispatcher) Dispatch(data []byte) bool {
 
 	rsp, err := decodeRsp(pkt)
 	if err != nil {
-		log.Printf("Failure decoding NMP rsp: %s\npacket=\n%s", err.Error(),
+		log.Debugf("Failure decoding NMP rsp: %s\npacket=\n%s", err.Error(),
 			hex.Dump(data))
 		return false
 	}

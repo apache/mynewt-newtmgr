@@ -28,6 +28,7 @@ import (
 
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
+	"mynewt.apache.org/newtmgr/nmxact/task"
 )
 
 type Notification struct {
@@ -48,45 +49,62 @@ func NewNotifyListener() *NotifyListener {
 	}
 }
 
+// Implements a low-level BLE connection.  Objets of this type must never be
+// reused; after a disconnect, a new object should be created if you wish to
+// reconnect to the peer.
+//
+// Starts Goroutines on:
+// * Successful call to Connect().
+// * Successful call to Inherit().
+//
+// Stops Goroutines on:
+// * Successful call to Stop().
+// * Unsolicited disconnect.
 type Conn struct {
 	bx         *BleXport
-	prio       MasterPrio
 	rxvr       *Receiver
 	attMtu     uint16
 	profile    Profile
 	desc       BleConnDesc
 	connHandle uint16
+	notifyMap  map[*Characteristic]*NotifyListener
+	wg         sync.WaitGroup
 
-	connecting     bool
+	// Indicates a disconnect to the user of this type.
 	disconnectChan chan error
-	wg             sync.WaitGroup
-	encBlocker     nmxutil.Blocker
 
-	// Terminates all go routines.
-	stopChan chan struct{}
-	stopped  bool
+	// Closes when the connection drops; used for Goroutine cleanup.
+	dropChan chan struct{}
 
-	notifyMap map[*Characteristic]*NotifyListener
+	// Allows blocking initiate-security procedures.
+	encBlocker nmxutil.Blocker
+
+	// The queue of actions that run in the main loop.
+	tq task.TaskQueue
 
 	// Protects:
+	// * active
 	// * connHandle
-	// * connecting
 	// * notifyMap
-	// * stopChan
 	mtx sync.Mutex
 }
 
-func NewConn(bx *BleXport, prio MasterPrio) *Conn {
-	return &Conn{
+func NewConn(bx *BleXport) *Conn {
+	c := &Conn{
 		bx:             bx,
-		prio:           prio,
 		rxvr:           NewReceiver(nmxutil.GetNextId(), bx, 1),
 		connHandle:     BLE_CONN_HANDLE_NONE,
 		attMtu:         BLE_ATT_MTU_DFLT,
 		disconnectChan: make(chan error, 1),
-		stopChan:       make(chan struct{}),
+		dropChan:       make(chan struct{}),
 		notifyMap:      map[*Characteristic]*NotifyListener{},
 	}
+
+	if err := c.tq.Start(10); err != nil {
+		nmxutil.Assert(false)
+	}
+
+	return c
 }
 
 func (c *Conn) DisconnectChan() <-chan error {
@@ -104,47 +122,86 @@ func (c *Conn) abortNotifyListeners(err error) {
 	}
 }
 
-func (c *Conn) shutdown(delay time.Duration, err error) {
-	// Returns true if a shutdown was successfully initiated.  Prevents
-	// repeated shutdowns without keeping the mutex locked throughout the
-	// duration of the shutdown.
-	initiate := func() bool {
-		c.mtx.Lock()
-		defer c.mtx.Unlock()
+func (c *Conn) writeHandle(handle uint16, payload []byte,
+	name string) error {
 
-		if c.stopped {
-			return false
-		}
-		c.stopped = true
+	r := NewBleWriteReq()
+	r.ConnHandle = c.connHandle
+	r.AttrHandle = int(handle)
+	r.Data.Bytes = payload
 
-		close(c.stopChan)
-		return true
+	bl, err := c.rxvr.AddListener(name, SeqKey(r.Seq))
+	if err != nil {
+		return err
+	}
+	defer c.rxvr.RemoveListener(name, bl)
+
+	if err := write(c.bx, bl, r); err != nil {
+		return err
 	}
 
-	go func() {
-		if delay > 0 {
-			time.Sleep(delay)
+	return nil
+}
+
+func (c *Conn) writeHandleNoRsp(handle uint16, payload []byte,
+	name string) error {
+
+	r := NewBleWriteCmdReq()
+	r.ConnHandle = c.connHandle
+	r.AttrHandle = int(handle)
+	r.Data.Bytes = payload
+
+	bl, err := c.rxvr.AddListener(name, SeqKey(r.Seq))
+	if err != nil {
+		return err
+	}
+	defer c.rxvr.RemoveListener(name, bl)
+
+	if err := writeCmd(c.bx, bl, r); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Conn) enqueueShutdown(cause error) chan error {
+	return c.tq.Enqueue(func() error { return c.shutdown(cause) })
+}
+
+func (c *Conn) runShutdown(cause error) error {
+	return <-c.enqueueShutdown(cause)
+}
+
+func (c *Conn) shutdown(cause error) error {
+	if err := c.tq.StopNoWait(cause); err != nil {
+		// Connection already shut down.
+		return err
+	}
+
+	if c.connHandle != BLE_CONN_HANDLE_NONE {
+		c.terminate()
+		select {
+		case <-c.dropChan:
+		case <-time.After(time.Second * 30):
+			// This shouldn't happen.  Either blehostd is buggy or an event got
+			// dropped.
+			c.bx.Restart("No disconnect event received after 30 seconds")
 		}
+	}
 
-		if !initiate() {
-			return
-		}
+	c.rxvr.RemoveAll("shutdown")
+	c.rxvr.WaitUntilNoListeners()
 
-		StopWaitingForMaster(c.bx, c.prio, c, err)
+	c.connHandle = BLE_CONN_HANDLE_NONE
 
-		c.rxvr.RemoveAll("shutdown")
-		c.rxvr.WaitUntilNoListeners()
+	c.abortNotifyListeners(cause)
 
-		c.wg.Wait()
+	c.wg.Wait()
 
-		c.connecting = false
-		c.connHandle = BLE_CONN_HANDLE_NONE
+	c.disconnectChan <- cause
+	close(c.disconnectChan)
 
-		c.abortNotifyListeners(err)
-
-		c.disconnectChan <- err
-		close(c.disconnectChan)
-	}()
+	return nil
 }
 
 func (c *Conn) newDisconnectError(reason int) error {
@@ -157,62 +214,62 @@ func (c *Conn) newDisconnectError(reason int) error {
 
 // Listens for events in the background.
 func (c *Conn) eventListen(bl *Listener) error {
+	// Terminates on:
+	// * BLE listener error (also triggered by txvr being stopped).
+	// * Receive of disconnect event.
+	//
+	// On terminate, this Goroutine shuts the connection object down.
 	c.wg.Add(1)
-
 	go func() {
 		defer c.wg.Done()
 		defer c.rxvr.RemoveListener("connect", bl)
+		defer close(c.dropChan)
 
 		for {
 			select {
-			case <-c.stopChan:
-				return
-
 			case err, ok := <-bl.ErrChan:
 				if ok {
-					c.shutdown(0, err)
+					c.enqueueShutdown(err)
 				}
 				return
 
 			case bm, ok := <-bl.MsgChan:
-				if !ok {
-					return
-				}
+				if ok {
+					switch msg := bm.(type) {
+					case *BleMtuChangeEvt:
+						if msg.Status != 0 {
+							err := StatusError(MSG_OP_EVT,
+								MSG_TYPE_MTU_CHANGE_EVT,
+								msg.Status)
+							log.Debugf(err.Error())
+						} else {
+							log.Debugf("BLE ATT MTU updated; from=%d to=%d",
+								c.attMtu, msg.Mtu)
+							c.attMtu = msg.Mtu
+						}
 
-				switch msg := bm.(type) {
-				case *BleMtuChangeEvt:
-					if msg.Status != 0 {
-						err := StatusError(MSG_OP_EVT,
-							MSG_TYPE_MTU_CHANGE_EVT,
-							msg.Status)
-						log.Debugf(err.Error())
-					} else {
-						log.Debugf("BLE ATT MTU updated; from=%d to=%d",
-							c.attMtu, msg.Mtu)
-						c.attMtu = msg.Mtu
+					case *BleEncChangeEvt:
+						var err error
+						if msg.Status != 0 {
+							err = StatusError(MSG_OP_EVT,
+								MSG_TYPE_ENC_CHANGE_EVT,
+								msg.Status)
+							log.Debugf(err.Error())
+						} else {
+							log.Debugf("Connection encrypted; conn_handle=%d",
+								msg.ConnHandle)
+							c.updateDescriptor()
+						}
+
+						// Unblock any initiate-security procedures.
+						c.encBlocker.Unblock(err)
+
+					case *BleDisconnectEvt:
+						c.enqueueShutdown(c.newDisconnectError(msg.Reason))
+						return
+
+					default:
 					}
-
-				case *BleEncChangeEvt:
-					var err error
-					if msg.Status != 0 {
-						err = StatusError(MSG_OP_EVT,
-							MSG_TYPE_ENC_CHANGE_EVT,
-							msg.Status)
-						log.Debugf(err.Error())
-					} else {
-						log.Debugf("Connection encrypted; conn_handle=%d",
-							msg.ConnHandle)
-						c.updateDescriptor()
-					}
-
-					// Unblock any initiate-security procedures.
-					c.encBlocker.Unblock(err)
-
-				case *BleDisconnectEvt:
-					c.shutdown(0, c.newDisconnectError(msg.Reason))
-					return
-
-				default:
 				}
 			}
 		}
@@ -249,6 +306,8 @@ func (c *Conn) notifyListen() error {
 		return err
 	}
 
+	// Terminates on:
+	// * BLE listener error (triggered by txvr being stopped)
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
@@ -256,53 +315,21 @@ func (c *Conn) notifyListen() error {
 
 		for {
 			select {
-			case <-c.stopChan:
-				return
-
 			case <-bl.ErrChan:
 				return
 
 			case bm, ok := <-bl.MsgChan:
-				if !ok {
-					return
-				}
-
-				switch msg := bm.(type) {
-				case *BleNotifyRxEvt:
-					c.rxNotify(msg)
+				if ok {
+					switch msg := bm.(type) {
+					case *BleNotifyRxEvt:
+						c.rxNotify(msg)
+					}
 				}
 			}
 		}
 	}()
 
 	return nil
-}
-
-func (c *Conn) startConnecting() error {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
-	if c.connHandle != BLE_CONN_HANDLE_NONE {
-		return nmxutil.NewSesnAlreadyOpenError(
-			"BLE connection already established")
-	}
-	if c.connecting {
-		return nmxutil.NewSesnAlreadyOpenError(
-			"BLE connection already being established")
-	}
-	if c.stopped {
-		return fmt.Errorf("Attempt to re-use Conn object")
-	}
-
-	c.connecting = true
-	return nil
-}
-
-func (c *Conn) stopConnecting() {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
-	c.connecting = false
 }
 
 func (c *Conn) updateDescriptor() error {
@@ -319,9 +346,9 @@ func (c *Conn) finalizeConnection(connHandle uint16,
 	eventListener *Listener) error {
 
 	c.mtx.Lock()
-	c.connecting = false
+	defer c.mtx.Unlock()
+
 	c.connHandle = connHandle
-	c.mtx.Unlock()
 
 	// Listen for events in the background.
 	if err := c.eventListen(eventListener); err != nil {
@@ -347,55 +374,63 @@ func (c *Conn) IsConnected() bool {
 	return c.connHandle != BLE_CONN_HANDLE_NONE
 }
 
-func (c *Conn) Connect(bx *BleXport, ownAddrType BleAddrType, peer BleDev,
+func (c *Conn) ConnInfo() BleConnDesc {
+	return c.desc
+}
+
+func (c *Conn) AttMtu() uint16 {
+	return c.attMtu
+}
+
+func (c *Conn) Profile() *Profile {
+	return &c.profile
+}
+
+func (c *Conn) Connect(ownAddrType BleAddrType, peer BleDev,
 	timeout time.Duration) error {
 
-	if err := c.startConnecting(); err != nil {
-		return err
-	}
-	defer c.stopConnecting()
+	fn := func() error {
+		r := NewBleConnectReq()
+		r.OwnAddrType = ownAddrType
+		r.PeerAddrType = peer.AddrType
+		r.PeerAddr = peer.Addr
+		r.DurationMs = int(timeout / time.Millisecond)
 
-	r := NewBleConnectReq()
-	r.OwnAddrType = ownAddrType
-	r.PeerAddrType = peer.AddrType
-	r.PeerAddr = peer.Addr
-
-	// Initiating a connection requires dedicated master privileges.
-	if err := AcquireMaster(c.bx, c.prio, c); err != nil {
-		return err
-	}
-	defer c.bx.ReleaseMaster()
-
-	bl, err := c.rxvr.AddListener("connect", SeqKey(r.Seq))
-	if err != nil {
-		return err
-	}
-
-	// Tell blehostd to initiate connection.
-	connHandle, err := connect(c.bx, bl, r, timeout)
-	if err != nil {
-		bhe := nmxutil.ToBleHost(err)
-		if bhe != nil && bhe.Status == ERR_CODE_EDONE {
-			// Already connected.
-			c.rxvr.RemoveListener("connect", bl)
-			return fmt.Errorf("Already connected to peer %s", &peer)
-		} else if !nmxutil.IsXport(err) {
-			// The transport did not restart; always attempt to cancel the
-			// connect operation.  In most cases, the host has already stopped
-			// connecting and will respond with an "ealready" error that can be
-			// ignored.
-			if err := c.connCancel(); err != nil {
-				log.Errorf("Failed to cancel connect in progress: %s",
-					err.Error())
-			}
+		bl, err := c.rxvr.AddListener("connect", SeqKey(r.Seq))
+		if err != nil {
+			return err
 		}
 
-		c.rxvr.RemoveListener("connect", bl)
-		return err
+		// Tell blehostd to initiate connection.
+		connHandle, err := connect(c.bx, bl, r)
+		if err != nil {
+			bhe := nmxutil.ToBleHost(err)
+			if bhe != nil && bhe.Status == ERR_CODE_EDONE {
+				// Already connected.
+				c.rxvr.RemoveListener("connect", bl)
+				err := fmt.Errorf("Already connected to peer %s",
+					peer.String())
+				return err
+			} else if !nmxutil.IsXport(err) {
+				// The transport did not restart; always attempt to cancel the
+				// connect operation.  In most cases, the host has already
+				// stopped connecting and will respond with an "ealready" error
+				// that can be ignored.
+				if err := c.connCancel(); err != nil {
+					log.Debugf("Failed to cancel connect in progress: %s",
+						err.Error())
+				}
+			}
+
+			c.rxvr.RemoveListener("connect", bl)
+			return err
+		}
+
+		return c.finalizeConnection(connHandle, bl)
 	}
 
-	if err := c.finalizeConnection(connHandle, bl); err != nil {
-		return err
+	if err := c.tq.Run(fn); err != nil {
+		return c.runShutdown(err)
 	}
 
 	return nil
@@ -403,23 +438,169 @@ func (c *Conn) Connect(bx *BleXport, ownAddrType BleAddrType, peer BleDev,
 
 // Opens the session for an already-established BLE connection.
 func (c *Conn) Inherit(connHandle uint16, bl *Listener) error {
-	if err := c.startConnecting(); err != nil {
-		return err
+	fn := func() error {
+		if err := c.finalizeConnection(connHandle, bl); err != nil {
+			return err
+		}
+
+		return nil
 	}
 
-	if err := c.finalizeConnection(connHandle, bl); err != nil {
-		return err
+	if err := c.tq.Run(fn); err != nil {
+		return c.runShutdown(err)
 	}
 
 	return nil
 }
 
-func (c *Conn) ConnInfo() BleConnDesc {
-	return c.desc
+func (c *Conn) ExchangeMtu() error {
+	fn := func() error {
+		r := NewBleExchangeMtuReq()
+		r.ConnHandle = c.connHandle
+
+		bl, err := c.rxvr.AddListener("exchange-mtu", SeqKey(r.Seq))
+		if err != nil {
+			return err
+		}
+		defer c.rxvr.RemoveListener("exchange-mtu", bl)
+
+		mtu, err := exchangeMtu(c.bx, bl, r)
+		if isExchangeMtuError(err) {
+			return err
+		}
+
+		c.attMtu = uint16(mtu)
+		return nil
+	}
+
+	return c.tq.Run(fn)
 }
 
-func (c *Conn) AttMtu() uint16 {
-	return c.attMtu
+func (c *Conn) DiscoverSvcs() error {
+	fn := func() error {
+		svcs, err := c.discAllSvcs()
+		if err != nil {
+			return err
+		}
+
+		if err := c.discAllChrs(svcs); err != nil {
+			return err
+		}
+
+		c.profile.SetServices(svcs)
+
+		return nil
+	}
+
+	return c.tq.Run(fn)
+}
+
+func (c *Conn) WriteChr(chr *Characteristic, payload []byte,
+	name string) error {
+
+	fn := func() error {
+		return c.writeHandle(chr.ValHandle, payload, name)
+	}
+
+	return c.tq.Run(fn)
+}
+
+func (c *Conn) WriteChrNoRsp(chr *Characteristic, payload []byte,
+	name string) error {
+
+	fn := func() error {
+		return c.writeHandleNoRsp(chr.ValHandle, payload, name)
+	}
+
+	return c.tq.Run(fn)
+}
+
+func (c *Conn) Subscribe(chr *Characteristic) error {
+	fn := func() error {
+		uuid := BleUuid{CccdUuid, [16]byte{}}
+		dsc := FindDscByUuid(chr, uuid)
+		if dsc == nil {
+			return fmt.Errorf("Cannot subscribe to characteristic %s; no CCCD",
+				chr.Uuid.String())
+		}
+
+		var payload []byte
+		switch chr.SubscribeType() {
+		case BLE_DISC_CHR_PROP_NOTIFY:
+			payload = []byte{1, 0}
+		case BLE_DISC_CHR_PROP_INDICATE:
+			payload = []byte{2, 0}
+		default:
+			return fmt.Errorf("Cannot subscribe to characteristic %s; "+
+				"properties indicate unsubscribable", chr.Uuid.String())
+		}
+
+		return c.writeHandle(dsc.Handle, payload, "subscribe")
+	}
+
+	return c.tq.Run(fn)
+}
+
+func (c *Conn) ListenForNotifications(chr *Characteristic) (
+	*NotifyListener, error) {
+
+	var nl *NotifyListener
+
+	fn := func() error {
+		c.mtx.Lock()
+		defer c.mtx.Unlock()
+
+		if _, ok := c.notifyMap[chr]; ok {
+			return fmt.Errorf(
+				"Already listening for notifications on characteristic %s",
+				chr.String())
+		}
+
+		nl = NewNotifyListener()
+		c.notifyMap[chr] = nl
+
+		return nil
+	}
+
+	if err := c.tq.Run(fn); err != nil {
+		return nil, err
+	}
+
+	return nl, nil
+}
+
+func (c *Conn) InitiateSecurity() error {
+	fn := func() error {
+		r := NewBleSecurityInitiateReq()
+		r.ConnHandle = c.connHandle
+
+		bl, err := c.rxvr.AddListener("security-initiate", SeqKey(r.Seq))
+		if err != nil {
+			return err
+		}
+		defer c.rxvr.RemoveListener("security-initiate", bl)
+
+		c.encBlocker.Start()
+		if err := securityInitiate(c.bx, bl, r); err != nil {
+			return err
+		}
+
+		encErr, tmoErr := c.encBlocker.Wait(time.Second*15, c.dropChan)
+		if encErr != nil {
+			return encErr.(error)
+		}
+		if tmoErr != nil {
+			return fmt.Errorf("Timeout waiting for security to be established")
+		}
+
+		return nil
+	}
+
+	return c.tq.Run(fn)
+}
+
+func (c *Conn) Stop() error {
+	return c.runShutdown(fmt.Errorf("stopped"))
 }
 
 func (c *Conn) discAllDscsOnce(startHandle uint16, endHandle uint16) (
@@ -551,23 +732,24 @@ func (c *Conn) discAllSvcs() ([]Service, error) {
 	return svcs, nil
 }
 
-func (c *Conn) DiscoverSvcs() error {
-	svcs, err := c.discAllSvcs()
+func (c *Conn) connCancel() error {
+	r := NewBleConnCancelReq()
+
+	bl, err := c.rxvr.AddListener("conn-cancel", SeqKey(r.Seq))
 	if err != nil {
 		return err
 	}
+	defer c.rxvr.RemoveListener("conn-cancel", bl)
 
-	if err := c.discAllChrs(svcs); err != nil {
-		return err
+	if err := connCancel(c.bx, bl, r); err != nil {
+		// Ignore ealready errors.
+		bhdErr := nmxutil.ToBleHost(err)
+		if bhdErr == nil || bhdErr.Status != ERR_CODE_EALREADY {
+			return err
+		}
 	}
 
-	c.profile.SetServices(svcs)
-
 	return nil
-}
-
-func (c *Conn) Profile() *Profile {
-	return &c.profile
 }
 
 // Indicates whether an error reported during MTU exchange is a "real" error or
@@ -593,145 +775,6 @@ func isExchangeMtuError(err error) bool {
 	}
 }
 
-func (c *Conn) ExchangeMtu() error {
-	r := NewBleExchangeMtuReq()
-	r.ConnHandle = c.connHandle
-
-	bl, err := c.rxvr.AddListener("exchange-mtu", SeqKey(r.Seq))
-	if err != nil {
-		return err
-	}
-	defer c.rxvr.RemoveListener("exchange-mtu", bl)
-
-	mtu, err := exchangeMtu(c.bx, bl, r)
-	if isExchangeMtuError(err) {
-		return err
-	}
-
-	c.attMtu = uint16(mtu)
-	return nil
-}
-
-func (c *Conn) WriteHandle(handle uint16, payload []byte,
-	name string) error {
-
-	r := NewBleWriteReq()
-	r.ConnHandle = c.connHandle
-	r.AttrHandle = int(handle)
-	r.Data.Bytes = payload
-
-	bl, err := c.rxvr.AddListener(name, SeqKey(r.Seq))
-	if err != nil {
-		return err
-	}
-	defer c.rxvr.RemoveListener(name, bl)
-
-	if err := write(c.bx, bl, r); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c *Conn) WriteHandleNoRsp(handle uint16, payload []byte,
-	name string) error {
-
-	r := NewBleWriteCmdReq()
-	r.ConnHandle = c.connHandle
-	r.AttrHandle = int(handle)
-	r.Data.Bytes = payload
-
-	bl, err := c.rxvr.AddListener(name, SeqKey(r.Seq))
-	if err != nil {
-		return err
-	}
-	defer c.rxvr.RemoveListener(name, bl)
-
-	if err := writeCmd(c.bx, bl, r); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (c *Conn) WriteChr(chr *Characteristic, payload []byte,
-	name string) error {
-
-	return c.WriteHandle(chr.ValHandle, payload, name)
-}
-
-func (c *Conn) WriteChrNoRsp(chr *Characteristic, payload []byte,
-	name string) error {
-
-	return c.WriteHandleNoRsp(chr.ValHandle, payload, name)
-}
-
-func (c *Conn) Subscribe(chr *Characteristic) error {
-	uuid := BleUuid{CccdUuid, [16]byte{}}
-	dsc := FindDscByUuid(chr, uuid)
-	if dsc == nil {
-		return fmt.Errorf("Cannot subscribe to characteristic %s; no CCCD",
-			chr.Uuid.String())
-	}
-
-	var payload []byte
-	switch chr.SubscribeType() {
-	case BLE_DISC_CHR_PROP_NOTIFY:
-		payload = []byte{1, 0}
-	case BLE_DISC_CHR_PROP_INDICATE:
-		payload = []byte{2, 0}
-	default:
-		return fmt.Errorf("Cannot subscribe to characteristic %s; "+
-			"properties indicate unsubscribable", chr.Uuid.String())
-	}
-
-	return c.WriteHandle(dsc.Handle, payload, "subscribe")
-}
-
-func (c *Conn) ListenForNotifications(chr *Characteristic) (
-	*NotifyListener, error) {
-
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
-	if _, ok := c.notifyMap[chr]; ok {
-		return nil, fmt.Errorf(
-			"Already listening for notifications on characteristic %s",
-			chr.String())
-	}
-
-	nl := NewNotifyListener()
-	c.notifyMap[chr] = nl
-
-	return nl, nil
-}
-
-func (c *Conn) InitiateSecurity() error {
-	r := NewBleSecurityInitiateReq()
-	r.ConnHandle = c.connHandle
-
-	bl, err := c.rxvr.AddListener("security-initiate", SeqKey(r.Seq))
-	if err != nil {
-		return err
-	}
-	defer c.rxvr.RemoveListener("security-initiate", bl)
-
-	c.encBlocker.Start()
-	if err := securityInitiate(c.bx, bl, r); err != nil {
-		return err
-	}
-
-	encErr, tmoErr := c.encBlocker.Wait(time.Second*15, c.stopChan)
-	if encErr != nil {
-		return encErr.(error)
-	}
-	if tmoErr != nil {
-		return fmt.Errorf("Timeout waiting for security to be established")
-	}
-
-	return nil
-}
-
 func (c *Conn) terminate() error {
 	r := NewBleTerminateReq()
 	r.ConnHandle = c.connHandle
@@ -751,57 +794,5 @@ func (c *Conn) terminate() error {
 		}
 	}
 
-	return nil
-}
-
-func (c *Conn) connCancel() error {
-	r := NewBleConnCancelReq()
-
-	bl, err := c.rxvr.AddListener("conn-cancel", SeqKey(r.Seq))
-	if err != nil {
-		return err
-	}
-	defer c.rxvr.RemoveListener("conn-cancel", bl)
-
-	if err := connCancel(c.bx, bl, r); err != nil {
-		// Ignore ealready errors.
-		bhdErr := nmxutil.ToBleHost(err)
-		if bhdErr == nil || bhdErr.Status != ERR_CODE_EALREADY {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (c *Conn) Stop() error {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-
-	var shutdownDelay time.Duration
-	var shutdownErr error
-
-	if c.connHandle != BLE_CONN_HANDLE_NONE {
-		// Terminate the connection.  On success, the conn object will shut
-		// down upon receipt of the disconnect event.  On failure, just force a
-		// shutdown manually.
-		if err := c.terminate(); err != nil {
-			shutdownDelay = 0
-			shutdownErr = err
-		} else {
-			// Force a shutdown in 10 seconds in case we never receive a
-			// disconnect event.
-			shutdownDelay = 10 * time.Second
-			shutdownErr = fmt.Errorf("forced shutdown; disconnect timeout")
-		}
-	} else {
-		if c.connecting {
-			c.connCancel()
-		}
-		shutdownDelay = 0
-		shutdownErr = fmt.Errorf("Stopped before connect complete")
-	}
-
-	c.shutdown(shutdownDelay, shutdownErr)
 	return nil
 }

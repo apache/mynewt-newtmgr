@@ -29,6 +29,15 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 )
 
+type discovererState int
+
+const (
+	DISCOVERER_STATE_IDLE discovererState = iota
+	DISCOVERER_STATE_STARTED
+	DISCOVERER_STATE_STOPPING
+	DISCOVERER_STATE_STOPPED
+)
+
 type DiscovererParams struct {
 	Bx          *BleXport
 	OwnAddrType BleAddrType
@@ -39,16 +48,22 @@ type DiscovererParams struct {
 // Listens for advertisements; reports the ones that match the specified
 // predicate.  This type is not thread-safe.
 type Discoverer struct {
-	params    DiscovererParams
-	abortChan chan struct{}
-	blocker   nmxutil.Blocker
-	mtx       sync.Mutex
+	params   DiscovererParams
+	bl       *Listener
+	state    discovererState
+	stopChan chan struct{}
+	wg       sync.WaitGroup
+	mtx      sync.Mutex
 }
 
 func NewDiscoverer(params DiscovererParams) *Discoverer {
 	return &Discoverer{
 		params: params,
 	}
+}
+
+func (d *Discoverer) setState(state discovererState) {
+	d.state = state
 }
 
 func (d *Discoverer) scanCancel() error {
@@ -67,40 +82,16 @@ func (d *Discoverer) scanCancel() error {
 	return nil
 }
 
-func (d *Discoverer) Start(advRptCb BleAdvRptFn) error {
-	// Sets up the abort channel to allow discovery to be cancelled.  Ensures
-	// only one discovery procedure is active at a time.
-	initiate := func() error {
-		d.mtx.Lock()
-		defer d.mtx.Unlock()
+func (d *Discoverer) Start() (<-chan BleAdvReport, <-chan error, error) {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
 
-		if d.abortChan != nil {
-			return nmxutil.NewAlreadyError(
-				"Attempt to start BLE discoverer twice")
-		}
-
-		d.abortChan = make(chan struct{})
-
-		return nil
+	if d.state != DISCOVERER_STATE_IDLE {
+		return nil, nil, nmxutil.NewAlreadyError(
+			"Attempt to start BLE discoverer twice")
 	}
 
-	finalize := func() {
-		d.mtx.Lock()
-		defer d.mtx.Unlock()
-
-		d.abortChan = nil
-	}
-
-	if err := initiate(); err != nil {
-		return err
-	}
-	defer finalize()
-
-	// Scanning requires dedicated master privileges.
-	if err := AcquireMaster(d.params.Bx, MASTER_PRIO_SCAN, d); err != nil {
-		return err
-	}
-	defer d.params.Bx.ReleaseMaster()
+	d.stopChan = make(chan struct{})
 
 	r := NewBleScanReq()
 	r.OwnAddrType = d.params.OwnAddrType
@@ -112,31 +103,65 @@ func (d *Discoverer) Start(advRptCb BleAdvRptFn) error {
 
 	bl, err := d.params.Bx.AddListener(SeqKey(r.Seq))
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	defer d.params.Bx.RemoveListener(bl)
 
-	// Ensure subsequent calls to Stop() block until discovery is fully
-	// stopped.
-	d.blocker.Start()
-	defer d.blocker.Unblock(nil)
+	ach, ech, err := actScan(d.params.Bx, bl, r)
+	if err != nil {
+		d.params.Bx.RemoveListener(bl)
+		return nil, nil, err
+	}
 
-	// Report devices in a separate Goroutine.  This is done to prevent
-	// deadlock in case the callback tries to stop the discoverer.
-	cb := func(r BleAdvReport) { go advRptCb(r) }
+	// A buffer size of 1 is used so that the receiving Goroutine can stop the
+	// discoverer without triggering a deadlock.
+	parentEch := make(chan error, 1)
 
-	err = actScan(d.params.Bx, bl, r, d.abortChan, cb)
-	if !nmxutil.IsXport(err) {
-		// The transport did not restart; always attempt to cancel the scan
-		// operation.  In some cases, the host has already stopped scanning
-		// and will respond with an "ealready" error that can be ignored.
-		if err := d.scanCancel(); err != nil {
-			log.Errorf("Failed to cancel scan in progress: %s",
-				err.Error())
+	d.wg.Add(1)
+	go func() {
+		defer d.wg.Done()
+
+		// Block until scan completes.
+		var done bool
+		var err error
+		for !done {
+			select {
+			case err = <-ech:
+				done = true
+
+			case <-d.stopChan:
+				// Discovery aborted; remove the BLE listener.  This will cause
+				// the scan to fail, triggering a send on the ech channel.
+				if bl != nil {
+					d.params.Bx.RemoveListener(bl)
+					bl = nil
+				}
+			}
 		}
-	}
 
-	return err
+		d.mtx.Lock()
+		defer d.mtx.Unlock()
+
+		// Always attempt to cancel scanning.  No harm done if scanning is
+		// already stopped.
+		if !nmxutil.IsXport(err) {
+			if err := d.scanCancel(); err != nil {
+				log.Debugf("Failed to cancel scan in progress: %s",
+					err.Error())
+			}
+		}
+
+		if bl != nil {
+			d.params.Bx.RemoveListener(bl)
+		}
+
+		d.setState(DISCOVERER_STATE_IDLE)
+
+		parentEch <- err
+		close(parentEch)
+	}()
+
+	d.setState(DISCOVERER_STATE_STARTED)
+	return ach, parentEch, nil
 }
 
 // Ensures the discoverer is stopped.  Errors can typically be ignored.
@@ -145,12 +170,13 @@ func (d *Discoverer) Stop() error {
 		d.mtx.Lock()
 		defer d.mtx.Unlock()
 
-		if d.abortChan == nil {
+		if d.state != DISCOVERER_STATE_STARTED {
 			return nmxutil.NewAlreadyError(
 				"Attempt to stop inactive discoverer")
 		}
 
-		close(d.abortChan)
+		d.setState(DISCOVERER_STATE_STOPPING)
+		close(d.stopChan)
 		return nil
 	}
 
@@ -159,7 +185,11 @@ func (d *Discoverer) Stop() error {
 	}
 
 	// Don't return until discovery is fully stopped.
-	d.blocker.Wait(nmxutil.DURATION_FOREVER, nil)
+	d.wg.Wait()
+
+	d.mtx.Lock()
+	d.setState(DISCOVERER_STATE_IDLE)
+	d.mtx.Unlock()
 
 	return nil
 }
@@ -179,19 +209,25 @@ func DiscoverDevice(
 		Duration:    duration,
 	})
 
-	var dev *BleDev
-	advRptCb := func(adv BleAdvReport) {
-		if advPred(adv) {
-			dev = &adv.Sender
-			d.Stop()
-		}
-	}
-
-	if err := d.Start(advRptCb); err != nil {
-		if !nmxutil.IsScanTmo(err) {
+	ach, ech, err := d.Start()
+	if err != nil {
+		if nmxutil.IsScanTmo(err) {
+			return nil, nil
+		} else {
 			return nil, err
 		}
 	}
 
-	return dev, nil
+	for {
+		select {
+		case adv, ok := <-ach:
+			if ok && advPred(adv) {
+				d.Stop()
+				return &adv.Sender, nil
+			}
+
+		case err := <-ech:
+			return nil, err
+		}
+	}
 }

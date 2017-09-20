@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package oic
+package nmcoap
 
 import (
 	log "github.com/Sirupsen/logrus"
@@ -50,7 +50,7 @@ func (r *Receiver) Rx(data []byte) coap.Message {
 		// UDP.
 		m, err := coap.ParseDgramMessage(data)
 		if err != nil {
-			log.Printf("CoAP parse failure: %s", err.Error())
+			log.Debugf("CoAP parse failure: %s", err.Error())
 			return nil
 		}
 
