@@ -271,7 +271,7 @@ func (bx *BleXport) shutdown(cause error) error {
 	}
 	defer func() {
 		bx.mtx.Lock()
-		bx.mtx.Unlock()
+		defer bx.mtx.Unlock()
 
 		bx.shuttingDown = false
 	}()
