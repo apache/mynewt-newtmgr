@@ -110,24 +110,24 @@ func (s *Syncer) listen() error {
 
 		for {
 			select {
-			case err, ok := <-syncl.ErrChan:
+			case <-syncl.ErrChan:
 				// XXX
-			case bm, ok := <-syncl.MsgChan:
+			case bm := <-syncl.MsgChan:
 				switch msg := bm.(type) {
 				case *BleSyncEvt:
 					s.setSynced(msg.Synced)
 				}
 
-			case _, ok := <-resetl.ErrChan:
+			case <-resetl.ErrChan:
 				// XXX
-			case bm, ok := <-resetl.MsgChan:
+			case bm := <-resetl.MsgChan:
 				switch msg := bm.(type) {
 				case *BleResetEvt:
 					s.setSynced(false)
 					s.resetCh <- msg.Reason
 				}
 
-			case _, ok := <-s.stopCh:
+			case <-s.stopCh:
 				// It is OK to strand the two listeners.  Their deferred
 				// removal will drain them.
 				return
