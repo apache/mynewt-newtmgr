@@ -120,6 +120,8 @@ func (d *Discoverer) Start() (<-chan BleAdvReport, <-chan error, error) {
 	go func() {
 		defer d.wg.Done()
 
+		stopChan := d.stopChan
+
 		// Block until scan completes.
 		var done bool
 		var err error
@@ -128,12 +130,13 @@ func (d *Discoverer) Start() (<-chan BleAdvReport, <-chan error, error) {
 			case err = <-ech:
 				done = true
 
-			case <-d.stopChan:
+			case <-stopChan:
 				// Discovery aborted; remove the BLE listener.  This will cause
 				// the scan to fail, triggering a send on the ech channel.
 				if bl != nil {
 					d.params.Bx.RemoveListener(bl)
 					bl = nil
+					stopChan = nil
 				}
 			}
 		}
@@ -161,6 +164,7 @@ func (d *Discoverer) Start() (<-chan BleAdvReport, <-chan error, error) {
 	}()
 
 	d.setState(DISCOVERER_STATE_STARTED)
+
 	return ach, parentEch, nil
 }
 
