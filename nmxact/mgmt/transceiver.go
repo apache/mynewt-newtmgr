@@ -98,8 +98,10 @@ func (t *Transceiver) txPlain(txCb TxFn, req *nmp.NmpMsg, mtu int,
 			return nil, err
 		case rsp := <-nl.RspChan:
 			return rsp, nil
-		case <-nl.AfterTimeout(timeout):
-			return nil, nmxutil.NewRspTimeoutError("NMP timeout")
+		case _, ok := <-nl.AfterTimeout(timeout):
+			if ok {
+				return nil, nmxutil.NewRspTimeoutError("NMP timeout")
+			}
 		}
 	}
 }
@@ -139,8 +141,10 @@ func (t *Transceiver) txOmp(txCb TxFn, req *nmp.NmpMsg, mtu int,
 			return nil, err
 		case rsp := <-nl.RspChan:
 			return rsp, nil
-		case <-nl.AfterTimeout(timeout):
-			return nil, nmxutil.NewRspTimeoutError("NMP timeout")
+		case _, ok := <-nl.AfterTimeout(timeout):
+			if ok {
+				return nil, nmxutil.NewRspTimeoutError("NMP timeout")
+			}
 		}
 	}
 }
@@ -200,8 +204,10 @@ func (t *Transceiver) TxOic(txCb TxFn, req coap.Message, mtu int,
 			return nil, err
 		case rsp := <-ol.RspChan:
 			return rsp, nil
-		case <-ol.AfterTimeout(timeout):
-			return nil, nmxutil.NewRspTimeoutError("OIC timeout")
+		case _, ok := <-ol.AfterTimeout(timeout):
+			if ok {
+				return nil, nmxutil.NewRspTimeoutError("OIC timeout")
+			}
 		}
 	}
 }
