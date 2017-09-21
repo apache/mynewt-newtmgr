@@ -278,9 +278,6 @@ func (bx *BleXport) shutdown(cause error) error {
 
 	log.Debugf("Shutting down BLE transport")
 
-	log.Debugf("Stopping advertiser")
-	bx.advertiser.Stop()
-
 	bx.sesns = map[uint16]*NakedSesn{}
 
 	// Indicate error to all clients who are waiting for the master
@@ -425,7 +422,7 @@ func (bx *BleXport) Start() error {
 		}
 
 		for {
-			<-bx.stopChan
+			bx.wg.Wait()
 
 			if bx.cfg.Restart && !isEnabled() {
 				break
