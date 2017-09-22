@@ -109,6 +109,14 @@ func NewNakedSesn(bx *BleXport, cfg sesn.SesnCfg) (*NakedSesn, error) {
 	return s, nil
 }
 
+func (s *NakedSesn) runTask(fn func() error) error {
+	err := s.tq.Run(fn)
+	if err == task.InactiveError {
+		return nmxutil.NewXportError("attempt to use closed BLE session")
+	}
+	return err
+}
+
 func (s *NakedSesn) shutdown(cause error) error {
 	initiate := func() error {
 		s.mtx.Lock()
@@ -307,7 +315,7 @@ func (s *NakedSesn) TxNmpOnce(req *nmp.NmpMsg, opt sesn.TxOptions) (
 		return err
 	}
 
-	if err := s.tq.Run(fn); err != nil {
+	if err := s.runTask(fn); err != nil {
 		return nil, err
 	}
 
@@ -356,7 +364,7 @@ func (s *NakedSesn) TxCoapOnce(m coap.Message,
 		return err
 	}
 
-	if err := s.tq.Run(fn); err != nil {
+	if err := s.runTask(fn); err != nil {
 		return 0, nil, err
 	}
 
@@ -372,7 +380,7 @@ func (s *NakedSesn) AbortRx(seq uint8) error {
 		s.txvr.AbortRx(seq)
 		return nil
 	}
-	return s.tq.Run(fn)
+	return s.runTask(fn)
 }
 
 func (s *NakedSesn) Close() error {
@@ -384,7 +392,7 @@ func (s *NakedSesn) Close() error {
 		return s.shutdown(fmt.Errorf("BLE session manually closed"))
 	}
 
-	return s.tq.Run(fn)
+	return s.runTask(fn)
 }
 
 func (s *NakedSesn) IsOpen() bool {
