@@ -286,11 +286,13 @@ func (m *Master) Abort(err error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
+	if m.state == MASTER_STATE_PRIMARY_SECONDARY_PENDING {
+		m.abortSecondaryWait(err)
+	}
+
 	for _, p := range m.primaries {
 		p.ch <- err
 	}
 
-	if m.state == MASTER_STATE_PRIMARY_SECONDARY_PENDING {
-		m.abortSecondaryWait(err)
-	}
+	m.state = MASTER_STATE_IDLE
 }

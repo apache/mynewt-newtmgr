@@ -259,7 +259,7 @@ func (bx *BleXport) shutdown(cause error) error {
 		bx.mtx.Lock()
 		defer bx.mtx.Unlock()
 
-		if bx.shuttingDown || !bx.enabled {
+		if bx.shuttingDown {
 			return nmxutil.NewXportError("BLE xport stopped more than once")
 		}
 		bx.shuttingDown = true
@@ -280,16 +280,21 @@ func (bx *BleXport) shutdown(cause error) error {
 
 	bx.sesns = map[uint16]*NakedSesn{}
 
-	// Indicate error to all clients who are waiting for the master
-	// resource.
-	log.Debugf("Aborting BLE master")
-	bx.master.Abort(cause)
-
 	// Reset controller so that all outstanding connections terminate.
 	if bx.syncer.Synced() {
 		log.Debugf("Resetting host")
 		ResetXact(bx)
 	}
+
+	if err := bx.tq.StopNoWait(cause); err != nil {
+		// Already shut down.
+		return err
+	}
+
+	// Indicate error to all clients who are waiting for the master
+	// resource.
+	log.Debugf("Aborting BLE master")
+	bx.master.Abort(cause)
 
 	// Stop monitoring host-controller sync.
 	log.Debugf("Stopping BLE syncer")
@@ -302,10 +307,6 @@ func (bx *BleXport) shutdown(cause error) error {
 
 	// Stop all of this transport's go routines.
 	close(bx.stopChan)
-
-	if err := bx.tq.StopNoWait(cause); err != nil {
-		return err
-	}
 
 	// Stop the unixchild instance (blehostd + socket).
 	if bx.client != nil {
@@ -390,11 +391,20 @@ func (bx *BleXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
 }
 
 func (bx *BleXport) Start() error {
-	bx.mtx.Lock()
-	defer bx.mtx.Unlock()
+	initialize := func() error {
+		bx.mtx.Lock()
+		defer bx.mtx.Unlock()
 
-	if bx.enabled {
-		return nmxutil.NewXportError("BLE xport double start")
+		if bx.enabled {
+			return nmxutil.NewXportError("BLE xport double start")
+		}
+
+		bx.enabled = true
+		return nil
+	}
+
+	if err := initialize(); err != nil {
+		return err
 	}
 
 	startTask := func() chan error {
@@ -422,6 +432,7 @@ func (bx *BleXport) Start() error {
 		}
 
 		for {
+			<-bx.stopChan
 			bx.wg.Wait()
 
 			if bx.cfg.Restart && !isEnabled() {
@@ -432,7 +443,6 @@ func (bx *BleXport) Start() error {
 		}
 	}()
 
-	bx.enabled = true
 	return nil
 }
 
@@ -465,9 +475,9 @@ func (bx *BleXport) Stop() error {
 	return bx.tq.Run(fn)
 }
 
-func (bx *BleXport) Restart(reason string) error {
+func (bx *BleXport) Restart(reason string) {
 	cause := nmxutil.NewXportError("Restarting BLE transport; " + reason)
-	return <-bx.enqueueShutdown(cause)
+	bx.enqueueShutdown(cause)
 }
 
 // Transmit data to blehostd.  If the host and controller are not synced, this

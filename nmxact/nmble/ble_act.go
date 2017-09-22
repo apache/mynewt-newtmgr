@@ -45,8 +45,9 @@ func connect(x *BleXport, bl *Listener, r *BleConnectReq) (uint16, error) {
 
 	// Give blehostd three seconds of leeway to tell us the connection attempt
 	// timed out.
-	timeout := time.Duration(r.DurationMs+3000) * time.Millisecond
-
+	rspTimeout := time.Duration(r.DurationMs+3000) * time.Millisecond
+	rspTmoChan := time.After(rspTimeout)
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -78,11 +79,18 @@ func connect(x *BleXport, bl *Listener, r *BleConnectReq) (uint16, error) {
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 
-		case <-time.After(timeout):
-			x.Restart("Failed to connect to peer after " + timeout.String())
+		case _, ok := <-rspTmoChan:
+			if ok {
+				return 0, fmt.Errorf("Failed to connect to peer after %s",
+					rspTimeout.String())
+			}
+			rspTmoChan = nil
 		}
 	}
 }
@@ -100,6 +108,7 @@ func terminate(x *BleXport, bl *Listener, r *BleTerminateReq) error {
 		return err
 	}
 
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -118,8 +127,11 @@ func terminate(x *BleXport, bl *Listener, r *BleTerminateReq) error {
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }
@@ -137,8 +149,9 @@ func connCancel(x *BleXport, bl *Listener, r *BleConnCancelReq) error {
 	}
 
 	// Allow 10 seconds for the controller to cancel the connection.
-	timeout := 10 * time.Second
-
+	rspTimeout := 10 * time.Second
+	rspTmoChan := time.After(rspTimeout)
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -167,11 +180,17 @@ func connCancel(x *BleXport, bl *Listener, r *BleConnCancelReq) error {
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 
-		case <-time.After(timeout):
-			x.Restart("Failed to cancel connect after " + timeout.String())
+		case _, ok := <-rspTmoChan:
+			if ok {
+				x.Restart("Failed to cancel connect after " + rspTimeout.String())
+			}
+			rspTmoChan = nil
 		}
 	}
 }
@@ -192,6 +211,7 @@ func discAllSvcs(x *BleXport, bl *Listener, r *BleDiscAllSvcsReq) (
 		return nil, err
 	}
 
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	var svcs []*BleDiscSvc
 	for {
 		select {
@@ -219,8 +239,11 @@ func discAllSvcs(x *BleXport, bl *Listener, r *BleDiscAllSvcsReq) (
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }
@@ -241,6 +264,7 @@ func discSvcUuid(x *BleXport, bl *Listener, r *BleDiscSvcUuidReq) (
 		return nil, err
 	}
 
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	var svc *BleDiscSvc
 	for {
 		select {
@@ -274,8 +298,11 @@ func discSvcUuid(x *BleXport, bl *Listener, r *BleDiscSvcUuidReq) (
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }
@@ -296,6 +323,7 @@ func discAllChrs(x *BleXport, bl *Listener, r *BleDiscAllChrsReq) (
 		return nil, err
 	}
 
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	chrs := []*BleDiscChr{}
 	for {
 		select {
@@ -323,8 +351,11 @@ func discAllChrs(x *BleXport, bl *Listener, r *BleDiscAllChrsReq) (
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }
@@ -345,6 +376,7 @@ func discAllDscs(x *BleXport, bl *Listener, r *BleDiscAllDscsReq) (
 		return nil, err
 	}
 
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	dscs := []*BleDiscDsc{}
 	for {
 		select {
@@ -372,8 +404,11 @@ func discAllDscs(x *BleXport, bl *Listener, r *BleDiscAllDscsReq) (
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }
@@ -392,6 +427,7 @@ func write(x *BleXport, bl *Listener, r *BleWriteReq) error {
 		return err
 	}
 
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -416,8 +452,11 @@ func write(x *BleXport, bl *Listener, r *BleWriteReq) error {
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }
@@ -435,6 +474,7 @@ func writeCmd(x *BleXport, bl *Listener, r *BleWriteCmdReq) error {
 		return err
 	}
 
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -453,8 +493,11 @@ func writeCmd(x *BleXport, bl *Listener, r *BleWriteCmdReq) error {
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }
@@ -472,6 +515,7 @@ func notify(x *BleXport, bl *Listener, r *BleNotifyReq) error {
 		return err
 	}
 
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -490,8 +534,11 @@ func notify(x *BleXport, bl *Listener, r *BleNotifyReq) error {
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }
@@ -511,6 +558,7 @@ func findChr(x *BleXport, bl *Listener, r *BleFindChrReq) (
 		return 0, 0, err
 	}
 
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -529,8 +577,11 @@ func findChr(x *BleXport, bl *Listener, r *BleFindChrReq) (
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }
@@ -551,6 +602,7 @@ func exchangeMtu(x *BleXport, bl *Listener, r *BleExchangeMtuReq) (
 		return 0, err
 	}
 
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -574,8 +626,11 @@ func exchangeMtu(x *BleXport, bl *Listener, r *BleExchangeMtuReq) (
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }
@@ -599,6 +654,7 @@ func actScan(x *BleXport, bl *Listener, r *BleScanReq) (
 
 	nmxutil.Assert(bl != nil)
 
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	go func() {
 		defer close(ach)
 		defer close(ech)
@@ -624,17 +680,19 @@ func actScan(x *BleXport, bl *Listener, r *BleScanReq) (
 						ach <- r
 
 					case *BleScanTmoEvt:
-						ech <- nmxutil.NewScanTmoError("scan duration expired")
+						// On expiration, just return and allow the ech channel
+						// to close.
 						return
 
 					default:
 					}
 				}
 
-			case _, ok := <-bl.AfterTimeout(x.RspTimeout()):
+			case _, ok := <-bhdTmoChan:
 				if ok {
 					x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
 				}
+				bhdTmoChan = nil
 			}
 		}
 	}()
@@ -654,6 +712,7 @@ func scanCancel(x *BleXport, bl *Listener, r *BleScanCancelReq) error {
 		return err
 	}
 
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -671,8 +730,11 @@ func scanCancel(x *BleXport, bl *Listener, r *BleScanCancelReq) error {
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }
@@ -691,6 +753,7 @@ func connFind(x *BleXport, bl *Listener, r *BleConnFindReq) (
 		return BleConnDesc{}, err
 	}
 
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -710,8 +773,11 @@ func connFind(x *BleXport, bl *Listener, r *BleConnFindReq) (
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }
@@ -728,6 +794,7 @@ func reset(x *BleXport, bl *Listener,
 	}
 
 	x.txNoSync(j)
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -742,8 +809,11 @@ func reset(x *BleXport, bl *Listener,
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }
@@ -763,6 +833,7 @@ func securityInitiate(x *BleXport, bl *Listener,
 		return err
 	}
 
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -781,8 +852,11 @@ func securityInitiate(x *BleXport, bl *Listener,
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }
@@ -802,6 +876,7 @@ func advStart(x *BleXport, bl *Listener, stopChan chan struct{},
 		return 0, err
 	}
 
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -829,8 +904,11 @@ func advStart(x *BleXport, bl *Listener, stopChan chan struct{},
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 
 		case <-stopChan:
 			return 0, fmt.Errorf("advertise aborted")
@@ -851,6 +929,7 @@ func advStop(x *BleXport, bl *Listener, r *BleAdvStopReq) error {
 		return err
 	}
 
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -868,8 +947,11 @@ func advStop(x *BleXport, bl *Listener, r *BleAdvStopReq) error {
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }
@@ -887,6 +969,7 @@ func advSetData(x *BleXport, bl *Listener, r *BleAdvSetDataReq) error {
 		return err
 	}
 
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -904,8 +987,11 @@ func advSetData(x *BleXport, bl *Listener, r *BleAdvSetDataReq) error {
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }
@@ -923,6 +1009,7 @@ func advRspSetData(x *BleXport, bl *Listener, r *BleAdvRspSetDataReq) error {
 		return err
 	}
 
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -940,8 +1027,11 @@ func advRspSetData(x *BleXport, bl *Listener, r *BleAdvRspSetDataReq) error {
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }
@@ -961,6 +1051,7 @@ func advFields(x *BleXport, bl *Listener, r *BleAdvFieldsReq) (
 		return nil, err
 	}
 
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -979,8 +1070,11 @@ func advFields(x *BleXport, bl *Listener, r *BleAdvFieldsReq) (
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }
@@ -994,6 +1088,7 @@ func clearSvcs(x *BleXport, bl *Listener, r *BleClearSvcsReq) error {
 	}
 
 	x.txNoSync(j)
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -1011,8 +1106,11 @@ func clearSvcs(x *BleXport, bl *Listener, r *BleClearSvcsReq) error {
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }
@@ -1026,6 +1124,7 @@ func addSvcs(x *BleXport, bl *Listener, r *BleAddSvcsReq) error {
 	}
 
 	x.txNoSync(j)
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -1043,8 +1142,11 @@ func addSvcs(x *BleXport, bl *Listener, r *BleAddSvcsReq) error {
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }
@@ -1060,6 +1162,7 @@ func commitSvcs(x *BleXport, bl *Listener, r *BleCommitSvcsReq) (
 	}
 
 	x.txNoSync(j)
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -1077,8 +1180,11 @@ func commitSvcs(x *BleXport, bl *Listener, r *BleCommitSvcsReq) (
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }
@@ -1092,6 +1198,7 @@ func accessStatus(x *BleXport, bl *Listener, r *BleAccessStatusReq) error {
 	}
 
 	x.Tx(j)
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -1109,8 +1216,11 @@ func accessStatus(x *BleXport, bl *Listener, r *BleAccessStatusReq) error {
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }
@@ -1129,6 +1239,7 @@ func genRandAddr(x *BleXport, bl *Listener, r *BleGenRandAddrReq) (
 	}
 
 	x.txNoSync(j)
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -1147,8 +1258,11 @@ func genRandAddr(x *BleXport, bl *Listener, r *BleGenRandAddrReq) (
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }
@@ -1165,6 +1279,7 @@ func setRandAddr(x *BleXport, bl *Listener, r *BleSetRandAddrReq) error {
 	}
 
 	x.txNoSync(j)
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -1182,8 +1297,11 @@ func setRandAddr(x *BleXport, bl *Listener, r *BleSetRandAddrReq) error {
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }
@@ -1202,6 +1320,7 @@ func setPreferredMtu(x *BleXport, bl *Listener,
 	}
 
 	x.txNoSync(j)
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -1219,9 +1338,11 @@ func setPreferredMtu(x *BleXport, bl *Listener,
 			default:
 			}
 
-		case <-bl.AfterTimeout(x.RspTimeout()):
-			x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
-
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
 		}
 	}
 }

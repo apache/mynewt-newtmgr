@@ -32,19 +32,15 @@ var InactiveError = fmt.Errorf("inactive task queue")
 // Pushes the specified function onto the task queue.  When the job completes,
 // the result is sent over the returned channel
 func (q *TaskQueue) Enqueue(fn func() error) chan error {
-	isActive := func() bool {
-		q.mtx.Lock()
-		defer q.mtx.Unlock()
-
-		return q.active
-	}
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
 
 	act := action{
 		fn: fn,
 		ch: make(chan error, 1),
 	}
 
-	if !isActive() {
+	if !q.active {
 		act.ch <- InactiveError
 	} else {
 		q.actCh <- act
