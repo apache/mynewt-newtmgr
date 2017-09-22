@@ -304,13 +304,19 @@ func (m *Master) Abort(err error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	if m.state == MASTER_STATE_PRIMARY_SECONDARY_PENDING {
+	// Set state such that there are no waiters.  We can't clear the current
+	// owner of the master; it must release on its own.
+	switch m.state {
+	case MASTER_STATE_IDLE:
+	case MASTER_STATE_SECONDARY:
+		go m.secondary.Preempt()
+	case MASTER_STATE_PRIMARY:
+	case MASTER_STATE_PRIMARY_SECONDARY_PENDING:
 		m.abortSecondaryWait(err)
+		m.setState(MASTER_STATE_PRIMARY)
 	}
 
 	for _, p := range m.primaries {
 		p.ch <- err
 	}
-
-	m.state = MASTER_STATE_IDLE
 }
