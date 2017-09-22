@@ -215,6 +215,8 @@ func (bx *BleXport) startSyncer() error {
 		}
 	}()
 
+	bx.syncer.Refresh()
+
 	// Block until host and controller are synced.
 	select {
 	case <-initialSyncCh:

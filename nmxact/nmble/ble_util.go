@@ -540,6 +540,22 @@ func FindChrXact(x *BleXport, svcUuid BleUuid, chrUuid BleUuid) (
 	return findChr(x, bl, r)
 }
 
+func SyncXact(x *BleXport) (bool, error) {
+	r := NewSyncReq()
+
+	bl, err := x.AddListener(SeqKey(r.Seq))
+	if err != nil {
+		return false, err
+	}
+
+	synced, err := checkSync(x, bl, r)
+	if err != nil {
+		return false, err
+	}
+
+	return synced, nil
+}
+
 func DiscoverDeviceWithName(
 	bx *BleXport,
 	ownAddrType BleAddrType,
