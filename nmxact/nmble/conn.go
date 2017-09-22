@@ -441,7 +441,8 @@ func (c *Conn) Connect(ownAddrType BleAddrType, peer BleDev,
 	}
 
 	if err := c.runTask(fn); err != nil {
-		return c.runShutdown(err)
+		c.runShutdown(err)
+		return err
 	}
 
 	return nil
