@@ -42,6 +42,8 @@ var (
 	coreNumBytes uint32
 )
 
+var noerase bool
+
 func imageFlagsStr(image nmp.ImageStateEntry) string {
 	strs := []string{}
 
@@ -184,6 +186,9 @@ func imageUploadCmd(cmd *cobra.Command, args []string) {
 	c := xact.NewImageUpgradeCmd()
 	c.SetTxOptions(nmutil.TxOptions())
 	c.Data = imageFile
+	if noerase == true {
+		c.NoErase = true
+	}
 	c.ProgressBar = pb.StartNew(len(imageFile))
 	c.ProgressBar.SetUnits(pb.U_BYTES)
 	c.LastOff = 0
@@ -387,6 +392,9 @@ func imageCmd() *cobra.Command {
 		Example: uploadEx,
 		Run:     imageUploadCmd,
 	}
+	uploadCmd.PersistentFlags().BoolVarP(&noerase,
+		"noerase", "e", false,
+		"Don't send specific image erase command to start with")
 	imageCmd.AddCommand(uploadCmd)
 
 	coreListCmd := &cobra.Command{
