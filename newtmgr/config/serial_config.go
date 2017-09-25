@@ -61,6 +61,13 @@ func ParseSerialConnString(cs string) (*nmserial.XportCfg, error) {
 				return sc, einvalSerialConnString("Invalid baud: %s", v)
 			}
 
+		case "mtu":
+			var err error
+			sc.Mtu, err = strconv.Atoi(v)
+			if err != nil {
+				return sc, einvalSerialConnString("Invalid mtu: %s", v)
+			}
+
 		default:
 			return sc, einvalSerialConnString("Unrecognized key: %s", k)
 		}

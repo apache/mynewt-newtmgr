@@ -166,6 +166,7 @@ func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 
 type ImageUpgradeCmd struct {
 	CmdBase
+	NoErase    bool
 	Data       []byte
 	ProgressCb ImageUploadProgressFn
 }
@@ -178,6 +179,7 @@ type ImageUpgradeResult struct {
 func NewImageUpgradeCmd() *ImageUpgradeCmd {
 	return &ImageUpgradeCmd{
 		CmdBase: NewCmdBase(),
+		NoErase: false,
 	}
 }
 
@@ -255,11 +257,17 @@ func (c *ImageUpgradeCmd) runUpload(s sesn.Sesn) (*ImageUploadResult, error) {
 }
 
 func (c *ImageUpgradeCmd) Run(s sesn.Sesn) (Result, error) {
-	eres, err := c.runErase(s)
-	if err != nil {
-		return nil, err
-	}
+	var eres *ImageEraseResult = nil
+	var err error
 
+	if c.NoErase == false {
+		eres, err = c.runErase(s)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		eres = nil
+	}
 	ures, err := c.runUpload(s)
 	if err != nil {
 		return nil, err
