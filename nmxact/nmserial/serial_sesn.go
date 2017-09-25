@@ -108,7 +108,7 @@ func (s *SerialSesn) MtuIn() int {
 func (s *SerialSesn) MtuOut() int {
 	// Mynewt commands have a default chunk buffer size of 512.  Account for
 	// base64 encoding.
-	return 512*3/4 - omp.OMP_MSG_OVERHEAD
+	return s.sx.cfg.Mtu*3/4 - omp.OMP_MSG_OVERHEAD
 }
 
 func (s *SerialSesn) AbortRx(seq uint8) error {

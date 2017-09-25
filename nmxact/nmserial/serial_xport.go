@@ -39,12 +39,14 @@ import (
 type XportCfg struct {
 	DevPath     string
 	Baud        int
+	Mtu         int
 	ReadTimeout time.Duration
 }
 
 func NewXportCfg() *XportCfg {
 	return &XportCfg{
 		ReadTimeout: 10 * time.Second,
+		Mtu: 512,
 	}
 }
 
