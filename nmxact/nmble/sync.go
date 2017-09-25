@@ -51,22 +51,38 @@ func (s *Syncer) Synced() bool {
 	return s.synced
 }
 
+func (s *Syncer) setSyncedNoLock(synced bool) {
+	if synced == s.synced {
+		return
+	}
+
+	s.synced = synced
+	s.syncCh <- synced
+}
+
 func (s *Syncer) setSynced(synced bool) {
-	initiate := func() bool {
-		s.mtx.Lock()
-		defer s.mtx.Unlock()
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
 
-		if synced == s.synced {
-			return false
-		}
+	s.setSyncedNoLock(synced)
+}
 
-		s.synced = synced
-		return true
+func (s *Syncer) Refresh() (bool, error) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	if !s.enabled {
+		return false, fmt.Errorf(
+			"attempt to refresh sync state using disabled syncer")
 	}
 
-	if initiate() {
-		s.syncCh <- synced
+	synced, err := SyncXact(s.x)
+	if err != nil {
+		return false, err
 	}
+
+	s.setSyncedNoLock(synced)
+	return synced, nil
 }
 
 func (s *Syncer) addSyncListener() (*Listener, error) {
@@ -147,12 +163,13 @@ func (s *Syncer) Start(x *BleXport) (<-chan bool, <-chan int, error) {
 	s.syncCh = make(chan bool)
 	s.resetCh = make(chan int)
 
+	s.synced = false
+
 	if err := s.listen(); err != nil {
 		return nil, nil, err
 	}
 
 	s.enabled = true
-
 	return s.syncCh, s.resetCh, nil
 }
 

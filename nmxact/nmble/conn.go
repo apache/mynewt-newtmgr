@@ -124,6 +124,15 @@ func (c *Conn) abortNotifyListeners(err error) {
 	}
 }
 
+func (c *Conn) runTask(fn func() error) error {
+	err := c.tq.Run(fn)
+	if err == task.InactiveError {
+		return nmxutil.NewSesnClosedError(
+			"attempt to use closed BLE connection")
+	}
+	return err
+}
+
 func (c *Conn) writeHandle(handle uint16, payload []byte,
 	name string) error {
 
@@ -431,8 +440,9 @@ func (c *Conn) Connect(ownAddrType BleAddrType, peer BleDev,
 		return c.finalizeConnection(connHandle, bl)
 	}
 
-	if err := c.tq.Run(fn); err != nil {
-		return c.runShutdown(err)
+	if err := c.runTask(fn); err != nil {
+		c.runShutdown(err)
+		return err
 	}
 
 	return nil
@@ -448,7 +458,7 @@ func (c *Conn) Inherit(connHandle uint16, bl *Listener) error {
 		return nil
 	}
 
-	if err := c.tq.Run(fn); err != nil {
+	if err := c.runTask(fn); err != nil {
 		return c.runShutdown(err)
 	}
 
@@ -475,7 +485,7 @@ func (c *Conn) ExchangeMtu() error {
 		return nil
 	}
 
-	return c.tq.Run(fn)
+	return c.runTask(fn)
 }
 
 func (c *Conn) DiscoverSvcs() error {
@@ -494,7 +504,7 @@ func (c *Conn) DiscoverSvcs() error {
 		return nil
 	}
 
-	return c.tq.Run(fn)
+	return c.runTask(fn)
 }
 
 func (c *Conn) WriteChr(chr *Characteristic, payload []byte,
@@ -504,7 +514,7 @@ func (c *Conn) WriteChr(chr *Characteristic, payload []byte,
 		return c.writeHandle(chr.ValHandle, payload, name)
 	}
 
-	return c.tq.Run(fn)
+	return c.runTask(fn)
 }
 
 func (c *Conn) WriteChrNoRsp(chr *Characteristic, payload []byte,
@@ -514,7 +524,7 @@ func (c *Conn) WriteChrNoRsp(chr *Characteristic, payload []byte,
 		return c.writeHandleNoRsp(chr.ValHandle, payload, name)
 	}
 
-	return c.tq.Run(fn)
+	return c.runTask(fn)
 }
 
 func (c *Conn) Subscribe(chr *Characteristic) error {
@@ -540,7 +550,7 @@ func (c *Conn) Subscribe(chr *Characteristic) error {
 		return c.writeHandle(dsc.Handle, payload, "subscribe")
 	}
 
-	return c.tq.Run(fn)
+	return c.runTask(fn)
 }
 
 func (c *Conn) ListenForNotifications(chr *Characteristic) (
@@ -564,7 +574,7 @@ func (c *Conn) ListenForNotifications(chr *Characteristic) (
 		return nil
 	}
 
-	if err := c.tq.Run(fn); err != nil {
+	if err := c.runTask(fn); err != nil {
 		return nil, err
 	}
 
@@ -598,7 +608,7 @@ func (c *Conn) InitiateSecurity() error {
 		return nil
 	}
 
-	return c.tq.Run(fn)
+	return c.runTask(fn)
 }
 
 func (c *Conn) Stop() error {

@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"sync"
 
+	log "github.com/Sirupsen/logrus"
+
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 )
 
@@ -34,6 +36,17 @@ const (
 	MASTER_STATE_PRIMARY
 	MASTER_STATE_PRIMARY_SECONDARY_PENDING
 )
+
+func (s masterState) String() string {
+	m := map[masterState]string{
+		MASTER_STATE_IDLE:                      "idle",
+		MASTER_STATE_SECONDARY:                 "secondary",
+		MASTER_STATE_PRIMARY:                   "primary",
+		MASTER_STATE_PRIMARY_SECONDARY_PENDING: "primary_secondary_pending",
+	}
+
+	return m[s]
+}
 
 type primary struct {
 	token interface{}
@@ -93,6 +106,11 @@ func (m *Master) SetSecondary(s Preemptable) error {
 	return nil
 }
 
+func (m *Master) setState(s masterState) {
+	log.Debugf("Master state change: %s --> %s", m.state, s)
+	m.state = s
+}
+
 func (m *Master) appendPrimary(token interface{}) primary {
 	c := primary{
 		token: token,
@@ -110,7 +128,7 @@ func (m *Master) AcquirePrimary(token interface{}) error {
 
 		switch m.state {
 		case MASTER_STATE_IDLE:
-			m.state = MASTER_STATE_PRIMARY
+			m.setState(MASTER_STATE_PRIMARY)
 			return nil, nil
 
 		case MASTER_STATE_SECONDARY:
@@ -149,7 +167,7 @@ func (m *Master) AcquireSecondary() error {
 		switch m.state {
 		case MASTER_STATE_IDLE:
 			// The resource is unused; just acquire it.
-			m.state = MASTER_STATE_SECONDARY
+			m.setState(MASTER_STATE_SECONDARY)
 			return nil, nil
 
 		case MASTER_STATE_SECONDARY, MASTER_STATE_PRIMARY_SECONDARY_PENDING:
@@ -158,7 +176,7 @@ func (m *Master) AcquireSecondary() error {
 				"secondary master procedure")
 
 		case MASTER_STATE_PRIMARY:
-			m.state = MASTER_STATE_PRIMARY_SECONDARY_PENDING
+			m.setState(MASTER_STATE_PRIMARY_SECONDARY_PENDING)
 			return m.secondaryReadyCh, nil
 
 		default:
@@ -207,22 +225,22 @@ func (m *Master) Release() {
 
 	case MASTER_STATE_SECONDARY:
 		if len(m.primaries) == 0 {
-			m.state = MASTER_STATE_IDLE
+			m.setState(MASTER_STATE_IDLE)
 		} else {
-			m.state = MASTER_STATE_PRIMARY
+			m.setState(MASTER_STATE_PRIMARY)
 			m.servicePrimary()
 		}
 
 	case MASTER_STATE_PRIMARY:
 		if len(m.primaries) == 0 {
-			m.state = MASTER_STATE_IDLE
+			m.setState(MASTER_STATE_IDLE)
 		} else {
 			m.servicePrimary()
 		}
 
 	case MASTER_STATE_PRIMARY_SECONDARY_PENDING:
 		if len(m.primaries) == 0 {
-			m.state = MASTER_STATE_SECONDARY
+			m.setState(MASTER_STATE_SECONDARY)
 			m.serviceSecondary()
 		} else {
 			m.servicePrimary()
@@ -265,7 +283,7 @@ func (m *Master) StopWaitingPrimary(token interface{}, err error) {
 	if len(m.primaries) == 0 &&
 		m.state == MASTER_STATE_PRIMARY_SECONDARY_PENDING {
 
-		m.state = MASTER_STATE_SECONDARY
+		m.setState(MASTER_STATE_SECONDARY)
 		m.serviceSecondary()
 	}
 }
@@ -276,7 +294,7 @@ func (m *Master) StopWaitingSecondary(err error) {
 	defer m.mtx.Unlock()
 
 	if m.state == MASTER_STATE_PRIMARY_SECONDARY_PENDING {
-		m.state = MASTER_STATE_PRIMARY
+		m.setState(MASTER_STATE_PRIMARY)
 		m.abortSecondaryWait(fmt.Errorf("secondary aborted master acquisition"))
 	}
 }
@@ -286,13 +304,19 @@ func (m *Master) Abort(err error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	if m.state == MASTER_STATE_PRIMARY_SECONDARY_PENDING {
+	// Set state such that there are no waiters.  We can't clear the current
+	// owner of the master; it must release on its own.
+	switch m.state {
+	case MASTER_STATE_IDLE:
+	case MASTER_STATE_SECONDARY:
+		go m.secondary.Preempt()
+	case MASTER_STATE_PRIMARY:
+	case MASTER_STATE_PRIMARY_SECONDARY_PENDING:
 		m.abortSecondaryWait(err)
+		m.setState(MASTER_STATE_PRIMARY)
 	}
 
 	for _, p := range m.primaries {
 		p.ch <- err
 	}
-
-	m.state = MASTER_STATE_IDLE
 }

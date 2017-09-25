@@ -108,6 +108,14 @@ type BleXport struct {
 	mtx sync.Mutex
 }
 
+func (bx *BleXport) runTask(fn func() error) error {
+	err := bx.tq.Run(fn)
+	if err == task.InactiveError {
+		return nmxutil.NewXportError("attempt to use inactive BLE transport")
+	}
+	return err
+}
+
 func (bx *BleXport) enqueueShutdown(cause error) chan error {
 	return bx.tq.Enqueue(func() error { return bx.shutdown(cause) })
 }
@@ -215,6 +223,8 @@ func (bx *BleXport) startSyncer() error {
 		}
 	}()
 
+	bx.syncer.Refresh()
+
 	// Block until host and controller are synced.
 	select {
 	case <-initialSyncCh:
@@ -276,7 +286,7 @@ func (bx *BleXport) shutdown(cause error) error {
 		bx.shuttingDown = false
 	}()
 
-	log.Debugf("Shutting down BLE transport")
+	log.Debugf("Shutting down BLE transport - %s", cause.Error())
 
 	bx.sesns = map[uint16]*NakedSesn{}
 
@@ -472,7 +482,7 @@ func (bx *BleXport) Stop() error {
 		return nil
 	}
 
-	return bx.tq.Run(fn)
+	return bx.runTask(fn)
 }
 
 func (bx *BleXport) Restart(reason string) {
@@ -487,7 +497,7 @@ func (bx *BleXport) Tx(data []byte) error {
 		return bx.txNoSync(data)
 	}
 
-	return bx.tq.Run(fn)
+	return bx.runTask(fn)
 }
 
 func (bx *BleXport) SetServices(svcs []BleSvc) error {
