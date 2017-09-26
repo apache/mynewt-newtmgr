@@ -76,6 +76,11 @@ func connect(x *BleXport, bl *Listener, r *BleConnectReq) (uint16, error) {
 					return 0, nmxutil.NewBleHostError(msg.Status, str)
 				}
 
+			case *BleConnCancelEvt:
+				str := "BLE connection attempt cancelled"
+				log.Debugf(str)
+				return 0, fmt.Errorf("%s", str)
+
 			default:
 			}
 
@@ -163,7 +168,8 @@ func connCancel(x *BleXport, bl *Listener, r *BleConnCancelReq) error {
 				bl.Acked = true
 				switch msg.Status {
 				case 0:
-					// Cancel initiated.  Await cancel event.
+					// Cancel initiated.  Await connect failure.
+					return nil
 
 				case ERR_CODE_EALREADY:
 					// No connect in progress.  Pretend success.
@@ -172,10 +178,6 @@ func connCancel(x *BleXport, bl *Listener, r *BleConnCancelReq) error {
 				default:
 					return StatusError(MSG_OP_RSP, rspType, msg.Status)
 				}
-
-			case *BleConnCancelEvt:
-				// Connection successfully cancelled.
-				return nil
 
 			default:
 			}
