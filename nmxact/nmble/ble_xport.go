@@ -341,6 +341,10 @@ func (bx *BleXport) startEvent() error {
 		return err
 	}
 
+	// Make sure we don't think we are still in sync with the controller.  If
+	// we fail early, we don't want to try sending a reset command.
+	bx.syncer.Stop()
+
 	if err := bx.startUnixChild(); err != nil {
 		return fail(err)
 	}
