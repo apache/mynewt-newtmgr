@@ -26,6 +26,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/cheggaaa/pb"
 	"github.com/spf13/cobra"
 
 	"mynewt.apache.org/newt/util"
@@ -183,8 +184,12 @@ func imageUploadCmd(cmd *cobra.Command, args []string) {
 	c := xact.NewImageUpgradeCmd()
 	c.SetTxOptions(nmutil.TxOptions())
 	c.Data = imageFile
-	c.ProgressCb = func(c *xact.ImageUploadCmd, rsp *nmp.ImageUploadRsp) {
-		fmt.Printf("%d\n", rsp.Off)
+	c.ProgressBar = pb.StartNew(len(imageFile))
+	c.ProgressBar.SetUnits(pb.U_BYTES)
+	c.LastOff = 0
+	c.ProgressCb = func(cmd *xact.ImageUploadCmd, rsp *nmp.ImageUploadRsp) {
+		c.ProgressBar.Add(int(rsp.Off - c.LastOff))
+		c.LastOff = rsp.Off
 	}
 
 	res, err := c.Run(s)

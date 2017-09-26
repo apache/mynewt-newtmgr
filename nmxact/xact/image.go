@@ -22,6 +22,8 @@ package xact
 import (
 	"fmt"
 
+	"github.com/cheggaaa/pb"
+
 	"mynewt.apache.org/newtmgr/nmxact/mgmt"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
@@ -166,8 +168,10 @@ func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 
 type ImageUpgradeCmd struct {
 	CmdBase
-	Data       []byte
-	ProgressCb ImageUploadProgressFn
+	Data        []byte
+	ProgressCb  ImageUploadProgressFn
+	LastOff     uint32
+	ProgressBar *pb.ProgressBar
 }
 
 type ImageUpgradeResult struct {
