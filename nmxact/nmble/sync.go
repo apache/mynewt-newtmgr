@@ -190,6 +190,8 @@ func (s *Syncer) Stop() error {
 		return err
 	}
 
+	s.synced = false
+
 	close(s.stopCh)
 
 	close(s.syncCh)
