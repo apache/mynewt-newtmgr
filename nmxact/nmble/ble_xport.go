@@ -430,9 +430,12 @@ func (bx *BleXport) Start() error {
 	}
 
 	// Enqueue start event and block until it completes.  If this first attempt
-	// fails, abort the start procedure completely (don't entry the retry
+	// fails, abort the start procedure completely (don't enter the retry
 	// loop).
 	if err := <-startTask(); err != nil {
+		bx.mtx.Lock()
+		bx.enabled = false
+		bx.mtx.Unlock()
 		return err
 	}
 
