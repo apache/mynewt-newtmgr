@@ -262,12 +262,6 @@ func (m *Master) StopWaitingPrimary(token interface{}, err error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	if m.state != MASTER_STATE_PRIMARY &&
-		m.state != MASTER_STATE_PRIMARY_SECONDARY_PENDING {
-
-		return
-	}
-
 	idx := m.findPrimaryIdx(token)
 	if idx == -1 {
 		return
@@ -275,13 +269,6 @@ func (m *Master) StopWaitingPrimary(token interface{}, err error) {
 
 	m.primaries = append(
 		m.primaries[0:idx], m.primaries[idx+1:len(m.primaries)]...)
-
-	if len(m.primaries) == 0 &&
-		m.state == MASTER_STATE_PRIMARY_SECONDARY_PENDING {
-
-		m.setState(MASTER_STATE_SECONDARY)
-		m.serviceSecondary()
-	}
 }
 
 // Removes the specified secondary from the wait queue.
