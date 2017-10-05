@@ -312,21 +312,22 @@ const (
 	MSG_TYPE_NOTIFY                    = 31
 	MSG_TYPE_FIND_CHR                  = 32
 
-	MSG_TYPE_SYNC_EVT        = 2049
-	MSG_TYPE_CONNECT_EVT     = 2050
-	MSG_TYPE_CONN_CANCEL_EVT = 2051
-	MSG_TYPE_DISCONNECT_EVT  = 2052
-	MSG_TYPE_DISC_SVC_EVT    = 2053
-	MSG_TYPE_DISC_CHR_EVT    = 2054
-	MSG_TYPE_DISC_DSC_EVT    = 2055
-	MSG_TYPE_WRITE_ACK_EVT   = 2056
-	MSG_TYPE_NOTIFY_RX_EVT   = 2057
-	MSG_TYPE_MTU_CHANGE_EVT  = 2058
-	MSG_TYPE_SCAN_EVT        = 2059
-	MSG_TYPE_SCAN_TMO_EVT    = 2060
-	MSG_TYPE_ENC_CHANGE_EVT  = 2061
-	MSG_TYPE_RESET_EVT       = 2062
-	MSG_TYPE_ACCESS_EVT      = 2063
+	MSG_TYPE_SYNC_EVT          = 2049
+	MSG_TYPE_CONNECT_EVT       = 2050
+	MSG_TYPE_CONN_CANCEL_EVT   = 2051
+	MSG_TYPE_DISCONNECT_EVT    = 2052
+	MSG_TYPE_DISC_SVC_EVT      = 2053
+	MSG_TYPE_DISC_CHR_EVT      = 2054
+	MSG_TYPE_DISC_DSC_EVT      = 2055
+	MSG_TYPE_WRITE_ACK_EVT     = 2056
+	MSG_TYPE_NOTIFY_RX_EVT     = 2057
+	MSG_TYPE_MTU_CHANGE_EVT    = 2058
+	MSG_TYPE_SCAN_EVT          = 2059
+	MSG_TYPE_SCAN_COMPLETE_EVT = 2060
+	MSG_TYPE_ADV_COMPLETE_EVT  = 2061
+	MSG_TYPE_ENC_CHANGE_EVT    = 2062
+	MSG_TYPE_RESET_EVT         = 2063
+	MSG_TYPE_ACCESS_EVT        = 2064
 )
 
 var MsgOpStringMap = map[MsgOp]string{
@@ -369,21 +370,22 @@ var MsgTypeStringMap = map[MsgType]string{
 	MSG_TYPE_NOTIFY:            "notify",
 	MSG_TYPE_FIND_CHR:          "find_chr",
 
-	MSG_TYPE_SYNC_EVT:        "sync_evt",
-	MSG_TYPE_CONNECT_EVT:     "connect_evt",
-	MSG_TYPE_CONN_CANCEL_EVT: "conn_cancel_evt",
-	MSG_TYPE_DISCONNECT_EVT:  "disconnect_evt",
-	MSG_TYPE_DISC_SVC_EVT:    "disc_svc_evt",
-	MSG_TYPE_DISC_CHR_EVT:    "disc_chr_evt",
-	MSG_TYPE_DISC_DSC_EVT:    "disc_dsc_evt",
-	MSG_TYPE_WRITE_ACK_EVT:   "write_ack_evt",
-	MSG_TYPE_NOTIFY_RX_EVT:   "notify_rx_evt",
-	MSG_TYPE_MTU_CHANGE_EVT:  "mtu_change_evt",
-	MSG_TYPE_SCAN_EVT:        "scan_evt",
-	MSG_TYPE_SCAN_TMO_EVT:    "scan_tmo_evt",
-	MSG_TYPE_ENC_CHANGE_EVT:  "enc_change_evt",
-	MSG_TYPE_RESET_EVT:       "reset_evt",
-	MSG_TYPE_ACCESS_EVT:      "access_evt",
+	MSG_TYPE_SYNC_EVT:          "sync_evt",
+	MSG_TYPE_CONNECT_EVT:       "connect_evt",
+	MSG_TYPE_CONN_CANCEL_EVT:   "conn_cancel_evt",
+	MSG_TYPE_DISCONNECT_EVT:    "disconnect_evt",
+	MSG_TYPE_DISC_SVC_EVT:      "disc_svc_evt",
+	MSG_TYPE_DISC_CHR_EVT:      "disc_chr_evt",
+	MSG_TYPE_DISC_DSC_EVT:      "disc_dsc_evt",
+	MSG_TYPE_WRITE_ACK_EVT:     "write_ack_evt",
+	MSG_TYPE_NOTIFY_RX_EVT:     "notify_rx_evt",
+	MSG_TYPE_MTU_CHANGE_EVT:    "mtu_change_evt",
+	MSG_TYPE_SCAN_EVT:          "scan_evt",
+	MSG_TYPE_SCAN_COMPLETE_EVT: "scan_tmo_evt",
+	MSG_TYPE_ADV_COMPLETE_EVT:  "adv_complete_evt",
+	MSG_TYPE_ENC_CHANGE_EVT:    "enc_change_evt",
+	MSG_TYPE_RESET_EVT:         "reset_evt",
+	MSG_TYPE_ACCESS_EVT:        "access_evt",
 }
 
 type BleHdr struct {
@@ -894,11 +896,14 @@ type BleScanEvt struct {
 	DataMfgData            BleBytes     `json:"data_mfg_data"`
 }
 
-type BleScanTmoEvt struct {
+type BleScanCompleteEvt struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
 	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Reason int `json:"reason"`
 }
 
 type BleScanCancelReq struct {
@@ -1174,6 +1179,16 @@ type BleAdvFieldsRsp struct {
 	// Mandatory
 	Status int      `json:"status"`
 	Data   BleBytes `json:"data"`
+}
+
+type BleAdvCompleteEvt struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Reason int `json:"reason"`
 }
 
 type BleResetEvt struct {

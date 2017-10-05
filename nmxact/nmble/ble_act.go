@@ -681,10 +681,15 @@ func actScan(x *BleXport, bl *Listener, r *BleScanReq) (
 						r := BleAdvReportFromScanEvt(msg)
 						ach <- r
 
-					case *BleScanTmoEvt:
-						// On expiration, just return and allow the ech channel
-						// to close.
-						return
+					case *BleScanCompleteEvt:
+						if msg.Reason == 0 {
+							// On successful completion, just return and allow
+							// the ech channel to close.
+							return
+						} else {
+							ech <- StatusError(MSG_OP_RSP, rspType, msg.Reason)
+							return
+						}
 
 					default:
 					}
@@ -902,6 +907,12 @@ func advStart(x *BleXport, bl *Listener, stopChan chan struct{},
 					log.Debugf(str)
 					return 0, nmxutil.NewBleHostError(msg.Status, str)
 				}
+
+			case *BleAdvCompleteEvt:
+				str := fmt.Sprintf("Advertising stopped; reason=%s (%d)",
+					ErrCodeToString(msg.Reason), msg.Reason)
+				log.Debugf(str)
+				return 0, nmxutil.NewBleHostError(msg.Reason, str)
 
 			default:
 			}
