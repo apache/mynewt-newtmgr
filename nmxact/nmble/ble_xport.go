@@ -290,8 +290,13 @@ func (bx *BleXport) shutdown(cause error) error {
 
 	bx.sesns = map[uint16]*NakedSesn{}
 
-	// Reset controller so that all outstanding connections terminate.
-	if bx.syncer.Synced() {
+	// Stop monitoring host-controller sync.
+	synced := bx.syncer.Synced()
+	log.Debugf("Stopping BLE syncer")
+	bx.syncer.Stop()
+
+	if synced {
+		// Reset controller so that all outstanding connections terminate.
 		log.Debugf("Resetting host")
 		ResetXact(bx)
 	}
@@ -305,10 +310,6 @@ func (bx *BleXport) shutdown(cause error) error {
 	// resource.
 	log.Debugf("Aborting BLE master")
 	bx.master.Abort(cause)
-
-	// Stop monitoring host-controller sync.
-	log.Debugf("Stopping BLE syncer")
-	bx.syncer.Stop()
 
 	// Indicate an error to all of this transport's listeners.  This
 	// prevents them from blocking endlessly while awaiting a BLE message.

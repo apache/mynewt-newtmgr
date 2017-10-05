@@ -198,21 +198,17 @@ func (m *Master) AcquireSecondary() error {
 	return <-ch
 }
 
-func (m *Master) serviceSecondary() {
-	m.secondaryReadyCh <- nil
+func (m *Master) serviceSecondary(err error) {
+	m.secondaryReadyCh <- err
 }
 
-func (m *Master) servicePrimary() {
+func (m *Master) servicePrimary(err error) {
 	nmxutil.Assert(len(m.primaries) > 0)
 
 	next := m.primaries[0]
 	m.primaries = m.primaries[1:]
 
-	next.ch <- nil
-}
-
-func (m *Master) abortSecondaryWait(err error) {
-	m.secondaryReadyCh <- err
+	next.ch <- err
 }
 
 func (m *Master) Release() {
@@ -228,22 +224,22 @@ func (m *Master) Release() {
 			m.setState(MASTER_STATE_IDLE)
 		} else {
 			m.setState(MASTER_STATE_PRIMARY)
-			m.servicePrimary()
+			m.servicePrimary(nil)
 		}
 
 	case MASTER_STATE_PRIMARY:
 		if len(m.primaries) == 0 {
 			m.setState(MASTER_STATE_IDLE)
 		} else {
-			m.servicePrimary()
+			m.servicePrimary(nil)
 		}
 
 	case MASTER_STATE_PRIMARY_SECONDARY_PENDING:
 		if len(m.primaries) == 0 {
 			m.setState(MASTER_STATE_SECONDARY)
-			m.serviceSecondary()
+			m.serviceSecondary(nil)
 		} else {
-			m.servicePrimary()
+			m.servicePrimary(nil)
 		}
 
 	default:
@@ -266,12 +262,6 @@ func (m *Master) StopWaitingPrimary(token interface{}, err error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
-	if m.state != MASTER_STATE_PRIMARY &&
-		m.state != MASTER_STATE_PRIMARY_SECONDARY_PENDING {
-
-		return
-	}
-
 	idx := m.findPrimaryIdx(token)
 	if idx == -1 {
 		return
@@ -279,13 +269,6 @@ func (m *Master) StopWaitingPrimary(token interface{}, err error) {
 
 	m.primaries = append(
 		m.primaries[0:idx], m.primaries[idx+1:len(m.primaries)]...)
-
-	if len(m.primaries) == 0 &&
-		m.state == MASTER_STATE_PRIMARY_SECONDARY_PENDING {
-
-		m.setState(MASTER_STATE_SECONDARY)
-		m.serviceSecondary()
-	}
 }
 
 // Removes the specified secondary from the wait queue.
@@ -295,7 +278,7 @@ func (m *Master) StopWaitingSecondary(err error) {
 
 	if m.state == MASTER_STATE_PRIMARY_SECONDARY_PENDING {
 		m.setState(MASTER_STATE_PRIMARY)
-		m.abortSecondaryWait(fmt.Errorf("secondary aborted master acquisition"))
+		m.serviceSecondary(fmt.Errorf("secondary aborted master acquisition"))
 	}
 }
 
@@ -312,11 +295,11 @@ func (m *Master) Abort(err error) {
 		go m.secondary.Preempt()
 	case MASTER_STATE_PRIMARY:
 	case MASTER_STATE_PRIMARY_SECONDARY_PENDING:
-		m.abortSecondaryWait(err)
+		m.serviceSecondary(err)
 		m.setState(MASTER_STATE_PRIMARY)
 	}
 
-	for _, p := range m.primaries {
-		p.ch <- err
+	for len(m.primaries) > 0 {
+		m.servicePrimary(err)
 	}
 }
