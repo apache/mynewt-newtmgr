@@ -85,6 +85,7 @@ func commitSvcsRspCtor() Msg       { return &BleCommitSvcsRsp{} }
 func accessStatusRspCtor() Msg     { return &BleAccessStatusRsp{} }
 func notifyRspCtor() Msg           { return &BleNotifyRsp{} }
 func findChrRspCtor() Msg          { return &BleFindChrRsp{} }
+func oobSecDataRspCtor() Msg       { return &BleSmInjectIoRsp{} }
 
 func syncEvtCtor() Msg        { return &BleSyncEvt{} }
 func connectEvtCtor() Msg     { return &BleConnectEvt{} }
@@ -136,6 +137,7 @@ var msgCtorMap = map[OpTypePair]msgCtor{
 	{MSG_OP_RSP, MSG_TYPE_ACCESS_STATUS}:     accessStatusRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_NOTIFY}:            notifyRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_FIND_CHR}:          findChrRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_SM_INJECT_IO}:      oobSecDataRspCtor,
 
 	{MSG_OP_EVT, MSG_TYPE_SYNC_EVT}:          syncEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_CONNECT_EVT}:       connectEvtCtor,

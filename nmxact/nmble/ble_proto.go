@@ -318,6 +318,7 @@ const (
 	MSG_TYPE_ACCESS_STATUS             = 30
 	MSG_TYPE_NOTIFY                    = 31
 	MSG_TYPE_FIND_CHR                  = 32
+	MSG_TYPE_SM_INJECT_IO              = 33
 
 	MSG_TYPE_SYNC_EVT          = 2049
 	MSG_TYPE_CONNECT_EVT       = 2050
@@ -335,6 +336,7 @@ const (
 	MSG_TYPE_ENC_CHANGE_EVT    = 2062
 	MSG_TYPE_RESET_EVT         = 2063
 	MSG_TYPE_ACCESS_EVT        = 2064
+	MSG_TYPE_PASSKEY_EVT       = 2065
 )
 
 var MsgOpStringMap = map[MsgOp]string{
@@ -376,6 +378,7 @@ var MsgTypeStringMap = map[MsgType]string{
 	MSG_TYPE_ACCESS_STATUS:     "access_status",
 	MSG_TYPE_NOTIFY:            "notify",
 	MSG_TYPE_FIND_CHR:          "find_chr",
+	MSG_TYPE_SM_INJECT_IO:      "sm_inject_io",
 
 	MSG_TYPE_SYNC_EVT:          "sync_evt",
 	MSG_TYPE_CONNECT_EVT:       "connect_evt",
@@ -393,6 +396,7 @@ var MsgTypeStringMap = map[MsgType]string{
 	MSG_TYPE_ENC_CHANGE_EVT:    "enc_change_evt",
 	MSG_TYPE_RESET_EVT:         "reset_evt",
 	MSG_TYPE_ACCESS_EVT:        "access_evt",
+	MSG_TYPE_PASSKEY_EVT:       "passkey_evt",
 }
 
 type BleHdr struct {
@@ -1378,6 +1382,46 @@ type BleFindChrRsp struct {
 	Status    int    `json:"status"`
 	DefHandle uint16 `json:"def_handle"`
 	ValHandle uint16 `json:"val_handle"`
+}
+
+type BleSmInjectIoReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	ConnHandle uint16      `json:"conn_handle"`
+	Action     BleSmAction `json:"action"`
+
+	// Only one field valid depending on the value of `action`.
+	OobData      BleBytes `json:"oob_data"`
+	Passkey      uint32   `json:"passkey"`
+	NumcmpAccept bool     `json:"numcmp_accept"`
+}
+
+type BleSmInjectIoRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status int `json:"status"`
+}
+
+type BlePasskeyEvt struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	ConnHandle uint16      `json:"conn_handle"`
+	Action     BleSmAction `json:"action"`
+
+	// Optional
+	Numcmp uint32 `json:"numcmp"`
 }
 
 func ErrCodeToString(e int) string {
