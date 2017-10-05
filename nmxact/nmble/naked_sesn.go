@@ -122,7 +122,7 @@ func (s *NakedSesn) shutdown(cause error) error {
 		s.mtx.Lock()
 		defer s.mtx.Unlock()
 
-		if s.shuttingDown || !s.enabled {
+		if s.shuttingDown || (!s.enabled && !s.opening) {
 			return nmxutil.NewSesnClosedError(
 				"Attempt to close an already-closed session")
 		}
