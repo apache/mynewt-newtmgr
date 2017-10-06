@@ -139,3 +139,10 @@ func (q *TaskQueue) StopNoWait(cause error) error {
 
 	return nil
 }
+
+func (q *TaskQueue) Active() bool {
+	q.mtx.Lock()
+	defer q.mtx.Unlock()
+
+	return q.active
+}

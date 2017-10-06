@@ -83,7 +83,6 @@ type Conn struct {
 	tq task.TaskQueue
 
 	// Protects:
-	// * active
 	// * connHandle
 	// * notifyMap
 	mtx sync.Mutex
@@ -98,12 +97,6 @@ func NewConn(bx *BleXport) *Conn {
 		disconnectChan: make(chan error, 1),
 		dropChan:       make(chan struct{}),
 		notifyMap:      map[*Characteristic]*NotifyListener{},
-	}
-
-	c.tq = task.NewTaskQueue("conn")
-
-	if err := c.tq.Start(10); err != nil {
-		nmxutil.Assert(false)
 	}
 
 	return c
@@ -122,6 +115,23 @@ func (c *Conn) abortNotifyListeners(err error) {
 		close(nl.NotifyChan)
 		close(nl.ErrChan)
 	}
+}
+
+func (c *Conn) initTaskQueue() error {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	if c.tq.Active() {
+		return fmt.Errorf("Attempt to start BLE conn twice")
+	}
+
+	c.tq = task.NewTaskQueue("conn")
+	if err := c.tq.Start(10); err != nil {
+		nmxutil.Assert(false)
+		return err
+	}
+
+	return nil
 }
 
 func (c *Conn) runTask(fn func() error) error {
@@ -400,6 +410,10 @@ func (c *Conn) Profile() *Profile {
 func (c *Conn) Connect(ownAddrType BleAddrType, peer BleDev,
 	timeout time.Duration) error {
 
+	if err := c.initTaskQueue(); err != nil {
+		return err
+	}
+
 	fn := func() error {
 		r := NewBleConnectReq()
 		r.OwnAddrType = ownAddrType
@@ -450,6 +464,10 @@ func (c *Conn) Connect(ownAddrType BleAddrType, peer BleDev,
 
 // Opens the session for an already-established BLE connection.
 func (c *Conn) Inherit(connHandle uint16, bl *Listener) error {
+	if err := c.initTaskQueue(); err != nil {
+		return err
+	}
+
 	fn := func() error {
 		if err := c.finalizeConnection(connHandle, bl); err != nil {
 			return err
