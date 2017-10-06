@@ -97,13 +97,6 @@ func NewNakedSesn(bx *BleXport, cfg sesn.SesnCfg) (*NakedSesn, error) {
 		mgmtChrs: mgmtChrs,
 	}
 
-	s.tq = task.NewTaskQueue("naked_sesn")
-
-	if err := s.tq.Start(10); err != nil {
-		nmxutil.Assert(false)
-		return nil, err
-	}
-
 	s.init()
 
 	return s, nil
