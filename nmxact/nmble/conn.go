@@ -45,7 +45,7 @@ type NotifyListener struct {
 func NewNotifyListener() *NotifyListener {
 	return &NotifyListener{
 		NotifyChan: make(chan Notification),
-		ErrChan:    make(chan error),
+		ErrChan:    make(chan error, 1),
 	}
 }
 
