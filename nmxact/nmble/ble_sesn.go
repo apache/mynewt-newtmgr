@@ -97,6 +97,10 @@ func (s *BleSesn) ConnInfo() (BleConnDesc, error) {
 	return s.Ns.ConnInfo()
 }
 
+func (s *BleSesn) SetOobKey(key []byte) {
+	s.Ns.SetOobKey(key)
+}
+
 func (s *BleSesn) TxNmpOnce(req *nmp.NmpMsg, opt sesn.TxOptions) (
 	nmp.NmpRsp, error) {
 

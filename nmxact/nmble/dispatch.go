@@ -103,6 +103,7 @@ func advCompleteEvtCtor() Msg { return &BleAdvCompleteEvt{} }
 func encChangeEvtCtor() Msg   { return &BleEncChangeEvt{} }
 func resetEvtCtor() Msg       { return &BleResetEvt{} }
 func accessEvtCtor() Msg      { return &BleAccessEvt{} }
+func passkeyEvtCtor() Msg     { return &BlePasskeyEvt{} }
 
 var msgCtorMap = map[OpTypePair]msgCtor{
 	{MSG_OP_RSP, MSG_TYPE_ERR}:               errRspCtor,
@@ -155,6 +156,7 @@ var msgCtorMap = map[OpTypePair]msgCtor{
 	{MSG_OP_EVT, MSG_TYPE_ENC_CHANGE_EVT}:    encChangeEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_RESET_EVT}:         resetEvtCtor,
 	{MSG_OP_EVT, MSG_TYPE_ACCESS_EVT}:        accessEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_PASSKEY_EVT}:       passkeyEvtCtor,
 }
 
 func NewDispatcher() *Dispatcher {

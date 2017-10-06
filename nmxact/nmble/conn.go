@@ -49,6 +49,27 @@ func NewNotifyListener() *NotifyListener {
 	}
 }
 
+// Sent up to the parent session to indicate that IO is required to complete a
+// pairing procedure.
+type SmIoDemand struct {
+	// Mandatory.
+	Action BleSmAction
+
+	// Only valid when Action==BLE_SM_ACTION_NUMCMP.
+	Numcmp uint32
+}
+
+// Sent down from the parent session in response to an SM IO demand.
+type SmIo struct {
+	// Mandatory.
+	Action BleSmAction
+
+	// Action dependent.
+	Oob          []byte // OOB only.
+	Passkey      uint32 // Display and input only.
+	NumcmpAccept bool   // Numcmp only.
+}
+
 // Implements a low-level BLE connection.  Objets of this type must never be
 // reused; after a disconnect, a new object should be created if you wish to
 // reconnect to the peer.
@@ -76,6 +97,8 @@ type Conn struct {
 	// Closes when the connection drops; used for Goroutine cleanup.
 	dropChan chan struct{}
 
+	smIoChan chan SmIoDemand
+
 	// Allows blocking initiate-security procedures.
 	encBlocker nmxutil.Blocker
 
@@ -96,6 +119,7 @@ func NewConn(bx *BleXport) *Conn {
 		attMtu:         BLE_ATT_MTU_DFLT,
 		disconnectChan: make(chan error, 1),
 		dropChan:       make(chan struct{}),
+		smIoChan:       make(chan SmIoDemand, 1),
 		notifyMap:      map[*Characteristic]*NotifyListener{},
 	}
 
@@ -104,6 +128,10 @@ func NewConn(bx *BleXport) *Conn {
 
 func (c *Conn) DisconnectChan() <-chan error {
 	return c.disconnectChan
+}
+
+func (c *Conn) SmIoDemandChan() <-chan SmIoDemand {
+	return c.smIoChan
 }
 
 func (c *Conn) abortNotifyListeners(err error) {
@@ -284,6 +312,12 @@ func (c *Conn) eventListen(bl *Listener) error {
 
 						// Unblock any initiate-security procedures.
 						c.encBlocker.Unblock(err)
+
+					case *BlePasskeyEvt:
+						c.smIoChan <- SmIoDemand{
+							Action: msg.Action,
+							Numcmp: msg.Numcmp,
+						}
 
 					case *BleDisconnectEvt:
 						c.enqueueShutdown(c.newDisconnectError(msg.Reason))
@@ -627,6 +661,23 @@ func (c *Conn) InitiateSecurity() error {
 	}
 
 	return c.runTask(fn)
+}
+
+func (c *Conn) SmInjectIo(io SmIo) error {
+	r := NewBleSmInjectIoReq()
+	r.ConnHandle = c.connHandle
+	r.Action = io.Action
+	r.OobData.Bytes = io.Oob
+	r.Passkey = io.Passkey
+	r.NumcmpAccept = io.NumcmpAccept
+
+	bl, err := c.rxvr.AddListener("inject-sm-io", SeqKey(r.Seq))
+	if err != nil {
+		return err
+	}
+	defer c.rxvr.RemoveListener("inject-sm-io", bl)
+
+	return smInjectIo(c.bx, bl, r)
 }
 
 func (c *Conn) Stop() error {

@@ -60,6 +60,8 @@ type NakedSesn struct {
 	opening bool
 
 	shuttingDown bool
+
+	smIo SmIo
 }
 
 func (s *NakedSesn) init() error {
@@ -264,6 +266,15 @@ func (s *NakedSesn) OpenConnected(
 	// Listen for incoming notifications in the background.
 	s.notifyListen()
 
+	// Listen for authentication IO requests in the background.
+	s.smIoDemandListen()
+
+	if s.cfg.Ble.EncryptWhen == BLE_ENCRYPT_ALWAYS {
+		if err := s.conn.InitiateSecurity(); err != nil {
+			return err
+		}
+	}
+
 	// Give a record of this open session to the transport.
 	s.bx.AddSesn(connHandle, s)
 
@@ -419,6 +430,10 @@ func (s *NakedSesn) ConnInfo() (BleConnDesc, error) {
 	return s.conn.ConnInfo(), nil
 }
 
+func (s *NakedSesn) SetOobKey(key []byte) {
+	s.smIo.Oob = key
+}
+
 func (s *NakedSesn) openOnce() (bool, error) {
 	if err := s.init(); err != nil {
 		return false, err
@@ -453,16 +468,43 @@ func (s *NakedSesn) openOnce() (bool, error) {
 		}
 	}
 
+	// Listen for incoming notifications in the background.
+	s.notifyListen()
+
+	// Listen for authentication IO requests in the background.
+	s.smIoDemandListen()
+
 	if s.cfg.Ble.EncryptWhen == BLE_ENCRYPT_ALWAYS {
 		if err := s.conn.InitiateSecurity(); err != nil {
 			return false, err
 		}
 	}
 
-	// Listen for incoming notifications in the background.
-	s.notifyListen()
-
 	return false, nil
+}
+
+func (s *NakedSesn) smRespondIo(dmnd SmIoDemand) error {
+	io := SmIo{
+		Action: dmnd.Action,
+	}
+
+	switch dmnd.Action {
+	case BLE_SM_ACTION_OOB:
+		if s.smIo.Oob == nil {
+			return fmt.Errorf("OOB key requested but none configured; " +
+				"allowing pairing procedure to time out")
+		}
+		io.Oob = s.smIo.Oob
+
+	case BLE_SM_ACTION_INPUT, BLE_SM_ACTION_DISP, BLE_SM_ACTION_NUMCMP:
+		return fmt.Errorf("Unsupported SM IO method requested: %s",
+			io.Action.String())
+
+	default:
+		return fmt.Errorf("Unknown SM IO method requested: %v", io.Action)
+	}
+
+	return s.conn.SmInjectIo(io)
 }
 
 // Listens for disconnect in the background.
@@ -478,6 +520,29 @@ func (s *NakedSesn) disconnectListen() {
 		// Block until disconnect.
 		err := <-discChan
 		s.enqueueShutdown(err)
+	}()
+}
+
+func (s *NakedSesn) smIoDemandListen() {
+	// Terminates on:
+	// * Receive from stop channel.
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+
+		for {
+			select {
+			case dmnd, ok := <-s.conn.SmIoDemandChan():
+				if ok {
+					log.Debugf("Received SM IO demand for %s",
+						dmnd.Action.String())
+					s.smRespondIo(dmnd)
+				}
+
+			case <-s.stopChan:
+				return
+			}
+		}
 	}()
 }
 
