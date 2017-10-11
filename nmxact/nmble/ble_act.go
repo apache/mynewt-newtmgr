@@ -793,7 +793,9 @@ func reset(x *BleXport, bl *Listener, r *BleResetReq) error {
 		return err
 	}
 
-	x.txNoSync(j)
+	if err := x.txNoSync(j); err != nil {
+		return err
+	}
 	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
@@ -1087,7 +1089,9 @@ func clearSvcs(x *BleXport, bl *Listener, r *BleClearSvcsReq) error {
 		return err
 	}
 
-	x.txNoSync(j)
+	if err := x.txNoSync(j); err != nil {
+		return err
+	}
 	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
@@ -1123,7 +1127,9 @@ func addSvcs(x *BleXport, bl *Listener, r *BleAddSvcsReq) error {
 		return err
 	}
 
-	x.txNoSync(j)
+	if err := x.txNoSync(j); err != nil {
+		return err
+	}
 	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
@@ -1161,7 +1167,9 @@ func commitSvcs(x *BleXport, bl *Listener, r *BleCommitSvcsReq) (
 		return nil, err
 	}
 
-	x.txNoSync(j)
+	if err := x.txNoSync(j); err != nil {
+		return nil, err
+	}
 	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
@@ -1238,7 +1246,9 @@ func genRandAddr(x *BleXport, bl *Listener, r *BleGenRandAddrReq) (
 		return BleAddr{}, err
 	}
 
-	x.txNoSync(j)
+	if err := x.txNoSync(j); err != nil {
+		return BleAddr{}, err
+	}
 	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
@@ -1278,7 +1288,9 @@ func setRandAddr(x *BleXport, bl *Listener, r *BleSetRandAddrReq) error {
 		return err
 	}
 
-	x.txNoSync(j)
+	if err := x.txNoSync(j); err != nil {
+		return err
+	}
 	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
@@ -1319,7 +1331,9 @@ func setPreferredMtu(x *BleXport, bl *Listener,
 		return err
 	}
 
-	x.txNoSync(j)
+	if err := x.txNoSync(j); err != nil {
+		return err
+	}
 	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
