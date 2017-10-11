@@ -1362,6 +1362,8 @@ func setPreferredMtu(x *BleXport, bl *Listener,
 }
 
 func checkSync(x *BleXport, bl *Listener, r *BleSyncReq) (bool, error) {
+	const rspType = MSG_TYPE_SYNC
+
 	j, err := json.Marshal(r)
 	if err != nil {
 		return false, err
@@ -1370,6 +1372,7 @@ func checkSync(x *BleXport, bl *Listener, r *BleSyncReq) (bool, error) {
 	if err := x.txNoSync(j); err != nil {
 		return false, err
 	}
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -1377,7 +1380,13 @@ func checkSync(x *BleXport, bl *Listener, r *BleSyncReq) (bool, error) {
 		case bm := <-bl.MsgChan:
 			switch msg := bm.(type) {
 			case *BleSyncRsp:
+				bl.Acked = true
 				return msg.Synced, nil
+			}
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				return false, fmt.Errorf("Blehostd timeout: %s",
+					MsgTypeToString(rspType))
 			}
 		}
 	}
