@@ -24,6 +24,7 @@ import (
 	"github.com/mitchellh/go-homedir"
 
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"sort"
@@ -41,6 +42,11 @@ type ConnProfile struct {
 	Name       string   `json:"MyName"`
 	Type       ConnType `json:"MyType"`
 	ConnString string   `json:"MyConnString"`
+}
+
+func (p *ConnProfile) String() string {
+	return fmt.Sprintf("name=%s type=%s connstring=%s",
+		p.Name, ConnTypeToString(p.Type), p.ConnString)
 }
 
 const (
@@ -234,10 +240,6 @@ func (cpm *ConnProfileMgr) AddConnProfile(cp *ConnProfile) error {
 func (cpm *ConnProfileMgr) GetConnProfile(pName string) (*ConnProfile, error) {
 	// Each section is a connection profile, key values are the contents
 	// of that section.
-	if pName == "" {
-		return nil, util.NewNewtError("Need to specify connection profile")
-	}
-
 	p := cpm.profiles[pName]
 	if p == nil {
 		return nil, util.FmtNewtError("connection profile \"%s\" doesn't "+
