@@ -785,9 +785,7 @@ func connFind(x *BleXport, bl *Listener, r *BleConnFindReq) (
 }
 
 // Tells the host to reset the controller.
-func reset(x *BleXport, bl *Listener,
-	r *BleResetReq) error {
-
+func reset(x *BleXport, bl *Listener, r *BleResetReq) error {
 	const rspType = MSG_TYPE_RESET
 
 	j, err := json.Marshal(r)
@@ -813,9 +811,9 @@ func reset(x *BleXport, bl *Listener,
 
 		case _, ok := <-bhdTmoChan:
 			if ok {
-				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+				return fmt.Errorf("Blehostd timeout: %s",
+					MsgTypeToString(rspType))
 			}
-			bhdTmoChan = nil
 		}
 	}
 }
