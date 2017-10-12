@@ -85,22 +85,25 @@ func commitSvcsRspCtor() Msg       { return &BleCommitSvcsRsp{} }
 func accessStatusRspCtor() Msg     { return &BleAccessStatusRsp{} }
 func notifyRspCtor() Msg           { return &BleNotifyRsp{} }
 func findChrRspCtor() Msg          { return &BleFindChrRsp{} }
+func oobSecDataRspCtor() Msg       { return &BleSmInjectIoRsp{} }
 
-func syncEvtCtor() Msg       { return &BleSyncEvt{} }
-func connectEvtCtor() Msg    { return &BleConnectEvt{} }
-func connCancelEvtCtor() Msg { return &BleConnCancelEvt{} }
-func disconnectEvtCtor() Msg { return &BleDisconnectEvt{} }
-func discSvcEvtCtor() Msg    { return &BleDiscSvcEvt{} }
-func discChrEvtCtor() Msg    { return &BleDiscChrEvt{} }
-func discDscEvtCtor() Msg    { return &BleDiscDscEvt{} }
-func writeAckEvtCtor() Msg   { return &BleWriteAckEvt{} }
-func notifyRxEvtCtor() Msg   { return &BleNotifyRxEvt{} }
-func mtuChangeEvtCtor() Msg  { return &BleMtuChangeEvt{} }
-func scanEvtCtor() Msg       { return &BleScanEvt{} }
-func scanTmoEvtCtor() Msg    { return &BleScanTmoEvt{} }
-func encChangeEvtCtor() Msg  { return &BleEncChangeEvt{} }
-func resetEvtCtor() Msg      { return &BleResetEvt{} }
-func accessEvtCtor() Msg     { return &BleAccessEvt{} }
+func syncEvtCtor() Msg        { return &BleSyncEvt{} }
+func connectEvtCtor() Msg     { return &BleConnectEvt{} }
+func connCancelEvtCtor() Msg  { return &BleConnCancelEvt{} }
+func disconnectEvtCtor() Msg  { return &BleDisconnectEvt{} }
+func discSvcEvtCtor() Msg     { return &BleDiscSvcEvt{} }
+func discChrEvtCtor() Msg     { return &BleDiscChrEvt{} }
+func discDscEvtCtor() Msg     { return &BleDiscDscEvt{} }
+func writeAckEvtCtor() Msg    { return &BleWriteAckEvt{} }
+func notifyRxEvtCtor() Msg    { return &BleNotifyRxEvt{} }
+func mtuChangeEvtCtor() Msg   { return &BleMtuChangeEvt{} }
+func scanEvtCtor() Msg        { return &BleScanEvt{} }
+func scanTmoEvtCtor() Msg     { return &BleScanCompleteEvt{} }
+func advCompleteEvtCtor() Msg { return &BleAdvCompleteEvt{} }
+func encChangeEvtCtor() Msg   { return &BleEncChangeEvt{} }
+func resetEvtCtor() Msg       { return &BleResetEvt{} }
+func accessEvtCtor() Msg      { return &BleAccessEvt{} }
+func passkeyEvtCtor() Msg     { return &BlePasskeyEvt{} }
 
 var msgCtorMap = map[OpTypePair]msgCtor{
 	{MSG_OP_RSP, MSG_TYPE_ERR}:               errRspCtor,
@@ -135,22 +138,25 @@ var msgCtorMap = map[OpTypePair]msgCtor{
 	{MSG_OP_RSP, MSG_TYPE_ACCESS_STATUS}:     accessStatusRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_NOTIFY}:            notifyRspCtor,
 	{MSG_OP_RSP, MSG_TYPE_FIND_CHR}:          findChrRspCtor,
+	{MSG_OP_RSP, MSG_TYPE_SM_INJECT_IO}:      oobSecDataRspCtor,
 
-	{MSG_OP_EVT, MSG_TYPE_SYNC_EVT}:        syncEvtCtor,
-	{MSG_OP_EVT, MSG_TYPE_CONNECT_EVT}:     connectEvtCtor,
-	{MSG_OP_EVT, MSG_TYPE_CONN_CANCEL_EVT}: connCancelEvtCtor,
-	{MSG_OP_EVT, MSG_TYPE_DISCONNECT_EVT}:  disconnectEvtCtor,
-	{MSG_OP_EVT, MSG_TYPE_DISC_SVC_EVT}:    discSvcEvtCtor,
-	{MSG_OP_EVT, MSG_TYPE_DISC_CHR_EVT}:    discChrEvtCtor,
-	{MSG_OP_EVT, MSG_TYPE_DISC_DSC_EVT}:    discDscEvtCtor,
-	{MSG_OP_EVT, MSG_TYPE_WRITE_ACK_EVT}:   writeAckEvtCtor,
-	{MSG_OP_EVT, MSG_TYPE_NOTIFY_RX_EVT}:   notifyRxEvtCtor,
-	{MSG_OP_EVT, MSG_TYPE_MTU_CHANGE_EVT}:  mtuChangeEvtCtor,
-	{MSG_OP_EVT, MSG_TYPE_SCAN_EVT}:        scanEvtCtor,
-	{MSG_OP_EVT, MSG_TYPE_SCAN_TMO_EVT}:    scanTmoEvtCtor,
-	{MSG_OP_EVT, MSG_TYPE_ENC_CHANGE_EVT}:  encChangeEvtCtor,
-	{MSG_OP_EVT, MSG_TYPE_RESET_EVT}:       resetEvtCtor,
-	{MSG_OP_EVT, MSG_TYPE_ACCESS_EVT}:      accessEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_SYNC_EVT}:          syncEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_CONNECT_EVT}:       connectEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_CONN_CANCEL_EVT}:   connCancelEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_DISCONNECT_EVT}:    disconnectEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_DISC_SVC_EVT}:      discSvcEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_DISC_CHR_EVT}:      discChrEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_DISC_DSC_EVT}:      discDscEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_WRITE_ACK_EVT}:     writeAckEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_NOTIFY_RX_EVT}:     notifyRxEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_MTU_CHANGE_EVT}:    mtuChangeEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_SCAN_EVT}:          scanEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_SCAN_COMPLETE_EVT}: scanTmoEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_ADV_COMPLETE_EVT}:  advCompleteEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_ENC_CHANGE_EVT}:    encChangeEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_RESET_EVT}:         resetEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_ACCESS_EVT}:        accessEvtCtor,
+	{MSG_OP_EVT, MSG_TYPE_PASSKEY_EVT}:       passkeyEvtCtor,
 }
 
 func NewDispatcher() *Dispatcher {

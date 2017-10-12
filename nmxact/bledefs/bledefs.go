@@ -861,3 +861,240 @@ type BleMgmtChrs struct {
 	ResSecureReqChr *BleChrId
 	ResSecureRspChr *BleChrId
 }
+
+type BleSmAction int
+
+const (
+	BLE_SM_ACTION_OOB BleSmAction = iota
+	BLE_SM_ACTION_INPUT
+	BLE_SM_ACTION_DISP
+	BLE_SM_ACTION_NUMCMP
+)
+
+var BleSmActionStringMap = map[BleSmAction]string{
+	BLE_SM_ACTION_OOB:    "oob",
+	BLE_SM_ACTION_INPUT:  "input",
+	BLE_SM_ACTION_DISP:   "disp",
+	BLE_SM_ACTION_NUMCMP: "numcmp",
+}
+
+func BleSmActionToString(smAction BleSmAction) string {
+	s := BleSmActionStringMap[smAction]
+	if s == "" {
+		return "???"
+	}
+
+	return s
+}
+
+func BleSmActionFromString(s string) (BleSmAction, error) {
+	for smAction, name := range BleSmActionStringMap {
+		if s == name {
+			return smAction, nil
+		}
+	}
+
+	return BleSmAction(0),
+		fmt.Errorf("Invalid BleSmAction string: %s", s)
+}
+
+func (io BleSmAction) String() string {
+	return BleSmActionToString(io)
+}
+
+func (a BleSmAction) MarshalJSON() ([]byte, error) {
+	return json.Marshal(BleSmActionToString(a))
+}
+
+func (a *BleSmAction) UnmarshalJSON(data []byte) error {
+	var err error
+
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	*a, err = BleSmActionFromString(s)
+	return err
+}
+
+type BleSmIoCap int
+
+const (
+	BLE_SM_IO_CAP_DISP_ONLY BleSmIoCap = iota
+	BLE_SM_IO_CAP_DISP_YES_NO
+	BLE_SM_IO_CAP_KEYBOARD_ONLY
+	BLE_SM_IO_CAP_NO_IO
+	BLE_SM_IO_CAP_KEYBOARD_DISP
+)
+
+var BleSmIoCapStringMap = map[BleSmIoCap]string{
+	BLE_SM_IO_CAP_DISP_ONLY:     "disp_only",
+	BLE_SM_IO_CAP_DISP_YES_NO:   "disp_yes_no",
+	BLE_SM_IO_CAP_KEYBOARD_ONLY: "keyboard_only",
+	BLE_SM_IO_CAP_NO_IO:         "no_io",
+	BLE_SM_IO_CAP_KEYBOARD_DISP: "keyboard_disp",
+}
+
+func BleSmIoCapToString(smAction BleSmIoCap) string {
+	s := BleSmIoCapStringMap[smAction]
+	if s == "" {
+		return "???"
+	}
+
+	return s
+}
+
+func BleSmIoCapFromString(s string) (BleSmIoCap, error) {
+	for smAction, name := range BleSmIoCapStringMap {
+		if s == name {
+			return smAction, nil
+		}
+	}
+
+	return BleSmIoCap(0),
+		fmt.Errorf("Invalid BleSmIoCap string: %s", s)
+}
+
+func (io BleSmIoCap) String() string {
+	return BleSmIoCapToString(io)
+}
+
+func (a BleSmIoCap) MarshalJSON() ([]byte, error) {
+	return json.Marshal(BleSmIoCapToString(a))
+}
+
+func (a *BleSmIoCap) UnmarshalJSON(data []byte) error {
+	var err error
+
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	*a, err = BleSmIoCapFromString(s)
+	return err
+}
+
+type BleSmKeyDist int
+
+const (
+	BLE_SM_KEY_DIST_ENC BleSmKeyDist = iota
+	BLE_SM_KEY_DIST_ID
+	BLE_SM_KEY_DIST_SIGN
+	BLE_SM_KEY_DIST_LINK
+)
+
+var BleSmKeyDistStringMap = map[BleSmKeyDist]string{
+	BLE_SM_KEY_DIST_ENC:  "enc",
+	BLE_SM_KEY_DIST_ID:   "id",
+	BLE_SM_KEY_DIST_SIGN: "sign",
+	BLE_SM_KEY_DIST_LINK: "link",
+}
+
+func BleSmKeyDistToString(smAction BleSmKeyDist) string {
+	s := BleSmKeyDistStringMap[smAction]
+	if s == "" {
+		return "???"
+	}
+
+	return s
+}
+
+func BleSmKeyDistFromString(s string) (BleSmKeyDist, error) {
+	for smAction, name := range BleSmKeyDistStringMap {
+		if s == name {
+			return smAction, nil
+		}
+	}
+
+	return BleSmKeyDist(0),
+		fmt.Errorf("Invalid BleSmKeyDist string: %s", s)
+}
+
+func (io BleSmKeyDist) String() string {
+	return BleSmKeyDistToString(io)
+}
+
+func (a BleSmKeyDist) MarshalJSON() ([]byte, error) {
+	return json.Marshal(BleSmKeyDistToString(a))
+}
+
+func (a *BleSmKeyDist) UnmarshalJSON(data []byte) error {
+	var err error
+
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	*a, err = BleSmKeyDistFromString(s)
+	return err
+}
+
+type BleSmAuthReq int
+
+const (
+	BLE_SM_AUTHREQ_BOND BleSmAuthReq = iota
+	BLE_SM_AUTHREQ_MITM
+	BLE_SM_AUTHREQ_SC
+	BLE_SM_AUTHREQ_KEYPRESS
+)
+
+var BleSmAuthReqStringMap = map[BleSmAuthReq]string{
+	BLE_SM_AUTHREQ_BOND:     "bond",
+	BLE_SM_AUTHREQ_MITM:     "mitm",
+	BLE_SM_AUTHREQ_SC:       "sc",
+	BLE_SM_AUTHREQ_KEYPRESS: "keypress",
+}
+
+func BleSmAuthReqToString(smAction BleSmAuthReq) string {
+	s := BleSmAuthReqStringMap[smAction]
+	if s == "" {
+		return "???"
+	}
+
+	return s
+}
+
+func BleSmAuthReqFromString(s string) (BleSmAuthReq, error) {
+	for smAction, name := range BleSmAuthReqStringMap {
+		if s == name {
+			return smAction, nil
+		}
+	}
+
+	return BleSmAuthReq(0),
+		fmt.Errorf("Invalid BleSmAuthReq string: %s", s)
+}
+
+func (io BleSmAuthReq) String() string {
+	return BleSmAuthReqToString(io)
+}
+
+func (a BleSmAuthReq) MarshalJSON() ([]byte, error) {
+	return json.Marshal(BleSmAuthReqToString(a))
+}
+
+func (a *BleSmAuthReq) UnmarshalJSON(data []byte) error {
+	var err error
+
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	*a, err = BleSmAuthReqFromString(s)
+	return err
+}
+
+type BlePairCfg struct {
+	IoCap        BleSmIoCap
+	Oob          bool
+	Bonding      bool
+	Mitm         bool
+	Sc           bool
+	Keypress     bool
+	OurKeyDist   BleSmKeyDist
+	TheirKeyDist BleSmKeyDist
+}

@@ -681,10 +681,15 @@ func actScan(x *BleXport, bl *Listener, r *BleScanReq) (
 						r := BleAdvReportFromScanEvt(msg)
 						ach <- r
 
-					case *BleScanTmoEvt:
-						// On expiration, just return and allow the ech channel
-						// to close.
-						return
+					case *BleScanCompleteEvt:
+						if msg.Reason == 0 {
+							// On successful completion, just return and allow
+							// the ech channel to close.
+							return
+						} else {
+							ech <- StatusError(MSG_OP_RSP, rspType, msg.Reason)
+							return
+						}
 
 					default:
 					}
@@ -863,6 +868,45 @@ func securityInitiate(x *BleXport, bl *Listener,
 	}
 }
 
+func smInjectIo(x *BleXport, bl *Listener, r *BleSmInjectIoReq) error {
+	const rspType = MSG_TYPE_SM_INJECT_IO
+
+	j, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+
+	if err := x.Tx(j); err != nil {
+		return err
+	}
+
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
+	for {
+		select {
+		case err := <-bl.ErrChan:
+			return err
+
+		case bm := <-bl.MsgChan:
+			switch msg := bm.(type) {
+			case *BleSmInjectIoRsp:
+				bl.Acked = true
+				if msg.Status != 0 {
+					return StatusError(MSG_OP_RSP, rspType, msg.Status)
+				}
+				return nil
+
+			default:
+			}
+
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+			}
+			bhdTmoChan = nil
+		}
+	}
+}
+
 // Blocking
 func advStart(x *BleXport, bl *Listener, stopChan chan struct{},
 	r *BleAdvStartReq) (uint16, error) {
@@ -902,6 +946,12 @@ func advStart(x *BleXport, bl *Listener, stopChan chan struct{},
 					log.Debugf(str)
 					return 0, nmxutil.NewBleHostError(msg.Status, str)
 				}
+
+			case *BleAdvCompleteEvt:
+				str := fmt.Sprintf("Advertising stopped; reason=%s (%d)",
+					ErrCodeToString(msg.Reason), msg.Reason)
+				log.Debugf(str)
+				return 0, nmxutil.NewBleHostError(msg.Reason, str)
 
 			default:
 			}

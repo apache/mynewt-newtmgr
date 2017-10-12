@@ -51,28 +51,35 @@ const ERR_CODE_SM_US_BASE = 0x400
 const ERR_CODE_SM_PEER_BASE = 0x500
 
 const (
-	ERR_CODE_EAGAIN       int = 1
-	ERR_CODE_EALREADY         = 2
-	ERR_CODE_EINVAL           = 3
-	ERR_CODE_EMSGSIZE         = 4
-	ERR_CODE_ENOENT           = 5
-	ERR_CODE_ENOMEM           = 6
-	ERR_CODE_ENOTCONN         = 7
-	ERR_CODE_ENOTSUP          = 8
-	ERR_CODE_EAPP             = 9
-	ERR_CODE_EBADDATA         = 10
-	ERR_CODE_EOS              = 11
-	ERR_CODE_ECONTROLLER      = 12
-	ERR_CODE_ETIMEOUT         = 13
-	ERR_CODE_EDONE            = 14
-	ERR_CODE_EBUSY            = 15
-	ERR_CODE_EREJECT          = 16
-	ERR_CODE_EUNKNOWN         = 17
-	ERR_CODE_EROLE            = 18
-	ERR_CODE_ETIMEOUT_HCI     = 19
-	ERR_CODE_ENOMEM_EVT       = 20
-	ERR_CODE_ENOADDR          = 21
-	ERR_CODE_ENOTSYNCED       = 22
+	ERR_CODE_EAGAIN          int = 1
+	ERR_CODE_EALREADY            = 2
+	ERR_CODE_EINVAL              = 3
+	ERR_CODE_EMSGSIZE            = 4
+	ERR_CODE_ENOENT              = 5
+	ERR_CODE_ENOMEM              = 6
+	ERR_CODE_ENOTCONN            = 7
+	ERR_CODE_ENOTSUP             = 8
+	ERR_CODE_EAPP                = 9
+	ERR_CODE_EBADDATA            = 10
+	ERR_CODE_EOS                 = 11
+	ERR_CODE_ECONTROLLER         = 12
+	ERR_CODE_ETIMEOUT            = 13
+	ERR_CODE_EDONE               = 14
+	ERR_CODE_EBUSY               = 15
+	ERR_CODE_EREJECT             = 16
+	ERR_CODE_EUNKNOWN            = 17
+	ERR_CODE_EROLE               = 18
+	ERR_CODE_ETIMEOUT_HCI        = 19
+	ERR_CODE_ENOMEM_EVT          = 20
+	ERR_CODE_ENOADDR             = 21
+	ERR_CODE_ENOTSYNCED          = 22
+	ERR_CODE_EAUTHEN             = 23
+	ERR_CODE_EAUTHOR             = 24
+	ERR_CODE_EENCRYPT            = 25
+	ERR_CODE_EENCRYPT_KEY_SZ     = 26
+	ERR_CODE_ESTORE_CAP          = 27
+	ERR_CODE_ESTORE_FAIL         = 28
+	ERR_CODE_EPREEMPTED          = 29
 )
 
 var ErrCodeStringMap = map[int]string{
@@ -311,22 +318,25 @@ const (
 	MSG_TYPE_ACCESS_STATUS             = 30
 	MSG_TYPE_NOTIFY                    = 31
 	MSG_TYPE_FIND_CHR                  = 32
+	MSG_TYPE_SM_INJECT_IO              = 33
 
-	MSG_TYPE_SYNC_EVT        = 2049
-	MSG_TYPE_CONNECT_EVT     = 2050
-	MSG_TYPE_CONN_CANCEL_EVT = 2051
-	MSG_TYPE_DISCONNECT_EVT  = 2052
-	MSG_TYPE_DISC_SVC_EVT    = 2053
-	MSG_TYPE_DISC_CHR_EVT    = 2054
-	MSG_TYPE_DISC_DSC_EVT    = 2055
-	MSG_TYPE_WRITE_ACK_EVT   = 2056
-	MSG_TYPE_NOTIFY_RX_EVT   = 2057
-	MSG_TYPE_MTU_CHANGE_EVT  = 2058
-	MSG_TYPE_SCAN_EVT        = 2059
-	MSG_TYPE_SCAN_TMO_EVT    = 2060
-	MSG_TYPE_ENC_CHANGE_EVT  = 2061
-	MSG_TYPE_RESET_EVT       = 2062
-	MSG_TYPE_ACCESS_EVT      = 2063
+	MSG_TYPE_SYNC_EVT          = 2049
+	MSG_TYPE_CONNECT_EVT       = 2050
+	MSG_TYPE_CONN_CANCEL_EVT   = 2051
+	MSG_TYPE_DISCONNECT_EVT    = 2052
+	MSG_TYPE_DISC_SVC_EVT      = 2053
+	MSG_TYPE_DISC_CHR_EVT      = 2054
+	MSG_TYPE_DISC_DSC_EVT      = 2055
+	MSG_TYPE_WRITE_ACK_EVT     = 2056
+	MSG_TYPE_NOTIFY_RX_EVT     = 2057
+	MSG_TYPE_MTU_CHANGE_EVT    = 2058
+	MSG_TYPE_SCAN_EVT          = 2059
+	MSG_TYPE_SCAN_COMPLETE_EVT = 2060
+	MSG_TYPE_ADV_COMPLETE_EVT  = 2061
+	MSG_TYPE_ENC_CHANGE_EVT    = 2062
+	MSG_TYPE_RESET_EVT         = 2063
+	MSG_TYPE_ACCESS_EVT        = 2064
+	MSG_TYPE_PASSKEY_EVT       = 2065
 )
 
 var MsgOpStringMap = map[MsgOp]string{
@@ -368,22 +378,25 @@ var MsgTypeStringMap = map[MsgType]string{
 	MSG_TYPE_ACCESS_STATUS:     "access_status",
 	MSG_TYPE_NOTIFY:            "notify",
 	MSG_TYPE_FIND_CHR:          "find_chr",
+	MSG_TYPE_SM_INJECT_IO:      "sm_inject_io",
 
-	MSG_TYPE_SYNC_EVT:        "sync_evt",
-	MSG_TYPE_CONNECT_EVT:     "connect_evt",
-	MSG_TYPE_CONN_CANCEL_EVT: "conn_cancel_evt",
-	MSG_TYPE_DISCONNECT_EVT:  "disconnect_evt",
-	MSG_TYPE_DISC_SVC_EVT:    "disc_svc_evt",
-	MSG_TYPE_DISC_CHR_EVT:    "disc_chr_evt",
-	MSG_TYPE_DISC_DSC_EVT:    "disc_dsc_evt",
-	MSG_TYPE_WRITE_ACK_EVT:   "write_ack_evt",
-	MSG_TYPE_NOTIFY_RX_EVT:   "notify_rx_evt",
-	MSG_TYPE_MTU_CHANGE_EVT:  "mtu_change_evt",
-	MSG_TYPE_SCAN_EVT:        "scan_evt",
-	MSG_TYPE_SCAN_TMO_EVT:    "scan_tmo_evt",
-	MSG_TYPE_ENC_CHANGE_EVT:  "enc_change_evt",
-	MSG_TYPE_RESET_EVT:       "reset_evt",
-	MSG_TYPE_ACCESS_EVT:      "access_evt",
+	MSG_TYPE_SYNC_EVT:          "sync_evt",
+	MSG_TYPE_CONNECT_EVT:       "connect_evt",
+	MSG_TYPE_CONN_CANCEL_EVT:   "conn_cancel_evt",
+	MSG_TYPE_DISCONNECT_EVT:    "disconnect_evt",
+	MSG_TYPE_DISC_SVC_EVT:      "disc_svc_evt",
+	MSG_TYPE_DISC_CHR_EVT:      "disc_chr_evt",
+	MSG_TYPE_DISC_DSC_EVT:      "disc_dsc_evt",
+	MSG_TYPE_WRITE_ACK_EVT:     "write_ack_evt",
+	MSG_TYPE_NOTIFY_RX_EVT:     "notify_rx_evt",
+	MSG_TYPE_MTU_CHANGE_EVT:    "mtu_change_evt",
+	MSG_TYPE_SCAN_EVT:          "scan_evt",
+	MSG_TYPE_SCAN_COMPLETE_EVT: "scan_tmo_evt",
+	MSG_TYPE_ADV_COMPLETE_EVT:  "adv_complete_evt",
+	MSG_TYPE_ENC_CHANGE_EVT:    "enc_change_evt",
+	MSG_TYPE_RESET_EVT:         "reset_evt",
+	MSG_TYPE_ACCESS_EVT:        "access_evt",
+	MSG_TYPE_PASSKEY_EVT:       "passkey_evt",
 }
 
 type BleHdr struct {
@@ -894,11 +907,14 @@ type BleScanEvt struct {
 	DataMfgData            BleBytes     `json:"data_mfg_data"`
 }
 
-type BleScanTmoEvt struct {
+type BleScanCompleteEvt struct {
 	// Header
 	Op   MsgOp   `json:"op"`
 	Type MsgType `json:"type"`
 	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Reason int `json:"reason"`
 }
 
 type BleScanCancelReq struct {
@@ -1176,6 +1192,16 @@ type BleAdvFieldsRsp struct {
 	Data   BleBytes `json:"data"`
 }
 
+type BleAdvCompleteEvt struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Reason int `json:"reason"`
+}
+
 type BleResetEvt struct {
 	// Header
 	Op   MsgOp   `json:"op"`
@@ -1356,6 +1382,46 @@ type BleFindChrRsp struct {
 	Status    int    `json:"status"`
 	DefHandle uint16 `json:"def_handle"`
 	ValHandle uint16 `json:"val_handle"`
+}
+
+type BleSmInjectIoReq struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	ConnHandle uint16      `json:"conn_handle"`
+	Action     BleSmAction `json:"action"`
+
+	// Only one field valid depending on the value of `action`.
+	OobData      BleBytes `json:"oob_data"`
+	Passkey      uint32   `json:"passkey"`
+	NumcmpAccept bool     `json:"numcmp_accept"`
+}
+
+type BleSmInjectIoRsp struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	Status int `json:"status"`
+}
+
+type BlePasskeyEvt struct {
+	// Header
+	Op   MsgOp   `json:"op"`
+	Type MsgType `json:"type"`
+	Seq  BleSeq  `json:"seq"`
+
+	// Mandatory
+	ConnHandle uint16      `json:"conn_handle"`
+	Action     BleSmAction `json:"action"`
+
+	// Optional
+	Numcmp uint32 `json:"numcmp"`
 }
 
 func ErrCodeToString(e int) string {

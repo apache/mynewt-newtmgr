@@ -388,6 +388,14 @@ func NewSyncReq() *BleSyncReq {
 	}
 }
 
+func NewBleSmInjectIoReq() *BleSmInjectIoReq {
+	return &BleSmInjectIoReq{
+		Op:   MSG_OP_REQ,
+		Type: MSG_TYPE_SM_INJECT_IO,
+		Seq:  NextSeq(),
+	}
+}
+
 func ConnFindXact(x *BleXport, connHandle uint16) (BleConnDesc, error) {
 	r := NewBleConnFindReq()
 	r.ConnHandle = connHandle
