@@ -453,7 +453,7 @@ func (bx *BleXport) Start() error {
 			<-bx.stopChan
 			bx.wg.Wait()
 
-			if bx.cfg.Restart && !isEnabled() {
+			if !bx.cfg.Restart || !isEnabled() {
 				break
 			}
 

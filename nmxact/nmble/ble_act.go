@@ -790,9 +790,7 @@ func connFind(x *BleXport, bl *Listener, r *BleConnFindReq) (
 }
 
 // Tells the host to reset the controller.
-func reset(x *BleXport, bl *Listener,
-	r *BleResetReq) error {
-
+func reset(x *BleXport, bl *Listener, r *BleResetReq) error {
 	const rspType = MSG_TYPE_RESET
 
 	j, err := json.Marshal(r)
@@ -800,7 +798,9 @@ func reset(x *BleXport, bl *Listener,
 		return err
 	}
 
-	x.txNoSync(j)
+	if err := x.txNoSync(j); err != nil {
+		return err
+	}
 	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
@@ -818,9 +818,9 @@ func reset(x *BleXport, bl *Listener,
 
 		case _, ok := <-bhdTmoChan:
 			if ok {
-				x.Restart("Blehostd timeout: " + MsgTypeToString(rspType))
+				return fmt.Errorf("Blehostd timeout: %s",
+					MsgTypeToString(rspType))
 			}
-			bhdTmoChan = nil
 		}
 	}
 }
@@ -1139,7 +1139,9 @@ func clearSvcs(x *BleXport, bl *Listener, r *BleClearSvcsReq) error {
 		return err
 	}
 
-	x.txNoSync(j)
+	if err := x.txNoSync(j); err != nil {
+		return err
+	}
 	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
@@ -1175,7 +1177,9 @@ func addSvcs(x *BleXport, bl *Listener, r *BleAddSvcsReq) error {
 		return err
 	}
 
-	x.txNoSync(j)
+	if err := x.txNoSync(j); err != nil {
+		return err
+	}
 	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
@@ -1213,7 +1217,9 @@ func commitSvcs(x *BleXport, bl *Listener, r *BleCommitSvcsReq) (
 		return nil, err
 	}
 
-	x.txNoSync(j)
+	if err := x.txNoSync(j); err != nil {
+		return nil, err
+	}
 	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
@@ -1290,7 +1296,9 @@ func genRandAddr(x *BleXport, bl *Listener, r *BleGenRandAddrReq) (
 		return BleAddr{}, err
 	}
 
-	x.txNoSync(j)
+	if err := x.txNoSync(j); err != nil {
+		return BleAddr{}, err
+	}
 	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
@@ -1330,7 +1338,9 @@ func setRandAddr(x *BleXport, bl *Listener, r *BleSetRandAddrReq) error {
 		return err
 	}
 
-	x.txNoSync(j)
+	if err := x.txNoSync(j); err != nil {
+		return err
+	}
 	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
@@ -1371,7 +1381,9 @@ func setPreferredMtu(x *BleXport, bl *Listener,
 		return err
 	}
 
-	x.txNoSync(j)
+	if err := x.txNoSync(j); err != nil {
+		return err
+	}
 	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
@@ -1400,6 +1412,8 @@ func setPreferredMtu(x *BleXport, bl *Listener,
 }
 
 func checkSync(x *BleXport, bl *Listener, r *BleSyncReq) (bool, error) {
+	const rspType = MSG_TYPE_SYNC
+
 	j, err := json.Marshal(r)
 	if err != nil {
 		return false, err
@@ -1408,6 +1422,7 @@ func checkSync(x *BleXport, bl *Listener, r *BleSyncReq) (bool, error) {
 	if err := x.txNoSync(j); err != nil {
 		return false, err
 	}
+	bhdTmoChan := bl.AfterTimeout(x.RspTimeout())
 	for {
 		select {
 		case err := <-bl.ErrChan:
@@ -1415,7 +1430,13 @@ func checkSync(x *BleXport, bl *Listener, r *BleSyncReq) (bool, error) {
 		case bm := <-bl.MsgChan:
 			switch msg := bm.(type) {
 			case *BleSyncRsp:
+				bl.Acked = true
 				return msg.Synced, nil
+			}
+		case _, ok := <-bhdTmoChan:
+			if ok {
+				return false, fmt.Errorf("Blehostd timeout: %s",
+					MsgTypeToString(rspType))
 			}
 		}
 	}

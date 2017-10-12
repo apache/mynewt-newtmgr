@@ -106,7 +106,7 @@ func NewSesnCfg() SesnCfg {
 			WriteRsp:     false,
 
 			Central: SesnCfgBleCentral{
-				ConnTries:   3,
+				ConnTries:   5,
 				ConnTimeout: 10 * time.Second,
 			},
 		},
