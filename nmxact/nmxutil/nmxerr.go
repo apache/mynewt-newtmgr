@@ -206,3 +206,33 @@ func IsAlready(err error) bool {
 	_, ok := err.(*AlreadyError)
 	return ok
 }
+
+// Represents a BLE pairing failure due to missing or mismatched key material.
+type BleSecurityError struct {
+	Text string
+}
+
+func NewBleSecurityError(text string) *BleSecurityError {
+	return &BleSecurityError{text}
+}
+
+func (err *BleSecurityError) Error() string {
+	return err.Text
+}
+
+func IsBleSecurity(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	_, ok := err.(*BleSecurityError)
+	return ok
+}
+
+func ToBleSecurity(err error) *BleSecurityError {
+	if berr, ok := err.(*BleSecurityError); ok {
+		return berr
+	} else {
+		return nil
+	}
+}
