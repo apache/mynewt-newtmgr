@@ -83,7 +83,9 @@ func (t *Transceiver) txPlain(txCb TxFn, req *nmp.NmpMsg, mtu int,
 	}
 
 	log.Debugf("Tx NMP request: %s", hex.Dump(b))
-
+	if t.isTcp == false && len(b) > mtu {
+		return nil, fmt.Errorf("Request too big")
+	}
 	frags := nmxutil.Fragment(b, mtu)
 	for _, frag := range frags {
 		if err := txCb(frag); err != nil {
@@ -127,6 +129,9 @@ func (t *Transceiver) txOmp(txCb TxFn, req *nmp.NmpMsg, mtu int,
 
 	log.Debugf("Tx OMP request: %s", hex.Dump(b))
 
+	if t.isTcp == false && len(b) > mtu {
+		return nil, fmt.Errorf("Request too big")
+	}
 	frags := nmxutil.Fragment(b, mtu)
 	for _, frag := range frags {
 		if err := txCb(frag); err != nil {
