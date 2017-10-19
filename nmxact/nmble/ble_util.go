@@ -819,3 +819,31 @@ func ResTypeSecReqs(resType sesn.ResourceType) (bool, bool, error) {
 		return false, false, fmt.Errorf("invalid resource type: %+v", resType)
 	}
 }
+
+// Attempts to convert the given error to a BLE security error.  The conversion
+// succeeds if the error represents a pairing failure due to missing or
+// mismatched key material.
+func ToSecurityErr(err error) error {
+	bhe := nmxutil.ToBleHost(err)
+	if bhe == nil {
+		return nil
+	}
+
+	code := ErrCodeToSmUs(bhe.Status)
+	if code == -1 {
+		code = ErrCodeToSmPeer(bhe.Status)
+	}
+
+	switch code {
+	case ERR_CODE_SM_ERR_PASSKEY,
+		ERR_CODE_SM_ERR_OOB,
+		ERR_CODE_SM_ERR_CONFIRM_MISMATCH,
+		ERR_CODE_SM_ERR_UNSPECIFIED,
+		ERR_CODE_SM_ERR_DHKEY,
+		ERR_CODE_SM_ERR_NUMCMP:
+		return nmxutil.NewBleSecurityError(err.Error())
+
+	default:
+		return nil
+	}
+}

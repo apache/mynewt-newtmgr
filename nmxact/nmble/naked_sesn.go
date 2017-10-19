@@ -174,6 +174,17 @@ func (s *NakedSesn) enqueueShutdown(cause error) chan error {
 	return s.tq.Enqueue(func() error { return s.shutdown(cause) })
 }
 
+func (s *NakedSesn) initiateSecurity() error {
+	if err := s.conn.InitiateSecurity(); err != nil {
+		if serr := ToSecurityErr(err); serr != nil {
+			return serr
+		} else {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *NakedSesn) Open() error {
 	initiate := func() error {
 		s.mtx.Lock()
@@ -270,7 +281,7 @@ func (s *NakedSesn) OpenConnected(
 	s.smIoDemandListen()
 
 	if s.cfg.Ble.EncryptWhen == BLE_ENCRYPT_ALWAYS {
-		if err := s.conn.InitiateSecurity(); err != nil {
+		if err := s.initiateSecurity(); err != nil {
 			return err
 		}
 	}
@@ -475,7 +486,7 @@ func (s *NakedSesn) openOnce() (bool, error) {
 	s.smIoDemandListen()
 
 	if s.cfg.Ble.EncryptWhen == BLE_ENCRYPT_ALWAYS {
-		if err := s.conn.InitiateSecurity(); err != nil {
+		if err := s.initiateSecurity(); err != nil {
 			return false, err
 		}
 	}
@@ -627,7 +638,7 @@ func (s *NakedSesn) ensureSecurity(encReqd bool, authReqd bool) error {
 		return nil
 	}
 
-	if err := s.conn.InitiateSecurity(); err != nil {
+	if err := s.initiateSecurity(); err != nil {
 		return err
 	}
 

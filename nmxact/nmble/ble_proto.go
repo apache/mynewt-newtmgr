@@ -275,6 +275,40 @@ var AttErrCodeStringMap = map[int]string{
 	ERR_CODE_ATT_INSUFFICIENT_RES:       "insufficient resources",
 }
 
+const (
+	ERR_CODE_SM_ERR_PASSKEY          int = 0x01
+	ERR_CODE_SM_ERR_OOB                  = 0x02
+	ERR_CODE_SM_ERR_AUTHREQ              = 0x03
+	ERR_CODE_SM_ERR_CONFIRM_MISMATCH     = 0x04
+	ERR_CODE_SM_ERR_PAIR_NOT_SUPP        = 0x05
+	ERR_CODE_SM_ERR_ENC_KEY_SZ           = 0x06
+	ERR_CODE_SM_ERR_CMD_NOT_SUPP         = 0x07
+	ERR_CODE_SM_ERR_UNSPECIFIED          = 0x08
+	ERR_CODE_SM_ERR_REPEATED             = 0x09
+	ERR_CODE_SM_ERR_INVAL                = 0x0a
+	ERR_CODE_SM_ERR_DHKEY                = 0x0b
+	ERR_CODE_SM_ERR_NUMCMP               = 0x0c
+	ERR_CODE_SM_ERR_ALREADY              = 0x0d
+	ERR_CODE_SM_ERR_CROSS_TRANS          = 0x0e
+)
+
+var SmErrCodeStringMap = map[int]string{
+	ERR_CODE_SM_ERR_PASSKEY:          "passkey",
+	ERR_CODE_SM_ERR_OOB:              "oob",
+	ERR_CODE_SM_ERR_AUTHREQ:          "authreq",
+	ERR_CODE_SM_ERR_CONFIRM_MISMATCH: "confirm mismatch",
+	ERR_CODE_SM_ERR_PAIR_NOT_SUPP:    "pairing not supported",
+	ERR_CODE_SM_ERR_ENC_KEY_SZ:       "encryption key size",
+	ERR_CODE_SM_ERR_CMD_NOT_SUPP:     "command not supported",
+	ERR_CODE_SM_ERR_UNSPECIFIED:      "unspecified",
+	ERR_CODE_SM_ERR_REPEATED:         "repeated attempts",
+	ERR_CODE_SM_ERR_INVAL:            "invalid parameters",
+	ERR_CODE_SM_ERR_DHKEY:            "dhkey check failed",
+	ERR_CODE_SM_ERR_NUMCMP:           "numeric comparison failed",
+	ERR_CODE_SM_ERR_ALREADY:          "pairing already in progress",
+	ERR_CODE_SM_ERR_CROSS_TRANS:      "cross transport not allowed",
+}
+
 // These values never get transmitted or received, so their precise values
 // don't matter.  We specify them explicitly here to match the blehostd source.
 const (
@@ -1444,6 +1478,51 @@ func ErrCodeToString(e int) string {
 	}
 
 	return s
+}
+
+func ErrCodeToAtt(e int) int {
+	e -= ERR_CODE_ATT_BASE
+	if e < 0 || e >= 0x100 {
+		return -1
+	}
+
+	return e
+}
+
+func ErrCodeToHci(e int) int {
+	e -= ERR_CODE_HCI_BASE
+	if e < 0 || e >= 0x100 {
+		return -1
+	}
+
+	return e
+}
+
+func ErrCodeToL2c(e int) int {
+	e -= ERR_CODE_L2C_BASE
+	if e < 0 || e >= 0x100 {
+		return -1
+	}
+
+	return e
+}
+
+func ErrCodeToSmUs(e int) int {
+	e -= ERR_CODE_SM_US_BASE
+	if e < 0 || e >= 0x100 {
+		return -1
+	}
+
+	return e
+}
+
+func ErrCodeToSmPeer(e int) int {
+	e -= ERR_CODE_SM_PEER_BASE
+	if e < 0 || e >= 0x100 {
+		return -1
+	}
+
+	return e
 }
 
 func MsgOpToString(op MsgOp) string {
