@@ -71,6 +71,16 @@ func Commands() *cobra.Command {
 	nmCmd.PersistentFlags().BoolVar(&nmutil.BleWriteRsp, "write-rsp", false,
 		"Send BLE acked write requests instead of unacked write commands")
 
+	nmCmd.PersistentFlags().StringVar(&nmutil.ConnType, "conntype", "",
+		"Connection type to use instead of using the profile's type")
+
+	nmCmd.PersistentFlags().StringVar(&nmutil.ConnString, "connstring", "",
+		"Connection key-value pairs to use instead of using the profile's "+
+			"connstring")
+
+	nmCmd.PersistentFlags().StringVar(&nmutil.ConnExtra, "connextra", "",
+		"Additional key-value pair to append to the connstring")
+
 	nmCmd.AddCommand(crashCmd())
 	nmCmd.AddCommand(dateTimeCmd())
 	nmCmd.AddCommand(fsCmd())

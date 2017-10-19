@@ -22,6 +22,8 @@ package cli
 import (
 	"fmt"
 
+	log "github.com/Sirupsen/logrus"
+
 	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/bll"
 	"mynewt.apache.org/newtmgr/newtmgr/config"
@@ -35,13 +37,67 @@ import (
 
 var globalSesn sesn.Sesn
 var globalXport xport.Xport
+var globalP *config.ConnProfile
 
-// These keep track of whether the global interfaces have been assigned.  These
-// are necessary to accommodate golang's nil-interface semantics.
+// This keeps track of whether the global interface has been assigned.  This
+// is necessary to accommodate golang's nil-interface semantics.
 var globalXportSet bool
 
+func initConnProfile() error {
+	var p *config.ConnProfile
+
+	if nmutil.ConnProfile == "" {
+		p = config.NewConnProfile()
+		p.Name = "unnamed"
+	} else {
+		var err error
+
+		cpm := config.GlobalConnProfileMgr()
+		p, err = cpm.GetConnProfile(nmutil.ConnProfile)
+		if err != nil {
+			return err
+		}
+	}
+
+	if nmutil.ConnType != "" {
+		t, err := config.ConnTypeFromString(nmutil.ConnType)
+		if err != nil {
+			return util.FmtNewtError("invalid conntype: \"%s\"",
+				nmutil.ConnType)
+		}
+
+		p.Type = t
+	}
+
+	if nmutil.ConnString != "" {
+		p.ConnString = nmutil.ConnString
+	}
+
+	if nmutil.ConnExtra != "" {
+		if p.ConnString != "" {
+			p.ConnString += ","
+		}
+		p.ConnString += nmutil.ConnExtra
+	}
+
+	if p.Type == config.CONN_TYPE_NONE {
+		return util.FmtNewtError("No connection type specified")
+	}
+
+	log.Debugf("Using connection profile: %v", p)
+	globalP = p
+
+	return nil
+}
+
 func getConnProfile() (*config.ConnProfile, error) {
-	return config.GlobalConnProfileMgr().GetConnProfile(nmutil.ConnProfile)
+	if globalP == nil {
+		if err := initConnProfile(); err != nil {
+			return nil, err
+		}
+	}
+
+	return globalP, nil
 }
 
 func GetXport() (xport.Xport, error) {

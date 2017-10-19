@@ -32,6 +32,9 @@ var Tries int
 var ConnProfile string
 var DeviceName string
 var BleWriteRsp bool
+var ConnType string
+var ConnString string
+var ConnExtra string
 
 func TxOptions() sesn.TxOptions {
 	return sesn.TxOptions{
