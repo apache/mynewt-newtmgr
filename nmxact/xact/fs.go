@@ -142,7 +142,7 @@ func nextFsUploadReq(s sesn.Sesn, name string, data []byte, off int) (
 	// First, build a request without data to determine how much data could
 	// fit.
 	empty := buildFsUploadReq(name, len(data), nil, off)
-	emptyEnc, err := mgmt.EncodeMgmt(s.MgmtProto(), empty.Msg())
+	emptyEnc, err := mgmt.EncodeMgmt(s, empty.Msg())
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +157,7 @@ func nextFsUploadReq(s sesn.Sesn, name string, data []byte, off int) (
 	// not be valid for some encodings (e.g., CBOR uses variable length fields
 	// to encodes byte string lengths).
 	r := buildFsUploadReq(name, len(data), data[off:off+room], off)
-	enc, err := mgmt.EncodeMgmt(s.MgmtProto(), r.Msg())
+	enc, err := mgmt.EncodeMgmt(s, r.Msg())
 	if err != nil {
 		return nil, err
 	}
