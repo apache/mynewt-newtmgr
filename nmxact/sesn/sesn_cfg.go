@@ -85,6 +85,10 @@ type SesnCfgBle struct {
 	Central SesnCfgBleCentral
 }
 
+type SesnCfgLora struct {
+	Addr string
+}
+
 type SesnCfg struct {
 	// General configuration.
 	MgmtProto MgmtProto
@@ -93,6 +97,7 @@ type SesnCfg struct {
 
 	// Transport-specific configuration.
 	Ble SesnCfgBle
+	Lora SesnCfgLora
 }
 
 func NewSesnCfg() SesnCfg {
