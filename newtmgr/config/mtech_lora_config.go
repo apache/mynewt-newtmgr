@@ -28,13 +28,13 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
-func NewMtechLoraConfig() *mtech_lora.MtechLoraConfig {
-	return &mtech_lora.MtechLoraConfig{
+func NewMtechLoraConfig() *mtech_lora.LoraConfig {
+	return &mtech_lora.LoraConfig{
 		Addr: "",
 	}
 }
 
-func ParseMtechLoraConnString(cs string) (*mtech_lora.MtechLoraConfig, error) {
+func ParseMtechLoraConnString(cs string) (*mtech_lora.LoraConfig, error) {
 	mc := NewMtechLoraConfig()
 
 	if len(cs) == 0 {
@@ -62,7 +62,7 @@ func ParseMtechLoraConnString(cs string) (*mtech_lora.MtechLoraConfig, error) {
 	return mc, nil
 }
 
-func FillMtechLoraSesnCfg(mc *mtech_lora.MtechLoraConfig, sc *sesn.SesnCfg) error {
+func FillMtechLoraSesnCfg(mc *mtech_lora.LoraConfig, sc *sesn.SesnCfg) error {
 	sc.Lora.Addr = mc.Addr
 	if nmutil.DeviceName != "" {
 		sc.Lora.Addr = nmutil.DeviceName

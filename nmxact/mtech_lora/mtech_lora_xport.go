@@ -37,17 +37,24 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
-type MtechLoraConfig struct {
+type LoraConfig struct {
 	Addr string
 }
 
+type LoraJoinedCb func(dev LoraConfig)
+
 type LoraXport struct {
 	sync.Mutex
+	cfg       *LoraXportCfg
 	started   bool
 	rxConn    *net.UDPConn
 	txConn    *net.UDPConn
 	listenMap *ListenerMap
 	exitChan  chan int
+	joinCb    LoraJoinedCb
+}
+
+type LoraXportCfg struct {
 }
 
 type LoraData struct {
@@ -59,8 +66,13 @@ const UDP_RX_PORT = 1784
 const UDP_TX_PORT = 1786
 const OIC_LORA_PORT = 0xbb
 
-func NewLoraXport() *LoraXport {
+func NewXportCfg() *LoraXportCfg {
+	return &LoraXportCfg{}
+}
+
+func NewLoraXport(cfg *LoraXportCfg) *LoraXport {
 	return &LoraXport{
+		cfg: cfg,
 		listenMap: NewListenerMap(),
 	}
 }
@@ -149,7 +161,8 @@ func (lx *LoraXport) processData(data string) {
 	}
 	switch splitHdr[2] {
 	case "joined":
-		fmt.Printf("%s joined, get hwid and send to scanner\n", splitHdr[1])
+		log.Debugf("%s joined", splitHdr[1])
+		lx.reportJoin(splitHdr[1])
 	case "up":
 		var msg LoraData
 
@@ -216,6 +229,26 @@ func (lx *LoraXport) Start() error {
 	return nil
 }
 
+func (lx *LoraXport) reportJoin(dev string) {
+	lx.Lock()
+	if lx.joinCb != nil {
+		dev := LoraConfig {
+			Addr: dev,
+		}
+		lx.Unlock()
+		lx.joinCb(dev)
+	} else {
+		lx.Unlock()
+	}
+}
+
+func (lx *LoraXport) SetJoinCb(joinCb LoraJoinedCb) {
+	lx.Lock()
+	defer lx.Unlock()
+
+	lx.joinCb = joinCb
+}
+
 func (lx *LoraXport) Stop() error {
 	if !lx.started {
 		return nmxutil.NewXportError("Lora xport stopped twice")
@@ -225,6 +258,7 @@ func (lx *LoraXport) Stop() error {
 	lx.txConn.Close()
 	lx.txConn = nil
 	lx.started = false
+	lx.joinCb = nil
 	return nil
 }
 

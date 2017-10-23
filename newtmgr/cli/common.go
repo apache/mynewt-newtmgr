@@ -146,7 +146,8 @@ func GetXport() (xport.Xport, error) {
 		globalXport = udp.NewUdpXport()
 
 	case config.CONN_TYPE_MTECH_LORA_OIC:
-		globalXport = mtech_lora.NewLoraXport()
+		cfg := mtech_lora.NewXportCfg()
+		globalXport = mtech_lora.NewLoraXport(cfg)
 
 	default:
 		return nil, util.FmtNewtError("Unknown connection type: %s (%d)",
