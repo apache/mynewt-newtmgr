@@ -68,17 +68,10 @@ func NewLoraSesn(cfg sesn.SesnCfg, lx *LoraXport) (*LoraSesn, error) {
 	}
 	cfg.Lora.Addr = addr
 	s := &LoraSesn{
-		cfg:      cfg,
-		xport:    lx,
-		stopChan: make(chan struct{}),
+		cfg:   cfg,
+		xport: lx,
 	}
-	txvr, err := mgmt.NewTransceiver(false, cfg.MgmtProto, 3)
-	if err != nil {
-		return nil, err
-	}
-	s.txvr = txvr
 
-	s.listener = NewListener()
 	return s, nil
 }
 
@@ -90,7 +83,16 @@ func (s *LoraSesn) Open() error {
 
 	key := TgtKey(s.cfg.Lora.Addr, "rx")
 	s.xport.Lock()
-	err := s.xport.listenMap.AddListener(key, s.listener)
+
+	txvr, err := mgmt.NewTransceiver(false, s.cfg.MgmtProto, 3)
+	if err != nil {
+		return err
+	}
+	s.txvr = txvr
+	s.stopChan = make(chan struct{})
+	s.listener = NewListener()
+
+	err = s.xport.listenMap.AddListener(key, s.listener)
 	if err != nil {
 		s.txvr.Stop()
 		return err
@@ -129,9 +131,8 @@ func (s *LoraSesn) Close() error {
 	close(s.stopChan)
 	s.listener.Close()
 	s.wg.Wait()
-
-	s.listener = nil
 	s.stopChan = nil
+	s.txvr = nil
 
 	return nil
 }
@@ -231,6 +232,9 @@ func (s *LoraSesn) AbortRx(seq uint8) error {
 func (s *LoraSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
 	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
 
+	if !s.IsOpen() {
+		return 0, nil, fmt.Errorf("Attempt to transmit over closed Lora session")
+	}
 	txFunc := func(b []byte) error {
 		return s.send_fragments(b)
 	}

@@ -29,20 +29,20 @@ import (
 
 type ListenerKey struct {
 	Target string
-	Type string
+	Type   string
 }
 
 func TgtKey(tgt string, msgType string) ListenerKey {
 	return ListenerKey{
 		Target: tgt,
-		Type: msgType,
+		Type:   msgType,
 	}
 }
 
 func TypeKey(msgType string) ListenerKey {
 	return ListenerKey{
 		Target: "",
-		Type: msgType,
+		Type:   msgType,
 	}
 }
 

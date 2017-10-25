@@ -59,6 +59,7 @@ type LoraXportCfg struct {
 
 type LoraData struct {
 	Data string `codec:"data"`
+	Port int    `codec:"port"`
 }
 
 const MAX_PACKET_SIZE = 128
@@ -72,7 +73,7 @@ func NewXportCfg() *LoraXportCfg {
 
 func NewLoraXport(cfg *LoraXportCfg) *LoraXport {
 	return &LoraXport{
-		cfg: cfg,
+		cfg:       cfg,
 		listenMap: NewListenerMap(),
 	}
 }
@@ -150,7 +151,6 @@ func (lx *LoraXport) processData(data string) {
 	if strings.HasPrefix(data, "lora/") == false {
 		return
 	}
-	log.Debugf("loraxport rx: %s", data)
 	splitMsg := strings.Fields(data)
 	if len(splitMsg) == 0 {
 		return
@@ -161,11 +161,13 @@ func (lx *LoraXport) processData(data string) {
 	}
 	switch splitHdr[2] {
 	case "joined":
+		log.Debugf("loraxport rx: %s", data)
 		log.Debugf("%s joined", splitHdr[1])
 		lx.reportJoin(splitHdr[1])
 	case "up":
 		var msg LoraData
 
+		log.Debugf("loraxport rx: %s", data)
 		pload := []byte(splitMsg[1])
 		err := codec.NewDecoderBytes(pload, new(codec.JsonHandle)).Decode(&msg)
 		if err != nil {
@@ -173,6 +175,10 @@ func (lx *LoraXport) processData(data string) {
 			return
 		}
 
+		if msg.Port != OIC_LORA_PORT {
+			log.Debugf("loraxport rx: ignoring data to port %d", msg.Port)
+			return
+		}
 		dec, err := base64.StdEncoding.DecodeString(msg.Data)
 		if err != nil {
 			log.Debugf("loraxport rx: error decoding base64: %v", err)
@@ -216,7 +222,7 @@ func (lx *LoraXport) Start() error {
 	lx.started = true
 
 	go func() {
-		data := make([]byte, MAX_PACKET_SIZE * 4/3 + 512)
+		data := make([]byte, MAX_PACKET_SIZE*4/3+512)
 		for {
 			nr, _, err := lx.rxConn.ReadFromUDP(data)
 			if err != nil {
@@ -232,7 +238,7 @@ func (lx *LoraXport) Start() error {
 func (lx *LoraXport) reportJoin(dev string) {
 	lx.Lock()
 	if lx.joinCb != nil {
-		dev := LoraConfig {
+		dev := LoraConfig{
 			Addr: dev,
 		}
 		lx.Unlock()
