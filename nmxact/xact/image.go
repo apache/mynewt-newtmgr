@@ -216,6 +216,7 @@ func (c *ImageUpgradeCmd) rescue(s sesn.Sesn, err error) error {
 
 func (c *ImageUpgradeCmd) runErase(s sesn.Sesn) (*ImageEraseResult, error) {
 	cmd := NewImageEraseCmd()
+	cmd.SetTxOptions(c.TxOptions())
 	res, err := cmd.Run(s)
 
 	if err := c.rescue(s, err); err != nil {
@@ -245,6 +246,7 @@ func (c *ImageUpgradeCmd) runUpload(s sesn.Sesn) (*ImageUploadResult, error) {
 		cmd.Data = c.Data
 		cmd.StartOff = startOff
 		cmd.ProgressCb = progressCb
+		cmd.SetTxOptions(c.TxOptions())
 
 		res, err := cmd.Run(s)
 		if err == nil {
