@@ -191,7 +191,7 @@ func (s *LoraSesn) send_fragments(b []byte) error {
 
 		msg := mtechLoraTx{
 			Port: OIC_LORA_PORT,
-			Ack:  false,
+			Ack:  s.cfg.Lora.ConfirmedTx,
 			Data: string(seg64),
 		}
 

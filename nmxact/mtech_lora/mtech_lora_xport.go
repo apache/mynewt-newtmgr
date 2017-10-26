@@ -38,8 +38,9 @@ import (
 )
 
 type LoraConfig struct {
-	Addr  string
-	SegSz int
+	Addr        string
+	SegSz       int
+	ConfirmedTx bool
 }
 
 type LoraJoinedCb func(dev LoraConfig)

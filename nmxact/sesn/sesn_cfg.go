@@ -86,8 +86,9 @@ type SesnCfgBle struct {
 }
 
 type SesnCfgLora struct {
-	Addr  string
-	SegSz int
+	Addr        string
+	SegSz       int
+	ConfirmedTx bool
 }
 
 type SesnCfg struct {
@@ -115,6 +116,9 @@ func NewSesnCfg() SesnCfg {
 				ConnTries:   5,
 				ConnTimeout: 10 * time.Second,
 			},
+		},
+		Lora: SesnCfgLora{
+			ConfirmedTx: false,
 		},
 	}
 }

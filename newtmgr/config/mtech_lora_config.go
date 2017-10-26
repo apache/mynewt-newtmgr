@@ -62,6 +62,12 @@ func ParseMtechLoraConnString(cs string) (*mtech_lora.LoraConfig, error) {
 			if err != nil {
 				return mc, util.FmtNewtError("Invalid SegSz: %s", v)
 			}
+		case "confirmedtx":
+			var err error
+			mc.ConfirmedTx, err = strconv.ParseBool(v)
+			if err != nil {
+				return mc, util.FmtNewtError("Invalid confirmedtx: %s", v)
+			}
 		default:
 			return nil, util.FmtNewtError("Unrecognized key: %s", k)
 		}
@@ -73,6 +79,7 @@ func ParseMtechLoraConnString(cs string) (*mtech_lora.LoraConfig, error) {
 func FillMtechLoraSesnCfg(mc *mtech_lora.LoraConfig, sc *sesn.SesnCfg) error {
 	sc.Lora.Addr = mc.Addr
 	sc.Lora.SegSz = mc.SegSz
+	sc.Lora.ConfirmedTx = mc.ConfirmedTx
 	if nmutil.DeviceName != "" {
 		sc.Lora.Addr = nmutil.DeviceName
 	}
