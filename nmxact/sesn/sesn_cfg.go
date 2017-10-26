@@ -86,7 +86,8 @@ type SesnCfgBle struct {
 }
 
 type SesnCfgLora struct {
-	Addr string
+	Addr  string
+	SegSz int
 }
 
 type SesnCfg struct {
@@ -96,7 +97,7 @@ type SesnCfg struct {
 	OnCloseCb OnCloseFn
 
 	// Transport-specific configuration.
-	Ble SesnCfgBle
+	Ble  SesnCfgBle
 	Lora SesnCfgLora
 }
 

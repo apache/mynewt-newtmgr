@@ -38,7 +38,8 @@ import (
 )
 
 type LoraConfig struct {
-	Addr string
+	Addr  string
+	SegSz int
 }
 
 type LoraJoinedCb func(dev LoraConfig)
@@ -62,7 +63,7 @@ type LoraData struct {
 	Port int    `codec:"port"`
 }
 
-const MAX_PACKET_SIZE = 128
+const MAX_PACKET_SIZE = 2048
 const UDP_RX_PORT = 1784
 const UDP_TX_PORT = 1786
 const OIC_LORA_PORT = 0xbb

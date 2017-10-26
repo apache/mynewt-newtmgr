@@ -151,8 +151,8 @@ func (s *LoraSesn) MtuOut() int {
 
 func (s *LoraSesn) send_fragments(b []byte) error {
 	segSz := s.xport.minMtu()
-	if segSz < 11 {
-		// XXXX fatal
+	if segSz < s.cfg.Lora.SegSz {
+		segSz = s.cfg.Lora.SegSz
 	}
 	crc := crc16.Crc16(b)
 	idx := 0

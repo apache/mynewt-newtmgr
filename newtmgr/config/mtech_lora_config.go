@@ -20,6 +20,7 @@
 package config
 
 import (
+	"strconv"
 	"strings"
 
 	"mynewt.apache.org/newt/util"
@@ -30,7 +31,8 @@ import (
 
 func NewMtechLoraConfig() *mtech_lora.LoraConfig {
 	return &mtech_lora.LoraConfig{
-		Addr: "",
+		Addr:  "",
+		SegSz: 0,
 	}
 }
 
@@ -54,6 +56,12 @@ func ParseMtechLoraConnString(cs string) (*mtech_lora.LoraConfig, error) {
 		switch k {
 		case "addr":
 			mc.Addr = v
+		case "segsz":
+			var err error
+			mc.SegSz, err = strconv.Atoi(v)
+			if err != nil {
+				return mc, util.FmtNewtError("Invalid SegSz: %s", v)
+			}
 		default:
 			return nil, util.FmtNewtError("Unrecognized key: %s", k)
 		}
@@ -64,6 +72,7 @@ func ParseMtechLoraConnString(cs string) (*mtech_lora.LoraConfig, error) {
 
 func FillMtechLoraSesnCfg(mc *mtech_lora.LoraConfig, sc *sesn.SesnCfg) error {
 	sc.Lora.Addr = mc.Addr
+	sc.Lora.SegSz = mc.SegSz
 	if nmutil.DeviceName != "" {
 		sc.Lora.Addr = nmutil.DeviceName
 	}
