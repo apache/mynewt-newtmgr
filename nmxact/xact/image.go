@@ -32,6 +32,7 @@ import (
 //////////////////////////////////////////////////////////////////////////////
 // $upload                                                                  //
 //////////////////////////////////////////////////////////////////////////////
+const IMAGE_UPLOAD_MAX_CHUNK = 512
 
 type ImageUploadProgressFn func(c *ImageUploadCmd, r *nmp.ImageUploadRsp)
 type ImageUploadCmd struct {
@@ -98,6 +99,10 @@ func nextImageUploadReq(s sesn.Sesn, data []byte, off int) (
 	if off+room > len(data) {
 		// Final chunk.
 		room = len(data) - off
+	}
+	// Cap the max amount of data sent
+	if room > IMAGE_UPLOAD_MAX_CHUNK {
+		room = IMAGE_UPLOAD_MAX_CHUNK
 	}
 
 	// Assume all the unused space can hold image data.  This assumption may
