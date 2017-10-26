@@ -59,6 +59,7 @@ const (
 	CONN_TYPE_BLE_OIC
 	CONN_TYPE_UDP_PLAIN
 	CONN_TYPE_UDP_OIC
+	CONN_TYPE_UNKNOWN
 )
 
 var connTypeNameMap = map[ConnType]string{
@@ -70,6 +71,7 @@ var connTypeNameMap = map[ConnType]string{
 	CONN_TYPE_BLE_OIC:      "oic_bhd",
 	CONN_TYPE_UDP_PLAIN:    "udp",
 	CONN_TYPE_UDP_OIC:      "oic_udp",
+	CONN_TYPE_NONE:         "???",
 }
 
 func ConnTypeToString(ct ConnType) string {
@@ -98,8 +100,10 @@ func (ct *ConnType) UnmarshalJSON(data []byte) error {
 
 	var err error
 	*ct, err = ConnTypeFromString(s)
-
-	return err
+	if err != nil {
+		*ct = CONN_TYPE_NONE
+	}
+	return nil
 }
 
 func NewConnProfileMgr() (*ConnProfileMgr, error) {
