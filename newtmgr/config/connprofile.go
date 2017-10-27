@@ -59,7 +59,6 @@ const (
 	CONN_TYPE_BLE_OIC
 	CONN_TYPE_UDP_PLAIN
 	CONN_TYPE_UDP_OIC
-	CONN_TYPE_UNKNOWN
 )
 
 var connTypeNameMap = map[ConnType]string{
