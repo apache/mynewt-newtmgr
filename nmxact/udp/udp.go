@@ -26,7 +26,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 )
 
-const MAX_PACKET_SIZE = 512
+const MAX_PACKET_SIZE = 2048
 
 func Listen(peerString string, dispatchCb func(data []byte)) (
 	*net.UDPConn, *net.UDPAddr, error) {

@@ -64,10 +64,6 @@ func connProfileAddCmd(cmd *cobra.Command, args []string) {
 		nmUsage(cmd, util.NewNewtError("Must specify a connection type"))
 	}
 
-	// Check that a connstring is specified.
-	if len(cp.ConnString) == 0 {
-		nmUsage(cmd, util.NewNewtError("Must specify a connection string"))
-	}
 	if err := cpm.AddConnProfile(cp); err != nil {
 		nmUsage(cmd, err)
 	}
