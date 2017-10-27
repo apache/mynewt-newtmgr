@@ -85,6 +85,12 @@ type SesnCfgBle struct {
 	Central SesnCfgBleCentral
 }
 
+type SesnCfgLora struct {
+	Addr        string
+	SegSz       int
+	ConfirmedTx bool
+}
+
 type SesnCfg struct {
 	// General configuration.
 	MgmtProto MgmtProto
@@ -92,7 +98,8 @@ type SesnCfg struct {
 	OnCloseCb OnCloseFn
 
 	// Transport-specific configuration.
-	Ble SesnCfgBle
+	Ble  SesnCfgBle
+	Lora SesnCfgLora
 }
 
 func NewSesnCfg() SesnCfg {
@@ -109,6 +116,9 @@ func NewSesnCfg() SesnCfg {
 				ConnTries:   5,
 				ConnTimeout: 10 * time.Second,
 			},
+		},
+		Lora: SesnCfgLora{
+			ConfirmedTx: false,
 		},
 	}
 }

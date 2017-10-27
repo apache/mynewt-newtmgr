@@ -59,18 +59,20 @@ const (
 	CONN_TYPE_BLE_OIC
 	CONN_TYPE_UDP_PLAIN
 	CONN_TYPE_UDP_OIC
+	CONN_TYPE_MTECH_LORA_OIC
 )
 
 var connTypeNameMap = map[ConnType]string{
-	CONN_TYPE_SERIAL_PLAIN: "serial",
-	CONN_TYPE_SERIAL_OIC:   "oic_serial",
-	CONN_TYPE_BLL_PLAIN:    "ble",
-	CONN_TYPE_BLL_OIC:      "oic_ble",
-	CONN_TYPE_BLE_PLAIN:    "bhd",
-	CONN_TYPE_BLE_OIC:      "oic_bhd",
-	CONN_TYPE_UDP_PLAIN:    "udp",
-	CONN_TYPE_UDP_OIC:      "oic_udp",
-	CONN_TYPE_NONE:         "???",
+	CONN_TYPE_SERIAL_PLAIN:   "serial",
+	CONN_TYPE_SERIAL_OIC:     "oic_serial",
+	CONN_TYPE_BLL_PLAIN:      "ble",
+	CONN_TYPE_BLL_OIC:        "oic_ble",
+	CONN_TYPE_BLE_PLAIN:      "bhd",
+	CONN_TYPE_BLE_OIC:        "oic_bhd",
+	CONN_TYPE_UDP_PLAIN:      "udp",
+	CONN_TYPE_UDP_OIC:        "oic_udp",
+	CONN_TYPE_MTECH_LORA_OIC: "oic_mtech",
+	CONN_TYPE_NONE:           "???",
 }
 
 func ConnTypeToString(ct ConnType) string {

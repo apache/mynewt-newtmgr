@@ -28,6 +28,7 @@ import (
 	"mynewt.apache.org/newtmgr/newtmgr/bll"
 	"mynewt.apache.org/newtmgr/newtmgr/config"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
+	"mynewt.apache.org/newtmgr/nmxact/mtech_lora"
 	"mynewt.apache.org/newtmgr/nmxact/nmble"
 	"mynewt.apache.org/newtmgr/nmxact/nmserial"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
@@ -144,6 +145,10 @@ func GetXport() (xport.Xport, error) {
 	case config.CONN_TYPE_UDP_PLAIN, config.CONN_TYPE_UDP_OIC:
 		globalXport = udp.NewUdpXport()
 
+	case config.CONN_TYPE_MTECH_LORA_OIC:
+		cfg := mtech_lora.NewXportCfg()
+		globalXport = mtech_lora.NewLoraXport(cfg)
+
 	default:
 		return nil, util.FmtNewtError("Unknown connection type: %s (%d)",
 			config.ConnTypeToString(cp.Type), int(cp.Type))
@@ -232,6 +237,15 @@ func buildSesnCfg() (sesn.SesnCfg, error) {
 		sc.PeerSpec.Udp = cp.ConnString
 
 		return sc, nil
+
+	case config.CONN_TYPE_MTECH_LORA_OIC:
+		mc, err := config.ParseMtechLoraConnString(cp.ConnString)
+		if err != nil {
+			return sc, err
+		}
+		sc.MgmtProto = sesn.MGMT_PROTO_OMP
+		err = config.FillMtechLoraSesnCfg(mc, &sc)
+		return sc, err
 
 	default:
 		return sc, util.FmtNewtError("Unknown connection type: %s (%d)",
