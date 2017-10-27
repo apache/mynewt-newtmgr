@@ -81,6 +81,11 @@ func (sx *SerialXport) Start() error {
 		return err
 	}
 
+	err = sx.port.Flush()
+	if err != nil {
+		return err
+	}
+
 	// Most of the reading will be done line by line, use the
 	// bufio.Scanner to do this
 	sx.scanner = bufio.NewScanner(sx.port)
