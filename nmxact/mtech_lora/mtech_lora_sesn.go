@@ -149,7 +149,7 @@ func (s *LoraSesn) MtuOut() int {
 	return MAX_PACKET_SIZE - omp.OMP_MSG_OVERHEAD - nmp.NMP_HDR_SIZE
 }
 
-func (s *LoraSesn) send_fragments(b []byte) error {
+func (s *LoraSesn) sendFragments(b []byte) error {
 	segSz := s.xport.minMtu()
 	if segSz < s.cfg.Lora.SegSz {
 		segSz = s.cfg.Lora.SegSz
@@ -219,7 +219,7 @@ func (s *LoraSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 	}
 
 	txFunc := func(b []byte) error {
-		return s.send_fragments(b)
+		return s.sendFragments(b)
 	}
 	return s.txvr.TxNmp(txFunc, m, s.MtuOut(), opt.Timeout)
 }
@@ -236,7 +236,7 @@ func (s *LoraSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
 		return 0, nil, fmt.Errorf("Attempt to transmit over closed Lora session")
 	}
 	txFunc := func(b []byte) error {
-		return s.send_fragments(b)
+		return s.sendFragments(b)
 	}
 	rsp, err := s.txvr.TxOic(txFunc, m, s.MtuOut(), opt.Timeout)
 	if err != nil {
