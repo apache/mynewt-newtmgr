@@ -27,6 +27,7 @@ import (
 	"strings"
 	"sync"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/joaojeronimo/go-crc16"
 	"github.com/runtimeco/go-coap"
 	"github.com/ugorji/go/codec"
@@ -43,6 +44,7 @@ type LoraSesn struct {
 	cfg      sesn.SesnCfg
 	txvr     *mgmt.Transceiver
 	isOpen   bool
+	mtu      int
 	xport    *LoraXport
 	listener *Listener
 	wg       sync.WaitGroup
@@ -70,6 +72,7 @@ func NewLoraSesn(cfg sesn.SesnCfg, lx *LoraXport) (*LoraSesn, error) {
 	s := &LoraSesn{
 		cfg:   cfg,
 		xport: lx,
+		mtu:   0,
 	}
 
 	return s, nil
@@ -110,6 +113,12 @@ func (s *LoraSesn) Open() error {
 				if ok {
 					s.txvr.DispatchCoap(msg)
 				}
+			case mtu, ok := <-s.listener.MtuChan:
+				if ok {
+					log.Debugf("*** mtu for %s %d ***",
+						s.cfg.Lora.Addr, mtu)
+					s.mtu = mtu
+				}
 			case <-s.stopChan:
 				return
 			}
@@ -137,6 +146,16 @@ func (s *LoraSesn) Close() error {
 	return nil
 }
 
+func (s *LoraSesn) Mtu() int {
+	if s.cfg.Lora.SegSz != 0 {
+		return s.cfg.Lora.SegSz
+	}
+	if s.mtu != 0 {
+		return s.mtu
+	}
+	return s.xport.minMtu()
+}
+
 func (s *LoraSesn) IsOpen() bool {
 	return s.isOpen
 }
@@ -150,10 +169,7 @@ func (s *LoraSesn) MtuOut() int {
 }
 
 func (s *LoraSesn) sendFragments(b []byte) error {
-	segSz := s.xport.minMtu()
-	if segSz < s.cfg.Lora.SegSz {
-		segSz = s.cfg.Lora.SegSz
-	}
+	segSz := s.Mtu()
 	crc := crc16.Crc16(b)
 	idx := 0
 	for off := 0; off < len(b); {

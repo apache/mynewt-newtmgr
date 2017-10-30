@@ -64,6 +64,22 @@ type LoraData struct {
 	Port int    `codec:"port"`
 }
 
+type LoraPacketSent struct {
+	DataRate string `codec:"datr"`
+}
+
+/*
+ * This maps datarate string into a max mtu we can use
+ */
+var LoraDataRateMapUS = map[string]int{
+	"SF12BW500": 33,
+	"SF11BW500": 109,
+	"SF10BW500": 222,
+	"SF9BW500":  222,
+	"SF8BW500":  222,
+	"SF7BW500":  222,
+}
+
 const MAX_PACKET_SIZE = 2048
 const UDP_RX_PORT = 1784
 const UDP_TX_PORT = 1786
@@ -146,6 +162,21 @@ func (lx *LoraXport) reass(dev string, data []byte) {
 	}
 }
 
+func (lx *LoraXport) dataRateSeen(dev string, dataRate string) {
+	lx.Lock()
+	defer lx.Unlock()
+
+	_, l := lx.listenMap.FindListener(dev, "rx")
+	if l == nil {
+		return
+	}
+	mtu, ok := LoraDataRateMapUS[dataRate]
+	if !ok {
+		mtu = lx.minMtu()
+	}
+	l.MtuChan <- mtu
+}
+
 /*
  * lora/00-13-50-04-04-50-13-00/up
  */
@@ -187,6 +218,18 @@ func (lx *LoraXport) processData(data string) {
 			return
 		}
 		lx.reass(splitHdr[1], dec)
+	case "packet_sent":
+		var sent LoraPacketSent
+
+		log.Debugf("loraxport rx: %s", data)
+		pload := []byte(splitMsg[1])
+		err := codec.NewDecoderBytes(pload, new(codec.JsonHandle)).Decode(&sent)
+		if err != nil {
+			log.Debugf("loraxport rx: error decoding json: %v", err)
+			return
+		}
+
+		lx.dataRateSeen(splitHdr[1], sent.DataRate)
 	}
 }
 
