@@ -80,7 +80,8 @@ var LoraDataRateMapUS = map[string]int{
 	"SF7BW500":  222,
 }
 
-const MAX_PACKET_SIZE = 2048
+const MAX_PACKET_SIZE_IN = 2048
+const MAX_PACKET_SIZE_OUT = 128
 const UDP_RX_PORT = 1784
 const UDP_TX_PORT = 1786
 const OIC_LORA_PORT = 0xbb
@@ -267,7 +268,7 @@ func (lx *LoraXport) Start() error {
 	lx.started = true
 
 	go func() {
-		data := make([]byte, MAX_PACKET_SIZE*4/3+512)
+		data := make([]byte, MAX_PACKET_SIZE_IN*4/3+512)
 		for {
 			nr, _, err := lx.rxConn.ReadFromUDP(data)
 			if err != nil {

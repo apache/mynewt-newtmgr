@@ -161,11 +161,18 @@ func (s *LoraSesn) IsOpen() bool {
 }
 
 func (s *LoraSesn) MtuIn() int {
-	return MAX_PACKET_SIZE - omp.OMP_MSG_OVERHEAD - nmp.NMP_HDR_SIZE
+	return MAX_PACKET_SIZE_IN - omp.OMP_MSG_OVERHEAD - nmp.NMP_HDR_SIZE
 }
 
 func (s *LoraSesn) MtuOut() int {
-	return MAX_PACKET_SIZE - omp.OMP_MSG_OVERHEAD - nmp.NMP_HDR_SIZE
+	// We want image upload to use chunk size which fits inside a single
+	// lora segment, when possible. If the datarate is low enough, then we have
+	// to fragment, but try to avoid it if possible.
+	mtu := MAX_PACKET_SIZE_OUT
+	if s.mtu > mtu {
+		mtu = s.mtu
+	}
+	return mtu - omp.OMP_MSG_OVERHEAD - nmp.NMP_HDR_SIZE
 }
 
 func (s *LoraSesn) sendFragments(b []byte) error {
