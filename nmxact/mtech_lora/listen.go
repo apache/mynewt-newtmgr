@@ -63,7 +63,7 @@ type Listener struct {
 func NewListener() *Listener {
 	return &Listener{
 		MsgChan: make(chan []byte, 16),
-		MtuChan: make(chan int, 2),
+		MtuChan: make(chan int, 1),
 		ErrChan: make(chan error, 1),
 		TmoChan: make(chan time.Time, 1),
 
