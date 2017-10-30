@@ -115,8 +115,10 @@ func (s *LoraSesn) Open() error {
 				}
 			case mtu, ok := <-s.listener.MtuChan:
 				if ok {
-					log.Debugf("*** mtu for %s %d ***",
-						s.cfg.Lora.Addr, mtu)
+					if s.mtu != mtu {
+						log.Debugf("Setting mtu for %s %d",
+							s.cfg.Lora.Addr, mtu)
+					}
 					s.mtu = mtu
 				}
 			case <-s.stopChan:
