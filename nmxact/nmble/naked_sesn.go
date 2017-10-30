@@ -458,10 +458,18 @@ func (s *NakedSesn) openOnce() (bool, error) {
 		s.cfg.PeerSpec.Ble,
 		s.cfg.Ble.Central.ConnTimeout); err != nil {
 
-		return false, err
+		// An ENOTCONN error code implies the "conn_find" request failed
+		// because the connection dropped immediately after being established.
+		// If this happened, retry the connect procedure.
+		bhdErr := nmxutil.ToBleHost(err)
+		retry := bhdErr != nil && bhdErr.Status == ERR_CODE_ENOTCONN
+		return retry, err
 	}
 
 	if err := s.conn.ExchangeMtu(); err != nil {
+		// An ENOTCONN error code implies the connection dropped before the
+		// first ACL data transmission.  If this happened, retry the connect
+		// procedure.
 		bhdErr := nmxutil.ToBleHost(err)
 		retry := bhdErr != nil && bhdErr.Status == ERR_CODE_ENOTCONN
 		return retry, err
