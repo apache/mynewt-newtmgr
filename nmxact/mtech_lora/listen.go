@@ -48,6 +48,7 @@ func TypeKey(msgType string) ListenerKey {
 
 type Listener struct {
 	MsgChan chan []byte
+	MtuChan chan int
 	ErrChan chan error
 	TmoChan chan time.Time
 	Acked   bool
@@ -62,6 +63,7 @@ type Listener struct {
 func NewListener() *Listener {
 	return &Listener{
 		MsgChan: make(chan []byte, 16),
+		MtuChan: make(chan int, 1),
 		ErrChan: make(chan error, 1),
 		TmoChan: make(chan time.Time, 1),
 
@@ -93,6 +95,13 @@ func (ll *Listener) Close() {
 	close(ll.MsgChan)
 	for {
 		if _, ok := <-ll.MsgChan; !ok {
+			break
+		}
+	}
+
+	close(ll.MtuChan)
+	for {
+		if _, ok := <-ll.MtuChan; !ok {
 			break
 		}
 	}
