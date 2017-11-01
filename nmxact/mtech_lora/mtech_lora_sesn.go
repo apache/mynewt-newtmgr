@@ -57,7 +57,7 @@ type mtechLoraTx struct {
 }
 
 func NewLoraSesn(cfg sesn.SesnCfg, lx *LoraXport) (*LoraSesn, error) {
-	addr, err := normalizeAddr(cfg.Lora.Addr)
+	addr, err := NormalizeAddr(cfg.Lora.Addr)
 	if err != nil {
 		return nil, fmt.Errorf("Invalid Lora address %s\n", cfg.Lora.Addr)
 	}
@@ -220,7 +220,7 @@ func (s *LoraSesn) sendFragments(b []byte) error {
 		var outData bytes.Buffer
 
 		outData.Write([]byte(fmt.Sprintf("lora/%s/down %s\n",
-			denormalizeAddr(s.cfg.Lora.Addr), payload)))
+			DenormalizeAddr(s.cfg.Lora.Addr), payload)))
 		err := s.xport.Tx(outData.Bytes())
 		if err != nil {
 			return err

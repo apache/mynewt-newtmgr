@@ -101,7 +101,7 @@ func (lx *LoraXport) minMtu() int {
 	return 33
 }
 
-func normalizeAddr(addr string) (string, error) {
+func NormalizeAddr(addr string) (string, error) {
 	a := strings.Replace(addr, ":", "", -1)
 	a = strings.Replace(addr, "-", "", -1)
 	// XXX check that there's 8 components, 2 chars each, which are in [0-9,a-f]
@@ -111,7 +111,7 @@ func normalizeAddr(addr string) (string, error) {
 	return a, nil
 }
 
-func denormalizeAddr(addr string) string {
+func DenormalizeAddr(addr string) string {
 	if len(addr) != 16 {
 		return "<invalid>"
 	}
@@ -217,7 +217,7 @@ func (lx *LoraXport) processData(data string) {
 	if len(splitHdr) != 3 {
 		return
 	}
-	dev, _ := normalizeAddr(splitHdr[1])
+	dev, _ := NormalizeAddr(splitHdr[1])
 	switch splitHdr[2] {
 	case "joined":
 		log.Debugf("loraxport rx: %s", data)
