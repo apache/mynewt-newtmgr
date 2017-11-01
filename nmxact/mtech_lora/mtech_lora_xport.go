@@ -101,6 +101,30 @@ func (lx *LoraXport) minMtu() int {
 	return 33
 }
 
+func normalizeAddr(addr string) (string, error) {
+	a := strings.Replace(addr, ":", "", -1)
+	a = strings.Replace(addr, "-", "", -1)
+	// XXX check that there's 8 components, 2 chars each, which are in [0-9,a-f]
+	if len(a) != 16 {
+		return "", fmt.Errorf("Invalid addr")
+	}
+	return a, nil
+}
+
+func denormalizeAddr(addr string) string {
+	if len(addr) != 16 {
+		return "<invalid>"
+	}
+	rc := ""
+	for i := 0; i < 16; i+=2 {
+		rc += addr[i : i+2]
+		if 16-i > 2 {
+			rc += "-"
+		}
+	}
+	return rc
+}
+
 func (lx *LoraXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
 	if cfg.Lora.Addr == "" {
 		return nil, fmt.Errorf("Need an address of endpoint")
@@ -193,11 +217,12 @@ func (lx *LoraXport) processData(data string) {
 	if len(splitHdr) != 3 {
 		return
 	}
+	dev, _ := normalizeAddr(splitHdr[1])
 	switch splitHdr[2] {
 	case "joined":
 		log.Debugf("loraxport rx: %s", data)
-		log.Debugf("%s joined", splitHdr[1])
-		lx.reportJoin(splitHdr[1])
+		log.Debugf("%s joined", dev)
+		lx.reportJoin(dev)
 	case "up":
 		var msg LoraData
 
@@ -218,7 +243,7 @@ func (lx *LoraXport) processData(data string) {
 			log.Debugf("loraxport rx: error decoding base64: %v", err)
 			return
 		}
-		lx.reass(splitHdr[1], dec)
+		lx.reass(dev, dec)
 	case "packet_sent":
 		var sent LoraPacketSent
 
@@ -230,7 +255,7 @@ func (lx *LoraXport) processData(data string) {
 			return
 		}
 
-		lx.dataRateSeen(splitHdr[1], sent.DataRate)
+		lx.dataRateSeen(dev, sent.DataRate)
 	}
 }
 

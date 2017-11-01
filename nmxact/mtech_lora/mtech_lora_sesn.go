@@ -24,7 +24,6 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
-	"strings"
 	"sync"
 
 	log "github.com/Sirupsen/logrus"
@@ -55,12 +54,6 @@ type mtechLoraTx struct {
 	Port uint16 `json:"port"`
 	Data string `json:"data"`
 	Ack  bool   `json:"ack"`
-}
-
-func normalizeAddr(addr string) (string, error) {
-	a := strings.Replace(addr, ":", "-", -1)
-	// XXX check that there's 8 components, 2 chars each, which are in [0-9,a-f]
-	return a, nil
 }
 
 func NewLoraSesn(cfg sesn.SesnCfg, lx *LoraXport) (*LoraSesn, error) {
@@ -227,7 +220,7 @@ func (s *LoraSesn) sendFragments(b []byte) error {
 		var outData bytes.Buffer
 
 		outData.Write([]byte(fmt.Sprintf("lora/%s/down %s\n",
-			s.cfg.Lora.Addr, payload)))
+			denormalizeAddr(s.cfg.Lora.Addr), payload)))
 		err := s.xport.Tx(outData.Bytes())
 		if err != nil {
 			return err
