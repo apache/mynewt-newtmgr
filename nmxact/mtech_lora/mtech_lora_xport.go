@@ -57,6 +57,8 @@ type LoraXport struct {
 }
 
 type LoraXportCfg struct {
+	AppPortDown int // UDP TX port
+	AppPortUp   int // UDP RX port
 }
 
 type LoraData struct {
@@ -87,7 +89,10 @@ const UDP_TX_PORT = 1786
 const OIC_LORA_PORT = 0xbb
 
 func NewXportCfg() *LoraXportCfg {
-	return &LoraXportCfg{}
+	return &LoraXportCfg{
+		AppPortDown: UDP_TX_PORT,
+		AppPortUp:   UDP_RX_PORT,
+	}
 }
 
 func NewLoraXport(cfg *LoraXportCfg) *LoraXport {
@@ -116,7 +121,7 @@ func DenormalizeAddr(addr string) string {
 		return "<invalid>"
 	}
 	rc := ""
-	for i := 0; i < 16; i+=2 {
+	for i := 0; i < 16; i += 2 {
 		rc += addr[i : i+2]
 		if 16-i > 2 {
 			rc += "-"
@@ -264,20 +269,21 @@ func (lx *LoraXport) Start() error {
 		return nmxutil.NewXportError("Lora xport started twice")
 	}
 
-	addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:1784")
+	addr, err := net.ResolveUDPAddr("udp",
+		fmt.Sprintf("127.0.0.1:%d", lx.cfg.AppPortUp))
 	if err != nil {
 		return fmt.Errorf("Failure resolving name for UDP session: %s",
 			err.Error())
 	}
 
-	// XXX need so_reuseport
 	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
 		return fmt.Errorf("Failed to open RX to lora-network-server %s", addr)
 	}
 	lx.rxConn = conn
 
-	addr, err = net.ResolveUDPAddr("udp", "127.0.0.1:1786")
+	addr, err = net.ResolveUDPAddr("udp",
+		fmt.Sprintf("127.0.0.1:%d", lx.cfg.AppPortDown))
 	if err != nil {
 		return fmt.Errorf("Failure resolving name for UDP session: %s",
 			err.Error())
