@@ -57,6 +57,8 @@ type LoraXport struct {
 }
 
 type LoraXportCfg struct {
+	AppPortDown int // UDP TX port
+	AppPortUp   int // UDP RX port
 }
 
 type LoraData struct {
@@ -87,7 +89,10 @@ const UDP_TX_PORT = 1786
 const OIC_LORA_PORT = 0xbb
 
 func NewXportCfg() *LoraXportCfg {
-	return &LoraXportCfg{}
+	return &LoraXportCfg{
+		AppPortDown: UDP_TX_PORT,
+		AppPortUp:   UDP_RX_PORT,
+	}
 }
 
 func NewLoraXport(cfg *LoraXportCfg) *LoraXport {
@@ -99,6 +104,30 @@ func NewLoraXport(cfg *LoraXportCfg) *LoraXport {
 
 func (lx *LoraXport) minMtu() int {
 	return 33
+}
+
+func NormalizeAddr(addr string) (string, error) {
+	a := strings.Replace(addr, ":", "", -1)
+	a = strings.Replace(addr, "-", "", -1)
+	// XXX check that there's 8 components, 2 chars each, which are in [0-9,a-f]
+	if len(a) != 16 {
+		return "", fmt.Errorf("Invalid addr")
+	}
+	return a, nil
+}
+
+func DenormalizeAddr(addr string) string {
+	if len(addr) != 16 {
+		return "<invalid>"
+	}
+	rc := ""
+	for i := 0; i < 16; i += 2 {
+		rc += addr[i : i+2]
+		if 16-i > 2 {
+			rc += "-"
+		}
+	}
+	return rc
 }
 
 func (lx *LoraXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
@@ -193,11 +222,12 @@ func (lx *LoraXport) processData(data string) {
 	if len(splitHdr) != 3 {
 		return
 	}
+	dev, _ := NormalizeAddr(splitHdr[1])
 	switch splitHdr[2] {
 	case "joined":
 		log.Debugf("loraxport rx: %s", data)
-		log.Debugf("%s joined", splitHdr[1])
-		lx.reportJoin(splitHdr[1])
+		log.Debugf("%s joined", dev)
+		lx.reportJoin(dev)
 	case "up":
 		var msg LoraData
 
@@ -218,7 +248,7 @@ func (lx *LoraXport) processData(data string) {
 			log.Debugf("loraxport rx: error decoding base64: %v", err)
 			return
 		}
-		lx.reass(splitHdr[1], dec)
+		lx.reass(dev, dec)
 	case "packet_sent":
 		var sent LoraPacketSent
 
@@ -230,7 +260,7 @@ func (lx *LoraXport) processData(data string) {
 			return
 		}
 
-		lx.dataRateSeen(splitHdr[1], sent.DataRate)
+		lx.dataRateSeen(dev, sent.DataRate)
 	}
 }
 
@@ -239,20 +269,21 @@ func (lx *LoraXport) Start() error {
 		return nmxutil.NewXportError("Lora xport started twice")
 	}
 
-	addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:1784")
+	addr, err := net.ResolveUDPAddr("udp",
+		fmt.Sprintf("127.0.0.1:%d", lx.cfg.AppPortUp))
 	if err != nil {
 		return fmt.Errorf("Failure resolving name for UDP session: %s",
 			err.Error())
 	}
 
-	// XXX need so_reuseport
 	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
 		return fmt.Errorf("Failed to open RX to lora-network-server %s", addr)
 	}
 	lx.rxConn = conn
 
-	addr, err = net.ResolveUDPAddr("udp", "127.0.0.1:1786")
+	addr, err = net.ResolveUDPAddr("udp",
+		fmt.Sprintf("127.0.0.1:%d", lx.cfg.AppPortDown))
 	if err != nil {
 		return fmt.Errorf("Failure resolving name for UDP session: %s",
 			err.Error())
