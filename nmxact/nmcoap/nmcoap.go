@@ -21,9 +21,9 @@ package nmcoap
 
 import (
 	"fmt"
-	"sync"
 
 	"github.com/runtimeco/go-coap"
+	"sync"
 )
 
 var messageIdMtx sync.Mutex
