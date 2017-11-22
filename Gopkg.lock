@@ -8,6 +8,12 @@
   version = "v1.0.3"
 
 [[projects]]
+  name = "github.com/cheggaaa/pb"
+  packages = ["."]
+  revision = "657164d0228d6bebe316fdf725c69f131a50fb10"
+  version = "v1.0.18"
+
+[[projects]]
   branch = "master"
   name = "github.com/currantlabs/ble"
   packages = [".","darwin","examples/lib/dev","linux","linux/adv","linux/att","linux/gatt","linux/hci","linux/hci/cmd","linux/hci/evt","linux/hci/socket"]
@@ -56,6 +62,12 @@
   version = "v0.0.2"
 
 [[projects]]
+  name = "github.com/mattn/go-runewidth"
+  packages = ["."]
+  revision = "9e777a8366cce605130a531d2cd6363d07ad7317"
+  version = "v0.0.2"
+
+[[projects]]
   branch = "master"
   name = "github.com/mgutz/ansi"
   packages = ["."]
@@ -95,7 +107,7 @@
   branch = "master"
   name = "github.com/runtimeco/go-coap"
   packages = ["."]
-  revision = "e869704e8ca4a662cdde0e67e006daadd523b2b3"
+  revision = "f5efd2025d000a399e47f715c29ec93b6faa8913"
 
 [[projects]]
   name = "github.com/spf13/cast"
@@ -166,6 +178,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e608391fefffe106d6f8148f2c92789f96ee5425c775a3437266586da886dff7"
+  inputs-digest = "6a7245247cf11745348daa479eb65c063d23b755b400d35003cac58f621d8f0f"
   solver-name = "gps-cdcl"
   solver-version = 1

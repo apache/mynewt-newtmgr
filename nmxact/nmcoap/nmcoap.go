@@ -21,9 +21,10 @@ package nmcoap
 
 import (
 	"fmt"
-	"sync"
 
 	"github.com/runtimeco/go-coap"
+	"strings"
+	"sync"
 )
 
 var messageIdMtx sync.Mutex
@@ -64,6 +65,8 @@ func Encode(m coap.Message) ([]byte, error) {
 }
 
 func CreateGet(isTcp bool, resUri string, token []byte) (coap.Message, error) {
+	var q []string
+
 	if err := validateToken(token); err != nil {
 		return nil, err
 	}
@@ -75,7 +78,12 @@ func CreateGet(isTcp bool, resUri string, token []byte) (coap.Message, error) {
 	}
 
 	m := buildMessage(isTcp, p)
-	m.SetPathString(resUri)
+
+	q = strings.SplitN(resUri, "?", 2)
+	m.SetPathString(q[0])
+	if len(q) > 1 {
+		m.SetURIQuery(q[1])
+	}
 
 	return m, nil
 }
