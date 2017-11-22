@@ -107,7 +107,7 @@
   branch = "master"
   name = "github.com/runtimeco/go-coap"
   packages = ["."]
-  revision = "e869704e8ca4a662cdde0e67e006daadd523b2b3"
+  revision = "f5efd2025d000a399e47f715c29ec93b6faa8913"
 
 [[projects]]
   name = "github.com/spf13/cast"
