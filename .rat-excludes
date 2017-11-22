@@ -89,3 +89,6 @@ currantlabs
 
 # goble - BSD license
 goble
+
+# Console progress bar - 3-clause BSD.
+pb
