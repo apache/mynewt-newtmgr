@@ -66,7 +66,3 @@ func (bx *BllXport) Stop() error {
 func (bx *BllXport) Tx(data []byte) error {
 	return fmt.Errorf("BllXport.Tx() not supported")
 }
-
-func (bx *BllXport) BuildAdvertiser() (adv.Advertiser, error) {
-	return nil, fmt.Errorf("BllXport#Advertiser not supported")
-}
