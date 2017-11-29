@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/currantlabs/ble"
+	"github.com/runtimeco/ble"
 
 	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/bll"
@@ -93,7 +93,7 @@ func BuildBllSesnCfg(bc *BllConfig) (bll.BllSesnCfg, error) {
 		}
 	} else if bc.PeerId != "" {
 		sc.AdvFilter = func(a ble.Advertisement) bool {
-			return a.Address().String() == bc.PeerId
+			return a.Addr().String() == bc.PeerId
 		}
 	} else {
 		return sc, util.NewNewtError("bll session lacks a peer specifier")

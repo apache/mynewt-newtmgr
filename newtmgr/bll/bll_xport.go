@@ -24,8 +24,8 @@ package bll
 import (
 	"fmt"
 
-	"github.com/currantlabs/ble"
-	"github.com/currantlabs/ble/examples/lib/dev"
+	"github.com/runtimeco/ble"
+	"github.com/runtimeco/ble/examples/lib/dev"
 
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )

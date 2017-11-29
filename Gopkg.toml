@@ -26,10 +26,6 @@
   version = "1.0.3"
 
 [[constraint]]
-  branch = "master"
-  name = "github.com/currantlabs/ble"
-
-[[constraint]]
   name = "github.com/fatih/structs"
   version = "1.0.0"
 
