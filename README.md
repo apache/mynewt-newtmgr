@@ -38,7 +38,7 @@ dependencies.  OS-specific instructions are below:
 1. Unpack newtmgr source.
 2. Rename resulting `apache-mynewt-newtmgr-1.2.0` directory to `$GOPATH/src/mynewt.apache.org/newtmgr`
 3. `cd $GOPATH/src/mynewt.apache.org/newtmgr/newtmgr`
-4. `go get github.com/currantlabs/ble github.com/mgutz/logxi/v1 golang.org/x/sys/unix`
+4. `go get github.com/go-ble/ble`
 5. `go build`
 
 #### macOS
@@ -46,5 +46,5 @@ dependencies.  OS-specific instructions are below:
 1. Unpack newtmgr source.
 2. Rename resulting `apache-mynewt-newtmgr-1.2.0` directory to `$GOPATH/src/mynewt.apache.org/newtmgr`
 3. `cd $GOPATH/src/mynewt.apache.org/newtmgr/newtmgr`
-4. `go get github.com/currantlabs/ble github.com/mgutz/logxi/v1 github.com/raff/goble/xpc`
+4. `go get github.com/go-ble/ble`
 5. `go build`
