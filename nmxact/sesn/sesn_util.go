@@ -44,12 +44,35 @@ func TxNmp(s Sesn, m *nmp.NmpMsg, o TxOptions) (nmp.NmpRsp, error) {
 func getResourceOnce(s Sesn, resType ResourceType,
 	uri string, opt TxOptions) (coap.COAPCode, []byte, error) {
 
-	req, err := nmcoap.CreateGet(s.CoapIsTcp(), uri, nmxutil.NextToken())
+	req, err := nmcoap.CreateGet(s.CoapIsTcp(), uri, -1, nmxutil.NextToken())
 	if err != nil {
 		return 0, nil, err
 	}
 
 	return s.TxCoapOnce(req, resType, opt)
+}
+
+func getResource(s Sesn, resType ResourceType,
+	uri string, observe int, token []byte, opt TxOptions, NotifCb GetNotifyCb, stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
+
+	var req coap.Message
+	var err error
+
+	if observe == 1 {
+		req, err = nmcoap.CreateGet(s.CoapIsTcp(), uri, observe, token)
+	} else {
+		req, err = nmcoap.CreateGet(s.CoapIsTcp(), uri, observe, nmxutil.NextToken())
+	}
+	if err != nil {
+		return 0, nil, nil, err
+	}
+
+	if observe == 0 {
+		return s.TxCoapObserve(req, resType, opt, NotifCb, stopsignal)
+	}
+
+	c, r, err := s.TxCoapOnce(req, resType, opt)
+	return c, r, nil, err
 }
 
 func putResourceOnce(s Sesn, resType ResourceType,
@@ -103,6 +126,31 @@ func txCoap(txCb func() (coap.COAPCode, []byte, error),
 			return code, nil, err
 		}
 	}
+}
+
+func txCoapObserve(txCb func() (coap.COAPCode, []byte, []byte, error),
+	tries int) (coap.COAPCode, []byte, []byte, error) {
+
+	retries := tries - 1
+	for i := 0; ; i++ {
+		code, r, t, err := txCb()
+		if err == nil {
+			return code, r, t, nil
+		}
+
+		if !nmxutil.IsRspTimeout(err) || i >= retries {
+			return code, nil, nil, err
+		}
+	}
+}
+
+func GetResourceObserve(s Sesn, resType ResourceType, uri string, o TxOptions, notifCb GetNotifyCb,
+	stopsignal chan int, observe int, token []byte) (
+	coap.COAPCode, []byte, []byte, error) {
+
+	return txCoapObserve(func() (coap.COAPCode, []byte, []byte, error) {
+		return getResource(s, resType, uri, observe, token, o, notifCb, stopsignal)
+	}, o.Tries)
 }
 
 func GetResource(s Sesn, resType ResourceType, uri string, o TxOptions) (

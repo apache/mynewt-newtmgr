@@ -142,6 +142,24 @@ func (s *UdpSesn) MgmtProto() sesn.MgmtProto {
 	return s.cfg.MgmtProto
 }
 
+func (s *UdpSesn) TxCoapObserve(m coap.Message, resType sesn.ResourceType,
+	opt sesn.TxOptions, NotifyCb sesn.GetNotifyCb, stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
+
+	txRaw := func(b []byte) error {
+		_, err := s.conn.WriteToUDP(b, s.addr)
+		return err
+	}
+
+	rsp, err := s.txvr.TxOicObserve(txRaw, m, s.MtuOut(), opt.Timeout, NotifyCb, stopsignal)
+	if err != nil {
+		return 0, nil, nil, err
+	} else if rsp == nil {
+		return 0, nil, nil, nil
+	} else {
+		return rsp.Code(), rsp.Payload(), rsp.Token(), nil
+	}
+}
+
 func (s *UdpSesn) CoapIsTcp() bool {
 	return false
 }

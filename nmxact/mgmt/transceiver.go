@@ -217,6 +217,80 @@ func (t *Transceiver) TxOic(txCb TxFn, req coap.Message, mtu int,
 	}
 }
 
+func (t *Transceiver) TxOicObserve(txCb TxFn, req coap.Message, mtu int,
+	timeout time.Duration, NotifyCb sesn.GetNotifyCb, stopsignal chan int) (coap.Message, error) {
+
+	b, err := nmcoap.Encode(req)
+	if err != nil {
+		return nil, err
+	}
+
+	var ol *nmcoap.Listener
+
+	ol, err = t.od.AddOicListener(req.Token())
+	if err != nil {
+		return nil, err
+	}
+
+	log.Debugf("Tx OIC request: %s", hex.Dump(b))
+	frags := nmxutil.Fragment(b, mtu)
+	for _, frag := range frags {
+		if err := txCb(frag); err != nil {
+			t.od.RemoveOicListener(req.Token())
+			return nil, err
+		}
+	}
+
+	var rsp coap.Message
+
+	first := make(chan int)
+	iter := 0
+
+	go func() {
+		defer t.od.RemoveOicListener(req.Token())
+
+		for {
+			select {
+			case err = <-ol.ErrChan:
+				log.Debugf("Error: %s", err)
+				first <- 2
+				return
+			case rsp = <-ol.RspChan:
+				if iter == 0 {
+					first <- 1
+					iter = 1
+				} else {
+					NotifyCb(req.PathString(), rsp.Code(), rsp.Payload(), rsp.Token())
+				}
+
+			case _, ok := <-ol.AfterTimeout(timeout):
+				if ok && iter == 0 {
+					err = nmxutil.NewRspTimeoutError("OIC timeout")
+					first <- 2
+					return
+				} else {
+					log.Debugf("Timeout")
+				}
+
+			case <-stopsignal:
+				/* Observing stopped by user */
+				return
+			}
+		}
+	}()
+
+	for {
+		select {
+		case a := <-first:
+			if a == 1 {
+				return rsp, nil
+			} else {
+				return nil, err
+			}
+		}
+	}
+}
+
 func (t *Transceiver) DispatchNmpRsp(data []byte) {
 	if t.nd != nil {
 		t.nd.Dispatch(data)

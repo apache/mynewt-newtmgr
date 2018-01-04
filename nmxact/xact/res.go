@@ -27,8 +27,12 @@ import (
 
 type GetResCmd struct {
 	CmdBase
-	Path string
-	Typ  sesn.ResourceType
+	Path       string
+	Observe    int
+	NotifyFunc sesn.GetNotifyCb
+	StopSignal chan int
+	Token      []byte
+	Typ        sesn.ResourceType
 }
 
 func NewGetResCmd() *GetResCmd {
@@ -40,6 +44,7 @@ func NewGetResCmd() *GetResCmd {
 type GetResResult struct {
 	Code  coap.COAPCode
 	Value []byte
+	Token []byte
 }
 
 func newGetResResult() *GetResResult {
@@ -55,7 +60,18 @@ func (r *GetResResult) Status() int {
 }
 
 func (c *GetResCmd) Run(s sesn.Sesn) (Result, error) {
-	status, val, err := sesn.GetResource(s, c.Typ, c.Path, c.TxOptions())
+	var status coap.COAPCode
+	var val []byte
+	var token []byte
+	var err error
+
+	if c.Observe != -1 {
+		status, val, token, err = sesn.GetResourceObserve(s, c.Typ, c.Path, c.TxOptions(),
+			c.NotifyFunc, c.StopSignal, c.Observe, c.Token)
+	} else {
+		status, val, err = sesn.GetResource(s, c.Typ, c.Path, c.TxOptions())
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -63,6 +79,8 @@ func (c *GetResCmd) Run(s sesn.Sesn) (Result, error) {
 	res := newGetResResult()
 	res.Code = status
 	res.Value = val
+	res.Token = token
+
 	return res, nil
 }
 

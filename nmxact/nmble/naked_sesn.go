@@ -386,6 +386,11 @@ func (s *NakedSesn) TxCoapOnce(m coap.Message,
 	return rspCode, rspPayload, nil
 }
 
+func (s *NakedSesn) TxCoapObserve(m coap.Message, resType sesn.ResourceType, opt sesn.TxOptions,
+	NotifyCb sesn.GetNotifyCb, stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
+	return 0, nil, nil, nil
+}
+
 func (s *NakedSesn) AbortRx(seq uint8) error {
 	if err := s.failIfNotOpen(); err != nil {
 		return err

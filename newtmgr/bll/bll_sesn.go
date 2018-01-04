@@ -419,6 +419,11 @@ func (s *BllSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
 	}
 }
 
+func (s *BllSesn) TxCoapObserve(m coap.Message, resType sesn.ResourceType,
+	opt sesn.TxOptions, NotifCb sesn.GetNotifyCb, stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
+	return 0, nil, nil, nil
+}
+
 func (s *BllSesn) MgmtProto() sesn.MgmtProto {
 	return s.cfg.MgmtProto
 }
