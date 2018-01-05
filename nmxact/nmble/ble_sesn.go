@@ -118,5 +118,5 @@ func (s *BleSesn) TxCoapObserve(m coap.Message,
 	resType sesn.ResourceType,
 	opt sesn.TxOptions, NotifCb sesn.GetNotifyCb, stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
 
-	return 0, nil, nil, nil
+	return s.Ns.TxCoapObserve(m, resType, opt, NotifCb, stopsignal)
 }
