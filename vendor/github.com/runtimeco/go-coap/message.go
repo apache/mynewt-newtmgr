@@ -350,6 +350,7 @@ type Message interface {
 	SetPathString(s string)
 	SetPath(s []string)
 	SetURIQuery(s string)
+	SetObserve(b int)
 	SetPayload(p []byte)
 	RemoveOption(opID OptionID)
 	AddOption(opID OptionID, val interface{})
@@ -463,6 +464,11 @@ func (m *MessageBase) SetPath(s []string) {
 // Set URIQuery attibute to the message
 func (m *MessageBase) SetURIQuery(s string) {
 	m.AddOption(URIQuery, s)
+}
+
+// Set Observer attribute to the message
+func (m *MessageBase) SetObserve(b int) {
+	m.AddOption(Observe, b)
 }
 
 // SetPayload

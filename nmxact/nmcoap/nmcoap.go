@@ -64,7 +64,7 @@ func Encode(m coap.Message) ([]byte, error) {
 	return b, nil
 }
 
-func CreateGet(isTcp bool, resUri string, token []byte) (coap.Message, error) {
+func CreateGet(isTcp bool, resUri string, observe int, token []byte) (coap.Message, error) {
 	var q []string
 
 	if err := validateToken(token); err != nil {
@@ -83,6 +83,10 @@ func CreateGet(isTcp bool, resUri string, token []byte) (coap.Message, error) {
 	m.SetPathString(q[0])
 	if len(q) > 1 {
 		m.SetURIQuery(q[1])
+	}
+
+	if observe >= 0 {
+		m.SetObserve(observe)
 	}
 
 	return m, nil

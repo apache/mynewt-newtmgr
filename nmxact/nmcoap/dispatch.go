@@ -66,7 +66,9 @@ func NewListener() *Listener {
 
 func (ol *Listener) AfterTimeout(tmo time.Duration) <-chan time.Time {
 	fn := func() {
-		ol.tmoChan <- time.Now()
+		if ol.tmoChan != nil {
+			ol.tmoChan <- time.Now()
+		}
 	}
 	ol.timer = time.AfterFunc(tmo, fn)
 	return ol.tmoChan
@@ -80,6 +82,7 @@ func (ol *Listener) Close() {
 	close(ol.RspChan)
 	close(ol.ErrChan)
 	close(ol.tmoChan)
+	ol.tmoChan = nil
 }
 
 // The dispatcher is the owner of the listeners it points to.  Only the

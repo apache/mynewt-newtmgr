@@ -26,6 +26,12 @@
   version = "v1.0"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/flynn/go-shlex"
+  packages = ["."]
+  revision = "3f9db97f856818214da2e1057f8ad84803971cff"
+
+[[projects]]
   name = "github.com/inconshreveable/mousetrap"
   packages = ["."]
   revision = "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75"
@@ -164,10 +170,22 @@
   revision = "ab9e364efd8b52800ff7ee48a9ffba4e0ed78dfb"
 
 [[projects]]
+  name = "gopkg.in/abiosoft/ishell.v1"
+  packages = ["."]
+  revision = "50251d04cb42673a9df901983eeaf9f369c82551"
+  version = "v1"
+
+[[projects]]
   name = "gopkg.in/fsnotify.v1"
   packages = ["."]
   revision = "629574ca2a5df945712d3079857300b5e4da0236"
   version = "v1.4.2"
+
+[[projects]]
+  name = "gopkg.in/readline.v1"
+  packages = ["."]
+  revision = "62c6fe6193755f722b8b8788aa7357be55a50ff1"
+  version = "v1.4"
 
 [[projects]]
   branch = "master"
@@ -178,6 +196,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "6a7245247cf11745348daa479eb65c063d23b755b400d35003cac58f621d8f0f"
+  inputs-digest = "006ff4573b02a7ab7a8170515b246f4e01c68c9a1b8dc4881ab5d6b3663a502d"
   solver-name = "gps-cdcl"
   solver-version = 1

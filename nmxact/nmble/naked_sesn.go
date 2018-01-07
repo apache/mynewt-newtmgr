@@ -386,6 +386,55 @@ func (s *NakedSesn) TxCoapOnce(m coap.Message,
 	return rspCode, rspPayload, nil
 }
 
+func (s *NakedSesn) TxCoapObserve(m coap.Message, resType sesn.ResourceType, opt sesn.TxOptions,
+	NotifyCb sesn.GetNotifyCb, stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
+	if err := s.failIfNotOpen(); err != nil {
+		return 0, nil, nil, err
+	}
+
+	var rspCode coap.COAPCode
+	var rspPayload []byte
+	var rspToken []byte
+
+	fn := func() error {
+		chrId := ResChrReqIdLookup(s.mgmtChrs, resType)
+		chr, err := s.getChr(chrId)
+		if err != nil {
+			return err
+		}
+
+		encReqd, authReqd, err := ResTypeSecReqs(resType)
+		if err != nil {
+			return err
+		}
+		if err := s.ensureSecurity(encReqd, authReqd); err != nil {
+			return err
+		}
+
+		txRaw := func(b []byte) error {
+			if s.cfg.Ble.WriteRsp {
+				return s.conn.WriteChr(chr, b, "coap")
+			} else {
+				return s.conn.WriteChrNoRsp(chr, b, "coap")
+			}
+		}
+
+		rsp, err := s.txvr.TxOicObserve(txRaw, m, s.MtuOut(), opt.Timeout, NotifyCb, stopsignal)
+		if err == nil && rsp != nil {
+			rspCode = rsp.Code()
+			rspPayload = rsp.Payload()
+			rspToken = rsp.Token()
+		}
+		return err
+	}
+
+	if err := s.runTask(fn); err != nil {
+		return 0, nil, nil, err
+	}
+
+	return rspCode, rspPayload, rspToken, nil
+}
+
 func (s *NakedSesn) AbortRx(seq uint8) error {
 	if err := s.failIfNotOpen(); err != nil {
 		return err

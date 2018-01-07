@@ -27,6 +27,8 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 )
 
+type GetNotifyCb func(path string, code coap.COAPCode, value []byte, token []byte)
+
 type TxOptions struct {
 	Timeout time.Duration
 	Tries   int
@@ -99,4 +101,7 @@ type Sesn interface {
 
 	TxCoapOnce(m coap.Message, resType ResourceType,
 		opt TxOptions) (coap.COAPCode, []byte, error)
+
+	TxCoapObserve(m coap.Message, resType ResourceType,
+		opt TxOptions, NotifCb GetNotifyCb, stopsignal chan int) (coap.COAPCode, []byte, []byte, error)
 }

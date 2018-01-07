@@ -419,6 +419,27 @@ func (s *BllSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
 	}
 }
 
+func (s *BllSesn) TxCoapObserve(m coap.Message, resType sesn.ResourceType,
+	opt sesn.TxOptions, NotifCb sesn.GetNotifyCb, stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
+	chr, err := s.resReqChr(resType)
+	if err != nil {
+		return 0, nil, nil, err
+	}
+
+	txRaw := func(b []byte) error {
+		return s.txWriteCharacteristic(chr, b, !s.cfg.WriteRsp)
+	}
+
+	rsp, err := s.txvr.TxOicObserve(txRaw, m, s.MtuOut(), opt.Timeout, NotifCb, stopsignal)
+	if err != nil {
+		return 0, nil, nil, err
+	} else if rsp == nil {
+		return 0, nil, nil, nil
+	} else {
+		return rsp.Code(), rsp.Payload(), rsp.Token(), nil
+	}
+}
+
 func (s *BllSesn) MgmtProto() sesn.MgmtProto {
 	return s.cfg.MgmtProto
 }
