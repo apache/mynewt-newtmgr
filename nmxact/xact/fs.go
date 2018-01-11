@@ -81,10 +81,12 @@ func (c *FsDownloadCmd) Run(s sesn.Sesn) (Result, error) {
 			c.ProgressCb(c, frsp)
 		}
 
-		off = int(frsp.Off) + len(frsp.Data)
-		if off >= int(frsp.Len) {
+		if len(frsp.Data) == 0 {
+			// Download complete.
 			break
 		}
+
+		off = int(frsp.Off) + len(frsp.Data)
 	}
 
 	return res, nil
