@@ -153,6 +153,11 @@ func nextFsUploadReq(s sesn.Sesn, name string, data []byte, off int) (
 			"MTU too low to fit any image data")
 	}
 
+	if off+room > len(data) {
+		// Final chunk.
+		room = len(data) - off
+	}
+
 	// Assume all the unused space can hold image data.  This assumption may
 	// not be valid for some encodings (e.g., CBOR uses variable length fields
 	// to encodes byte string lengths).
