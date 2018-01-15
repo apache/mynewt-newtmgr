@@ -81,10 +81,12 @@ func (c *FsDownloadCmd) Run(s sesn.Sesn) (Result, error) {
 			c.ProgressCb(c, frsp)
 		}
 
-		off = int(frsp.Off) + len(frsp.Data)
-		if off >= int(frsp.Len) {
+		if len(frsp.Data) == 0 {
+			// Download complete.
 			break
 		}
+
+		off = int(frsp.Off) + len(frsp.Data)
 	}
 
 	return res, nil
@@ -149,13 +151,18 @@ func nextFsUploadReq(s sesn.Sesn, name string, data []byte, off int) (
 
 	room := s.MtuOut() - len(emptyEnc)
 	if room <= 0 {
-		return nil, fmt.Errorf("Cannot create image upload request; " +
-			"MTU too low to fit any image data")
+		return nil, fmt.Errorf("Cannot create file upload request; " +
+			"MTU too low to fit any file data")
 	}
 
-	// Assume all the unused space can hold image data.  This assumption may
-	// not be valid for some encodings (e.g., CBOR uses variable length fields
-	// to encodes byte string lengths).
+	if off+room > len(data) {
+		// Final chunk.
+		room = len(data) - off
+	}
+
+	// Assume all the unused space can hold file data.  This assumption may not
+	// be valid for some encodings (e.g., CBOR uses variable length fields to
+	// encodes byte string lengths).
 	r := buildFsUploadReq(name, len(data), data[off:off+room], off)
 	enc, err := mgmt.EncodeMgmt(s, r.Msg())
 	if err != nil {
@@ -164,7 +171,7 @@ func nextFsUploadReq(s sesn.Sesn, name string, data []byte, off int) (
 
 	oversize := len(enc) - s.MtuOut()
 	if oversize > 0 {
-		// Request too big.  Reduce the amount of image data.
+		// Request too big.  Reduce the amount of file data.
 		r = buildFsUploadReq(name, len(data), data[off:off+room-oversize], off)
 	}
 
