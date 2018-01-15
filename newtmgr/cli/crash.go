@@ -63,7 +63,7 @@ func crashRunCmd(cmd *cobra.Command, args []string) {
 }
 
 func crashCmd() *cobra.Command {
-	crashEx := "   newtmgr -c olimex crash div0\n"
+	crashEx := "   " + nmutil.ToolInfo.ExeName + " -c olimex crash div0\n"
 
 	namesStr := strings.Join(xact.CrashTypeNames(), "|")
 	crashCmd := &cobra.Command{

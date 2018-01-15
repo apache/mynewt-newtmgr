@@ -25,6 +25,7 @@ import (
 
 	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/config"
+	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 
 	"github.com/spf13/cobra"
 )
@@ -128,7 +129,7 @@ func connProfileDelCmd(cmd *cobra.Command, args []string) {
 func connProfileCmd() *cobra.Command {
 	cpCmd := &cobra.Command{
 		Use:   "conn",
-		Short: "Manage newtmgr connection profiles",
+		Short: "Manage " + nmutil.ToolInfo.ShortName + " connection profiles",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd.HelpFunc()(cmd, args)
 		},
@@ -136,14 +137,14 @@ func connProfileCmd() *cobra.Command {
 
 	addCmd := &cobra.Command{
 		Use:   "add <conn_profile> <varname=value ...> ",
-		Short: "Add a newtmgr connection profile",
+		Short: "Add a " + nmutil.ToolInfo.ShortName + " connection profile",
 		Run:   connProfileAddCmd,
 	}
 	cpCmd.AddCommand(addCmd)
 
 	deleCmd := &cobra.Command{
 		Use:   "delete <conn_profile>",
-		Short: "Delete a newtmgr connection profile",
+		Short: "Delete a " + nmutil.ToolInfo.ShortName + " connection profile",
 		Run:   connProfileDelCmd,
 	}
 	cpCmd.AddCommand(deleCmd)
@@ -154,7 +155,7 @@ func connProfileCmd() *cobra.Command {
 
 	showCmd := &cobra.Command{
 		Use:   "show [conn_profile]",
-		Short: "Show newtmgr connection profiles",
+		Short: "Show " + nmutil.ToolInfo.ShortName + " connection profiles",
 		Long:  connShowHelpText,
 		Run:   connProfileShowCmd,
 	}

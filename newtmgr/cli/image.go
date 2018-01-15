@@ -383,8 +383,8 @@ func imageCmd() *cobra.Command {
 	}
 	imageCmd.AddCommand(confirmCmd)
 
-	uploadEx :=
-		"  newtmgr -c olimex image upload bin/slinky_zero/apps/slinky.img\n"
+	uploadEx := "  " + nmutil.ToolInfo.ExeName +
+		" -c olimex image upload bin/slinky_zero/apps/slinky.img\n"
 
 	uploadCmd := &cobra.Command{
 		Use:     "upload <image-file> -c <conn_profile>",
@@ -400,13 +400,15 @@ func imageCmd() *cobra.Command {
 	coreListCmd := &cobra.Command{
 		Use:     "corelist -c <conn_profile>",
 		Short:   "List core(s) on a device",
-		Example: "  newtmgr -c olimex image corelist\n",
+		Example: "  " + nmutil.ToolInfo.ExeName + " -c olimex image corelist\n",
 		Run:     coreListCmd,
 	}
 	imageCmd.AddCommand(coreListCmd)
 
-	coreEx := "  newtmgr -c olimex image coredownload -e core\n"
-	coreEx += "  newtmgr -c olimex image coredownload --offset 10 -n 10 core\n"
+	coreEx := "  " + nmutil.ToolInfo.ExeName +
+		" -c olimex image coredownload -e core\n"
+	coreEx += "  " + nmutil.ToolInfo.ExeName +
+		" -c olimex image coredownload --offset 10 -n 10 core\n"
 
 	coreDownloadCmd := &cobra.Command{
 		Use:     "coredownload <core-file> -c <conn_profile>",
@@ -421,7 +423,8 @@ func imageCmd() *cobra.Command {
 		"Number of bytes of the core to download")
 	imageCmd.AddCommand(coreDownloadCmd)
 
-	coreEraseEx := "  newtmgr -c olimex image coreerase\n"
+	coreEraseEx := "  " + nmutil.ToolInfo.ExeName +
+		" -c olimex image coreerase\n"
 
 	coreEraseCmd := &cobra.Command{
 		Use:     "coreerase -c <conn_profile>",
@@ -435,7 +438,8 @@ func imageCmd() *cobra.Command {
 	imageEraseHelpText += "The image cannot be erased if the image is a confirmed image, is marked\n"
 	imageEraseHelpText += "for test on the next reboot, or is an active image for a split image setup.\n"
 
-	imageEraseEx := "  newtmgr -c olimex image erase\n"
+	imageEraseEx := "  " + nmutil.ToolInfo.ExeName +
+		" -c olimex image erase\n"
 
 	imageEraseCmd := &cobra.Command{
 		Use:     "erase -c <conn_profile>",

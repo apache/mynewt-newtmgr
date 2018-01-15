@@ -30,6 +30,7 @@ import (
 	"sort"
 
 	"mynewt.apache.org/newt/util"
+	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 )
 
 type ConnProfileMgr struct {
@@ -125,7 +126,7 @@ func connProfileCfgFilename() (string, error) {
 		return "", util.NewNewtError(err.Error())
 	}
 
-	return dir + "/.newtmgr.cp.json", nil
+	return dir + nmutil.ToolInfo.CfgFilename, nil
 }
 
 func (cpm *ConnProfileMgr) Init() error {

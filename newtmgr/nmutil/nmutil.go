@@ -27,6 +27,14 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
+type ToolInfoType struct {
+	ExeName       string
+	ShortName     string
+	LongName      string
+	VersionString string
+	CfgFilename   string
+}
+
 var Timeout float64
 var Tries int
 var ConnProfile string
@@ -35,6 +43,7 @@ var BleWriteRsp bool
 var ConnType string
 var ConnString string
 var ConnExtra string
+var ToolInfo ToolInfoType
 
 func TxOptions() sesn.TxOptions {
 	return sesn.TxOptions{

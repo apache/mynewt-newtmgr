@@ -28,6 +28,7 @@ import (
 	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/cli"
 	"mynewt.apache.org/newtmgr/newtmgr/config"
+	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/nmserial"
 )
 
@@ -72,6 +73,14 @@ func cleanup() {
 }
 
 func main() {
+	nmutil.ToolInfo = nmutil.ToolInfoType{
+		ExeName:       "newtmgr",
+		ShortName:     "Newtmgr",
+		LongName:      "Apache Newtmgr",
+		VersionString: "1.4.0-dev",
+		CfgFilename:   ".newtmgr.cp.json",
+	}
+
 	if err := config.InitGlobalConnProfileMgr(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
 		os.Exit(1)
