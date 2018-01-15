@@ -26,8 +26,14 @@
   version = "v1.0"
 
 [[projects]]
+  name = "github.com/fatih/color"
+  packages = ["."]
+  revision = "570b54cabe6b8eb0bc2dfce68d964677d63b5260"
+  version = "v1.5.0"
+
+[[projects]]
   branch = "master"
-  name = "github.com/flynn/go-shlex"
+  name = "github.com/flynn-archive/go-shlex"
   packages = ["."]
   revision = "3f9db97f856818214da2e1057f8ad84803971cff"
 
@@ -182,10 +188,9 @@
   version = "v1.4.2"
 
 [[projects]]
-  name = "gopkg.in/readline.v1"
+  name = "github.com/chzyer/readline"
   packages = ["."]
-  revision = "62c6fe6193755f722b8b8788aa7357be55a50ff1"
-  version = "v1.4"
+  revision = "f6d7a1f6fbf35bbf9beb80dc63c56a29dcfb759f"
 
 [[projects]]
   branch = "master"
