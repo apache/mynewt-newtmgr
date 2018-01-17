@@ -98,7 +98,8 @@ func runCmd() *cobra.Command {
 		},
 	}
 
-	runtestEx := "  newtmgr -c conn run test all 201612161220"
+	runtestEx := "  " + nmutil.ToolInfo.ExeName +
+		" -c conn run test all 201612161220"
 
 	runTestHelpText := "Run tests on a device. Specify a testname to run a "
 	runTestHelpText += "specific test. All tests are\nrun if \"all\" or no "

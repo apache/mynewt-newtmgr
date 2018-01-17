@@ -121,7 +121,8 @@ func fsCmd() *cobra.Command {
 		},
 	}
 
-	uploadEx := "  newtmgr -c olimex fs upload sample.lua /sample.lua\n"
+	uploadEx := "  " + nmutil.ToolInfo.ExeName +
+		" -c olimex fs upload sample.lua /sample.lua\n"
 
 	uploadCmd := &cobra.Command{
 		Use:     "upload <src-filename> <dst-filename> -c <conn_profile>",
@@ -131,7 +132,8 @@ func fsCmd() *cobra.Command {
 	}
 	fsCmd.AddCommand(uploadCmd)
 
-	downloadEx := "  newtmgr -c olimex image download /cfg/mfg mfg.txt\n"
+	downloadEx := "  " + nmutil.ToolInfo.ExeName +
+		" -c olimex image download /cfg/mfg mfg.txt\n"
 
 	downloadCmd := &cobra.Command{
 		Use:     "download <src-filename> <dst-filename> -c <conn_profile>",

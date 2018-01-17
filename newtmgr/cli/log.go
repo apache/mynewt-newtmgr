@@ -234,11 +234,11 @@ func logCmd() *cobra.Command {
 	logShowHelpText += "If \"last\"  is specified for min-index, the last\nlog entry is displayed.\n\n"
 	logShowHelpText += "- min-timestamp specifies to only display the log entries with a timestamp\nequal to or later than min-timestamp. Log entries with a timestamp equal to\nmin-timestamp are only displayed if the entry index is equal to or higher than min-index.\n"
 
-	logShowEx := "newtmgr log show -c myserial\n"
-	logShowEx += "newtmgr log show reboot_log -c myserial\n"
-	logShowEx += "newtmgr log show reboot_log last -c myserial\n"
-	logShowEx += "newtmgr log show reboot_log 5 -c myserial\n"
-	logShowEx += "newtmgr log show reboot_log 3 1122222 -c myserial\n"
+	logShowEx := nmutil.ToolInfo.ExeName + " log show -c myserial\n"
+	logShowEx += nmutil.ToolInfo.ExeName + " log show reboot_log -c myserial\n"
+	logShowEx += nmutil.ToolInfo.ExeName + " log show reboot_log last -c myserial\n"
+	logShowEx += nmutil.ToolInfo.ExeName + " log show reboot_log 5 -c myserial\n"
+	logShowEx += nmutil.ToolInfo.ExeName + " log show reboot_log 3 1122222 -c myserial\n"
 
 	showCmd := &cobra.Command{
 		Use:     "show [log-name [min-index [min-timestamp]]] -c <conn_profile>",

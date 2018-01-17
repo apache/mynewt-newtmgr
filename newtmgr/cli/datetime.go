@@ -88,17 +88,22 @@ func dateTimeCmd() *cobra.Command {
 	dateTimeHelpText += "to set the datetime on the device.\n\n"
 	dateTimeHelpText += "Must specify datetime-value in RFC 3339 format.\n"
 
-	dateTimeEx := "newtmgr datetime -c myserial\n"
-	dateTimeEx += "newtmgr datetime 2016-03-02T22:44:00 -c myserial"
-	dateTimeEx += "             (implicit UTC) \n"
-	dateTimeEx += "newtmgr datetime 2016-03-02T22:44:00Z -c myserial"
-	dateTimeEx += "            (explicit UTC)\n"
-	dateTimeEx += "newtmgr datetime 2016-03-02T22:44:00-08:00 -c myserial"
-	dateTimeEx += "       (PST)\n"
-	dateTimeEx += "newtmgr datetime 2016-03-02T22:44:00.1 -c myserial"
-	dateTimeEx += "           (fractional secs)\n"
-	dateTimeEx += "newtmgr datetime 2016-03-02T22:44:00.101+05:30 -c myserial"
-	dateTimeEx += "   (fractional secs + timezone)\n"
+	dateTimeEx := nmutil.ToolInfo.ExeName + " datetime -c myserial\n"
+	dateTimeEx += nmutil.ToolInfo.ExeName +
+		" datetime 2016-03-02T22:44:00 -c myserial" +
+		"             (implicit UTC) \n"
+	dateTimeEx += nmutil.ToolInfo.ExeName +
+		" datetime 2016-03-02T22:44:00Z -c myserial" +
+		"            (explicit UTC)\n"
+	dateTimeEx += nmutil.ToolInfo.ExeName +
+		" datetime 2016-03-02T22:44:00-08:00 -c myserial" +
+		"       (PST)\n"
+	dateTimeEx += nmutil.ToolInfo.ExeName +
+		" datetime 2016-03-02T22:44:00.1 -c myserial" +
+		"           (fractional secs)\n"
+	dateTimeEx += nmutil.ToolInfo.ExeName +
+		" datetime 2016-03-02T22:44:00.101+05:30 -c myserial" +
+		"   (fractional secs + timezone)\n"
 
 	dateTimeCmd := &cobra.Command{
 		Use:     "datetime [rfc-3339-date-string] -c <conn_profile>",

@@ -20,6 +20,8 @@
 package cli
 
 import (
+	"fmt"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -34,8 +36,8 @@ var NewtmgrHelp bool
 func Commands() *cobra.Command {
 	logLevelStr := ""
 	nmCmd := &cobra.Command{
-		Use:   "newtmgr",
-		Short: "Newtmgr helps you manage remote devices running the Mynewt OS",
+		Use:   nmutil.ToolInfo.ExeName,
+		Short: nmutil.ToolInfo.ShortName + " helps you manage remote devices running the Mynewt OS",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			NewtmgrLogLevel, err := log.ParseLevel(logLevelStr)
 			if err != nil {
@@ -80,6 +82,18 @@ func Commands() *cobra.Command {
 
 	nmCmd.PersistentFlags().StringVar(&nmutil.ConnExtra, "connextra", "",
 		"Additional key-value pair to append to the connstring")
+
+	versCmd := &cobra.Command{
+		Use:     "version",
+		Short:   "Display the " + nmutil.ToolInfo.ShortName + " version number",
+		Example: "  " + nmutil.ToolInfo.ExeName + " version",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("%s %s\n",
+				nmutil.ToolInfo.LongName,
+				nmutil.ToolInfo.VersionString)
+		},
+	}
+	nmCmd.AddCommand(versCmd)
 
 	nmCmd.AddCommand(crashCmd())
 	nmCmd.AddCommand(dateTimeCmd())
