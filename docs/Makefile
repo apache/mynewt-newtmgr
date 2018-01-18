@@ -1,10 +1,6 @@
 # Make a preview site for Sphinx output
 
-SPHINXOPTS    =
-SPHINXBUILD   = sphinx-build
-SPHINXPROJ    = Mynewt
-SOURCEDIR     = .
-BUILDDIR      = _build/sphinx
+BUILDDIR      = _build/html
 
 .PHONY: Makefile clean preview
 
@@ -17,5 +13,4 @@ _build:
 	mkdir -p _build
 
 sphinx:
-	sphinx-build . _build/sphinx
-	mv _build/sphinx _build/html/documentation
+	sphinx-build . ${BUILDDIR}

@@ -1,4 +1,4 @@
-newtmgr datetime 
+newtmgr datetime
 -----------------
 
 Manage datetime on a device.
@@ -25,42 +25,20 @@ Global Flags:
 Description
 ^^^^^^^^^^^
 
-Reads or sets the datetime on a device. Specify a ``datetime-value`` in
-the command to set the datetime on the device. Newtmgr uses the
-``conn_profile`` connection profile to connect to the device.
+Reads or sets the datetime on a device. Specify a ``datetime-value`` in the command to set the datetime on the device.
+Newtmgr uses the ``conn_profile`` connection profile to connect to the device.
 
-**Note**: You must specify the ``datetime-value`` in the RFC 3339
-format.
+**Note**: You must specify the ``datetime-value`` in the RFC 3339 format.
 
 Examples
 ^^^^^^^^
 
-+----------------+--------------------------+--------------------+
-| Sub-command    | Usage                    | Explanation        |
-+================+==========================+====================+
-| newtmgr        | Reads the datetime value |
-| datetime-c     | from a device. Newtmgr   |
-| profile01      | connects to the device   |
-|                | over a connection        |
-|                | specified in the         |
-|                | ``profile01`` connection |
-|                | profile.                 |
-+----------------+--------------------------+--------------------+
-| newtmgr        | Sets the datetime on a   |
-| datetime       | device to March 1st 2017 |
-| 2017-03-01T22: | 22:44:00 UTC. Newtmgr    |
-| 44:00-c        | connects to the device   |
-| profile01      | over a connection        |
-|                | specified in the         |
-|                | ``profile01`` connection |
-|                | profile.                 |
-+----------------+--------------------------+--------------------+
-| newtmgr        | Sets the datetime on a   |
-| datetime       | device to March 1st 2017 |
-| 2017-03-01T22: | 22:44:00 PST. Newtmgr    |
-| 44:00-08:00-c  | connects to the device   |
-| profile01      | over a connection        |
-|                | specified in the         |
-|                | ``profile01`` connection |
-|                | profile.                 |
-+----------------+--------------------------+--------------------+
++------------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| Usage                                                      | Explanation                                                                                                                                                         |
++============================================================+=====================================================================================================================================================================+
+| ``newtmgr datetime-c profile01``                           | Reads the datetime value from a device. Newtmgr connects to the device over a connection specified in the ``profile01`` connection profile.                         |
++------------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| ``newtmgr datetime 2017-03-01T22:44:00-c profile01``       | Sets the datetime on a device to March 1st 2017 22:44:00 UTC. Newtmgr connects to the device over a connection specified in the ``profile01`` connection profile.   |
++------------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| ``newtmgr datetime 2017-03-01T22:44:00-08:00-c profile01`` | Sets the datetime on a device to March 1st 2017 22:44:00 PST. Newtmgr connects to the device over a connection specified in the ``profile01`` connection profile.   |
++------------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------+

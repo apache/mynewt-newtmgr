@@ -1,4 +1,4 @@
-newtmgr config 
+newtmgr config
 ---------------
 
 Read and write config values on a device.
@@ -8,7 +8,7 @@ Usage:
 
 .. code-block:: console
 
-        newtmgr config <var-name> [var-value] -c <conn_profile> [flags] 
+        newtmgr config <var-name> [var-value] -c <conn_profile> [flags]
 
 Global Flags:
 ^^^^^^^^^^^^^
@@ -25,32 +25,16 @@ Global Flags:
 Description
 ^^^^^^^^^^^
 
-Reads and sets the value for the ``var-name`` config variable on a
-device. Specify a ``var-value`` to set the value for the ``var-name``
-variable. Newtmgr uses the ``conn_profile`` connection profile to
-connect to the device.
+Reads and sets the value for the ``var-name`` config variable on a device. Specify a ``var-value`` to set the value
+for the ``var-name`` variable. Newtmgr uses the ``conn_profile`` connection profile to connect to the device.
 
 Examples
 ^^^^^^^^
 
-+----------------+--------------------------+--------------------+
-| Sub-command    | Usage                    | Explanation        |
-+================+==========================+====================+
-| newtmgr config | Reads the ``myvar``      |
-| myvar -c       | config variable value    |
-| profile01      | from a device. Newtmgr   |
-|                | connects to the device   |
-|                | over a connection        |
-|                | specified in the         |
-|                | ``profile01`` connection |
-|                | profile.                 |
-+----------------+--------------------------+--------------------+
-| newtmgr config | Sets the ``myvar``       |
-| myvar 2 -c     | config variable to the   |
-| profile01      | value ``2`` on a device. |
-|                | Newtmgr connects to the  |
-|                | device over a connection |
-|                | specified in the         |
-|                | ``profile01`` connection |
-|                | profile.                 |
-+----------------+--------------------------+--------------------+
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| Usage                                    | Explanation                                                                                                                                                              |
++==========================================+==========================================================================================================================================================================+
+| ``newtmgr config myvar -c profile01``    | Reads the ``myvar`` config variable value from a device. Newtmgr connects to the device over a connection specified in the ``profile01`` connection profile.             |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| ``newtmgr config myvar 2 -c profile01``  | Sets the ``myvar`` config variable to the value ``2`` on a device. Newtmgr connects to the device over a connection specified in the ``profile01`` connection profile.   |
++------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------+

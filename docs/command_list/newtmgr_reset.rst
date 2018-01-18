@@ -1,4 +1,4 @@
-newtmgr reset 
+newtmgr reset
 --------------
 
 Send a reset request to a device.
@@ -8,7 +8,7 @@ Usage:
 
 .. code-block:: console
 
-        newtmgr reset -c <conn_profile> [flags] 
+        newtmgr reset -c <conn_profile> [flags]
 
 Global Flags:
 ^^^^^^^^^^^^^
@@ -25,19 +25,13 @@ Global Flags:
 Description
 ^^^^^^^^^^^
 
-Resets a device. Newtmgr uses the ``conn_profile`` connection profile to
-connect to the device.
+Resets a device. Newtmgr uses the ``conn_profile`` connection profile to connect to the device.
 
 Examples
 ^^^^^^^^
 
-+----------------+--------------------------+--------------------+
-| Sub-command    | Usage                    | Explanation        |
-+================+==========================+====================+
-| newtmgr        | Resets a device. Newtmgr |
-| reset-c        | connects to the device   |
-| profile01      | over a connection        |
-|                | specified in the         |
-|                | ``profile01`` connection |
-|                | profile.                 |
-+----------------+--------------------------+--------------------+
++---------------------------------+------------------------------------------------------------------------------------------------------------------------+
+| Usage                           | Explanation                                                                                                            |
++=================================+========================================================================================================================+
+| ``newtmgr reset-c profile01``   | Resets a device. Newtmgr connects to the device over a connection specified in the ``profile01`` connection profile.   |
++---------------------------------+------------------------------------------------------------------------------------------------------------------------+

@@ -1,4 +1,4 @@
-newtmgr mpstat 
+newtmgr mpstat
 ---------------
 
 Read memory pool statistics from a device.
@@ -8,7 +8,7 @@ Usage:
 
 .. code-block:: console
 
-        newtmgr mpstat -c <conn_profile> [flags] 
+        newtmgr mpstat -c <conn_profile> [flags]
 
 Global Flags:
 ^^^^^^^^^^^^^
@@ -25,9 +25,8 @@ Global Flags:
 Description
 ^^^^^^^^^^^
 
-Reads and displays the memory pool statistics from a device. Newtmgr
-uses the ``conn_profile`` connection profile to connect to the device.
-It lists the following statistics for each memory pool:
+Reads and displays the memory pool statistics from a device. Newtmgr uses the ``conn_profile`` connection profile to
+connect to the device. It lists the following statistics for each memory pool:
 
 -  **name**: Memory pool name
 -  **blksz**: Size (number of bytes) of each memory block
@@ -38,26 +37,18 @@ It lists the following statistics for each memory pool:
 Examples
 ^^^^^^^^
 
-+----------------+--------------------------+--------------------+
-| Sub-command    | Usage                    | Explanation        |
-+================+==========================+====================+
-| newtmgr mpstat | Reads and displays the   |
-| -c profile01   | memory pool statistics   |
-|                | from a device. Newtmgr   |
-|                | connects to the device   |
-|                | over a connection        |
-|                | specified in the         |
-|                | ``profile01`` connection |
-|                | profile.                 |
-+----------------+--------------------------+--------------------+
++-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| Usage                             | Explanation                                                                                                                                                        |
++===================================+====================================================================================================================================================================+
+| ``newtmgr mpstat -c profile01``   | Reads and displays the memory pool statistics from a device. Newtmgr connects to the device over a connection specified in the ``profile01`` connection profile.   |
++-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 
 Here is an example output for the ``myble`` application from the
-`Enabling Newt Manager in any app </os/tutorials/add_newtmgr.html>`__
-tutiorial:
+:doc:`Enabling Newt Manager in any app <../../os/tutorials/add_newtmgr>` tutiorial:
 
 .. code-block:: console
 
-    $ newtmgr mpstat -c myserial 
+    $ newtmgr mpstat -c myserial
                              name blksz  cnt free  min
               ble_att_svr_entry_pool    20   75    0    0
          ble_att_svr_prep_entry_pool    12   64   64   64

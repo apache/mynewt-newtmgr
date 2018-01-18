@@ -1,4 +1,4 @@
-newtmgr taskstat 
+newtmgr taskstat
 -----------------
 
 Read task statistics from a device.
@@ -8,7 +8,7 @@ Usage:
 
 .. code-block:: console
 
-        newtmgr taskstat -c <conn_profile> [flags] 
+        newtmgr taskstat -c <conn_profile> [flags]
 
 Global Flags:
 ^^^^^^^^^^^^^
@@ -25,9 +25,8 @@ Global Flags:
 Description
 ^^^^^^^^^^^
 
-Reads and displays the task statistics from a device. Newtmgr uses the
-``conn_profile`` connection profile to connect to the device. It lists
-the following statistics for each task:
+Reads and displays the task statistics from a device. Newtmgr uses the ``conn_profile`` connection profile to connect
+to the device. It lists the following statistics for each task:
 
 -  **task**: Task name
 -  **pri**: Task priority
@@ -35,32 +34,24 @@ the following statistics for each task:
 -  **csw**: Number of times the task has switched context
 -  **stksz**: Stack size allocated for the task
 -  **stkuse**: Actual stack size the task uses
--  **last\_checkin**: Last sanity checkin with the `Sanity
-   Task </os/core_os/sanity/sanity.html>`__
+-  **last\_checkin**: Last sanity checkin with the :doc:`Sanity Task <../../os/core_os/sanity/sanity>`
 -  **next\_checkin**: Next sanity checkin
 
 Examples
 ^^^^^^^^
 
-+----------------+--------------------------+--------------------+
-| Sub-command    | Usage                    | Explanation        |
-+================+==========================+====================+
-| newtmgr        | Reads and displays the   |
-| taskstat-c     | task statistics from a   |
-| profile0       | device. Newtmgr connects |
-|                | to the device over a     |
-|                | connection specified in  |
-|                | the ``profile01``        |
-|                | connection profile.      |
-+----------------+--------------------------+--------------------+
++-----------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| Usage                             | Explanation                                                                                                                                                 |
++===================================+=============================================================================================================================================================+
+| ``newtmgr taskstat-c profile0``   | Reads and displays the task statistics from a device. Newtmgr connects to the device over a connection specified in the ``profile01`` connection profile.   |
++-----------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------+
 
 Here is an example output for the ``myble`` application from the
-`Enabling Newt Manager in any app </os/tutorials/add_newtmgr.html>`__
-tutiorial:
+:doc:`Enabling Newt Manager in any app <../../os/tutorials/add_newtmgr>` tutorial:
 
 .. code-block:: console
 
-    $ newtmgr taskstat -c myserial 
+    $ newtmgr taskstat -c myserial
           task pri tid  runtime      csw    stksz   stkuse last_checkin next_checkin
         ble_ll   0   2        0       12       80       58        0        0
           idle 255   0    16713       95       64       31        0        0

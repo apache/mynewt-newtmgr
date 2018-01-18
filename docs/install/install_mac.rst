@@ -9,12 +9,15 @@ This page shows you how to install the following versions of newtmgr:
 -  Upgrade to or install the latest release version (1.3.0).
 -  Install the latest from the master branch (unstable).
 
-See `Installing Previous Releases of Newtmgr </newtmgr/prev_releases>`__
+.. contents::
+  :local:
+  :depth: 2
+
+See :doc:`prev_releases`
 to install an earlier version of newtmgr.
 
 **Note:** If you would like to contribute to the newtmgr tool, see
-:doc:`Setting Up Go Environment to Contribute to Newt and Newtmgr
-Tools </misc/go_env>`.
+:doc:`../../misc/go_env`.
 
 Adding the Mynewt Homebrew Tap
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -24,7 +27,6 @@ installed the **newt** tool. Run the following commands if you have not
 done so:
 
 .. code-block:: console
-
 
     $ brew tap runtimeco/homebrew-mynewt
     $ brew update
@@ -43,19 +45,16 @@ following commands to upgrade to the latest version of newtmgr:
 
 .. code-block:: console
 
-
     $ brew update
     $ brew upgrade mynewt-newtmgr
 
 Installing the Latest Release Version of Newtmgr
-^^^^^^^^^^^^^^^^^^^
-
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Run the following command to install the latest release version of
 newtmgr:
 
 .. code-block:: console
-
 
     $ brew update
     $ brew install mynewt-newtmgr
@@ -66,34 +65,32 @@ newtmgr:
     ==> Pouring mynewt-newtmgr-1.3.0.sierra.bottle.tar.gz
     🍺  /usr/local/Cellar/mynewt-newtmgr/1.3.0: 3 files, 17.3MB
 
- **Notes:** Homebrew bottles for newtmgr 1.3.0 are available for Mac OS
+**Notes:** Homebrew bottles for newtmgr 1.3.0 are available for Mac OS
 Sierra, El Captian. If you are running an earlier version of Mac OS, the
 installation will install the latest version of Go and compile newtmgr
 locally.
 
 Checking the Installed Version
-~~~~~~~~~~~~~~~
-
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Check that you are using the installed version of newtmgr:
 
 .. code-block:: console
 
-    $which newtmgr
+    $ which newtmgr
     /usr/local/bin/newtmgr
     ls -l /usr/local/bin/newtmgr
     lrwxr-xr-x  1 user  staff  42 Sep 11 21:15 /usr/local/bin/newtmgr -> ../Cellar/mynewt-newtmgr/1.3.0/bin/newtmgr
 
 **Note:** If you previously built newtmgr from source and the output of
 ``which newtmgr`` shows
-":math:`GOPATH/bin/newtmgr", you will need to move "`\ GOPATH/bin" after
-"/usr/local/bin" for your PATH in ~/.bash\_profile, and source
-~/.bash\_profile.
+"$GOPATH/bin/newtmgr", you will need to move "$GOPATH/bin" after
+"/usr/local/bin" for your PATH in ~/.bash_profile, and source
+~/.bash_profile.
 
 Get information about newtmgr:
 
 .. code-block:: console
-
 
     $ newtmgr help
     Usage:
@@ -133,7 +130,7 @@ We recommend that you use the latest release version of newtmgr. If you
 would like to use the master branch with the latest updates, you can
 install newtmgr from the HEAD of the master branch.
 
-\*\* Notes: \*\*
+**Notes:**
 
 -  The master branch may be unstable.
 -  This installation will install the latest version of Go on your
@@ -143,13 +140,13 @@ If you already installed newtgmr, unlink the current version:
 
 .. code-block:: console
 
-    $brew unlink mynewt-newtmgr
+    $ brew unlink mynewt-newtmgr
 
 Install the latest unstable version of newtmgr from the master branch:
 
 .. code-block:: console
 
-    $brew install mynewt-newtmgr --HEAD
+    $ brew install mynewt-newtmgr --HEAD
     ==> Installing mynewt-newtmgr from runtimeco/mynewt
     ==> Cloning https://github.com/apache/mynewt-newtmgr.git
     Cloning into '/Users/wanda/Library/Caches/Homebrew/mynewt-newtmgr--git'...
@@ -170,7 +167,7 @@ run:
 
 .. code-block:: console
 
-    $brew switch mynewt-newtmgr 1.3.0
+    $ brew switch mynewt-newtmgr 1.3.0
     Cleaning /usr/local/Cellar/mynewt-newtmgr/1.3.0
     Cleaning /usr/local/Cellar/mynewt-newtmgr/HEAD-2d5217f
     1 links created for /usr/local/Cellar/mynewt-newtmgr/1.3.0
