@@ -11,13 +11,13 @@ The complete project documentation can be found at `mynewt documentation`_
 Writing Documentation
 =======================
 
-`Sphinx`_ use reStructuredText. http://www.sphinx-doc.org/en/1.5.1/rest.html.
+See: https://github.com/apache/mynewt-documentation#writing-documentation
 
 Previewing Changes
 ==========================
 
 In order to preview any changes you make you must first install a Sphinx toolchain as
-described at `mynewt documentation`_. Then:
+described at https://github.com/apache/mynewt-documentation#id3. Then:
 
 .. code-block:: bash
 
