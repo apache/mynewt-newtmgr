@@ -111,7 +111,6 @@ func resGetCmd(cmd *cobra.Command, args []string) {
 	c := xact.NewGetResCmd()
 	c.SetTxOptions(nmutil.TxOptions())
 	c.Path = path
-	c.Observe = -1
 	c.Typ = rt
 
 	res, err := c.Run(s)
