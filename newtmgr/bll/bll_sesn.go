@@ -67,22 +67,39 @@ func NewBllSesn(cfg BllSesnCfg) *BllSesn {
 	}
 }
 
+func (s *BllSesn) getCln() (ble.Client, error) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	if s.cln == nil {
+		return nil, fmt.Errorf("disconnected")
+	}
+
+	return s.cln, nil
+}
+
+func (s *BllSesn) setCln(c ble.Client) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	s.cln = c
+}
+
 func (s *BllSesn) listenDisconnect() {
 	go func() {
-		<-s.cln.Disconnected()
+		cln, err := s.getCln()
+		if err != nil {
+			return
+		}
 
-		s.mtx.Lock()
+		<-cln.Disconnected()
 		s.txvr.ErrorAll(fmt.Errorf("disconnected"))
 		s.txvr.Stop()
-		s.cln = nil
-		s.mtx.Unlock()
+		s.setCln(nil)
 	}()
 }
 
 func (s *BllSesn) txConnect(f ble.AdvFilter) (ble.Client, error) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
 	ctx := ble.WithSigHandler(context.WithTimeout(context.Background(),
 		s.cfg.ConnTimeout))
 
@@ -100,10 +117,12 @@ func (s *BllSesn) txConnect(f ble.AdvFilter) (ble.Client, error) {
 }
 
 func (s *BllSesn) txDiscoverProfile() (*ble.Profile, error) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
+	cln, err := s.getCln()
+	if err != nil {
+		return nil, err
+	}
 
-	return s.cln.DiscoverProfile(true)
+	return cln.DiscoverProfile(true)
 }
 
 func (s *BllSesn) txSubscribe(
@@ -111,24 +130,27 @@ func (s *BllSesn) txSubscribe(
 	ind bool,
 	fn ble.NotificationHandler) error {
 
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
-	return s.cln.Subscribe(c, ind, fn)
+	cln, err := s.getCln()
+	if err != nil {
+		return err
+	}
+	return cln.Subscribe(c, ind, fn)
 }
 
 func (s *BllSesn) txExchangeMtu(mtu uint16) (uint16, error) {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
-	return exchangeMtu(s.cln, uint16(mtu))
+	cln, err := s.getCln()
+	if err != nil {
+		return 0, err
+	}
+	return exchangeMtu(cln, uint16(mtu))
 }
 
 func (s *BllSesn) txCancelConnection() error {
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
-	return s.cln.CancelConnection()
+	cln, err := s.getCln()
+	if err != nil {
+		return err
+	}
+	return cln.CancelConnection()
 }
 
 func (s *BllSesn) txWriteCharacteristic(
@@ -136,17 +158,17 @@ func (s *BllSesn) txWriteCharacteristic(
 	b []byte,
 	noRsp bool) error {
 
-	s.mtx.Lock()
-	defer s.mtx.Unlock()
-
-	return s.cln.WriteCharacteristic(c, b, noRsp)
+	cln, err := s.getCln()
+	if err != nil {
+		return err
+	}
+	return cln.WriteCharacteristic(c, b, noRsp)
 }
 
 func (s *BllSesn) connect() error {
 	log.Debugf("Connecting to peer")
 
-	var err error
-	s.cln, err = s.txConnect(s.cfg.AdvFilter)
+	cln, err := s.txConnect(s.cfg.AdvFilter)
 	if err != nil {
 		if nmutil.ErrorCausedBy(err, context.DeadlineExceeded) {
 			return fmt.Errorf("Failed to connect to peer after %s",
@@ -156,6 +178,7 @@ func (s *BllSesn) connect() error {
 		}
 	}
 
+	s.setCln(cln)
 	s.listenDisconnect()
 
 	return nil
@@ -326,14 +349,14 @@ func (s *BllSesn) Close() error {
 		return err
 	}
 
-	s.cln = nil
-
+	s.setCln(nil)
 	return nil
 }
 
 // Indicates whether the session is currently open.
 func (s *BllSesn) IsOpen() bool {
-	return s.cln != nil
+	cln, _ := s.getCln()
+	return cln != nil
 }
 
 // Retrieves the maximum data payload for incoming NMP responses.
