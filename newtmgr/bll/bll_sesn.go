@@ -303,18 +303,17 @@ func (s *BllSesn) Open() error {
 		var retry bool
 
 		retry, err = s.openOnce()
+		if err != nil {
+			// Ensure the session is closed.
+			s.Close()
+		}
+
 		if !retry {
 			break
 		}
 	}
 
-	if err != nil {
-		// Ensure the session is closed.
-		s.Close()
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func (s *BllSesn) Close() error {
