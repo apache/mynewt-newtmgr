@@ -38,6 +38,7 @@ type GetResCmd struct {
 func NewGetResCmd() *GetResCmd {
 	return &GetResCmd{
 		CmdBase: NewCmdBase(),
+		Observe: -1,
 	}
 }
 
