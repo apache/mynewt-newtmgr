@@ -26,7 +26,7 @@ import (
 	"sync"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/currantlabs/ble"
+	"github.com/go-ble/ble"
 	"github.com/runtimeco/go-coap"
 	"golang.org/x/net/context"
 
