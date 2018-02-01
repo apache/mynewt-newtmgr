@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"sort"
 
 	"mynewt.apache.org/newt/util"
@@ -126,7 +127,7 @@ func connProfileCfgFilename() (string, error) {
 		return "", util.NewNewtError(err.Error())
 	}
 
-	return dir + nmutil.ToolInfo.CfgFilename, nil
+	return filepath.Join(dir, nmutil.ToolInfo.CfgFilename), nil
 }
 
 func (cpm *ConnProfileMgr) Init() error {
