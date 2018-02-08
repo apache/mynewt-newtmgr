@@ -132,15 +132,18 @@ func CreatePost(isTcp bool, resUri string, token []byte,
 	return m, nil
 }
 
-func CreateDelete(isTcp bool, resUri string, token []byte) (coap.Message, error) {
+func CreateDelete(isTcp bool, resUri string, token []byte,
+	val []byte) (coap.Message, error) {
+
 	if err := validateToken(token); err != nil {
 		return nil, err
 	}
 
 	p := coap.MessageParams{
-		Type:  coap.Confirmable,
-		Code:  coap.DELETE,
-		Token: token,
+		Type:    coap.Confirmable,
+		Code:    coap.DELETE,
+		Token:   token,
+		Payload: val,
 	}
 
 	m := buildMessage(isTcp, p)

@@ -249,10 +249,22 @@ func resDeleteCmd(cmd *cobra.Command, args []string) {
 
 	path := args[1]
 
+	var m map[string]interface{}
+	m, err = extractResKv(args[2:])
+	if err != nil {
+		nmUsage(cmd, err)
+	}
+
+	b, err := nmxutil.EncodeCborMap(m)
+	if err != nil {
+		nmUsage(nil, util.ChildNewtError(err))
+	}
+
 	c := xact.NewDeleteResCmd()
 	c.SetTxOptions(nmutil.TxOptions())
 	c.Path = path
 	c.Typ = rt
+	c.Value = b
 
 	res, err := c.Run(s)
 	if err != nil {
