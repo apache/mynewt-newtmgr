@@ -14,16 +14,9 @@
   version = "v1.0.18"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/currantlabs/ble"
-  packages = [".","darwin","examples/lib/dev","linux","linux/adv","linux/att","linux/gatt","linux/hci","linux/hci/cmd","linux/hci/evt","linux/hci/socket"]
-  revision = "ba3b00e87511deec53b2d0e8df691426a1d37bf7"
-
-[[projects]]
-  name = "github.com/fatih/structs"
+  name = "github.com/chzyer/readline"
   packages = ["."]
-  revision = "a720dfa8df582c51dee1b36feabb906bde1588bd"
-  version = "v1.0"
+  revision = "f6d7a1f6fbf35bbf9beb80dc63c56a29dcfb759f"
 
 [[projects]]
   name = "github.com/fatih/color"
@@ -32,10 +25,22 @@
   version = "v1.5.0"
 
 [[projects]]
+  name = "github.com/fatih/structs"
+  packages = ["."]
+  revision = "a720dfa8df582c51dee1b36feabb906bde1588bd"
+  version = "v1.0"
+
+[[projects]]
   branch = "master"
   name = "github.com/flynn-archive/go-shlex"
   packages = ["."]
   revision = "3f9db97f856818214da2e1057f8ad84803971cff"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/go-ble/ble"
+  packages = [".","darwin","examples/lib/dev","linux","linux/adv","linux/att","linux/gatt","linux/hci","linux/hci/cmd","linux/hci/evt","linux/hci/socket"]
+  revision = "cb19fdfd5cb4f8c420bedd0c9e1bfc4717a4be2e"
 
 [[projects]]
   name = "github.com/inconshreveable/mousetrap"
@@ -119,7 +124,7 @@
   branch = "master"
   name = "github.com/runtimeco/go-coap"
   packages = ["."]
-  revision = "f5efd2025d000a399e47f715c29ec93b6faa8913"
+  revision = "47c23e2a63eacf038a17b17d72cf7b9168736c9a"
 
 [[projects]]
   name = "github.com/spf13/cast"
@@ -188,11 +193,6 @@
   version = "v1.4.2"
 
 [[projects]]
-  name = "github.com/chzyer/readline"
-  packages = ["."]
-  revision = "f6d7a1f6fbf35bbf9beb80dc63c56a29dcfb759f"
-
-[[projects]]
   branch = "master"
   name = "mynewt.apache.org/newt"
   packages = ["util","util/unixchild","viper","yaml"]
@@ -201,6 +201,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "006ff4573b02a7ab7a8170515b246f4e01c68c9a1b8dc4881ab5d6b3663a502d"
+  inputs-digest = "e2cc5a4fab95a5eccf8d614680b609c21280660ed87513eacbda6f9d0072b9c8"
   solver-name = "gps-cdcl"
   solver-version = 1
