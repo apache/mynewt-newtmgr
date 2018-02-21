@@ -37,7 +37,7 @@ func Commands() *cobra.Command {
 	logLevelStr := ""
 	nmCmd := &cobra.Command{
 		Use:   nmutil.ToolInfo.ExeName,
-		Short: nmutil.ToolInfo.ShortName + " helps you manage remote devices running the Mynewt OS",
+		Short: nmutil.ToolInfo.ShortName + " helps you manage remote devices",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			NewtmgrLogLevel, err := log.ParseLevel(logLevelStr)
 			if err != nil {

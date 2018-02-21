@@ -3,9 +3,9 @@ package cli
 import (
 	"container/list"
 	"fmt"
-	"gopkg.in/abiosoft/ishell.v1"
 	"github.com/runtimeco/go-coap"
 	"github.com/spf13/cobra"
+	"gopkg.in/abiosoft/ishell.v1"
 	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
@@ -508,9 +508,10 @@ func startInteractive(cmd *cobra.Command, args []string) {
 func interactiveCmd() *cobra.Command {
 
 	shellCmd := &cobra.Command{
-		Use:   "interactive",
-		Short: "Run newtmgr interactive mode (used for COAP only)",
-		Run:   startInteractive,
+		Use: "interactive",
+		Short: "Run " + nmutil.ToolInfo.ShortName +
+			" interactive mode (used for COAP only)",
+		Run: startInteractive,
 	}
 
 	return shellCmd
