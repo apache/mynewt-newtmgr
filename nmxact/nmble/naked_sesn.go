@@ -35,6 +35,20 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/task"
 )
 
+type NakedSesnState int
+
+const (
+	// Session not open and no open in progress.
+	NS_STATE_CLOSED NakedSesnState = iota
+
+	// Open in progress.
+	NS_STATE_OPENING_ACTIVE
+	NS_STATE_OPENING_IDLE
+
+	// Open complete.
+	NS_STATE_OPEN
+)
+
 // Implements a BLE session that does not acquire the master resource on
 // connect.  The user of this type must acquire the resource manually.
 type NakedSesn struct {
@@ -52,12 +66,7 @@ type NakedSesn struct {
 	// Protects `enabled` and `opening`.
 	mtx sync.Mutex
 
-	// True if the session is open or being opened.
-	enabled bool
-
-	// True if session is being opened; used to prevent a full shutdown in
-	// mid-open to allow retries.
-	opening bool
+	state NakedSesnState
 
 	shuttingDown bool
 
@@ -117,7 +126,7 @@ func (s *NakedSesn) shutdown(cause error) error {
 		s.mtx.Lock()
 		defer s.mtx.Unlock()
 
-		if s.shuttingDown || (!s.enabled && !s.opening) {
+		if s.shuttingDown || s.state == NS_STATE_CLOSED {
 			return nmxutil.NewSesnClosedError(
 				"Attempt to close an already-closed session")
 		}
@@ -157,14 +166,14 @@ func (s *NakedSesn) shutdown(cause error) error {
 
 	// Call the on-close callback if the session was fully open.
 	s.mtx.Lock()
-	opening := s.opening
-	s.enabled = false
+	opening := s.state == NS_STATE_OPENING_ACTIVE || s.state == NS_STATE_OPENING_IDLE
+	if !opening {
+		s.state = NS_STATE_CLOSED
+	}
 	s.mtx.Unlock()
 
-	if !opening {
-		if s.cfg.OnCloseCb != nil {
-			s.cfg.OnCloseCb(s, cause)
-		}
+	if !opening && s.cfg.OnCloseCb != nil {
+		s.cfg.OnCloseCb(s, cause)
 	}
 
 	return nil
@@ -190,12 +199,12 @@ func (s *NakedSesn) Open() error {
 		s.mtx.Lock()
 		defer s.mtx.Unlock()
 
-		if s.opening || s.enabled {
+		if s.state != NS_STATE_CLOSED {
 			return nmxutil.NewSesnAlreadyOpenError(
 				"Attempt to open an already-open BLE session")
 		}
 
-		s.opening = true
+		s.state = NS_STATE_OPENING_IDLE
 		return nil
 	}
 
@@ -206,7 +215,7 @@ func (s *NakedSesn) Open() error {
 		s.mtx.Lock()
 		defer s.mtx.Unlock()
 
-		s.opening = false
+		s.state = NS_STATE_CLOSED
 	}()
 
 	var err error
@@ -230,7 +239,7 @@ func (s *NakedSesn) Open() error {
 	s.bx.AddSesn(s.conn.connHandle, s)
 
 	s.mtx.Lock()
-	s.enabled = true
+	s.state = NS_STATE_OPEN
 	s.mtx.Unlock()
 
 	return nil
@@ -243,13 +252,12 @@ func (s *NakedSesn) OpenConnected(
 		s.mtx.Lock()
 		defer s.mtx.Unlock()
 
-		if s.opening || s.enabled {
+		if s.state != NS_STATE_CLOSED {
 			return nmxutil.NewSesnAlreadyOpenError(
 				"Attempt to open an already-open BLE session")
 		}
-		nmxutil.Assert(!s.opening)
 
-		s.opening = true
+		s.state = NS_STATE_OPENING_ACTIVE
 		return nil
 	}
 
@@ -260,7 +268,7 @@ func (s *NakedSesn) OpenConnected(
 		s.mtx.Lock()
 		defer s.mtx.Unlock()
 
-		s.opening = false
+		s.state = NS_STATE_CLOSED
 	}()
 
 	if err := s.init(); err != nil {
@@ -290,7 +298,7 @@ func (s *NakedSesn) OpenConnected(
 	s.bx.AddSesn(connHandle, s)
 
 	s.mtx.Lock()
-	s.enabled = true
+	s.state = NS_STATE_OPEN
 	s.mtx.Unlock()
 
 	return nil
@@ -463,7 +471,7 @@ func (s *NakedSesn) IsOpen() bool {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	return s.enabled
+	return s.state == NS_STATE_OPEN
 }
 
 func (s *NakedSesn) MtuIn() int {
