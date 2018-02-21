@@ -102,9 +102,11 @@ func postResourceOnce(s Sesn, resType ResourceType,
 }
 
 func deleteResourceOnce(s Sesn, resType ResourceType,
-	uri string, opt TxOptions) (coap.COAPCode, []byte, error) {
+	uri string, value []byte,
+	opt TxOptions) (coap.COAPCode, []byte, error) {
 
-	req, err := nmcoap.CreateDelete(s.CoapIsTcp(), uri, nmxutil.NextToken())
+	req, err := nmcoap.CreateDelete(s.CoapIsTcp(), uri, nmxutil.NextToken(),
+		value)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -178,10 +180,10 @@ func PostResource(s Sesn, resType ResourceType, uri string,
 }
 
 func DeleteResource(s Sesn, resType ResourceType, uri string,
-	o TxOptions) (coap.COAPCode, []byte, error) {
+	value []byte, o TxOptions) (coap.COAPCode, []byte, error) {
 
 	return txCoap(func() (coap.COAPCode, []byte, error) {
-		return deleteResourceOnce(s, resType, uri, o)
+		return deleteResourceOnce(s, resType, uri, value, o)
 	}, o.Tries)
 }
 

@@ -179,6 +179,7 @@ type DeleteResCmd struct {
 	CmdBase
 	Path string
 	Typ  sesn.ResourceType
+	Value []byte
 }
 
 func NewDeleteResCmd() *DeleteResCmd {
@@ -205,7 +206,7 @@ func (r *DeleteResResult) Status() int {
 }
 
 func (c *DeleteResCmd) Run(s sesn.Sesn) (Result, error) {
-	status, val, err := sesn.DeleteResource(s, c.Typ, c.Path, c.TxOptions())
+	status, val, err := sesn.DeleteResource(s, c.Typ, c.Path, c.Value, c.TxOptions())
 	if err != nil {
 		return nil, err
 	}
