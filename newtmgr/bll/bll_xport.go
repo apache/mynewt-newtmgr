@@ -27,11 +27,13 @@ import (
 	"github.com/go-ble/ble"
 	"github.com/go-ble/ble/examples/lib/dev"
 
+	"mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
 type XportCfg struct {
-	CtlrName string
+	CtlrName    string
+	OwnAddrType bledefs.BleAddrType
 }
 
 func NewXportCfg() XportCfg {
@@ -62,6 +64,11 @@ func (bx *BllXport) BuildBllSesn(cfg BllSesnCfg) (sesn.Sesn, error) {
 func (bx *BllXport) Start() error {
 	d, err := dev.NewDevice(bx.cfg.CtlrName)
 	if err != nil {
+		return err
+	}
+
+	// Set the connection parameters to use for all initiated connections.
+	if err := BllXportSetConnParams(d, bx.cfg.OwnAddrType); err != nil {
 		return err
 	}
 
