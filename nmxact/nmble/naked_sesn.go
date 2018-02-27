@@ -43,6 +43,8 @@ const (
 
 	// Open in progress.
 	NS_STATE_OPENING_ACTIVE
+
+	// After a failed open; additional retries remain.
 	NS_STATE_OPENING_IDLE
 
 	// Open complete.
@@ -126,7 +128,7 @@ func (s *NakedSesn) shutdown(cause error) error {
 		s.mtx.Lock()
 		defer s.mtx.Unlock()
 
-		if s.shuttingDown || s.state == NS_STATE_CLOSED {
+		if s.shuttingDown || s.state == NS_STATE_CLOSED || s.state == NS_STATE_OPENING_IDLE {
 			return nmxutil.NewSesnClosedError(
 				"Attempt to close an already-closed session")
 		}
@@ -166,13 +168,15 @@ func (s *NakedSesn) shutdown(cause error) error {
 
 	// Call the on-close callback if the session was fully open.
 	s.mtx.Lock()
-	opening := s.state == NS_STATE_OPENING_ACTIVE || s.state == NS_STATE_OPENING_IDLE
-	if !opening {
+	fullyOpen := s.state == NS_STATE_OPEN
+	if fullyOpen {
 		s.state = NS_STATE_CLOSED
+	} else {
+		s.state = NS_STATE_OPENING_IDLE
 	}
 	s.mtx.Unlock()
 
-	if !opening && s.cfg.OnCloseCb != nil {
+	if fullyOpen && s.cfg.OnCloseCb != nil {
 		s.cfg.OnCloseCb(s, cause)
 	}
 
@@ -204,19 +208,13 @@ func (s *NakedSesn) Open() error {
 				"Attempt to open an already-open BLE session")
 		}
 
-		s.state = NS_STATE_OPENING_IDLE
+		s.state = NS_STATE_OPENING_ACTIVE
 		return nil
 	}
 
 	if err := initiate(); err != nil {
 		return err
 	}
-	defer func() {
-		s.mtx.Lock()
-		defer s.mtx.Unlock()
-
-		s.state = NS_STATE_CLOSED
-	}()
 
 	var err error
 	for i := 0; i < s.cfg.Ble.Central.ConnTries; i++ {
@@ -233,6 +231,9 @@ func (s *NakedSesn) Open() error {
 	}
 
 	if err != nil {
+		s.mtx.Lock()
+		s.state = NS_STATE_CLOSED
+		s.mtx.Unlock()
 		return err
 	}
 
@@ -503,6 +504,10 @@ func (s *NakedSesn) SetOobKey(key []byte) {
 }
 
 func (s *NakedSesn) openOnce() (bool, error) {
+	s.mtx.Lock()
+	s.state = NS_STATE_OPENING_ACTIVE
+	s.mtx.Unlock()
+
 	if err := s.init(); err != nil {
 		return false, err
 	}
