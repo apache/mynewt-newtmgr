@@ -30,12 +30,14 @@ import (
 	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/bll"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
+	"mynewt.apache.org/newtmgr/nmxact/bledefs"
 )
 
 type BllConfig struct {
-	CtlrName string
-	PeerId   string
-	PeerName string
+	CtlrName    string
+	OwnAddrType bledefs.BleAddrType
+	PeerId      string
+	PeerName    string
 }
 
 func NewBllConfig() *BllConfig {
@@ -68,6 +70,12 @@ func ParseBllConnString(cs string) (*BllConfig, error) {
 		switch k {
 		case "ctlr_name":
 			bc.CtlrName = v
+		case "own_addr_type":
+			var err error
+			bc.OwnAddrType, err = bledefs.BleAddrTypeFromString(v)
+			if err != nil {
+				return nil, einvalBleConnString("Invalid own_addr_type: %s", v)
+			}
 		case "peer_id":
 			bc.PeerId = v
 		case "peer_name":

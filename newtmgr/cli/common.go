@@ -130,6 +130,7 @@ func GetXport() (xport.Xport, error) {
 		if bc.CtlrName != "" {
 			cfg.CtlrName = bc.CtlrName
 		}
+		cfg.OwnAddrType = bc.OwnAddrType
 		globalXport = bll.NewBllXport(cfg)
 
 	case config.CONN_TYPE_BLE_PLAIN, config.CONN_TYPE_BLE_OIC:
