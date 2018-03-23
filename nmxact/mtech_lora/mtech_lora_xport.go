@@ -83,7 +83,7 @@ var LoraDataRateMapUS = map[string]int{
 }
 
 const MAX_PACKET_SIZE_IN = 2048
-const MAX_PACKET_SIZE_OUT = 128
+const MAX_PACKET_SIZE_OUT = 256
 const UDP_RX_PORT = 1784
 const UDP_TX_PORT = 1786
 const OIC_LORA_PORT = 0xbb
