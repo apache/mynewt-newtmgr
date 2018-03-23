@@ -135,6 +135,7 @@ func (s *LoraSesn) Close() error {
 	close(s.stopChan)
 	s.listener.Close()
 	s.wg.Wait()
+	s.xport.Tx([]byte(fmt.Sprintf("lora/%s/flush", DenormalizeAddr(s.cfg.Lora.Addr))))
 	s.stopChan = nil
 	s.txvr = nil
 
@@ -219,7 +220,7 @@ func (s *LoraSesn) sendFragments(b []byte) error {
 
 		var outData bytes.Buffer
 
-		outData.Write([]byte(fmt.Sprintf("lora/%s/down %s\n",
+		outData.Write([]byte(fmt.Sprintf("lora/%s/down %s",
 			DenormalizeAddr(s.cfg.Lora.Addr), payload)))
 		err := s.xport.Tx(outData.Bytes())
 		if err != nil {
