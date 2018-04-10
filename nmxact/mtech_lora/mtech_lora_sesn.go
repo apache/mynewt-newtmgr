@@ -33,6 +33,7 @@ import (
 
 	"mynewt.apache.org/newtmgr/nmxact/lora"
 	"mynewt.apache.org/newtmgr/nmxact/mgmt"
+	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/omp"
@@ -48,6 +49,9 @@ type LoraSesn struct {
 	listener *Listener
 	wg       sync.WaitGroup
 	stopChan chan struct{}
+
+	txFilterCb nmcoap.MsgFilter
+	rxFilterCb nmcoap.MsgFilter
 }
 
 type mtechLoraTx struct {
@@ -63,9 +67,11 @@ func NewLoraSesn(cfg sesn.SesnCfg, lx *LoraXport) (*LoraSesn, error) {
 	}
 	cfg.Lora.Addr = addr
 	s := &LoraSesn{
-		cfg:   cfg,
-		xport: lx,
-		mtu:   0,
+		cfg:        cfg,
+		xport:      lx,
+		mtu:        0,
+		txFilterCb: cfg.TxFilterCb,
+		rxFilterCb: cfg.RxFilterCb,
 	}
 
 	return s, nil
@@ -80,7 +86,8 @@ func (s *LoraSesn) Open() error {
 	key := TgtKey(s.cfg.Lora.Addr, "rx")
 	s.xport.Lock()
 
-	txvr, err := mgmt.NewTransceiver(false, s.cfg.MgmtProto, 3)
+	txFilterCb, rxFilterCb := s.Filters()
+	txvr, err := mgmt.NewTransceiver(txFilterCb, rxFilterCb, false, s.cfg.MgmtProto, 3)
 	if err != nil {
 		return err
 	}
@@ -278,4 +285,8 @@ func (s *LoraSesn) MgmtProto() sesn.MgmtProto {
 
 func (s *LoraSesn) CoapIsTcp() bool {
 	return false
+}
+
+func (s *LoraSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
+	return s.txFilterCb, s.rxFilterCb
 }

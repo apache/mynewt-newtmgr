@@ -33,10 +33,11 @@ func EncodeMgmt(s sesn.Sesn, m *nmp.NmpMsg) ([]byte, error) {
 		return nmp.EncodeNmpPlain(m)
 
 	case sesn.MGMT_PROTO_OMP:
+		txCb, _ := s.Filters()
 		if s.CoapIsTcp() == true {
-			return omp.EncodeOmpTcp(m)
+			return omp.EncodeOmpTcp(txCb, m)
 		} else {
-			return omp.EncodeOmpDgram(m)
+			return omp.EncodeOmpDgram(txCb, m)
 		}
 
 	default:

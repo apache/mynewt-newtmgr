@@ -26,6 +26,7 @@ import (
 
 	"github.com/go-ble/ble"
 
+	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
@@ -36,6 +37,8 @@ type BllSesnCfg struct {
 	ConnTimeout  time.Duration
 	ConnTries    int
 	WriteRsp     bool
+	TxFilterCb   nmcoap.MsgFilter
+	RxFilterCb   nmcoap.MsgFilter
 }
 
 func NewBllSesnCfg() BllSesnCfg {

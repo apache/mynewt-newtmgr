@@ -48,7 +48,7 @@ type Transceiver struct {
 	wg    sync.WaitGroup
 }
 
-func NewTransceiver(isTcp bool, mgmtProto sesn.MgmtProto, logDepth int) (
+func NewTransceiver(txFilterCb, rxFilterCb nmcoap.MsgFilter, isTcp bool, mgmtProto sesn.MgmtProto, logDepth int) (
 	*Transceiver, error) {
 
 	t := &Transceiver{
@@ -59,7 +59,7 @@ func NewTransceiver(isTcp bool, mgmtProto sesn.MgmtProto, logDepth int) (
 		t.nd = nmp.NewDispatcher(logDepth)
 	}
 
-	od, err := omp.NewDispatcher(isTcp, logDepth)
+	od, err := omp.NewDispatcher(txFilterCb, rxFilterCb, isTcp, logDepth)
 	if err != nil {
 		return nil, err
 	}
@@ -118,10 +118,11 @@ func (t *Transceiver) txOmp(txCb TxFn, req *nmp.NmpMsg, mtu int,
 	defer t.od.RemoveNmpListener(req.Hdr.Seq)
 
 	var b []byte
+	txFilterCb, _ := t.od.Filters()
 	if t.isTcp {
-		b, err = omp.EncodeOmpTcp(req)
+		b, err = omp.EncodeOmpTcp(txFilterCb, req)
 	} else {
-		b, err = omp.EncodeOmpDgram(req)
+		b, err = omp.EncodeOmpDgram(txFilterCb, req)
 	}
 	if err != nil {
 		return nil, err

@@ -26,6 +26,7 @@ import (
 	"github.com/runtimeco/go-coap"
 
 	"mynewt.apache.org/newtmgr/nmxact/mgmt"
+	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/omp"
@@ -37,13 +38,18 @@ type UdpSesn struct {
 	addr *net.UDPAddr
 	conn *net.UDPConn
 	txvr *mgmt.Transceiver
+
+	txFilterCb nmcoap.MsgFilter
+	rxFilterCb nmcoap.MsgFilter
 }
 
 func NewUdpSesn(cfg sesn.SesnCfg) (*UdpSesn, error) {
 	s := &UdpSesn{
-		cfg: cfg,
+		cfg:        cfg,
+		txFilterCb: cfg.TxFilterCb,
+		rxFilterCb: cfg.RxFilterCb,
 	}
-	txvr, err := mgmt.NewTransceiver(false, cfg.MgmtProto, 3)
+	txvr, err := mgmt.NewTransceiver(cfg.TxFilterCb, cfg.RxFilterCb, false, cfg.MgmtProto, 3)
 	if err != nil {
 		return nil, err
 	}
@@ -162,4 +168,8 @@ func (s *UdpSesn) TxCoapObserve(m coap.Message, resType sesn.ResourceType,
 
 func (s *UdpSesn) CoapIsTcp() bool {
 	return false
+}
+
+func (s *UdpSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
+	return s.txFilterCb, s.rxFilterCb
 }

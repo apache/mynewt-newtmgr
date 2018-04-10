@@ -29,6 +29,7 @@ import (
 	"mynewt.apache.org/newt/util"
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/mgmt"
+	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
@@ -73,6 +74,9 @@ type NakedSesn struct {
 	shuttingDown bool
 
 	smIo SmIo
+
+	txFilterCb nmcoap.MsgFilter
+	rxFilterCb nmcoap.MsgFilter
 }
 
 func (s *NakedSesn) init() error {
@@ -83,7 +87,7 @@ func (s *NakedSesn) init() error {
 		s.txvr.Stop()
 	}
 
-	txvr, err := mgmt.NewTransceiver(true, s.cfg.MgmtProto, 3)
+	txvr, err := mgmt.NewTransceiver(s.txFilterCb, s.rxFilterCb, true, s.cfg.MgmtProto, 3)
 	if err != nil {
 		return err
 	}
@@ -105,9 +109,11 @@ func NewNakedSesn(bx *BleXport, cfg sesn.SesnCfg) (*NakedSesn, error) {
 	}
 
 	s := &NakedSesn{
-		cfg:      cfg,
-		bx:       bx,
-		mgmtChrs: mgmtChrs,
+		cfg:        cfg,
+		bx:         bx,
+		mgmtChrs:   mgmtChrs,
+		txFilterCb: cfg.TxFilterCb,
+		rxFilterCb: cfg.RxFilterCb,
 	}
 
 	s.init()
@@ -725,4 +731,8 @@ func (s *NakedSesn) ensureSecurity(encReqd bool, authReqd bool) error {
 	}
 
 	return nil
+}
+
+func (s *NakedSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
+	return s.txFilterCb, s.rxFilterCb
 }

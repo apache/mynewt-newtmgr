@@ -26,6 +26,7 @@ import (
 	"github.com/runtimeco/go-coap"
 
 	"mynewt.apache.org/newtmgr/nmxact/mgmt"
+	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/omp"
@@ -42,15 +43,20 @@ type SerialSesn struct {
 	//     * each response get matched up with its corresponding request.
 	//     * accesses to isOpen are protected.
 	m sync.Mutex
+
+	txFilterCb nmcoap.MsgFilter
+	rxFilterCb nmcoap.MsgFilter
 }
 
 func NewSerialSesn(sx *SerialXport, cfg sesn.SesnCfg) (*SerialSesn, error) {
 	s := &SerialSesn{
-		cfg: cfg,
-		sx:  sx,
+		cfg:        cfg,
+		sx:         sx,
+		txFilterCb: cfg.TxFilterCb,
+		rxFilterCb: cfg.RxFilterCb,
 	}
 
-	txvr, err := mgmt.NewTransceiver(false, cfg.MgmtProto, 3)
+	txvr, err := mgmt.NewTransceiver(cfg.TxFilterCb, cfg.RxFilterCb, false, cfg.MgmtProto, 3)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +74,7 @@ func (s *SerialSesn) Open() error {
 			"Attempt to open an already-open serial session")
 	}
 
-	txvr, err := mgmt.NewTransceiver(false, s.cfg.MgmtProto, 3)
+	txvr, err := mgmt.NewTransceiver(s.cfg.TxFilterCb, s.cfg.RxFilterCb, false, s.cfg.MgmtProto, 3)
 	if err != nil {
 		return err
 	}
@@ -180,4 +186,8 @@ func (s *SerialSesn) MgmtProto() sesn.MgmtProto {
 
 func (s *SerialSesn) CoapIsTcp() bool {
 	return false
+}
+
+func (s *SerialSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
+	return s.txFilterCb, s.rxFilterCb
 }
