@@ -35,6 +35,7 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/mgmt"
 	"mynewt.apache.org/newtmgr/nmxact/nmble"
+	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
@@ -59,11 +60,16 @@ type BllSesn struct {
 	unauthRspChr *ble.Characteristic
 	secureReqChr *ble.Characteristic
 	secureRspChr *ble.Characteristic
+
+	txFilterCb nmcoap.MsgFilter
+	rxFilterCb nmcoap.MsgFilter
 }
 
 func NewBllSesn(cfg BllSesnCfg) *BllSesn {
 	return &BllSesn{
-		cfg: cfg,
+		cfg:        cfg,
+		txFilterCb: cfg.TxFilterCb,
+		rxFilterCb: cfg.RxFilterCb,
 	}
 }
 
@@ -294,7 +300,7 @@ func (s *BllSesn) openOnce() (bool, error) {
 			"Attempt to open an already-open bll session")
 	}
 
-	txvr, err := mgmt.NewTransceiver(true, s.cfg.MgmtProto, 3)
+	txvr, err := mgmt.NewTransceiver(s.txFilterCb, s.rxFilterCb, true, s.cfg.MgmtProto, 3)
 	if err != nil {
 		return false, err
 	}
@@ -468,4 +474,8 @@ func (s *BllSesn) MgmtProto() sesn.MgmtProto {
 
 func (s *BllSesn) CoapIsTcp() bool {
 	return true
+}
+
+func (s *BllSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
+	return s.txFilterCb, s.rxFilterCb
 }

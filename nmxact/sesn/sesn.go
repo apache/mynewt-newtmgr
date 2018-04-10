@@ -24,6 +24,7 @@ import (
 
 	"github.com/runtimeco/go-coap"
 
+	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 )
 
@@ -104,4 +105,7 @@ type Sesn interface {
 
 	TxCoapObserve(m coap.Message, resType ResourceType,
 		opt TxOptions, NotifCb GetNotifyCb, stopsignal chan int) (coap.COAPCode, []byte, []byte, error)
+
+	// Returns a transmit and a receive callback used to manipulate CoAP messages
+	Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter)
 }

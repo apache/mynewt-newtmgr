@@ -32,18 +32,22 @@ import (
 // The dispatcher is the owner of the listeners it points to.  Only the
 // dispatcher writes to these listeners.
 type Dispatcher struct {
-	nmpd    *nmp.Dispatcher
-	oicd    *nmcoap.Dispatcher
-	stopCh  chan struct{}
-	wg      sync.WaitGroup
-	stopped uint32
+	nmpd       *nmp.Dispatcher
+	oicd       *nmcoap.Dispatcher
+	stopCh     chan struct{}
+	wg         sync.WaitGroup
+	stopped    uint32
+	txFilterCb nmcoap.MsgFilter
+	rxFilterCb nmcoap.MsgFilter
 }
 
-func NewDispatcher(isTcp bool, logDepth int) (*Dispatcher, error) {
+func NewDispatcher(txFilterCb, rxFilterCb nmcoap.MsgFilter, isTcp bool, logDepth int) (*Dispatcher, error) {
 	d := &Dispatcher{
-		nmpd:   nmp.NewDispatcher(logDepth + 1),
-		oicd:   nmcoap.NewDispatcher(isTcp, logDepth+1),
-		stopCh: make(chan struct{}),
+		nmpd:       nmp.NewDispatcher(logDepth + 1),
+		oicd:       nmcoap.NewDispatcher(isTcp, logDepth+1),
+		stopCh:     make(chan struct{}),
+		txFilterCb: txFilterCb,
+		rxFilterCb: rxFilterCb,
 	}
 
 	// Listen for OMP responses.  This should never fail.
@@ -71,7 +75,7 @@ func (d *Dispatcher) addOmpListener() error {
 		for {
 			select {
 			case m := <-ol.RspChan:
-				rsp, err := DecodeOmp(m)
+				rsp, err := DecodeOmp(m, d.rxFilterCb)
 				if err != nil {
 					log.Debugf("OMP decode failure: %s", err.Error())
 				} else {
@@ -128,4 +132,8 @@ func (d *Dispatcher) ErrorOneNmp(seq uint8, err error) error {
 func (d *Dispatcher) ErrorAll(err error) {
 	d.nmpd.ErrorAll(err)
 	d.oicd.ErrorAll(err)
+}
+
+func (d *Dispatcher) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
+	return d.txFilterCb, d.rxFilterCb
 }

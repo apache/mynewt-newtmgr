@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
+	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 )
 
 type MgmtProto int
@@ -100,6 +101,10 @@ type SesnCfg struct {
 	// Transport-specific configuration.
 	Ble  SesnCfgBle
 	Lora SesnCfgLora
+
+	// Callbacks
+	TxFilterCb nmcoap.MsgFilter
+	RxFilterCb nmcoap.MsgFilter
 }
 
 func NewSesnCfg() SesnCfg {

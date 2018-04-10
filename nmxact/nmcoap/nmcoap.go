@@ -21,11 +21,13 @@ package nmcoap
 
 import (
 	"fmt"
-
-	"github.com/runtimeco/go-coap"
 	"strings"
 	"sync"
+
+	"github.com/runtimeco/go-coap"
 )
+
+type MsgFilter func(msg coap.Message) (coap.Message, error)
 
 var messageIdMtx sync.Mutex
 var nextMessageId uint16

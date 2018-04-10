@@ -23,6 +23,7 @@ import (
 	"github.com/runtimeco/go-coap"
 
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
+	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
@@ -119,4 +120,8 @@ func (s *BleSesn) TxCoapObserve(m coap.Message,
 	opt sesn.TxOptions, NotifCb sesn.GetNotifyCb, stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
 
 	return s.Ns.TxCoapObserve(m, resType, opt, NotifCb, stopsignal)
+}
+
+func (s *BleSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
+	return s.Ns.Filters()
 }

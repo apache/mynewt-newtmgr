@@ -28,6 +28,7 @@ import (
 	"github.com/runtimeco/go-coap"
 	"github.com/ugorji/go/codec"
 
+	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 )
 
@@ -44,9 +45,10 @@ type OicMsg struct {
  * codec.  So we need to decode the whole response, and then re-encode the
  * newtmgr response part.
  */
-func DecodeOmp(m coap.Message) (nmp.NmpRsp, error) {
+func DecodeOmp(m coap.Message, rxFilterCb nmcoap.MsgFilter) (nmp.NmpRsp, error) {
+
 	// Ignore non-responses.
-	if m.Code() == coap.GET || m.Code() == coap.PUT {
+	if m.Code() == coap.GET || m.Code() == coap.PUT || m.Code() == coap.POST {
 		return nil, nil
 	}
 
@@ -56,6 +58,14 @@ func DecodeOmp(m coap.Message) (nmp.NmpRsp, error) {
 		return nil, fmt.Errorf(
 			"OMP response specifies unexpected code: %d (%s)", int(m.Code()),
 			m.Code().String())
+	}
+
+	if rxFilterCb != nil {
+		var err error
+		m, err = rxFilterCb(m)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var om OicMsg
@@ -90,7 +100,7 @@ type encodeRecord struct {
 	fieldMap map[string]interface{}
 }
 
-func encodeOmpBase(isTcp bool, nmr *nmp.NmpMsg) (encodeRecord, error) {
+func encodeOmpBase(txFilterCb nmcoap.MsgFilter, isTcp bool, nmr *nmp.NmpMsg) (encodeRecord, error) {
 	er := encodeRecord{}
 
 	mp := coap.MessageParams{
@@ -126,11 +136,19 @@ func encodeOmpBase(isTcp bool, nmr *nmp.NmpMsg) (encodeRecord, error) {
 	}
 	er.m.SetPayload(payload)
 
+	if txFilterCb != nil {
+		var err error
+		er.m, err = txFilterCb(er.m)
+		if err != nil {
+			return er, err
+		}
+	}
+
 	return er, nil
 }
 
-func EncodeOmpTcp(nmr *nmp.NmpMsg) ([]byte, error) {
-	er, err := encodeOmpBase(true, nmr)
+func EncodeOmpTcp(txFilterCb nmcoap.MsgFilter, nmr *nmp.NmpMsg) ([]byte, error) {
+	er, err := encodeOmpBase(txFilterCb, true, nmr)
 	if err != nil {
 		return nil, err
 	}
@@ -148,8 +166,8 @@ func EncodeOmpTcp(nmr *nmp.NmpMsg) ([]byte, error) {
 	return data, nil
 }
 
-func EncodeOmpDgram(nmr *nmp.NmpMsg) ([]byte, error) {
-	er, err := encodeOmpBase(false, nmr)
+func EncodeOmpDgram(txFilterCb nmcoap.MsgFilter, nmr *nmp.NmpMsg) ([]byte, error) {
+	er, err := encodeOmpBase(txFilterCb, false, nmr)
 	if err != nil {
 		return nil, err
 	}
