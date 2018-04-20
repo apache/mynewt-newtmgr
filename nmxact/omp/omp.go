@@ -48,7 +48,8 @@ type OicMsg struct {
 func DecodeOmp(m coap.Message, rxFilterCb nmcoap.MsgFilter) (nmp.NmpRsp, error) {
 
 	// Ignore non-responses.
-	if m.Code() == coap.GET || m.Code() == coap.PUT || m.Code() == coap.POST {
+	if m.Code() == coap.GET || m.Code() == coap.PUT || m.Code() == coap.POST ||
+		m.Code() == coap.DELETE {
 		return nil, nil
 	}
 
