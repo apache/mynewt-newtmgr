@@ -287,6 +287,14 @@ func (s *LoraSesn) CoapIsTcp() bool {
 	return false
 }
 
+func (s *LoraSesn) RxAccept() (sesn.Sesn, *sesn.SesnCfg, error) {
+	return nil, nil, fmt.Errorf("Op not implemented yet")
+}
+
+func (s *LoraSesn) RxCoap() (coap.Message, error) {
+	return nil, fmt.Errorf("Op not implemented yet")
+}
+
 func (s *LoraSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
 	return s.txFilterCb, s.rxFilterCb
 }

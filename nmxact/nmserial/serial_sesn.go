@@ -188,6 +188,14 @@ func (s *SerialSesn) CoapIsTcp() bool {
 	return false
 }
 
+func (s *SerialSesn) RxAccept() (sesn.Sesn, *sesn.SesnCfg, error) {
+	return nil, nil, fmt.Errorf("Op not implemented yet")
+}
+
+func (s *SerialSesn) RxCoap() (coap.Message, error) {
+	return nil, fmt.Errorf("Op not implemented yet")
+}
+
 func (s *SerialSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
 	return s.txFilterCb, s.rxFilterCb
 }

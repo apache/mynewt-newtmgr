@@ -32,6 +32,7 @@ type MgmtProto int
 const (
 	MGMT_PROTO_NMP MgmtProto = iota
 	MGMT_PROTO_OMP
+	MGMT_PROTO_COAP_SERVER
 )
 
 type ResourceType int

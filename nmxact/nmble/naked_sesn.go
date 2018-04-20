@@ -733,6 +733,14 @@ func (s *NakedSesn) ensureSecurity(encReqd bool, authReqd bool) error {
 	return nil
 }
 
+func (s *NakedSesn) RxAccept() (sesn.Sesn, *sesn.SesnCfg, error) {
+	return nil, nil, fmt.Errorf("Op not implemented yet")
+}
+
+func (s *NakedSesn) RxCoap() (coap.Message, error) {
+	return nil, fmt.Errorf("Op not implemented yet")
+}
+
 func (s *NakedSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
 	return s.txFilterCb, s.rxFilterCb
 }

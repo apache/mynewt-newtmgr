@@ -122,6 +122,14 @@ func (s *BleSesn) TxCoapObserve(m coap.Message,
 	return s.Ns.TxCoapObserve(m, resType, opt, NotifCb, stopsignal)
 }
 
+func (s *BleSesn) RxAccept() (sesn.Sesn, *sesn.SesnCfg, error) {
+	return s.Ns.RxAccept()
+}
+
+func (s *BleSesn) RxCoap() (coap.Message, error) {
+	return s.Ns.RxCoap()
+}
+
 func (s *BleSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
 	return s.Ns.Filters()
 }
