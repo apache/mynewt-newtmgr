@@ -46,7 +46,7 @@ type XportCfg struct {
 func NewXportCfg() *XportCfg {
 	return &XportCfg{
 		ReadTimeout: 10 * time.Second,
-		Mtu: 512,
+		Mtu:         512,
 	}
 }
 

@@ -74,7 +74,8 @@ func (s *SerialSesn) Open() error {
 			"Attempt to open an already-open serial session")
 	}
 
-	txvr, err := mgmt.NewTransceiver(s.cfg.TxFilterCb, s.cfg.RxFilterCb, false, s.cfg.MgmtProto, 3)
+	txvr, err := mgmt.NewTransceiver(s.cfg.TxFilterCb, s.cfg.RxFilterCb, false,
+		s.cfg.MgmtProto, 3)
 	if err != nil {
 		return err
 	}
@@ -156,12 +157,13 @@ func (s *SerialSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
 		if err := s.sx.Tx(b); err != nil {
 			return err
 		}
-
-		rsp, err := s.sx.Rx()
-		if err != nil {
-			return err
+		if s.txvr.MgmtProto() != sesn.MGMT_PROTO_COAP_SERVER {
+			rsp, err := s.sx.Rx()
+			if err != nil {
+				return err
+			}
+			s.txvr.DispatchCoap(rsp)
 		}
-		s.txvr.DispatchCoap(rsp)
 		return nil
 	}
 
@@ -189,11 +191,38 @@ func (s *SerialSesn) CoapIsTcp() bool {
 }
 
 func (s *SerialSesn) RxAccept() (sesn.Sesn, *sesn.SesnCfg, error) {
-	return nil, nil, fmt.Errorf("Op not implemented yet")
+	n, err := NewSerialSesn(s.sx, s.cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	err = n.Open()
+	if err != nil {
+		return nil, nil, err
+	}
+	return n, &n.cfg, nil
 }
 
 func (s *SerialSesn) RxCoap() (coap.Message, error) {
-	return nil, fmt.Errorf("Op not implemented yet")
+	s.m.Lock()
+	defer s.m.Unlock()
+
+	if !s.isOpen {
+		return nil, nmxutil.NewSesnClosedError(
+			"Attempt to listen for data from closed connection")
+	}
+	for {
+		data, err := s.sx.Rx()
+		if err != nil {
+			return nil, err
+		}
+		msg, err := s.txvr.ProcessCoapReq(data)
+		if err != nil {
+			return nil, err
+		}
+		if msg != nil {
+			return msg, nil
+		}
+	}
 }
 
 func (s *SerialSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
