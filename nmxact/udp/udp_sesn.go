@@ -170,6 +170,14 @@ func (s *UdpSesn) CoapIsTcp() bool {
 	return false
 }
 
+func (s *UdpSesn) RxAccept() (sesn.Sesn, *sesn.SesnCfg, error) {
+	return nil, nil, fmt.Errorf("Op not implemented yet")
+}
+
+func (s *UdpSesn) RxCoap() (coap.Message, error) {
+	return nil, fmt.Errorf("Op not implemented yet")
+}
+
 func (s *UdpSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
 	return s.txFilterCb, s.rxFilterCb
 }
