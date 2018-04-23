@@ -176,6 +176,14 @@ func (d *Dispatcher) Dispatch(data []byte) bool {
 	return d.dispatchRsp(ot, m)
 }
 
+func (d *Dispatcher) ProcessCoapReq(data []byte) (coap.Message, error) {
+	m := d.rxer.Rx(data)
+	if m == nil {
+		return nil, nil
+	}
+	return m, nil
+}
+
 func (d *Dispatcher) ErrorOne(token Token, err error) error {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()

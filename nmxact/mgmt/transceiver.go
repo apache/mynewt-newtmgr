@@ -45,6 +45,7 @@ type Transceiver struct {
 	od *omp.Dispatcher
 
 	isTcp bool
+	proto sesn.MgmtProto
 	wg    sync.WaitGroup
 }
 
@@ -53,6 +54,7 @@ func NewTransceiver(txFilterCb, rxFilterCb nmcoap.MsgFilter, isTcp bool, mgmtPro
 
 	t := &Transceiver{
 		isTcp: isTcp,
+		proto: mgmtProto,
 	}
 
 	if mgmtProto == sesn.MGMT_PROTO_NMP {
@@ -182,6 +184,9 @@ func (t *Transceiver) TxOic(txCb TxFn, req coap.Message, mtu int,
 	default:
 		rspExpected = false
 	}
+	if t.proto == sesn.MGMT_PROTO_COAP_SERVER {
+		rspExpected = false
+	}
 
 	var ol *nmcoap.Listener
 	if rspExpected {
@@ -304,6 +309,10 @@ func (t *Transceiver) DispatchCoap(data []byte) {
 	t.od.Dispatch(data)
 }
 
+func (t *Transceiver) ProcessCoapReq(data []byte) (coap.Message, error) {
+	return t.od.ProcessCoapReq(data)
+}
+
 func (t *Transceiver) ErrorOne(seq uint8, err error) {
 	if t.nd != nil {
 		t.nd.ErrorOne(seq, err)
@@ -325,4 +334,8 @@ func (t *Transceiver) AbortRx(seq uint8) {
 
 func (t *Transceiver) Stop() {
 	t.od.Stop()
+}
+
+func (t *Transceiver) MgmtProto() sesn.MgmtProto {
+	return t.proto
 }

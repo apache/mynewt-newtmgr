@@ -24,6 +24,7 @@ import (
 	"sync/atomic"
 
 	log "github.com/Sirupsen/logrus"
+        "github.com/runtimeco/go-coap"
 
 	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
@@ -107,6 +108,10 @@ func (d *Dispatcher) Stop() {
 
 func (d *Dispatcher) Dispatch(data []byte) bool {
 	return d.oicd.Dispatch(data)
+}
+
+func (d *Dispatcher) ProcessCoapReq(data []byte) (coap.Message, error) {
+	return d.oicd.ProcessCoapReq(data)
 }
 
 func (d *Dispatcher) AddOicListener(token []byte) (*nmcoap.Listener, error) {
