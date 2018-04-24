@@ -22,6 +22,7 @@ package mtech_lora
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"time"
 
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
@@ -30,6 +31,13 @@ import (
 type ListenerKey struct {
 	Target string
 	Type   string
+}
+
+func TgtPortKey(tgt string, port uint8, msgType string) ListenerKey {
+	return ListenerKey{
+		Target: tgt + strconv.Itoa(int(port)),
+		Type:   msgType,
+	}
 }
 
 func TgtKey(tgt string, msgType string) ListenerKey {
@@ -134,12 +142,12 @@ func NewListenerMap() *ListenerMap {
 	}
 }
 
-func (lm *ListenerMap) FindListener(tgt string, msgType string) (
+func (lm *ListenerMap) FindListener(tgt string, port uint8, msgType string) (
 	ListenerKey, *Listener) {
 
 	var key ListenerKey
 
-	key = TgtKey(tgt, msgType)
+	key = TgtPortKey(tgt, port, msgType)
 	if listener := lm.k2l[key]; listener != nil {
 		return key, listener
 	}
@@ -196,15 +204,86 @@ func (lm *ListenerMap) RemoveKey(key ListenerKey) *Listener {
 	return listener
 }
 
-func (lm *ListenerMap) ExtractAll() []*Listener {
-	listeners := make([]*Listener, 0, len(lm.l2k))
+// not thread safe
+type ListenerSlice struct {
+	k2l map[ListenerKey][]*Listener
+	l2k map[*Listener]ListenerKey
+}
 
-	for listener, _ := range lm.l2k {
-		listeners = append(listeners, listener)
+func NewListenerSlice() *ListenerSlice {
+	return &ListenerSlice{
+		k2l: map[ListenerKey][]*Listener{},
+		l2k: map[*Listener]ListenerKey{},
+	}
+}
+
+func (lm *ListenerSlice) FindListener(tgt string, msgType string) (
+	ListenerKey, []*Listener) {
+
+	var key ListenerKey
+
+	key = TgtKey(tgt, msgType)
+	if lSlice := lm.k2l[key]; lSlice != nil {
+		return key, lSlice
 	}
 
-	lm.k2l = map[ListenerKey]*Listener{}
-	lm.l2k = map[*Listener]ListenerKey{}
+	key = TypeKey(msgType)
+	if lSlice := lm.k2l[key]; lSlice != nil {
+		return key, lSlice
+	}
 
-	return listeners
+	return key, nil
+}
+
+func (lm *ListenerSlice) AddListener(key ListenerKey, listener *Listener) error {
+	if _, ok := lm.l2k[listener]; ok {
+		nmxutil.Assert(false)
+		return fmt.Errorf("Duplicate Lora listener: %#v", key)
+	}
+
+	lm.k2l[key] = append(lm.k2l[key], listener)
+	lm.l2k[listener] = key
+
+	return nil
+}
+
+func (lm *ListenerSlice) deleteListener(key ListenerKey, listener *Listener) {
+	nmxutil.Assert(lm.l2k[listener] == key)
+
+	for i, elem := range lm.k2l[key] {
+		if elem == listener {
+			slen := len(lm.k2l[key])
+			lm.k2l[key][i] = lm.k2l[key][slen-1]
+			lm.k2l[key][slen-1] = nil
+			lm.k2l[key] = lm.k2l[key][:slen-1]
+			if slen == 1 {
+				delete(lm.k2l, key)
+			}
+			break
+		}
+	}
+	delete(lm.l2k, listener)
+}
+
+func (lm *ListenerSlice) RemoveListener(listener *Listener) *ListenerKey {
+	key, ok := lm.l2k[listener]
+	if !ok {
+		return nil
+	}
+
+	lm.deleteListener(key, listener)
+	return &key
+}
+
+func (ls *ListenerSlice) Dump() {
+	for key, sl := range ls.k2l {
+		fmt.Printf("%s\n\t", key)
+		for i, elem := range sl {
+			fmt.Printf("[%d %p] ", i, elem)
+		}
+		fmt.Printf("\n")
+	}
+	for l, key := range ls.l2k {
+		fmt.Printf("%p %s\n", l, key)
+	}
 }

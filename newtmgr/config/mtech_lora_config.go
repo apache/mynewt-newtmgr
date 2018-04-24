@@ -25,14 +25,17 @@ import (
 
 	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
+	"mynewt.apache.org/newtmgr/nmxact/lora"
 	"mynewt.apache.org/newtmgr/nmxact/mtech_lora"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
 func NewMtechLoraConfig() *mtech_lora.LoraConfig {
 	return &mtech_lora.LoraConfig{
-		Addr:  "",
-		SegSz: 0,
+		Addr:        "",
+		SegSz:       0,
+		ConfirmedTx: false,
+		Port:        lora.COAP_LORA_PORT,
 	}
 }
 
@@ -68,6 +71,12 @@ func ParseMtechLoraConnString(cs string) (*mtech_lora.LoraConfig, error) {
 			if err != nil {
 				return mc, util.FmtNewtError("Invalid confirmedtx: %s", v)
 			}
+		case "port":
+			port, err := strconv.ParseUint(v, 10, 8)
+			if err != nil {
+				return mc, util.FmtNewtError("Invalid port number: %s", v)
+			}
+			mc.Port = uint8(port)
 		default:
 			return nil, util.FmtNewtError("Unrecognized key: %s", k)
 		}
@@ -80,6 +89,7 @@ func FillMtechLoraSesnCfg(mc *mtech_lora.LoraConfig, sc *sesn.SesnCfg) error {
 	sc.Lora.Addr = mc.Addr
 	sc.Lora.SegSz = mc.SegSz
 	sc.Lora.ConfirmedTx = mc.ConfirmedTx
+	sc.Lora.Port = mc.Port
 	if nmutil.DeviceName != "" {
 		sc.Lora.Addr = nmutil.DeviceName
 	}

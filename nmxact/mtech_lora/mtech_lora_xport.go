@@ -41,19 +41,21 @@ type LoraConfig struct {
 	Addr        string
 	SegSz       int
 	ConfirmedTx bool
+	Port        uint8
 }
 
 type LoraJoinedCb func(dev LoraConfig)
 
 type LoraXport struct {
 	sync.Mutex
-	cfg       *LoraXportCfg
-	started   bool
-	rxConn    *net.UDPConn
-	txConn    *net.UDPConn
-	listenMap *ListenerMap
-	exitChan  chan int
-	joinCb    LoraJoinedCb
+	cfg        *LoraXportCfg
+	started    bool
+	rxConn     *net.UDPConn
+	txConn     *net.UDPConn
+	tgtPortMap *ListenerMap
+	tgtMap     *ListenerSlice
+	exitChan   chan int
+	joinCb     LoraJoinedCb
 }
 
 type LoraXportCfg struct {
@@ -63,7 +65,7 @@ type LoraXportCfg struct {
 
 type LoraData struct {
 	Data string `codec:"data"`
-	Port int    `codec:"port"`
+	Port uint8  `codec:"port"`
 }
 
 type LoraPacketSent struct {
@@ -86,7 +88,6 @@ const MAX_PACKET_SIZE_IN = 2048
 const MAX_PACKET_SIZE_OUT = 256
 const UDP_RX_PORT = 1784
 const UDP_TX_PORT = 1786
-const OIC_LORA_PORT = 0xbb
 
 func NewXportCfg() *LoraXportCfg {
 	return &LoraXportCfg{
@@ -97,8 +98,9 @@ func NewXportCfg() *LoraXportCfg {
 
 func NewLoraXport(cfg *LoraXportCfg) *LoraXport {
 	return &LoraXport{
-		cfg:       cfg,
-		listenMap: NewListenerMap(),
+		cfg:        cfg,
+		tgtPortMap: NewListenerMap(),
+		tgtMap:     NewListenerSlice(),
 	}
 }
 
@@ -137,11 +139,11 @@ func (lx *LoraXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
 	return NewLoraSesn(cfg, lx)
 }
 
-func (lx *LoraXport) reass(dev string, data []byte) {
+func (lx *LoraXport) reass(dev string, port uint8, data []byte) {
 	lx.Lock()
 	defer lx.Unlock()
 
-	_, l := lx.listenMap.FindListener(dev, "rx")
+	_, l := lx.tgtPortMap.FindListener(dev, port, "rx")
 	if l == nil {
 		log.Debugf("No LoRa listener for %s", dev)
 		return
@@ -196,15 +198,17 @@ func (lx *LoraXport) dataRateSeen(dev string, dataRate string) {
 	lx.Lock()
 	defer lx.Unlock()
 
-	_, l := lx.listenMap.FindListener(dev, "rx")
-	if l == nil {
+	_, lSlice := lx.tgtMap.FindListener(dev, "rx")
+	if len(lSlice) == 0 {
 		return
 	}
 	mtu, ok := LoraDataRateMapUS[dataRate]
 	if !ok {
 		mtu = lx.minMtu()
 	}
-	l.MtuChan <- mtu
+	for _, l := range lSlice {
+		l.MtuChan <- mtu
+	}
 }
 
 /*
@@ -239,16 +243,12 @@ func (lx *LoraXport) processData(data string) {
 			return
 		}
 
-		if msg.Port != OIC_LORA_PORT {
-			log.Debugf("loraxport rx: ignoring data to port %d", msg.Port)
-			return
-		}
 		dec, err := base64.StdEncoding.DecodeString(msg.Data)
 		if err != nil {
 			log.Debugf("loraxport rx: error decoding base64: %v", err)
 			return
 		}
-		lx.reass(dev, dec)
+		lx.reass(dev, msg.Port, dec)
 	case "packet_sent":
 		var sent LoraPacketSent
 

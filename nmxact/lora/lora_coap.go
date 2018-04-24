@@ -29,3 +29,4 @@ type CoapLoraFrag struct {
 }
 
 const COAP_LORA_LAST_FRAG uint8 = 0x80
+const COAP_LORA_PORT = 0xbb

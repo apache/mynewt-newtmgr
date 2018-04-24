@@ -41,21 +41,22 @@ import (
 )
 
 type LoraSesn struct {
-	cfg      sesn.SesnCfg
-	txvr     *mgmt.Transceiver
-	isOpen   bool
-	mtu      int
-	xport    *LoraXport
-	listener *Listener
-	wg       sync.WaitGroup
-	stopChan chan struct{}
+	cfg             sesn.SesnCfg
+	txvr            *mgmt.Transceiver
+	isOpen          bool
+	mtu             int
+	xport           *LoraXport
+	tgtPortListener *Listener
+	tgtListener     *Listener
+	wg              sync.WaitGroup
+	stopChan        chan struct{}
 
 	txFilterCb nmcoap.MsgFilter
 	rxFilterCb nmcoap.MsgFilter
 }
 
 type mtechLoraTx struct {
-	Port uint16 `json:"port"`
+	Port uint8  `json:"port"`
 	Data string `json:"data"`
 	Ack  bool   `json:"ack"`
 }
@@ -66,6 +67,10 @@ func NewLoraSesn(cfg sesn.SesnCfg, lx *LoraXport) (*LoraSesn, error) {
 		return nil, fmt.Errorf("Invalid Lora address %s\n", cfg.Lora.Addr)
 	}
 	cfg.Lora.Addr = addr
+
+	if cfg.Lora.Port < 1 || cfg.Lora.Port > 223 {
+		return nil, fmt.Errorf("Invalid Lora Port %d\n", cfg.Lora.Addr)
+	}
 	s := &LoraSesn{
 		cfg:        cfg,
 		xport:      lx,
@@ -83,20 +88,32 @@ func (s *LoraSesn) Open() error {
 			"Attempt to open an already-open Lora session")
 	}
 
-	key := TgtKey(s.cfg.Lora.Addr, "rx")
+	tgtPortKey := TgtPortKey(s.cfg.Lora.Addr, s.cfg.Lora.Port, "rx")
+	tgtKey := TgtKey(s.cfg.Lora.Addr, "rx")
 	s.xport.Lock()
 
 	txFilterCb, rxFilterCb := s.Filters()
-	txvr, err := mgmt.NewTransceiver(txFilterCb, rxFilterCb, false, s.cfg.MgmtProto, 3)
+	txvr, err := mgmt.NewTransceiver(txFilterCb, rxFilterCb, false,
+		s.cfg.MgmtProto, 3)
 	if err != nil {
+		s.xport.Unlock()
 		return err
 	}
 	s.txvr = txvr
 	s.stopChan = make(chan struct{})
-	s.listener = NewListener()
+	s.tgtPortListener = NewListener()
+	s.tgtListener = NewListener()
 
-	err = s.xport.listenMap.AddListener(key, s.listener)
+	err = s.xport.tgtPortMap.AddListener(tgtPortKey, s.tgtPortListener)
 	if err != nil {
+		s.xport.Unlock()
+		s.txvr.Stop()
+		return err
+	}
+	err = s.xport.tgtMap.AddListener(tgtKey, s.tgtListener)
+	if err != nil {
+		s.xport.tgtPortMap.RemoveListener(s.tgtPortListener)
+		s.xport.Unlock()
 		s.txvr.Stop()
 		return err
 	}
@@ -105,15 +122,14 @@ func (s *LoraSesn) Open() error {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		defer s.xport.listenMap.RemoveListener(s.listener)
 
 		for {
 			select {
-			case msg, ok := <-s.listener.MsgChan:
+			case msg, ok := <-s.tgtPortListener.MsgChan:
 				if ok {
 					s.txvr.DispatchCoap(msg)
 				}
-			case mtu, ok := <-s.listener.MtuChan:
+			case mtu, ok := <-s.tgtListener.MtuChan:
 				if ok {
 					if s.mtu != mtu {
 						log.Debugf("Setting mtu for %s %d",
@@ -122,6 +138,10 @@ func (s *LoraSesn) Open() error {
 					s.mtu = mtu
 				}
 			case <-s.stopChan:
+				s.xport.Lock()
+				s.xport.tgtPortMap.RemoveListener(s.tgtPortListener)
+				s.xport.tgtMap.RemoveListener(s.tgtListener)
+				s.xport.Unlock()
 				return
 			}
 		}
@@ -140,7 +160,8 @@ func (s *LoraSesn) Close() error {
 	s.txvr.ErrorAll(fmt.Errorf("manual close"))
 	s.txvr.Stop()
 	close(s.stopChan)
-	s.listener.Close()
+	s.tgtPortListener.Close()
+	s.tgtListener.Close()
 	s.wg.Wait()
 	s.xport.Tx([]byte(fmt.Sprintf("lora/%s/flush", DenormalizeAddr(s.cfg.Lora.Addr))))
 	s.stopChan = nil
@@ -216,7 +237,7 @@ func (s *LoraSesn) sendFragments(b []byte) error {
 		base64.StdEncoding.Encode(seg64, seg.Bytes())
 
 		msg := mtechLoraTx{
-			Port: OIC_LORA_PORT,
+			Port: s.cfg.Lora.Port,
 			Ack:  s.cfg.Lora.ConfirmedTx,
 			Data: string(seg64),
 		}

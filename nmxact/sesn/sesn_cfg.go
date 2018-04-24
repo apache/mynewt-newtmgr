@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
+	"mynewt.apache.org/newtmgr/nmxact/lora"
 	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 )
 
@@ -91,6 +92,7 @@ type SesnCfgLora struct {
 	Addr        string
 	SegSz       int
 	ConfirmedTx bool
+	Port        uint8
 }
 
 type SesnCfg struct {
@@ -125,6 +127,7 @@ func NewSesnCfg() SesnCfg {
 		},
 		Lora: SesnCfgLora{
 			ConfirmedTx: false,
+			Port:        lora.COAP_LORA_PORT,
 		},
 	}
 }
