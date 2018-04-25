@@ -97,6 +97,7 @@ func NewXportCfg() *LoraXportCfg {
 }
 
 func NewLoraXport(cfg *LoraXportCfg) *LoraXport {
+	log.SetLevel(log.DebugLevel)
 	return &LoraXport{
 		cfg:        cfg,
 		tgtPortMap: NewListenerMap(),
@@ -133,20 +134,50 @@ func DenormalizeAddr(addr string) string {
 }
 
 func (lx *LoraXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
-	if cfg.Lora.Addr == "" {
+	if cfg.Lora.Addr == "" && cfg.MgmtProto != sesn.MGMT_PROTO_COAP_SERVER {
 		return nil, fmt.Errorf("Need an address of endpoint")
 	}
 	return NewLoraSesn(cfg, lx)
+}
+
+func (lx *LoraXport) acceptServerSesn(sl *Listener, dev string, port uint8) (*Listener,
+	error) {
+	sc := sesn.NewSesnCfg()
+	sc.MgmtProto = sesn.MGMT_PROTO_COAP_SERVER
+	sc.Lora.Addr = dev
+	sc.Lora.Port = port
+
+	ls, err := NewLoraSesn(sc, lx)
+	if err != nil {
+		return nil, fmt.Errorf("BuildSesn():%v", err)
+	}
+	err = ls.Open()
+	if err != nil {
+		return nil, fmt.Errorf("Open():%v", err)
+	}
+	sl.ConnChan <- ls
+	return ls.tgtPortListener, nil
 }
 
 func (lx *LoraXport) reass(dev string, port uint8, data []byte) {
 	lx.Lock()
 	defer lx.Unlock()
 
+	var err error
 	_, l := lx.tgtPortMap.FindListener(dev, port, "rx")
 	if l == nil {
-		log.Debugf("No LoRa listener for %s", dev)
-		return
+		_, l = lx.tgtPortMap.FindListener("", port, "rx")
+		if l == nil {
+			log.Debugf("No LoRa listener for %s", dev)
+			return
+		}
+		lx.Unlock()
+		l, err = lx.acceptServerSesn(l, dev, port)
+		lx.Lock()
+		if err != nil {
+			log.Debug("Could not create server session: %v", err)
+			return
+		}
 	}
 
 	str := hex.Dump(data)
@@ -157,7 +188,7 @@ func (lx *LoraXport) reass(dev string, port uint8, data []byte) {
 	var frag lora.CoapLoraFrag
 	var sFrag lora.CoapLoraFragStart
 
-	err := binary.Read(bufR, binary.LittleEndian, &frag)
+	err = binary.Read(bufR, binary.LittleEndian, &frag)
 	if err != nil {
 		log.Debugf("Can't read header")
 		return
@@ -285,6 +316,8 @@ func (lx *LoraXport) Start() error {
 	addr, err = net.ResolveUDPAddr("udp",
 		fmt.Sprintf("127.0.0.1:%d", lx.cfg.AppPortDown))
 	if err != nil {
+		lx.rxConn.Close()
+		lx.rxConn = nil
 		return fmt.Errorf("Failure resolving name for UDP session: %s",
 			err.Error())
 	}

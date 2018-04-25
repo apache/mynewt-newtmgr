@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"fmt"
 	"strconv"
-	"time"
 
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 )
@@ -55,50 +54,28 @@ func TypeKey(msgType string) ListenerKey {
 }
 
 type Listener struct {
-	MsgChan chan []byte
-	MtuChan chan int
-	ErrChan chan error
-	TmoChan chan time.Time
-	Acked   bool
+	MsgChan  chan []byte
+	MtuChan  chan int
+	ErrChan  chan error
+	ConnChan chan *LoraSesn
 
 	Data     *bytes.Buffer
 	NextFrag uint8
 	Crc      uint16
-
-	timer *time.Timer
 }
 
 func NewListener() *Listener {
 	return &Listener{
-		MsgChan: make(chan []byte, 16),
-		MtuChan: make(chan int, 1),
-		ErrChan: make(chan error, 1),
-		TmoChan: make(chan time.Time, 1),
+		MsgChan:  make(chan []byte, 16),
+		MtuChan:  make(chan int, 1),
+		ErrChan:  make(chan error, 1),
+		ConnChan: make(chan *LoraSesn, 4),
 
 		Data: bytes.NewBuffer([]byte{}),
 	}
 }
 
-func (ll *Listener) AfterTimeout(tmo time.Duration) <-chan time.Time {
-	fn := func() {
-		if !ll.Acked {
-			ll.TmoChan <- time.Now()
-		}
-	}
-	ll.timer = time.AfterFunc(tmo, fn)
-	return ll.TmoChan
-}
-
 func (ll *Listener) Close() {
-	// This provokes a race condition.  The timer may get initialized at any
-	// time.
-	if ll.timer != nil {
-		ll.timer.Stop()
-	}
-
-	// Mark the command as acked in case the race condition mentioned above
-	// occurred.  If the timer goes off, nothing will happen.
-	ll.Acked = true
 
 	close(ll.MsgChan)
 	for {
@@ -121,11 +98,13 @@ func (ll *Listener) Close() {
 		}
 	}
 
-	close(ll.TmoChan)
+	close(ll.ConnChan)
 	for {
-		if _, ok := <-ll.TmoChan; !ok {
+		l, ok := <-ll.ConnChan
+		if !ok {
 			break
 		}
+		l.Close()
 	}
 }
 
@@ -204,6 +183,17 @@ func (lm *ListenerMap) RemoveKey(key ListenerKey) *Listener {
 	return listener
 }
 
+func (lm *ListenerMap) Dump() {
+	fmt.Printf(" key -> listener\n")
+	for key, l := range lm.k2l {
+		fmt.Printf("  %s: %p\n", key, l)
+	}
+	fmt.Printf(" listener -> key\n")
+	for l, key := range lm.l2k {
+		fmt.Printf("  %p %s\n", l, key)
+	}
+}
+
 // not thread safe
 type ListenerSlice struct {
 	k2l map[ListenerKey][]*Listener
@@ -276,14 +266,16 @@ func (lm *ListenerSlice) RemoveListener(listener *Listener) *ListenerKey {
 }
 
 func (ls *ListenerSlice) Dump() {
+	fmt.Printf(" key -> listener\n")
 	for key, sl := range ls.k2l {
-		fmt.Printf("%s\n\t", key)
+		fmt.Printf("  %s\n\t", key)
 		for i, elem := range sl {
 			fmt.Printf("[%d %p] ", i, elem)
 		}
 		fmt.Printf("\n")
 	}
+	fmt.Printf(" listener -> key\n")
 	for l, key := range ls.l2k {
-		fmt.Printf("%p %s\n", l, key)
+		fmt.Printf("  %p %s\n", l, key)
 	}
 }

@@ -62,11 +62,14 @@ type mtechLoraTx struct {
 }
 
 func NewLoraSesn(cfg sesn.SesnCfg, lx *LoraXport) (*LoraSesn, error) {
-	addr, err := NormalizeAddr(cfg.Lora.Addr)
-	if err != nil {
-		return nil, fmt.Errorf("Invalid Lora address %s\n", cfg.Lora.Addr)
+	if cfg.Lora.Addr != "" || cfg.MgmtProto != sesn.MGMT_PROTO_COAP_SERVER {
+		// Allow server to bind to wildcard address
+		addr, err := NormalizeAddr(cfg.Lora.Addr)
+		if err != nil {
+			return nil, fmt.Errorf("Invalid Lora address %s\n", cfg.Lora.Addr)
+		}
+		cfg.Lora.Addr = addr
 	}
-	cfg.Lora.Addr = addr
 
 	if cfg.Lora.Port < 1 || cfg.Lora.Port > 223 {
 		return nil, fmt.Errorf("Invalid Lora Port %d\n", cfg.Lora.Addr)
@@ -88,8 +91,6 @@ func (s *LoraSesn) Open() error {
 			"Attempt to open an already-open Lora session")
 	}
 
-	tgtPortKey := TgtPortKey(s.cfg.Lora.Addr, s.cfg.Lora.Port, "rx")
-	tgtKey := TgtKey(s.cfg.Lora.Addr, "rx")
 	s.xport.Lock()
 
 	txFilterCb, rxFilterCb := s.Filters()
@@ -101,24 +102,36 @@ func (s *LoraSesn) Open() error {
 	}
 	s.txvr = txvr
 	s.stopChan = make(chan struct{})
-	s.tgtPortListener = NewListener()
-	s.tgtListener = NewListener()
 
+	tgtPortKey := TgtPortKey(s.cfg.Lora.Addr, s.cfg.Lora.Port, "rx")
+	s.tgtPortListener = NewListener()
 	err = s.xport.tgtPortMap.AddListener(tgtPortKey, s.tgtPortListener)
 	if err != nil {
 		s.xport.Unlock()
 		s.txvr.Stop()
 		return err
 	}
-	err = s.xport.tgtMap.AddListener(tgtKey, s.tgtListener)
-	if err != nil {
-		s.xport.tgtPortMap.RemoveListener(s.tgtPortListener)
-		s.xport.Unlock()
-		s.txvr.Stop()
-		return err
+
+	if s.cfg.Lora.Addr != "" {
+		// if no destination address, then cannot listen to mtu
+		// size notifications
+		tgtKey := TgtKey(s.cfg.Lora.Addr, "rx")
+		s.tgtListener = NewListener()
+		err = s.xport.tgtMap.AddListener(tgtKey, s.tgtListener)
+		if err != nil {
+			s.xport.tgtPortMap.RemoveListener(s.tgtPortListener)
+			s.xport.Unlock()
+			s.txvr.Stop()
+			return err
+		}
 	}
+
 	s.xport.Unlock()
 
+	if s.cfg.MgmtProto == sesn.MGMT_PROTO_COAP_SERVER {
+		s.isOpen = true
+		return nil
+	}
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
@@ -140,7 +153,9 @@ func (s *LoraSesn) Open() error {
 			case <-s.stopChan:
 				s.xport.Lock()
 				s.xport.tgtPortMap.RemoveListener(s.tgtPortListener)
-				s.xport.tgtMap.RemoveListener(s.tgtListener)
+				if s.tgtListener != nil {
+					s.xport.tgtMap.RemoveListener(s.tgtListener)
+				}
 				s.xport.Unlock()
 				return
 			}
@@ -161,7 +176,9 @@ func (s *LoraSesn) Close() error {
 	s.txvr.Stop()
 	close(s.stopChan)
 	s.tgtPortListener.Close()
-	s.tgtListener.Close()
+	if s.tgtListener != nil {
+		s.tgtListener.Close()
+	}
 	s.wg.Wait()
 	s.xport.Tx([]byte(fmt.Sprintf("lora/%s/flush", DenormalizeAddr(s.cfg.Lora.Addr))))
 	s.stopChan = nil
@@ -309,11 +326,77 @@ func (s *LoraSesn) CoapIsTcp() bool {
 }
 
 func (s *LoraSesn) RxAccept() (sesn.Sesn, *sesn.SesnCfg, error) {
-	return nil, nil, fmt.Errorf("Op not implemented yet")
+	if s.cfg.MgmtProto != sesn.MGMT_PROTO_COAP_SERVER {
+		return nil, nil, fmt.Errorf("Invalid operation for %s", s.cfg.MgmtProto)
+	}
+	if s.tgtListener != nil {
+		return nil, nil, fmt.Errorf("RxAccept() only wildcard destinations")
+	}
+
+	s.wg.Add(1)
+	defer s.wg.Done()
+	for {
+		select {
+		case cl_s, ok := <-s.tgtPortListener.ConnChan:
+			if !ok {
+				continue
+			}
+			cl_s.cfg.Lora.ConfirmedTx = s.cfg.Lora.ConfirmedTx
+			cl_s.cfg.Lora.SegSz = s.cfg.Lora.SegSz
+			cl_s.cfg.TxFilterCb = s.cfg.TxFilterCb
+			cl_s.cfg.RxFilterCb = s.cfg.RxFilterCb
+			return cl_s, &cl_s.cfg, nil
+		case <-s.stopChan:
+			s.xport.Lock()
+			s.xport.tgtPortMap.RemoveListener(s.tgtPortListener)
+			if s.tgtListener != nil {
+				s.xport.tgtMap.RemoveListener(s.tgtListener)
+			}
+			s.xport.Unlock()
+			return nil, nil, fmt.Errorf("Session closed")
+		}
+	}
 }
 
 func (s *LoraSesn) RxCoap() (coap.Message, error) {
-	return nil, fmt.Errorf("Op not implemented yet")
+	if s.cfg.MgmtProto != sesn.MGMT_PROTO_COAP_SERVER {
+		return nil, fmt.Errorf("Invalid operation for %s", s.cfg.MgmtProto)
+	}
+	if s.tgtListener == nil {
+		return nil, fmt.Errorf("RxCoap() only connected sessions")
+	}
+
+	s.wg.Add(1)
+	defer s.wg.Done()
+	for {
+		select {
+		case data, ok := <-s.tgtPortListener.MsgChan:
+			if !ok {
+				continue
+			}
+			msg, err := s.txvr.ProcessCoapReq(data)
+			if err != nil {
+				return nil, err
+			}
+			if msg != nil {
+				return msg, nil
+			}
+		case mtu, ok := <-s.tgtListener.MtuChan:
+			if ok {
+				if s.mtu != mtu {
+					log.Debugf("Setting mtu for %s %d",
+						s.cfg.Lora.Addr, mtu)
+				}
+				s.mtu = mtu
+			}
+		case <-s.stopChan:
+			s.xport.Lock()
+			s.xport.tgtPortMap.RemoveListener(s.tgtPortListener)
+			s.xport.tgtMap.RemoveListener(s.tgtListener)
+			s.xport.Unlock()
+			return nil, fmt.Errorf("Session closed")
+		}
+	}
 }
 
 func (s *LoraSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
