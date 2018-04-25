@@ -36,6 +36,16 @@ const (
 	MGMT_PROTO_COAP_SERVER
 )
 
+var mgmtProtoMap = map[MgmtProto]string{
+	MGMT_PROTO_NMP:         "nmp",
+	MGMT_PROTO_OMP:         "omp",
+	MGMT_PROTO_COAP_SERVER: "coapserver",
+}
+
+func (r MgmtProto) String() string {
+	return mgmtProtoMap[r]
+}
+
 type ResourceType int
 
 const (
