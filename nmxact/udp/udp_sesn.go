@@ -174,7 +174,7 @@ func (s *UdpSesn) RxAccept() (sesn.Sesn, *sesn.SesnCfg, error) {
 	return nil, nil, fmt.Errorf("Op not implemented yet")
 }
 
-func (s *UdpSesn) RxCoap() (coap.Message, error) {
+func (s *UdpSesn) RxCoap(opt sesn.TxOptions) (coap.Message, error) {
 	return nil, fmt.Errorf("Op not implemented yet")
 }
 

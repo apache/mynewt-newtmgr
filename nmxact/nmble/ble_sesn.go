@@ -126,8 +126,8 @@ func (s *BleSesn) RxAccept() (sesn.Sesn, *sesn.SesnCfg, error) {
 	return s.Ns.RxAccept()
 }
 
-func (s *BleSesn) RxCoap() (coap.Message, error) {
-	return s.Ns.RxCoap()
+func (s *BleSesn) RxCoap(opt sesn.TxOptions) (coap.Message, error) {
+	return s.Ns.RxCoap(opt)
 }
 
 func (s *BleSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {

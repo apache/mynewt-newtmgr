@@ -386,7 +386,7 @@ func (s *BllSesn) RxAccept() (sesn.Sesn, *sesn.SesnCfg, error) {
 	return nil, nil, fmt.Errorf("Op not implemented yet")
 }
 
-func (s *BllSesn) RxCoap() (coap.Message, error) {
+func (s *BllSesn) RxCoap(opt sesn.TxOptions) (coap.Message, error) {
 	return nil, fmt.Errorf("Op not implemented yet")
 }
 

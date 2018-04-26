@@ -92,7 +92,7 @@ type Sesn interface {
 	// XXX AbortResource(seq uint8) error
 
 	RxAccept() (Sesn, *SesnCfg, error)
-	RxCoap() (coap.Message, error)
+	RxCoap(opt TxOptions) (coap.Message, error)
 
 	////// Internal to nmxact:
 

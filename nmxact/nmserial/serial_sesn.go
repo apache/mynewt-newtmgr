@@ -22,6 +22,7 @@ package nmserial
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/runtimeco/go-coap"
 
@@ -202,7 +203,7 @@ func (s *SerialSesn) RxAccept() (sesn.Sesn, *sesn.SesnCfg, error) {
 	return n, &n.cfg, nil
 }
 
-func (s *SerialSesn) RxCoap() (coap.Message, error) {
+func (s *SerialSesn) RxCoap(opt sesn.TxOptions) (coap.Message, error) {
 	s.m.Lock()
 	defer s.m.Unlock()
 
@@ -210,10 +211,13 @@ func (s *SerialSesn) RxCoap() (coap.Message, error) {
 		return nil, nmxutil.NewSesnClosedError(
 			"Attempt to listen for data from closed connection")
 	}
+	end := time.Now().Add(opt.Timeout)
 	for {
 		data, err := s.sx.Rx()
 		if err != nil {
-			return nil, err
+			if opt.Timeout != 0 && time.Now().After(end) {
+				return nil, err
+			}
 		}
 		msg, err := s.txvr.ProcessCoapReq(data)
 		if err != nil {

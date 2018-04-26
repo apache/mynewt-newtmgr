@@ -25,6 +25,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"sync"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/joaojeronimo/go-crc16"
@@ -180,9 +181,21 @@ func (s *LoraSesn) Close() error {
 		s.tgtListener.Close()
 	}
 	s.wg.Wait()
-	s.xport.Tx([]byte(fmt.Sprintf("lora/%s/flush", DenormalizeAddr(s.cfg.Lora.Addr))))
+
+	if s.cfg.Lora.Addr != "" {
+		s.xport.Tx([]byte(fmt.Sprintf("lora/%s/flush",
+			DenormalizeAddr(s.cfg.Lora.Addr))))
+	}
 	s.stopChan = nil
 	s.txvr = nil
+	if s.cfg.MgmtProto == sesn.MGMT_PROTO_COAP_SERVER {
+		s.xport.Lock()
+		s.xport.tgtPortMap.RemoveListener(s.tgtPortListener)
+		if s.tgtListener != nil {
+			s.xport.tgtMap.RemoveListener(s.tgtListener)
+		}
+		s.xport.Unlock()
+	}
 
 	return nil
 }
@@ -279,7 +292,8 @@ func (s *LoraSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 	nmp.NmpRsp, error) {
 
 	if !s.IsOpen() {
-		return nil, fmt.Errorf("Attempt to transmit over closed Lora session")
+		return nil, nmxutil.NewSesnClosedError(
+			"Attempt to transmit over closed Lora session")
 	}
 
 	txFunc := func(b []byte) error {
@@ -297,7 +311,8 @@ func (s *LoraSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
 	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
 
 	if !s.IsOpen() {
-		return 0, nil, fmt.Errorf("Attempt to transmit over closed Lora session")
+		return 0, nil, nmxutil.NewSesnClosedError(
+			"Attempt to transmit over closed Lora session")
 	}
 	txFunc := func(b []byte) error {
 		return s.sendFragments(b)
@@ -347,18 +362,12 @@ func (s *LoraSesn) RxAccept() (sesn.Sesn, *sesn.SesnCfg, error) {
 			cl_s.cfg.RxFilterCb = s.cfg.RxFilterCb
 			return cl_s, &cl_s.cfg, nil
 		case <-s.stopChan:
-			s.xport.Lock()
-			s.xport.tgtPortMap.RemoveListener(s.tgtPortListener)
-			if s.tgtListener != nil {
-				s.xport.tgtMap.RemoveListener(s.tgtListener)
-			}
-			s.xport.Unlock()
 			return nil, nil, fmt.Errorf("Session closed")
 		}
 	}
 }
 
-func (s *LoraSesn) RxCoap() (coap.Message, error) {
+func (s *LoraSesn) RxCoap(opt sesn.TxOptions) (coap.Message, error) {
 	if s.cfg.MgmtProto != sesn.MGMT_PROTO_COAP_SERVER {
 		return nil, fmt.Errorf("Invalid operation for %s", s.cfg.MgmtProto)
 	}
@@ -366,6 +375,7 @@ func (s *LoraSesn) RxCoap() (coap.Message, error) {
 		return nil, fmt.Errorf("RxCoap() only connected sessions")
 	}
 
+	waitTmoChan := time.After(opt.Timeout)
 	s.wg.Add(1)
 	defer s.wg.Done()
 	for {
@@ -389,11 +399,13 @@ func (s *LoraSesn) RxCoap() (coap.Message, error) {
 				}
 				s.mtu = mtu
 			}
+		case _, ok := <-waitTmoChan:
+			waitTmoChan = nil
+			if ok {
+				return nil, nmxutil.NewRspTimeoutError(
+					"RxCoap() timed out")
+			}
 		case <-s.stopChan:
-			s.xport.Lock()
-			s.xport.tgtPortMap.RemoveListener(s.tgtPortListener)
-			s.xport.tgtMap.RemoveListener(s.tgtListener)
-			s.xport.Unlock()
 			return nil, fmt.Errorf("Session closed")
 		}
 	}
