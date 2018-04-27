@@ -30,6 +30,7 @@ import (
 	"sync"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/runtimeco/go-coap"
 	"github.com/ugorji/go/codec"
 
 	"mynewt.apache.org/newtmgr/nmxact/lora"
@@ -48,14 +49,15 @@ type LoraJoinedCb func(dev LoraConfig)
 
 type LoraXport struct {
 	sync.Mutex
-	cfg        *LoraXportCfg
-	started    bool
-	rxConn     *net.UDPConn
-	txConn     *net.UDPConn
-	tgtPortMap *ListenerMap
-	tgtMap     *ListenerSlice
-	exitChan   chan int
-	joinCb     LoraJoinedCb
+	cfg      *LoraXportCfg
+	started  bool
+	rxConn   *net.UDPConn
+	txConn   *net.UDPConn
+	msgMap   *ListenerMap
+	reassMap *ListenerMap
+	tgtMap   *ListenerSlice
+	exitChan chan int
+	joinCb   LoraJoinedCb
 }
 
 type LoraXportCfg struct {
@@ -99,9 +101,10 @@ func NewXportCfg() *LoraXportCfg {
 func NewLoraXport(cfg *LoraXportCfg) *LoraXport {
 	log.SetLevel(log.DebugLevel)
 	return &LoraXport{
-		cfg:        cfg,
-		tgtPortMap: NewListenerMap(),
-		tgtMap:     NewListenerSlice(),
+		cfg:      cfg,
+		msgMap:   NewListenerMap(),
+		reassMap: NewListenerMap(),
+		tgtMap:   NewListenerSlice(),
 	}
 }
 
@@ -140,8 +143,7 @@ func (lx *LoraXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
 	return NewLoraSesn(cfg, lx)
 }
 
-func (lx *LoraXport) acceptServerSesn(sl *Listener, dev string, port uint8) (*Listener,
-	error) {
+func (lx *LoraXport) acceptServerSesn(sl *Listener, dev string, port uint8) (*LoraSesn, error) {
 	sc := sesn.NewSesnCfg()
 	sc.MgmtProto = sesn.MGMT_PROTO_COAP_SERVER
 	sc.Lora.Addr = dev
@@ -156,7 +158,7 @@ func (lx *LoraXport) acceptServerSesn(sl *Listener, dev string, port uint8) (*Li
 		return nil, fmt.Errorf("Open():%v", err)
 	}
 	sl.ConnChan <- ls
-	return ls.tgtPortListener, nil
+	return ls, nil
 }
 
 func (lx *LoraXport) reass(dev string, port uint8, data []byte) {
@@ -164,20 +166,21 @@ func (lx *LoraXport) reass(dev string, port uint8, data []byte) {
 	defer lx.Unlock()
 
 	var err error
-	_, l := lx.tgtPortMap.FindListener(dev, port, "rx")
+	_, l := lx.reassMap.FindListener(dev, port, "reass")
 	if l == nil {
-		_, l = lx.tgtPortMap.FindListener("", port, "rx")
+		_, l = lx.msgMap.FindListener("", port, "req")
 		if l == nil {
 			log.Debugf("No LoRa listener for %s", dev)
 			return
 		}
 		lx.Unlock()
-		l, err = lx.acceptServerSesn(l, dev, port)
+		s, err := lx.acceptServerSesn(l, dev, port)
 		lx.Lock()
 		if err != nil {
-			log.Debug("Could not create server session: %v", err)
+			log.Errorf("Cannot create server sesn: %v", err)
 			return
 		}
+		l = s.reassListener
 	}
 
 	str := hex.Dump(data)
@@ -220,8 +223,35 @@ func (lx *LoraXport) reass(dev string, port uint8, data []byte) {
 	}
 
 	if (frag.FragNum & lora.COAP_LORA_LAST_FRAG) != 0 {
-		l.MsgChan <- l.Data.Bytes()
+		data := l.Data.Bytes()
 		l.Data.Reset()
+
+		code := coap.COAPCode(data[1])
+		if code <= coap.DELETE {
+			_, l = lx.msgMap.FindListener(dev, port, "req")
+			if l == nil {
+				_, l = lx.msgMap.FindListener("", port, "req")
+				if l == nil {
+					log.Debugf("No LoRa listener for %s", dev)
+					return
+				}
+				lx.Unlock()
+				s, err := lx.acceptServerSesn(l, dev, port)
+				lx.Lock()
+				if err != nil {
+					log.Errorf("Cannot create server sesn: %v", err)
+					return
+				}
+				l = s.msgListener
+			}
+		} else {
+			_, l = lx.msgMap.FindListener(dev, port, "rsp")
+		}
+		if l != nil {
+			l.MsgChan <- data
+		} else {
+			log.Debugf("No LoRa listener for %s", dev)
+		}
 	}
 }
 
@@ -376,6 +406,12 @@ func (lx *LoraXport) Stop() error {
 	lx.started = false
 	lx.joinCb = nil
 	return nil
+}
+
+func (lx *LoraXport) DumpListeners() {
+	lx.msgMap.Dump()
+	lx.reassMap.Dump()
+	lx.tgtMap.Dump()
 }
 
 func (lx *LoraXport) Tx(bytes []byte) error {

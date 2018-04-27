@@ -42,15 +42,16 @@ import (
 )
 
 type LoraSesn struct {
-	cfg             sesn.SesnCfg
-	txvr            *mgmt.Transceiver
-	isOpen          bool
-	mtu             int
-	xport           *LoraXport
-	tgtPortListener *Listener
-	tgtListener     *Listener
-	wg              sync.WaitGroup
-	stopChan        chan struct{}
+	cfg           sesn.SesnCfg
+	txvr          *mgmt.Transceiver
+	isOpen        bool
+	mtu           int
+	xport         *LoraXport
+	msgListener   *Listener
+	reassListener *Listener
+	tgtListener   *Listener
+	wg            sync.WaitGroup
+	stopChan      chan struct{}
 
 	txFilterCb nmcoap.MsgFilter
 	rxFilterCb nmcoap.MsgFilter
@@ -92,21 +93,25 @@ func (s *LoraSesn) Open() error {
 			"Attempt to open an already-open Lora session")
 	}
 
-	s.xport.Lock()
-
 	txFilterCb, rxFilterCb := s.Filters()
 	txvr, err := mgmt.NewTransceiver(txFilterCb, rxFilterCb, false,
 		s.cfg.MgmtProto, 3)
 	if err != nil {
-		s.xport.Unlock()
 		return err
 	}
 	s.txvr = txvr
 	s.stopChan = make(chan struct{})
 
-	tgtPortKey := TgtPortKey(s.cfg.Lora.Addr, s.cfg.Lora.Port, "rx")
-	s.tgtPortListener = NewListener()
-	err = s.xport.tgtPortMap.AddListener(tgtPortKey, s.tgtPortListener)
+	msgType := "rsp"
+	if s.cfg.MgmtProto == sesn.MGMT_PROTO_COAP_SERVER {
+		msgType = "req"
+	}
+
+	s.xport.Lock()
+
+	msgKey := TgtPortKey(s.cfg.Lora.Addr, s.cfg.Lora.Port, msgType)
+	s.msgListener = NewListener()
+	err = s.xport.msgMap.AddListener(msgKey, s.msgListener)
 	if err != nil {
 		s.xport.Unlock()
 		s.txvr.Stop()
@@ -114,14 +119,23 @@ func (s *LoraSesn) Open() error {
 	}
 
 	if s.cfg.Lora.Addr != "" {
-		// if no destination address, then cannot listen to mtu
-		// size notifications
+		msgKey, l := s.xport.reassMap.FindListener(s.cfg.Lora.Addr,
+			s.cfg.Lora.Port, "reass")
+		if l != nil {
+			l.RefCnt++
+		} else {
+			msgKey = TgtPortKey(s.cfg.Lora.Addr, s.cfg.Lora.Port, "reass")
+			l = NewListener()
+			s.xport.reassMap.AddListener(msgKey, l)
+		}
+		s.reassListener = l
+
 		tgtKey := TgtKey(s.cfg.Lora.Addr, "rx")
 		s.tgtListener = NewListener()
 		err = s.xport.tgtMap.AddListener(tgtKey, s.tgtListener)
 		if err != nil {
-			s.xport.tgtPortMap.RemoveListener(s.tgtPortListener)
 			s.xport.Unlock()
+			s.closeListeners()
 			s.txvr.Stop()
 			return err
 		}
@@ -136,10 +150,11 @@ func (s *LoraSesn) Open() error {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
+		defer s.closeListeners()
 
 		for {
 			select {
-			case msg, ok := <-s.tgtPortListener.MsgChan:
+			case msg, ok := <-s.msgListener.MsgChan:
 				if ok {
 					s.txvr.DispatchCoap(msg)
 				}
@@ -152,18 +167,27 @@ func (s *LoraSesn) Open() error {
 					s.mtu = mtu
 				}
 			case <-s.stopChan:
-				s.xport.Lock()
-				s.xport.tgtPortMap.RemoveListener(s.tgtPortListener)
-				if s.tgtListener != nil {
-					s.xport.tgtMap.RemoveListener(s.tgtListener)
-				}
-				s.xport.Unlock()
 				return
 			}
 		}
 	}()
 	s.isOpen = true
 	return nil
+}
+
+func (s *LoraSesn) closeListeners() {
+	s.xport.Lock()
+	s.xport.msgMap.RemoveListener(s.msgListener)
+	if s.tgtListener != nil {
+		s.xport.tgtMap.RemoveListener(s.tgtListener)
+	}
+	if s.reassListener != nil {
+		s.reassListener.Close()
+		if s.reassListener.RefCnt == 0 {
+			s.xport.reassMap.RemoveListener(s.reassListener)
+		}
+	}
+	s.xport.Unlock()
 }
 
 func (s *LoraSesn) Close() error {
@@ -176,7 +200,7 @@ func (s *LoraSesn) Close() error {
 	s.txvr.ErrorAll(fmt.Errorf("manual close"))
 	s.txvr.Stop()
 	close(s.stopChan)
-	s.tgtPortListener.Close()
+	s.msgListener.Close()
 	if s.tgtListener != nil {
 		s.tgtListener.Close()
 	}
@@ -188,13 +212,9 @@ func (s *LoraSesn) Close() error {
 	}
 	s.stopChan = nil
 	s.txvr = nil
+
 	if s.cfg.MgmtProto == sesn.MGMT_PROTO_COAP_SERVER {
-		s.xport.Lock()
-		s.xport.tgtPortMap.RemoveListener(s.tgtPortListener)
-		if s.tgtListener != nil {
-			s.xport.tgtMap.RemoveListener(s.tgtListener)
-		}
-		s.xport.Unlock()
+		s.closeListeners()
 	}
 
 	return nil
@@ -352,7 +372,7 @@ func (s *LoraSesn) RxAccept() (sesn.Sesn, *sesn.SesnCfg, error) {
 	defer s.wg.Done()
 	for {
 		select {
-		case cl_s, ok := <-s.tgtPortListener.ConnChan:
+		case cl_s, ok := <-s.msgListener.ConnChan:
 			if !ok {
 				continue
 			}
@@ -380,7 +400,7 @@ func (s *LoraSesn) RxCoap(opt sesn.TxOptions) (coap.Message, error) {
 	defer s.wg.Done()
 	for {
 		select {
-		case data, ok := <-s.tgtPortListener.MsgChan:
+		case data, ok := <-s.msgListener.MsgChan:
 			if !ok {
 				continue
 			}

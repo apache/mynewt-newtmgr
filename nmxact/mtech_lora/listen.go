@@ -56,9 +56,9 @@ func TypeKey(msgType string) ListenerKey {
 type Listener struct {
 	MsgChan  chan []byte
 	MtuChan  chan int
-	ErrChan  chan error
 	ConnChan chan *LoraSesn
 
+	RefCnt   int
 	Data     *bytes.Buffer
 	NextFrag uint8
 	Crc      uint16
@@ -68,14 +68,19 @@ func NewListener() *Listener {
 	return &Listener{
 		MsgChan:  make(chan []byte, 16),
 		MtuChan:  make(chan int, 1),
-		ErrChan:  make(chan error, 1),
 		ConnChan: make(chan *LoraSesn, 4),
 
+		RefCnt: 1,
 		Data: bytes.NewBuffer([]byte{}),
 	}
 }
 
 func (ll *Listener) Close() {
+
+	ll.RefCnt--
+	if ll.RefCnt > 0 {
+		return
+	}
 
 	close(ll.MsgChan)
 	for {
@@ -87,13 +92,6 @@ func (ll *Listener) Close() {
 	close(ll.MtuChan)
 	for {
 		if _, ok := <-ll.MtuChan; !ok {
-			break
-		}
-	}
-
-	close(ll.ErrChan)
-	for {
-		if _, ok := <-ll.ErrChan; !ok {
 			break
 		}
 	}
@@ -186,7 +184,7 @@ func (lm *ListenerMap) RemoveKey(key ListenerKey) *Listener {
 func (lm *ListenerMap) Dump() {
 	fmt.Printf(" key -> listener\n")
 	for key, l := range lm.k2l {
-		fmt.Printf("  %s: %p\n", key, l)
+		fmt.Printf("  %s: %p,%d\n", key, l, l.RefCnt)
 	}
 	fmt.Printf(" listener -> key\n")
 	for l, key := range lm.l2k {
