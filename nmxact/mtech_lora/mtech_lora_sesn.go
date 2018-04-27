@@ -361,6 +361,10 @@ func (s *LoraSesn) CoapIsTcp() bool {
 }
 
 func (s *LoraSesn) RxAccept() (sesn.Sesn, *sesn.SesnCfg, error) {
+	if !s.isOpen {
+		return nil, nil, nmxutil.NewSesnClosedError(
+			"Attempt to listen for data from closed connection")
+	}
 	if s.cfg.MgmtProto != sesn.MGMT_PROTO_COAP_SERVER {
 		return nil, nil, fmt.Errorf("Invalid operation for %s", s.cfg.MgmtProto)
 	}
@@ -388,6 +392,10 @@ func (s *LoraSesn) RxAccept() (sesn.Sesn, *sesn.SesnCfg, error) {
 }
 
 func (s *LoraSesn) RxCoap(opt sesn.TxOptions) (coap.Message, error) {
+	if !s.isOpen {
+		return nil, nmxutil.NewSesnClosedError(
+			"Attempt to listen for data from closed connection")
+	}
 	if s.cfg.MgmtProto != sesn.MGMT_PROTO_COAP_SERVER {
 		return nil, fmt.Errorf("Invalid operation for %s", s.cfg.MgmtProto)
 	}

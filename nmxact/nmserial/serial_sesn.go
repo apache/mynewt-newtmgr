@@ -192,6 +192,10 @@ func (s *SerialSesn) CoapIsTcp() bool {
 }
 
 func (s *SerialSesn) RxAccept() (sesn.Sesn, *sesn.SesnCfg, error) {
+	if !s.isOpen {
+		return nil, nil, nmxutil.NewSesnClosedError(
+			"Attempt to listen for data from closed connection")
+	}
 	n, err := NewSerialSesn(s.sx, s.cfg)
 	if err != nil {
 		return nil, nil, err
