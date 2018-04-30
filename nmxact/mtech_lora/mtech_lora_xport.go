@@ -151,7 +151,7 @@ func (lx *LoraXport) acceptServerSesn(sl *Listener, dev string, port uint8) (*Lo
 
 	ls, err := NewLoraSesn(sc, lx)
 	if err != nil {
-		return nil, fmt.Errorf("BuildSesn():%v", err)
+		return nil, fmt.Errorf("NewSesn():%v", err)
 	}
 	err = ls.Open()
 	if err != nil {
