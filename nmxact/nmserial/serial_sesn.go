@@ -41,9 +41,14 @@ type SerialSesn struct {
 	isOpen bool
 
 	// This mutex ensures:
-	//     * each response get matched up with its corresponding request.
 	//     * accesses to isOpen are protected.
-	m sync.Mutex
+	m  sync.Mutex
+	wg sync.WaitGroup
+
+	errChan  chan error
+	msgChan  chan []byte
+	connChan chan *SerialSesn
+	stopChan chan struct{}
 
 	txFilterCb nmcoap.MsgFilter
 	rxFilterCb nmcoap.MsgFilter
@@ -68,9 +73,9 @@ func NewSerialSesn(sx *SerialXport, cfg sesn.SesnCfg) (*SerialSesn, error) {
 
 func (s *SerialSesn) Open() error {
 	s.m.Lock()
-	defer s.m.Unlock()
 
 	if s.isOpen {
+		s.m.Unlock()
 		return nmxutil.NewSesnAlreadyOpenError(
 			"Attempt to open an already-open serial session")
 	}
@@ -78,26 +83,91 @@ func (s *SerialSesn) Open() error {
 	txvr, err := mgmt.NewTransceiver(s.cfg.TxFilterCb, s.cfg.RxFilterCb, false,
 		s.cfg.MgmtProto, 3)
 	if err != nil {
+		s.m.Unlock()
 		return err
 	}
 	s.txvr = txvr
+	s.errChan = make(chan error)
+	s.msgChan = make(chan []byte, 16)
+	s.connChan = make(chan *SerialSesn, 4)
+	s.stopChan = make(chan struct{})
 
 	s.isOpen = true
+	s.m.Unlock()
+	if s.cfg.MgmtProto == sesn.MGMT_PROTO_COAP_SERVER {
+		return nil
+	}
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+
+		for {
+			select {
+			case msg, ok := <-s.msgChan:
+				if !ok {
+					continue
+				}
+				if s.cfg.MgmtProto == sesn.MGMT_PROTO_OMP {
+					s.txvr.DispatchCoap(msg)
+				} else if s.cfg.MgmtProto == sesn.MGMT_PROTO_NMP {
+					s.txvr.DispatchNmpRsp(msg)
+				}
+			case <-s.stopChan:
+				return
+			}
+		}
+	}()
 	return nil
 }
 
 func (s *SerialSesn) Close() error {
 	s.m.Lock()
-	defer s.m.Unlock()
 
 	if !s.isOpen {
+		s.m.Unlock()
 		return nmxutil.NewSesnClosedError(
 			"Attempt to close an unopened serial session")
 	}
 
+	s.isOpen = false
 	s.txvr.ErrorAll(fmt.Errorf("closed"))
 	s.txvr.Stop()
-	s.isOpen = false
+	close(s.stopChan)
+	close(s.connChan)
+	s.sx.Lock()
+	if s == s.sx.acceptSesn {
+		s.sx.acceptSesn = nil
+
+	}
+	if s == s.sx.reqSesn {
+		s.sx.reqSesn = nil
+	}
+	s.sx.Unlock()
+	s.m.Unlock()
+
+	s.wg.Wait()
+	s.stopChan = nil
+	s.txvr = nil
+
+	for {
+		s, ok := <-s.connChan
+		if !ok {
+			break
+		}
+		s.Close()
+	}
+	close(s.msgChan)
+	for {
+		if _, ok := <-s.msgChan; !ok {
+			break
+		}
+	}
+	close(s.errChan)
+	for {
+		if _, ok := <-s.errChan; !ok {
+			break
+		}
+	}
 
 	return nil
 }
@@ -127,26 +197,20 @@ func (s *SerialSesn) AbortRx(seq uint8) error {
 func (s *SerialSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 	nmp.NmpRsp, error) {
 
-	s.m.Lock()
-	defer s.m.Unlock()
-
 	if !s.isOpen {
 		return nil, nmxutil.NewSesnClosedError(
 			"Attempt to transmit over closed serial session")
 	}
 
 	txFn := func(b []byte) error {
-		if err := s.sx.Tx(b); err != nil {
-			return err
-		}
-
-		rsp, err := s.sx.Rx()
-		if err != nil {
-			return err
-		}
-		s.txvr.DispatchNmpRsp(rsp)
-		return nil
+		return s.sx.Tx(b)
 	}
+
+	err := s.sx.setRspSesn(s)
+	if err != nil {
+		return nil, err
+	}
+	defer s.sx.setRspSesn(nil)
 
 	return s.txvr.TxNmp(txFn, m, s.MtuOut(), opt.Timeout)
 }
@@ -155,18 +219,14 @@ func (s *SerialSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
 	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
 
 	txFn := func(b []byte) error {
-		if err := s.sx.Tx(b); err != nil {
-			return err
-		}
-		if s.txvr.MgmtProto() != sesn.MGMT_PROTO_COAP_SERVER {
-			rsp, err := s.sx.Rx()
-			if err != nil {
-				return err
-			}
-			s.txvr.DispatchCoap(rsp)
-		}
-		return nil
+		return s.sx.Tx(b)
 	}
+
+	err := s.sx.setRspSesn(s)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer s.sx.setRspSesn(nil)
 
 	rsp, err := s.txvr.TxOic(txFn, m, s.MtuOut(), opt.Timeout)
 	if err != nil {
@@ -196,39 +256,65 @@ func (s *SerialSesn) RxAccept() (sesn.Sesn, *sesn.SesnCfg, error) {
 		return nil, nil, nmxutil.NewSesnClosedError(
 			"Attempt to listen for data from closed connection")
 	}
-	n, err := NewSerialSesn(s.sx, s.cfg)
+	if s.cfg.MgmtProto != sesn.MGMT_PROTO_COAP_SERVER {
+		return nil, nil, fmt.Errorf("Invalid operation for %s", s.cfg.MgmtProto)
+	}
+
+	err := s.sx.setAcceptSesn(s)
 	if err != nil {
 		return nil, nil, err
 	}
-	err = n.Open()
-	if err != nil {
-		return nil, nil, err
+
+	s.wg.Add(1)
+	defer s.wg.Done()
+	for {
+		select {
+		case cl_s, ok := <-s.connChan:
+			if !ok {
+				continue
+			}
+			return cl_s, &cl_s.cfg, nil
+		case <-s.stopChan:
+			return nil, nil, fmt.Errorf("Session closed")
+		}
 	}
-	return n, &n.cfg, nil
 }
 
 func (s *SerialSesn) RxCoap(opt sesn.TxOptions) (coap.Message, error) {
-	s.m.Lock()
-	defer s.m.Unlock()
-
 	if !s.isOpen {
 		return nil, nmxutil.NewSesnClosedError(
 			"Attempt to listen for data from closed connection")
 	}
-	end := time.Now().Add(opt.Timeout)
+	if s.cfg.MgmtProto != sesn.MGMT_PROTO_COAP_SERVER {
+		return nil, fmt.Errorf("Invalid operation for %s", s.cfg.MgmtProto)
+	}
+	if s.sx.reqSesn != s {
+		return nil, fmt.Errorf("Invalid operation")
+	}
+	waitTmoChan := time.After(opt.Timeout)
+	s.wg.Add(1)
+	defer s.wg.Done()
 	for {
-		data, err := s.sx.Rx()
-		if err != nil {
-			if opt.Timeout != 0 && time.Now().After(end) {
+		select {
+		case data, ok := <-s.msgChan:
+			if !ok {
+				continue
+			}
+			msg, err := s.txvr.ProcessCoapReq(data)
+			if err != nil {
 				return nil, err
 			}
-		}
-		msg, err := s.txvr.ProcessCoapReq(data)
-		if err != nil {
-			return nil, err
-		}
-		if msg != nil {
-			return msg, nil
+			if msg != nil {
+				return msg, nil
+			}
+		case _, ok := <-waitTmoChan:
+			waitTmoChan = nil
+			if ok {
+				return nil, nmxutil.NewRspTimeoutError(
+					"RxCoap() timed out")
+			}
+		case <-s.stopChan:
+			return nil, fmt.Errorf("Session closed")
 		}
 	}
 }

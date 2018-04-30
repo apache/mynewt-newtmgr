@@ -25,10 +25,12 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"sync"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/joaojeronimo/go-crc16"
+	"github.com/runtimeco/go-coap"
 	"github.com/tarm/serial"
 
 	"mynewt.apache.org/newt/util"
@@ -55,6 +57,14 @@ type SerialXport struct {
 	port    *serial.Port
 	scanner *bufio.Scanner
 
+	wg sync.WaitGroup
+	sync.Mutex
+	closing bool
+
+	reqSesn    *SerialSesn
+	acceptSesn *SerialSesn
+	rspSesn    *SerialSesn
+
 	pkt *Packet
 }
 
@@ -66,6 +76,26 @@ func NewSerialXport(cfg *XportCfg) *SerialXport {
 
 func (sx *SerialXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
 	return NewSerialSesn(sx, cfg)
+}
+
+func (sx *SerialXport) acceptServerSesn(sl *SerialSesn) (*SerialSesn, error) {
+	sc := sesn.NewSesnCfg()
+	sc.MgmtProto = sesn.MGMT_PROTO_COAP_SERVER
+	sc.TxFilterCb = sl.cfg.TxFilterCb
+	sc.RxFilterCb = sl.cfg.RxFilterCb
+
+	s, err := NewSerialSesn(sx, sc)
+	if err != nil {
+		return nil, fmt.Errorf("NewSesn():%v", err)
+	}
+	err = s.Open()
+	if err != nil {
+		return nil, fmt.Errorf("Open():%v", err)
+	}
+	sl.connChan <- s
+	sx.setReqSesn(s)
+
+	return s, nil
 }
 
 func (sx *SerialXport) Start() error {
@@ -86,15 +116,109 @@ func (sx *SerialXport) Start() error {
 		return err
 	}
 
-	// Most of the reading will be done line by line, use the
-	// bufio.Scanner to do this
-	sx.scanner = bufio.NewScanner(sx.port)
+	sx.wg.Add(1)
+	go func() {
+		defer sx.wg.Done()
 
+		// Most of the reading will be done line by line, use the
+		// bufio.Scanner to do this
+		sx.scanner = bufio.NewScanner(sx.port)
+
+		for {
+			msg, err := sx.Rx()
+			sx.Lock()
+			if err != nil {
+				if sx.rspSesn != nil {
+					sx.rspSesn.errChan <- err
+				}
+			}
+			if sx.closing {
+				sx.Unlock()
+				return
+			}
+			if msg == nil {
+				sx.Unlock()
+				continue
+			}
+			if len(msg) >= 4 {
+				if sx.reqSesn != nil || sx.acceptSesn != nil {
+					msgType := coap.COAPCode(msg[1])
+					if msgType <= coap.DELETE {
+						if sx.reqSesn != nil {
+							sx.reqSesn.msgChan <- msg
+							sx.Unlock()
+							continue
+						}
+						if sx.acceptSesn != nil {
+							s, err := sx.acceptServerSesn(
+								sx.acceptSesn)
+							if err != nil {
+								log.Errorf("Cannot create server sesn: %v", err)
+								sx.Unlock()
+								continue
+							}
+							s.msgChan <- msg
+							sx.Unlock()
+							continue
+						}
+					}
+				}
+			}
+			if sx.rspSesn != nil {
+				sx.rspSesn.msgChan <- msg
+			}
+			sx.Unlock()
+		}
+
+	}()
+	return nil
+}
+
+func (sx *SerialXport) setRspSesn(s *SerialSesn) error {
+	sx.Lock()
+	defer sx.Unlock()
+
+	if sx.closing {
+		return fmt.Errorf("Transport closed")
+	}
+	if s != nil && sx.rspSesn != nil {
+		return fmt.Errorf("Transport busy")
+	}
+	sx.rspSesn = s
+	return nil
+}
+
+func (sx *SerialXport) setAcceptSesn(s *SerialSesn) error {
+	sx.Lock()
+	defer sx.Unlock()
+
+	if sx.closing {
+		return fmt.Errorf("Transport closed")
+	}
+	if sx.acceptSesn != nil && s != sx.acceptSesn {
+		return fmt.Errorf("Transport busy")
+	}
+	sx.acceptSesn = s
+	return nil
+}
+
+func (sx *SerialXport) setReqSesn(s *SerialSesn) error {
+	if sx.closing {
+		return fmt.Errorf("Transport closed")
+	}
+	if sx.reqSesn != nil && s != sx.reqSesn {
+		return fmt.Errorf("Transport busy")
+	}
+	sx.reqSesn = s
 	return nil
 }
 
 func (sx *SerialXport) Stop() error {
-	return sx.port.Close()
+	sx.closing = true
+
+	err := sx.port.Close()
+	sx.wg.Wait()
+	return err
 }
 
 func (sx *SerialXport) txRaw(bytes []byte) error {
