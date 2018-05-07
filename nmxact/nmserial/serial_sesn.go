@@ -218,6 +218,11 @@ func (s *SerialSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 func (s *SerialSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
 	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
 
+	if !s.isOpen {
+		return 0, nil, nmxutil.NewSesnClosedError(
+			"Attempt to transmit over closed serial session")
+	}
+
 	txFn := func(b []byte) error {
 		return s.sx.Tx(b)
 	}
