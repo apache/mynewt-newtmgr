@@ -256,7 +256,7 @@ func getUriParams(c *ishell.Context) (map[string]interface{}, error) {
 
 	c.Println("provide ", c.Cmd.Name, " parameters in format key=value [key=value]")
 	pstr := c.ReadLine()
-	params := strings.Split(pstr, "")
+	params := strings.Split(pstr, " ")
 
 	return extractResKv(params)
 }
