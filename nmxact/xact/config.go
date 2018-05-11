@@ -74,6 +74,7 @@ type ConfigWriteCmd struct {
 	CmdBase
 	Name string
 	Val  string
+	Save bool
 }
 
 func NewConfigWriteCmd() *ConfigWriteCmd {
@@ -98,6 +99,7 @@ func (c *ConfigWriteCmd) Run(s sesn.Sesn) (Result, error) {
 	r := nmp.NewConfigWriteReq()
 	r.Name = c.Name
 	r.Val = c.Val
+	r.Save = c.Save
 
 	rsp, err := txReq(s, r.Msg(), &c.CmdBase)
 	if err != nil {
