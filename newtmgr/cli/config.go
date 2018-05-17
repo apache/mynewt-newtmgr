@@ -67,6 +67,24 @@ func configWrite(s sesn.Sesn, args []string) {
 	}
 }
 
+func configSave(s sesn.Sesn, args []string) {
+	c := xact.NewConfigWriteCmd()
+	c.SetTxOptions(nmutil.TxOptions())
+	c.Save = true
+
+	res, err := c.Run(s)
+	if err != nil {
+		nmUsage(nil, util.ChildNewtError(err))
+	}
+
+	sres := res.(*xact.ConfigWriteResult)
+	if sres.Rsp.Rc != 0 {
+		fmt.Printf("Error: %d\n", sres.Rsp.Rc)
+	} else {
+		fmt.Printf("Done\n")
+	}
+}
+
 func configRunCmd(cmd *cobra.Command, args []string) {
 	s, err := GetSesn()
 	if err != nil {
@@ -74,7 +92,11 @@ func configRunCmd(cmd *cobra.Command, args []string) {
 	}
 
 	if len(args) == 1 {
-		configRead(s, args)
+		if args[0] == "save" {
+			configSave(s, args)
+		} else {
+			configRead(s, args)
+		}
 	} else if len(args) >= 2 {
 		configWrite(s, args)
 	} else {
