@@ -112,6 +112,8 @@ func (s *SerialSesn) Open() error {
 				} else if s.cfg.MgmtProto == sesn.MGMT_PROTO_NMP {
 					s.txvr.DispatchNmpRsp(msg)
 				}
+			case <-s.errChan:
+				// XXX pass it on
 			case <-s.stopChan:
 				return
 			}
@@ -318,6 +320,14 @@ func (s *SerialSesn) RxCoap(opt sesn.TxOptions) (coap.Message, error) {
 				return nil, nmxutil.NewRspTimeoutError(
 					"RxCoap() timed out")
 			}
+		case err, ok := <-s.errChan:
+			if !ok {
+				continue
+			}
+			if err == errTimeout {
+				continue
+			}
+			return nil, err
 		case <-s.stopChan:
 			return nil, fmt.Errorf("Session closed")
 		}

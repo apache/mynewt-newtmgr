@@ -24,6 +24,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -34,7 +35,6 @@ import (
 	"github.com/tarm/serial"
 
 	"mynewt.apache.org/newt/util"
-	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
@@ -44,6 +44,8 @@ type XportCfg struct {
 	Mtu         int
 	ReadTimeout time.Duration
 }
+
+var errTimeout error = errors.New("Timeout reading from serial connection")
 
 func NewXportCfg() *XportCfg {
 	return &XportCfg{
@@ -350,8 +352,7 @@ func (sx *SerialXport) Rx() ([]byte, error) {
 	if err == nil {
 		// Scanner hit EOF, so we'll need to create a new one.  This only
 		// happens on timeouts.
-		err = nmxutil.NewXportError(
-			"Timeout reading from serial connection")
+		err = errTimeout
 		sx.scanner = bufio.NewScanner(sx.port)
 	}
 	return nil, err
