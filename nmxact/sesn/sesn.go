@@ -91,6 +91,9 @@ type Sesn interface {
 
 	// XXX AbortResource(seq uint8) error
 
+	RxAccept() (Sesn, *SesnCfg, error)
+	RxCoap(opt TxOptions) (coap.Message, error)
+
 	////// Internal to nmxact:
 
 	// Performs a blocking transmit a single NMP message and listens for the

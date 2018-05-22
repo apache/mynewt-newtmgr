@@ -30,6 +30,7 @@ import (
 	"sync"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/runtimeco/go-coap"
 	"github.com/ugorji/go/codec"
 
 	"mynewt.apache.org/newtmgr/nmxact/lora"
@@ -41,19 +42,22 @@ type LoraConfig struct {
 	Addr        string
 	SegSz       int
 	ConfirmedTx bool
+	Port        uint8
 }
 
 type LoraJoinedCb func(dev LoraConfig)
 
 type LoraXport struct {
 	sync.Mutex
-	cfg       *LoraXportCfg
-	started   bool
-	rxConn    *net.UDPConn
-	txConn    *net.UDPConn
-	listenMap *ListenerMap
-	exitChan  chan int
-	joinCb    LoraJoinedCb
+	cfg      *LoraXportCfg
+	started  bool
+	rxConn   *net.UDPConn
+	txConn   *net.UDPConn
+	msgMap   *ListenerMap
+	reassMap *ListenerMap
+	tgtMap   *ListenerSlice
+	exitChan chan int
+	joinCb   LoraJoinedCb
 }
 
 type LoraXportCfg struct {
@@ -63,7 +67,7 @@ type LoraXportCfg struct {
 
 type LoraData struct {
 	Data string `codec:"data"`
-	Port int    `codec:"port"`
+	Port uint8  `codec:"port"`
 }
 
 type LoraPacketSent struct {
@@ -86,7 +90,6 @@ const MAX_PACKET_SIZE_IN = 2048
 const MAX_PACKET_SIZE_OUT = 256
 const UDP_RX_PORT = 1784
 const UDP_TX_PORT = 1786
-const OIC_LORA_PORT = 0xbb
 
 func NewXportCfg() *LoraXportCfg {
 	return &LoraXportCfg{
@@ -96,9 +99,12 @@ func NewXportCfg() *LoraXportCfg {
 }
 
 func NewLoraXport(cfg *LoraXportCfg) *LoraXport {
+	log.SetLevel(log.DebugLevel)
 	return &LoraXport{
-		cfg:       cfg,
-		listenMap: NewListenerMap(),
+		cfg:      cfg,
+		msgMap:   NewListenerMap(),
+		reassMap: NewListenerMap(),
+		tgtMap:   NewListenerSlice(),
 	}
 }
 
@@ -131,20 +137,50 @@ func DenormalizeAddr(addr string) string {
 }
 
 func (lx *LoraXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
-	if cfg.Lora.Addr == "" {
+	if cfg.Lora.Addr == "" && cfg.MgmtProto != sesn.MGMT_PROTO_COAP_SERVER {
 		return nil, fmt.Errorf("Need an address of endpoint")
 	}
 	return NewLoraSesn(cfg, lx)
 }
 
-func (lx *LoraXport) reass(dev string, data []byte) {
+func (lx *LoraXport) acceptServerSesn(sl *Listener, dev string, port uint8) (*LoraSesn, error) {
+	sc := sesn.NewSesnCfg()
+	sc.MgmtProto = sesn.MGMT_PROTO_COAP_SERVER
+	sc.Lora.Addr = dev
+	sc.Lora.Port = port
+
+	ls, err := NewLoraSesn(sc, lx)
+	if err != nil {
+		return nil, fmt.Errorf("NewSesn():%v", err)
+	}
+	err = ls.Open()
+	if err != nil {
+		return nil, fmt.Errorf("Open():%v", err)
+	}
+	sl.ConnChan <- ls
+	return ls, nil
+}
+
+func (lx *LoraXport) reass(dev string, port uint8, data []byte) {
 	lx.Lock()
 	defer lx.Unlock()
 
-	_, l := lx.listenMap.FindListener(dev, "rx")
+	var err error
+	_, l := lx.reassMap.FindListener(dev, port, "reass")
 	if l == nil {
-		log.Debugf("No LoRa listener for %s", dev)
-		return
+		_, l = lx.msgMap.FindListener("", port, "req")
+		if l == nil {
+			log.Debugf("No LoRa listener for %s", dev)
+			return
+		}
+		lx.Unlock()
+		s, err := lx.acceptServerSesn(l, dev, port)
+		lx.Lock()
+		if err != nil {
+			log.Errorf("Cannot create server sesn: %v", err)
+			return
+		}
+		l = s.reassListener
 	}
 
 	str := hex.Dump(data)
@@ -155,7 +191,7 @@ func (lx *LoraXport) reass(dev string, data []byte) {
 	var frag lora.CoapLoraFrag
 	var sFrag lora.CoapLoraFragStart
 
-	err := binary.Read(bufR, binary.LittleEndian, &frag)
+	err = binary.Read(bufR, binary.LittleEndian, &frag)
 	if err != nil {
 		log.Debugf("Can't read header")
 		return
@@ -187,8 +223,35 @@ func (lx *LoraXport) reass(dev string, data []byte) {
 	}
 
 	if (frag.FragNum & lora.COAP_LORA_LAST_FRAG) != 0 {
-		l.MsgChan <- l.Data.Bytes()
+		data := l.Data.Bytes()
 		l.Data.Reset()
+
+		code := coap.COAPCode(data[1])
+		if code <= coap.DELETE {
+			_, l = lx.msgMap.FindListener(dev, port, "req")
+			if l == nil {
+				_, l = lx.msgMap.FindListener("", port, "req")
+				if l == nil {
+					log.Debugf("No LoRa listener for %s", dev)
+					return
+				}
+				lx.Unlock()
+				s, err := lx.acceptServerSesn(l, dev, port)
+				lx.Lock()
+				if err != nil {
+					log.Errorf("Cannot create server sesn: %v", err)
+					return
+				}
+				l = s.msgListener
+			}
+		} else {
+			_, l = lx.msgMap.FindListener(dev, port, "rsp")
+		}
+		if l != nil {
+			l.MsgChan <- data
+		} else {
+			log.Debugf("No LoRa listener for %s", dev)
+		}
 	}
 }
 
@@ -196,15 +259,17 @@ func (lx *LoraXport) dataRateSeen(dev string, dataRate string) {
 	lx.Lock()
 	defer lx.Unlock()
 
-	_, l := lx.listenMap.FindListener(dev, "rx")
-	if l == nil {
+	_, lSlice := lx.tgtMap.FindListener(dev, "rx")
+	if len(lSlice) == 0 {
 		return
 	}
 	mtu, ok := LoraDataRateMapUS[dataRate]
 	if !ok {
 		mtu = lx.minMtu()
 	}
-	l.MtuChan <- mtu
+	for _, l := range lSlice {
+		l.MtuChan <- mtu
+	}
 }
 
 /*
@@ -239,16 +304,12 @@ func (lx *LoraXport) processData(data string) {
 			return
 		}
 
-		if msg.Port != OIC_LORA_PORT {
-			log.Debugf("loraxport rx: ignoring data to port %d", msg.Port)
-			return
-		}
 		dec, err := base64.StdEncoding.DecodeString(msg.Data)
 		if err != nil {
 			log.Debugf("loraxport rx: error decoding base64: %v", err)
 			return
 		}
-		lx.reass(dev, dec)
+		lx.reass(dev, msg.Port, dec)
 	case "packet_sent":
 		var sent LoraPacketSent
 
@@ -285,6 +346,8 @@ func (lx *LoraXport) Start() error {
 	addr, err = net.ResolveUDPAddr("udp",
 		fmt.Sprintf("127.0.0.1:%d", lx.cfg.AppPortDown))
 	if err != nil {
+		lx.rxConn.Close()
+		lx.rxConn = nil
 		return fmt.Errorf("Failure resolving name for UDP session: %s",
 			err.Error())
 	}
@@ -343,6 +406,12 @@ func (lx *LoraXport) Stop() error {
 	lx.started = false
 	lx.joinCb = nil
 	return nil
+}
+
+func (lx *LoraXport) DumpListeners() {
+	lx.msgMap.Dump()
+	lx.reassMap.Dump()
+	lx.tgtMap.Dump()
 }
 
 func (lx *LoraXport) Tx(bytes []byte) error {

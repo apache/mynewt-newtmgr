@@ -382,6 +382,14 @@ func (s *BllSesn) AbortRx(nmpSeq uint8) error {
 	return nil
 }
 
+func (s *BllSesn) RxAccept() (sesn.Sesn, *sesn.SesnCfg, error) {
+	return nil, nil, fmt.Errorf("Op not implemented yet")
+}
+
+func (s *BllSesn) RxCoap(opt sesn.TxOptions) (coap.Message, error) {
+	return nil, fmt.Errorf("Op not implemented yet")
+}
+
 // Performs a blocking transmit a single NMP message and listens for the
 // response.
 //     * nil: success.

@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
+	"mynewt.apache.org/newtmgr/nmxact/lora"
 	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 )
 
@@ -32,7 +33,18 @@ type MgmtProto int
 const (
 	MGMT_PROTO_NMP MgmtProto = iota
 	MGMT_PROTO_OMP
+	MGMT_PROTO_COAP_SERVER
 )
+
+var mgmtProtoMap = map[MgmtProto]string{
+	MGMT_PROTO_NMP:         "nmp",
+	MGMT_PROTO_OMP:         "omp",
+	MGMT_PROTO_COAP_SERVER: "coapserver",
+}
+
+func (r MgmtProto) String() string {
+	return mgmtProtoMap[r]
+}
 
 type ResourceType int
 
@@ -90,6 +102,7 @@ type SesnCfgLora struct {
 	Addr        string
 	SegSz       int
 	ConfirmedTx bool
+	Port        uint8
 }
 
 type SesnCfg struct {
@@ -124,6 +137,7 @@ func NewSesnCfg() SesnCfg {
 		},
 		Lora: SesnCfgLora{
 			ConfirmedTx: false,
+			Port:        lora.COAP_LORA_PORT,
 		},
 	}
 }
