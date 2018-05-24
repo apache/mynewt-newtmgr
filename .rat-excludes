@@ -6,6 +6,9 @@
 .gdb_out
 tags
 
+# Ignore documentation folder
+docs
+
 # Non-source files
 COMPATIBLE
 COPYING
@@ -92,3 +95,15 @@ goble
 
 # Console progress bar - 3-clause BSD.
 pb
+
+# readline - MIT license
+readline
+
+# color (colorized output) - MIT license
+color
+
+# go-ble - BSD license
+go-ble
+
+# ishell.v1 (interactive shell) - MIT license
+ishell.v1
