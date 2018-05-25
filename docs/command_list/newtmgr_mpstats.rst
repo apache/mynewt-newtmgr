@@ -61,7 +61,7 @@ Here is an example output for the ``myble`` application from the
                   ble_hs_hci_ev_pool    16   10   10    9
                  ble_l2cap_chan_pool    28    3    3    3
              ble_l2cap_sig_proc_pool    20    1    1    1
-                    bletiny_chr_pool    36   64   64   64
-                    bletiny_dsc_pool    28   64   64   64
-                    bletiny_svc_pool    36   32   32   32
+                    btshell_chr_pool    36   64   64   64
+                    btshell_dsc_pool    28   64   64   64
+                    btshell_svc_pool    36   32   32   32
                               msys_1   292   12    9    6
