@@ -89,14 +89,15 @@ func logShowCmd(cmd *cobra.Command, args []string) {
 			return
 		}
 
-		fmt.Printf("%10s %22s | %11s %11s %s\n",
-			"[index]", "[timestamp]", "[module]", "[level]", "[message]")
+		fmt.Printf("%10s %22s | %11s %11s %6s %s\n",
+			"[index]", "[timestamp]", "[module]", "[level]", "[type]", "[message]")
 		for _, entry := range log.Entries {
-			fmt.Printf("%10d %20dus | %10s: %10s: %s\n",
+			fmt.Printf("%10d %20dus | %10s: %10s: %5s: %s\n",
 				entry.Index,
 				entry.Timestamp,
 				nmp.LogModuleToString(int(entry.Module)),
 				nmp.LogLevelToString(int(entry.Level)),
+				entry.Type,
 				entry.Msg)
 		}
 	}
