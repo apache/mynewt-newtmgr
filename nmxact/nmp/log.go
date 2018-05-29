@@ -19,7 +19,11 @@
 
 package nmp
 
-import ()
+import (
+	"fmt"
+
+	"github.com/ugorji/go/codec"
+)
 
 //////////////////////////////////////////////////////////////////////////////
 // $defs                                                                    //
@@ -106,6 +110,20 @@ func LogTypeToString(lm int) string {
 // $show                                                                    //
 //////////////////////////////////////////////////////////////////////////////
 
+type LogEntryType int
+
+const (
+	LOG_ENTRY_TYPE_STRING LogEntryType = 0
+	LOG_ENTRY_TYPE_CBOR                = 1
+	LOG_ENTRY_TYPE_BINARY              = 2
+)
+
+var LogEntryTypeStringMap = map[LogEntryType]string{
+	LOG_ENTRY_TYPE_STRING: "str",
+	LOG_ENTRY_TYPE_CBOR:   "cbor",
+	LOG_ENTRY_TYPE_BINARY: "bin",
+}
+
 type LogShowReq struct {
 	NmpBase
 	Name      string `codec:"log_name"`
@@ -118,7 +136,8 @@ type LogEntry struct {
 	Timestamp int64  `codec:"ts"`
 	Module    uint8  `codec:"module"`
 	Level     uint8  `codec:"level"`
-	Msg       string `codec:"msg"`
+	Type      string `codec:"type"`
+	Msg       []byte `codec:"msg"`
 }
 
 type LogShowLog struct {
@@ -258,3 +277,61 @@ func NewLogClearRsp() *LogClearRsp {
 }
 
 func (r *LogClearRsp) Msg() *NmpMsg { return MsgFromReq(r) }
+
+//////////////////////////////////////////////////////////////////////////////
+// $LogType Marshal/Unmarshal                                               //
+//////////////////////////////////////////////////////////////////////////////
+
+func LogEntryTypeToString(LogType LogEntryType) string {
+	s := LogEntryTypeStringMap[LogType]
+	if s == "" {
+		return "???"
+	}
+
+	return s
+}
+
+func LogEntryTypeFromString(s string) (LogEntryType, error) {
+	for LogType, name := range LogEntryTypeStringMap {
+		if s == name {
+			return LogType, nil
+		}
+	}
+
+	return LogEntryType(0), fmt.Errorf("Invalid LogEntryType string: %s", s)
+}
+
+func (l LogEntryType) MarshalBinary([]byte, error) error {
+	var err error
+	var s string
+	var b []byte
+
+	handle := new(codec.CborHandle)
+
+	s = LogEntryTypeToString(l)
+
+	dec := codec.NewEncoderBytes(&b, handle)
+
+	err = dec.Encode(&b)
+	if err != nil {
+		return err
+	}
+
+	b = append(b, s...)
+
+	return err
+}
+
+func (l *LogEntryType) UnmarshalBinary(data []byte) error {
+	var err error
+	var s string
+
+	handle := new(codec.CborHandle)
+	dec := codec.NewDecoderBytes(data, handle)
+
+	err = dec.Decode(&s)
+
+	*l, err = LogEntryTypeFromString(s)
+
+	return err
+}
