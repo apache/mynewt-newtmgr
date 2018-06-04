@@ -322,3 +322,15 @@ For details, see:
 This product bundles go-isatty, which is available under the MIT license.
 For details, see:
     * vendor/github.com/mattn/go-isatty/LICENSE
+
+This product bundles readline, which is available under the MIT license.
+For details, see:
+    * vendor/github.com/chzyer/readline/LICENSE
+
+This product bundles go-blel, which is available under the "3-clause BSD"
+license. For details, see:
+    * vendor/github.com/go-ble/ble/LICENSE
+
+This product bundles ishell.v1, which is available under the MIT license.
+For details, see:
+    * vendor/gopkg.in/abiosoft/ishell.v1/LICENSE
