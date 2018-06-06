@@ -28,6 +28,11 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 )
 
+var DfltTxOptions = TxOptions{
+	Timeout: 10 * time.Second,
+	Tries:   1,
+}
+
 type GetNotifyCb func(path string, code coap.COAPCode, value []byte, token []byte)
 
 type TxOptions struct {
@@ -36,10 +41,7 @@ type TxOptions struct {
 }
 
 func NewTxOptions() TxOptions {
-	return TxOptions{
-		Timeout: 10 * time.Second,
-		Tries:   1,
-	}
+	return DfltTxOptions
 }
 
 func (opt *TxOptions) AfterTimeout() <-chan time.Time {
