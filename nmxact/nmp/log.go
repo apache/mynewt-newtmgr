@@ -132,12 +132,12 @@ type LogShowReq struct {
 }
 
 type LogEntry struct {
-	Index     uint32 `codec:"index"`
-	Timestamp int64  `codec:"ts"`
-	Module    uint8  `codec:"module"`
-	Level     uint8  `codec:"level"`
-	Type      string `codec:"type"`
-	Msg       []byte `codec:"msg"`
+	Index     uint32       `codec:"index"`
+	Timestamp int64        `codec:"ts"`
+	Module    uint8        `codec:"module"`
+	Level     uint8        `codec:"level"`
+	Type      LogEntryType `codec:"type"`
+	Msg       []byte       `codec:"msg"`
 }
 
 type LogShowLog struct {
@@ -299,6 +299,10 @@ func LogEntryTypeFromString(s string) (LogEntryType, error) {
 	}
 
 	return LogEntryType(0), fmt.Errorf("Invalid LogEntryType string: %s", s)
+}
+
+func (l LogEntryType) String() string {
+	return LogEntryTypeToString(l)
 }
 
 func (l LogEntryType) MarshalBinary([]byte, error) error {
