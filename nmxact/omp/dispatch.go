@@ -79,8 +79,10 @@ func (d *Dispatcher) addOmpListener() error {
 				rsp, err := DecodeOmp(m, d.rxFilterCb)
 				if err != nil {
 					log.Debugf("OMP decode failure: %s", err.Error())
-				} else {
+				} else if rsp != nil {
 					d.nmpd.DispatchRsp(rsp)
+				} else {
+					/* no error, no response */
 				}
 
 			case err := <-ol.ErrChan:
