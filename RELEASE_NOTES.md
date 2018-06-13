@@ -1,6 +1,6 @@
 # RELEASE NOTES
 
-30 November 2017 - Apache Newtmgr v1.3.0
+04 June 2018 - Apache Newtmgr v1.4.0
 
 For full release notes, please visit the
 [Apache Mynewt Wiki](https://cwiki.apache.org/confluence/display/MYNEWT/Release+Notes).
@@ -12,8 +12,10 @@ Thew newtmgr tool is documented at http://mynewt.apache.org/latest/newtmgr/overv
 
 New features in this version of newtmgr include:
 
-* Native BLE support (connection types "ble" and "oic_ble")
-* Blehostd BLE support (see https://github.com/runtimeco/blehostd for information about blehostd).
+* interactive shell for COAP operations
+* "version" command
+* moved documentation from apache-core to newtmgr repo
+* various bugfixes
 
 If working on next-generation build and source package management systems
 sounds exciting to you, get in touch, by sending a mail to the Apache Mynewt
