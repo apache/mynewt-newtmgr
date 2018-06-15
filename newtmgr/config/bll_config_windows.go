@@ -26,12 +26,14 @@ import (
 
 	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/bll"
+	"mynewt.apache.org/newtmgr/nmxact/bledefs"
 )
 
 type BllConfig struct {
-	CtlrName string
-	PeerId   string
-	PeerName string
+	CtlrName    string
+	OwnAddrType bledefs.BleAddrType
+	PeerId      string
+	PeerName    string
 }
 
 func NewBllConfig() *BllConfig {
