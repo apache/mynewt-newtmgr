@@ -25,10 +25,12 @@ import (
 	"fmt"
 
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
+	"mynewt.apache.org/newtmgr/nmxact/bledefs"
 )
 
 type XportCfg struct {
-	CtlrName string
+	CtlrName    string
+	OwnAddrType bledefs.BleAddrType
 }
 
 func NewXportCfg() XportCfg {
