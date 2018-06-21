@@ -1,6 +1,6 @@
 # RELEASE NOTES
 
-04 June 2018 - Apache Newtmgr v1.4.0
+21 June 2018 - Apache Newtmgr v1.4.1
 
 For full release notes, please visit the
 [Apache Mynewt Wiki](https://cwiki.apache.org/confluence/display/MYNEWT/Release+Notes).
@@ -10,12 +10,7 @@ remote devices running the Mynewt OS. It uses a connection profile to establish 
 a device and sends command requests to the device.
 Thew newtmgr tool is documented at http://mynewt.apache.org/latest/newtmgr/overview/
 
-New features in this version of newtmgr include:
-
-* interactive shell for COAP operations
-* "version" command
-* moved documentation from apache-core to newtmgr repo
-* various bugfixes
+This release includes fix for building under Windows.
 
 If working on next-generation build and source package management systems
 sounds exciting to you, get in touch, by sending a mail to the Apache Mynewt
