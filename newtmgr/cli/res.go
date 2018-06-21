@@ -22,6 +22,7 @@ package cli
 import (
 	"encoding/hex"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/runtimeco/go-coap"
@@ -68,8 +69,24 @@ func extractResKv(params []string) (map[string]interface{}, error) {
 				param)
 		}
 
-		// XXX: For now, assume all values are strings.
-		m[parts[0]] = parts[1]
+		var val interface{}
+
+		// If value is quoted, parse it as a string.
+		if strings.HasPrefix(parts[1], "\"") &&
+			strings.HasSuffix(parts[1], "\"") {
+
+			val = parts[1][1 : len(parts[1])-1]
+		} else {
+			// Try to parse value as an integer.
+			num, err := strconv.Atoi(parts[1])
+			if err == nil {
+				val = num
+			} else {
+				val = parts[1]
+			}
+		}
+
+		m[parts[0]] = val
 	}
 
 	return m, nil
