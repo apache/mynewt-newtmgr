@@ -77,7 +77,7 @@ func main() {
 		ExeName:       "newtmgr",
 		ShortName:     "Newtmgr",
 		LongName:      "Apache Newtmgr",
-		VersionString: "1.4.0",
+		VersionString: "1.4.1",
 		CfgFilename:   ".newtmgr.cp.json",
 	}
 
