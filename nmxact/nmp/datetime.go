@@ -32,7 +32,7 @@ type DateTimeReadReq struct {
 type DateTimeReadRsp struct {
 	NmpBase
 	DateTime string `codec:"datetime"`
-	Rc       int    `codec:"rc" codec:",omitempty"`
+	Rc       int    `codec:"rc"`
 }
 
 func NewDateTimeReadReq() *DateTimeReadReq {
@@ -60,7 +60,7 @@ type DateTimeWriteReq struct {
 
 type DateTimeWriteRsp struct {
 	NmpBase
-	Rc int `codec:"rc" codec:",omitempty"`
+	Rc int `codec:"rc"`
 }
 
 func NewDateTimeWriteReq() *DateTimeWriteReq {

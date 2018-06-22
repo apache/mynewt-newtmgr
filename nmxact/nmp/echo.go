@@ -29,7 +29,7 @@ type EchoReq struct {
 type EchoRsp struct {
 	NmpBase
 	Payload string `codec:"r"`
-	Rc      int    `codec:"rc" codec:",omitempty"`
+	Rc      int    `codec:"rc"`
 }
 
 func NewEchoReq() *EchoReq {

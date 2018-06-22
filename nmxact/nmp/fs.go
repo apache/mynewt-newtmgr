@@ -33,7 +33,7 @@ type FsDownloadReq struct {
 
 type FsDownloadRsp struct {
 	NmpBase
-	Rc   int    `codec:"rc" codec:",omitempty"`
+	Rc   int    `codec:"rc"`
 	Off  uint32 `codec:"off"`
 	Len  uint32 `codec:"len"`
 	Data []byte `codec:"data"`
@@ -67,7 +67,7 @@ type FsUploadReq struct {
 
 type FsUploadRsp struct {
 	NmpBase
-	Rc  int    `codec:"rc" codec:",omitempty"`
+	Rc  int    `codec:"rc"`
 	Off uint32 `codec:"off"`
 }
 

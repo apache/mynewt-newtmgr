@@ -32,7 +32,7 @@ type ConfigReadReq struct {
 
 type ConfigReadRsp struct {
 	NmpBase
-	Rc  int    `codec:"rc" codec:",omitempty"`
+	Rc  int    `codec:"rc"`
 	Val string `codec:"val"`
 }
 
@@ -63,7 +63,7 @@ type ConfigWriteReq struct {
 
 type ConfigWriteRsp struct {
 	NmpBase
-	Rc int `codec:"rc" codec:",omitempty"`
+	Rc int `codec:"rc"`
 }
 
 func NewConfigWriteReq() *ConfigWriteReq {

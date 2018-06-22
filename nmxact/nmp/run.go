@@ -33,7 +33,7 @@ type RunTestReq struct {
 
 type RunTestRsp struct {
 	NmpBase
-	Rc int `codec:"rc" codec:",omitempty"`
+	Rc int `codec:"rc"`
 }
 
 func NewRunTestReq() *RunTestReq {
@@ -60,7 +60,7 @@ type RunListReq struct {
 
 type RunListRsp struct {
 	NmpBase
-	Rc   int      `codec:"rc" codec:",omitempty"`
+	Rc   int      `codec:"rc"`
 	List []string `codec:"run_list"`
 }
 

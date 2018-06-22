@@ -35,7 +35,7 @@ type ImageUploadReq struct {
 
 type ImageUploadRsp struct {
 	NmpBase
-	Rc  int    `codec:"rc" codec:",omitempty"`
+	Rc  int    `codec:"rc"`
 	Off uint32 `codec:"off"`
 }
 

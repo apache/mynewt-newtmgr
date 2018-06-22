@@ -177,7 +177,7 @@ type LogListReq struct {
 
 type LogListRsp struct {
 	NmpBase
-	Rc   int      `codec:"rc" codec:",omitempty"`
+	Rc   int      `codec:"rc"`
 	List []string `codec:"log_list"`
 }
 
@@ -205,7 +205,7 @@ type LogModuleListReq struct {
 
 type LogModuleListRsp struct {
 	NmpBase
-	Rc  int            `codec:"rc" codec:",omitempty"`
+	Rc  int            `codec:"rc"`
 	Map map[string]int `codec:"module_map"`
 }
 
@@ -233,7 +233,7 @@ type LogLevelListReq struct {
 
 type LogLevelListRsp struct {
 	NmpBase
-	Rc  int            `codec:"rc" codec:",omitempty"`
+	Rc  int            `codec:"rc"`
 	Map map[string]int `codec:"level_map"`
 }
 
@@ -261,7 +261,7 @@ type LogClearReq struct {
 
 type LogClearRsp struct {
 	NmpBase
-	Rc int `codec:"rc" codec:",omitempty"`
+	Rc int `codec:"rc"`
 }
 
 func NewLogClearReq() *LogClearReq {

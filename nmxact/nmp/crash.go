@@ -28,7 +28,7 @@ type CrashReq struct {
 
 type CrashRsp struct {
 	NmpBase
-	Rc int `codec:"rc" codec:",omitempty"`
+	Rc int `codec:"rc"`
 }
 
 func NewCrashReq() *CrashReq {
