@@ -20,6 +20,7 @@
 package xact
 
 import (
+	"crypto/sha256"
 	"fmt"
 
 	"github.com/cheggaaa/pb"
@@ -64,13 +65,14 @@ func (r *ImageUploadResult) Status() int {
 	}
 }
 
-func buildImageUploadReq(imageSz int, chunk []byte,
+func buildImageUploadReq(imageSz int, hash []byte, chunk []byte,
 	off int) *nmp.ImageUploadReq {
 
 	r := nmp.NewImageUploadReq()
 
 	if r.Off == 0 {
 		r.Len = uint32(imageSz)
+		r.DataHash = hash
 	}
 	r.Off = uint32(off)
 	r.Data = chunk
@@ -80,10 +82,17 @@ func buildImageUploadReq(imageSz int, chunk []byte,
 
 func nextImageUploadReq(s sesn.Sesn, data []byte, off int) (
 	*nmp.ImageUploadReq, error) {
+	var hash []byte = nil
+
+	// For 1st chunk we'll need valid data hash
+	if off == 0 {
+		sha := sha256.Sum256(data)
+		hash = sha[:]
+	}
 
 	// First, build a request without data to determine how much data could
 	// fit.
-	empty := buildImageUploadReq(len(data), nil, off)
+	empty := buildImageUploadReq(len(data), hash, nil, off)
 	emptyEnc, err := mgmt.EncodeMgmt(s, empty.Msg())
 	if err != nil {
 		return nil, err
@@ -108,7 +117,7 @@ func nextImageUploadReq(s sesn.Sesn, data []byte, off int) (
 	// Assume all the unused space can hold image data.  This assumption may
 	// not be valid for some encodings (e.g., CBOR uses variable length fields
 	// to encodes byte string lengths).
-	r := buildImageUploadReq(len(data), data[off:off+room], off)
+	r := buildImageUploadReq(len(data), hash, data[off:off+room], off)
 	enc, err := mgmt.EncodeMgmt(s, r.Msg())
 	if err != nil {
 		return nil, err
@@ -117,7 +126,7 @@ func nextImageUploadReq(s sesn.Sesn, data []byte, off int) (
 	oversize := len(enc) - s.MtuOut()
 	if oversize > 0 {
 		// Request too big.  Reduce the amount of image data.
-		r = buildImageUploadReq(len(data), data[off:off+room-oversize], off)
+		r = buildImageUploadReq(len(data), hash, data[off:off+room-oversize], off)
 	}
 
 	return r, nil
