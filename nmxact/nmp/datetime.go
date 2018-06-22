@@ -26,7 +26,7 @@ import ()
 ///////////////////////////////////////////////////////////////////////////////
 
 type DateTimeReadReq struct {
-	NmpBase
+	NmpBase `codec:"-"`
 }
 
 type DateTimeReadRsp struct {
@@ -54,7 +54,7 @@ func (r *DateTimeReadRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 ///////////////////////////////////////////////////////////////////////////////
 
 type DateTimeWriteReq struct {
-	NmpBase
+	NmpBase         `codec:"-"`
 	DateTime string `codec:"datetime"`
 }
 

@@ -26,10 +26,10 @@ import ()
 //////////////////////////////////////////////////////////////////////////////
 
 type ImageUploadReq struct {
-	NmpBase
+	NmpBase         `codec:"-"`
 	Off      uint32 `codec:"off"`
-	Len      uint32 `codec:"len" codec:",omitempty"`
-	DataHash []byte `codec:"datahash" codec:",omitempty"`
+	Len      uint32 `codec:"len,omitempty"`
+	DataHash []byte `codec:"datahash,omitempty"`
 	Data     []byte `codec:"data"`
 }
 
@@ -93,11 +93,11 @@ type ImageStateEntry struct {
 }
 
 type ImageStateReadReq struct {
-	NmpBase
+	NmpBase `codec:"-"`
 }
 
 type ImageStateWriteReq struct {
-	NmpBase
+	NmpBase        `codec:"-"`
 	Hash    []byte `codec:"hash"`
 	Confirm bool   `codec:"confirm"`
 }
@@ -136,7 +136,7 @@ func (r *ImageStateRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 //////////////////////////////////////////////////////////////////////////////
 
 type CoreListReq struct {
-	NmpBase
+	NmpBase `codec:"-"`
 }
 
 type CoreListRsp struct {
@@ -163,7 +163,7 @@ func (r *CoreListRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 //////////////////////////////////////////////////////////////////////////////
 
 type CoreLoadReq struct {
-	NmpBase
+	NmpBase    `codec:"-"`
 	Off uint32 `codec:"off"`
 }
 
@@ -194,7 +194,7 @@ func (r *CoreLoadRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 //////////////////////////////////////////////////////////////////////////////
 
 type CoreEraseReq struct {
-	NmpBase
+	NmpBase `codec:"-"`
 }
 
 type CoreEraseRsp struct {
@@ -221,7 +221,7 @@ func (r *CoreEraseRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 //////////////////////////////////////////////////////////////////////////////
 
 type ImageEraseReq struct {
-	NmpBase
+	NmpBase `codec:"-"`
 }
 
 type ImageEraseRsp struct {

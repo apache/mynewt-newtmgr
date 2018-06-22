@@ -125,7 +125,7 @@ var LogEntryTypeStringMap = map[LogEntryType]string{
 }
 
 type LogShowReq struct {
-	NmpBase
+	NmpBase          `codec:"-"`
 	Name      string `codec:"log_name"`
 	Timestamp int64  `codec:"ts"`
 	Index     uint32 `codec:"index"`
@@ -172,7 +172,7 @@ func (r *LogShowRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 //////////////////////////////////////////////////////////////////////////////
 
 type LogListReq struct {
-	NmpBase
+	NmpBase `codec:"-"`
 }
 
 type LogListRsp struct {
@@ -200,7 +200,7 @@ func (r *LogListRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 //////////////////////////////////////////////////////////////////////////////
 
 type LogModuleListReq struct {
-	NmpBase
+	NmpBase `codec:"-"`
 }
 
 type LogModuleListRsp struct {
@@ -228,7 +228,7 @@ func (r *LogModuleListRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 //////////////////////////////////////////////////////////////////////////////
 
 type LogLevelListReq struct {
-	NmpBase
+	NmpBase `codec:"-"`
 }
 
 type LogLevelListRsp struct {
@@ -256,7 +256,7 @@ func (r *LogLevelListRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 //////////////////////////////////////////////////////////////////////////////
 
 type LogClearReq struct {
-	NmpBase
+	NmpBase `codec:"-"`
 }
 
 type LogClearRsp struct {

@@ -22,7 +22,7 @@ package nmp
 import ()
 
 type TaskStatReq struct {
-	NmpBase
+	NmpBase `codec:"-"`
 }
 
 type TaskStatRsp struct {

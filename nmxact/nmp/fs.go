@@ -26,7 +26,7 @@ import ()
 //////////////////////////////////////////////////////////////////////////////
 
 type FsDownloadReq struct {
-	NmpBase
+	NmpBase     `codec:"-"`
 	Name string `codec:"name"`
 	Off  uint32 `codec:"off"`
 }
@@ -58,9 +58,9 @@ func (r *FsDownloadRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 //////////////////////////////////////////////////////////////////////////////
 
 type FsUploadReq struct {
-	NmpBase
-	Name string `codec:"name" codec:",omitempty"`
-	Len  uint32 `codec:"len" codec:",omitempty"`
+	NmpBase     `codec:"-"`
+	Name string `codec:"name,omitempty"`
+	Len  uint32 `codec:"len,omitempty"`
 	Off  uint32 `codec:"off"`
 	Data []byte `codec:"data"`
 }

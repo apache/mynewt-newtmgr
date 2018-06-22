@@ -22,7 +22,7 @@ package nmp
 import ()
 
 type CrashReq struct {
-	NmpBase
+	NmpBase          `codec:"-"`
 	CrashType string `codec:"t"`
 }
 

@@ -120,13 +120,10 @@ func encodeOmpBase(txFilterCb nmcoap.MsgFilter, isTcp bool, nmr *nmp.NmpMsg) (en
 	payload := []byte{}
 	enc := codec.NewEncoderBytes(&payload, new(codec.CborHandle))
 
-	fields := structs.Fields(nmr.Body)
-	er.fieldMap = make(map[string]interface{}, len(fields))
-	for _, f := range fields {
-		if cname := f.Tag("codec"); cname != "" {
-			er.fieldMap[cname] = f.Value()
-		}
-	}
+	// Convert request struct to map, use "codec" tag which is compatible with "structs"
+	s := structs.New(nmr.Body)
+	s.TagName = "codec"
+	er.fieldMap = s.Map()
 
 	// Add the NMP heder to the OMP response map.
 	er.hdrBytes = nmr.Hdr.Bytes()

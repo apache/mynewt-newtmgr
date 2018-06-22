@@ -26,7 +26,7 @@ import ()
 //////////////////////////////////////////////////////////////////////////////
 
 type StatReadReq struct {
-	NmpBase
+	NmpBase     `codec:"-"`
 	Name string `codec:"name"`
 }
 
@@ -57,7 +57,7 @@ func (r *StatReadRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 //////////////////////////////////////////////////////////////////////////////
 
 type StatListReq struct {
-	NmpBase
+	NmpBase `codec:"-"`
 }
 
 type StatListRsp struct {

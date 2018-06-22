@@ -26,7 +26,7 @@ import ()
 //////////////////////////////////////////////////////////////////////////////
 
 type RunTestReq struct {
-	NmpBase
+	NmpBase         `codec:"-"`
 	Testname string `codec:"testname"`
 	Token    string `codec:"token"`
 }
@@ -55,7 +55,7 @@ func (r *RunTestRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 //////////////////////////////////////////////////////////////////////////////
 
 type RunListReq struct {
-	NmpBase
+	NmpBase `codec:"-"`
 }
 
 type RunListRsp struct {

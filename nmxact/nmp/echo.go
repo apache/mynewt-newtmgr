@@ -22,7 +22,7 @@ package nmp
 import ()
 
 type EchoReq struct {
-	NmpBase
+	NmpBase        `codec:"-"`
 	Payload string `codec:"d"`
 }
 
