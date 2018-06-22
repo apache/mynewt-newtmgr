@@ -125,7 +125,7 @@ func encodeOmpBase(txFilterCb nmcoap.MsgFilter, isTcp bool, nmr *nmp.NmpMsg) (en
 	s.TagName = "codec"
 	er.fieldMap = s.Map()
 
-	// Add the NMP heder to the OMP response map.
+	// Add the NMP header to the OMP response map.
 	er.hdrBytes = nmr.Hdr.Bytes()
 	er.fieldMap["_h"] = er.hdrBytes
 
