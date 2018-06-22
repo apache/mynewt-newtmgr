@@ -59,8 +59,8 @@ func (r *FsDownloadRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 
 type FsUploadReq struct {
 	NmpBase     `codec:"-"`
-	Name string `codec:"name,omitempty"`
-	Len  uint32 `codec:"len,omitempty"`
+	Name string `codec:"name"`
+	Len  uint32 `codec:"len"`
 	Off  uint32 `codec:"off"`
 	Data []byte `codec:"data"`
 }
