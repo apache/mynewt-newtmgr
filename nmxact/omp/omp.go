@@ -53,20 +53,20 @@ func DecodeOmp(m coap.Message, rxFilterCb nmcoap.MsgFilter) (nmp.NmpRsp, error) 
 		return nil, nil
 	}
 
-	if m.Code() != coap.Created && m.Code() != coap.Deleted &&
-		m.Code() != coap.Valid && m.Code() != coap.Changed &&
-		m.Code() != coap.Content {
-		return nil, fmt.Errorf(
-			"OMP response specifies unexpected code: %d (%s)", int(m.Code()),
-			m.Code().String())
-	}
-
 	if rxFilterCb != nil {
 		var err error
 		m, err = rxFilterCb(m)
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	if m.Code() != coap.Created && m.Code() != coap.Deleted &&
+		m.Code() != coap.Valid && m.Code() != coap.Changed &&
+		m.Code() != coap.Content {
+		return nil, fmt.Errorf(
+			"OMP response specifies unexpected code: %d (%s)", int(m.Code()),
+			m.Code().String())
 	}
 
 	var om OicMsg
