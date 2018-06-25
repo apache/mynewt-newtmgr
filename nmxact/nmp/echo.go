@@ -22,14 +22,14 @@ package nmp
 import ()
 
 type EchoReq struct {
-	NmpBase
+	NmpBase        `codec:"-"`
 	Payload string `codec:"d"`
 }
 
 type EchoRsp struct {
 	NmpBase
 	Payload string `codec:"r"`
-	Rc      int    `codec:"rc" codec:",omitempty"`
+	Rc      int    `codec:"rc"`
 }
 
 func NewEchoReq() *EchoReq {

@@ -125,7 +125,7 @@ var LogEntryTypeStringMap = map[LogEntryType]string{
 }
 
 type LogShowReq struct {
-	NmpBase
+	NmpBase          `codec:"-"`
 	Name      string `codec:"log_name"`
 	Timestamp int64  `codec:"ts"`
 	Index     uint32 `codec:"index"`
@@ -172,12 +172,12 @@ func (r *LogShowRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 //////////////////////////////////////////////////////////////////////////////
 
 type LogListReq struct {
-	NmpBase
+	NmpBase `codec:"-"`
 }
 
 type LogListRsp struct {
 	NmpBase
-	Rc   int      `codec:"rc" codec:",omitempty"`
+	Rc   int      `codec:"rc"`
 	List []string `codec:"log_list"`
 }
 
@@ -200,12 +200,12 @@ func (r *LogListRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 //////////////////////////////////////////////////////////////////////////////
 
 type LogModuleListReq struct {
-	NmpBase
+	NmpBase `codec:"-"`
 }
 
 type LogModuleListRsp struct {
 	NmpBase
-	Rc  int            `codec:"rc" codec:",omitempty"`
+	Rc  int            `codec:"rc"`
 	Map map[string]int `codec:"module_map"`
 }
 
@@ -228,12 +228,12 @@ func (r *LogModuleListRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 //////////////////////////////////////////////////////////////////////////////
 
 type LogLevelListReq struct {
-	NmpBase
+	NmpBase `codec:"-"`
 }
 
 type LogLevelListRsp struct {
 	NmpBase
-	Rc  int            `codec:"rc" codec:",omitempty"`
+	Rc  int            `codec:"rc"`
 	Map map[string]int `codec:"level_map"`
 }
 
@@ -256,12 +256,12 @@ func (r *LogLevelListRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 //////////////////////////////////////////////////////////////////////////////
 
 type LogClearReq struct {
-	NmpBase
+	NmpBase `codec:"-"`
 }
 
 type LogClearRsp struct {
 	NmpBase
-	Rc int `codec:"rc" codec:",omitempty"`
+	Rc int `codec:"rc"`
 }
 
 func NewLogClearReq() *LogClearReq {

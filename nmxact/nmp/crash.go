@@ -22,13 +22,13 @@ package nmp
 import ()
 
 type CrashReq struct {
-	NmpBase
+	NmpBase          `codec:"-"`
 	CrashType string `codec:"t"`
 }
 
 type CrashRsp struct {
 	NmpBase
-	Rc int `codec:"rc" codec:",omitempty"`
+	Rc int `codec:"rc"`
 }
 
 func NewCrashReq() *CrashReq {

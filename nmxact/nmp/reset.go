@@ -22,7 +22,7 @@ package nmp
 import ()
 
 type ResetReq struct {
-	NmpBase
+	NmpBase `codec:"-"`
 }
 
 type ResetRsp struct {

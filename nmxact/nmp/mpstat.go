@@ -22,7 +22,7 @@ package nmp
 import ()
 
 type MempoolStatReq struct {
-	NmpBase
+	NmpBase `codec:"-"`
 }
 
 type MempoolStatRsp struct {

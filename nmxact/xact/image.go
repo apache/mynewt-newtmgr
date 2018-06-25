@@ -70,7 +70,7 @@ func buildImageUploadReq(imageSz int, hash []byte, chunk []byte,
 
 	r := nmp.NewImageUploadReq()
 
-	if r.Off == 0 {
+	if off == 0 {
 		r.Len = uint32(imageSz)
 		r.DataHash = hash
 	}

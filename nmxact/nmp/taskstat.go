@@ -22,12 +22,12 @@ package nmp
 import ()
 
 type TaskStatReq struct {
-	NmpBase
+	NmpBase `codec:"-"`
 }
 
 type TaskStatRsp struct {
 	NmpBase
-	Rc    int                       `codec:"rc" codec:",omitempty"`
+	Rc    int                       `codec:"rc"`
 	Tasks map[string]map[string]int `codec:"tasks"`
 }
 
