@@ -34,6 +34,7 @@ import (
 // $upload                                                                  //
 //////////////////////////////////////////////////////////////////////////////
 const IMAGE_UPLOAD_MAX_CHUNK = 512
+const IMAGE_UPLOAD_MIN_1ST_CHUNK = 32
 
 type ImageUploadProgressFn func(c *ImageUploadCmd, r *nmp.ImageUploadRsp)
 type ImageUploadCmd struct {
@@ -80,6 +81,32 @@ func buildImageUploadReq(imageSz int, hash []byte, chunk []byte,
 	return r
 }
 
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func findChunkLen(s sesn.Sesn, hash []byte, data []byte, off int) (int, error) {
+	// Let's start by encoding max allowed chunk len and we will see how many
+	// bytes we need to cut
+	chunklen := min(len(data) - off, IMAGE_UPLOAD_MAX_CHUNK)
+	r := buildImageUploadReq(len(data), hash, data[off:off+chunklen], off)
+	enc, err := mgmt.EncodeMgmt(s, r.Msg())
+	if err != nil {
+		return 0, err
+	}
+
+	// If encoded length is larger than MTU, we need to make chunk shorter
+	if len(enc) > s.MtuOut() {
+		overflow := len(enc) - s.MtuOut()
+		chunklen -= overflow
+	}
+
+	return chunklen, nil
+}
+
 func nextImageUploadReq(s sesn.Sesn, data []byte, off int) (
 	*nmp.ImageUploadReq, error) {
 	var hash []byte = nil
@@ -90,43 +117,41 @@ func nextImageUploadReq(s sesn.Sesn, data []byte, off int) (
 		hash = sha[:]
 	}
 
-	// First, build a request without data to determine how much data could
-	// fit.
-	empty := buildImageUploadReq(len(data), hash, nil, off)
-	emptyEnc, err := mgmt.EncodeMgmt(s, empty.Msg())
+	// Find chunk length
+	chunklen, err := findChunkLen(s, hash, data, off)
 	if err != nil {
 		return nil, err
 	}
 
-	room := s.MtuOut() - len(emptyEnc)
-	if room <= 0 {
+	// For 1st chunk we need to send at least full header so if it does not
+	// fit we'll recalculate without hash
+	if off == 0 && chunklen < IMAGE_UPLOAD_MIN_1ST_CHUNK {
+		hash = nil
+		chunklen, err = findChunkLen(s, hash, data, off)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// If calculated chunk length is not enough to send at least single byte
+	// we can't do much more...
+	if chunklen <= 0 {
 		return nil, fmt.Errorf("Cannot create image upload request; "+
 			"MTU too low to fit any image data; max-payload-size=%d",
 			s.MtuOut())
 	}
 
-	if off+room > len(data) {
-		// Final chunk.
-		room = len(data) - off
-	}
-	// Cap the max amount of data sent
-	if room > IMAGE_UPLOAD_MAX_CHUNK {
-		room = IMAGE_UPLOAD_MAX_CHUNK
-	}
+	r := buildImageUploadReq(len(data), hash, data[off:off+chunklen], off)
 
-	// Assume all the unused space can hold image data.  This assumption may
-	// not be valid for some encodings (e.g., CBOR uses variable length fields
-	// to encodes byte string lengths).
-	r := buildImageUploadReq(len(data), hash, data[off:off+room], off)
+	// Request above should encode just fine since we calculate proper chunk length
+	// but (at least for now) let's double check it
 	enc, err := mgmt.EncodeMgmt(s, r.Msg())
 	if err != nil {
 		return nil, err
 	}
-
-	oversize := len(enc) - s.MtuOut()
-	if oversize > 0 {
-		// Request too big.  Reduce the amount of image data.
-		r = buildImageUploadReq(len(data), hash, data[off:off+room-oversize], off)
+	if len(enc) > s.MtuOut() {
+		return nil, fmt.Errorf("Invalid chunk length; payload-size=%d "+
+			"max-payload-size=%d", len(enc), s.MtuOut())
 	}
 
 	return r, nil
