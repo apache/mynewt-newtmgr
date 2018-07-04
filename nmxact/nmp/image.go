@@ -29,7 +29,7 @@ type ImageUploadReq struct {
 	NmpBase         `codec:"-"`
 	Off      uint32 `codec:"off"`
 	Len      uint32 `codec:"len,omitempty"`
-	DataHash []byte `codec:"datahash,omitempty"`
+	DataSha  []byte `codec:"sha,omitempty"`
 	Data     []byte `codec:"data"`
 }
 
