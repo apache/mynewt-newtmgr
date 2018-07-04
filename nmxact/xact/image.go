@@ -73,7 +73,7 @@ func buildImageUploadReq(imageSz int, hash []byte, chunk []byte,
 
 	if off == 0 {
 		r.Len = uint32(imageSz)
-		r.DataHash = hash
+		r.DataSha = hash
 	}
 	r.Off = uint32(off)
 	r.Data = chunk
