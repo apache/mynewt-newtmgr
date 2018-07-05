@@ -31,11 +31,11 @@ tested on Windows 10 64 bit platform.
 
 1. Start a MinGW terminal.
 
-2. Download the newtmgr binary tar file:
+2. Download the newtmgr binary tar file from one of the mirror sites .:
 
    .. code-block:: console
 
-    $ wget -P /tmp https://raw.githubusercontent.com/runtimeco/binary-releases/master/mynewt-newt-tools_1.3.0/newtmgr_1_3_0_windows_amd64.tar.gz
+    $ wget -P /tmp http://www.apache.org/dyn/closer.lua/mynewt/apache-mynewt-1.4.1/apache-mynewt-newtmgr-bin-windows-1.4.1.tgz
 
 3. Extract the file:
 
@@ -45,13 +45,13 @@ tested on Windows 10 64 bit platform.
      you are using $GOPATH/bin for your Go applications.
 
      ::
-          tar -xzf /tmp/newtmgr_1_3_0_windows_amd64.tar.gz -C $GOPATH/bin
+          tar -xzf /tmp/apache-mynewt-newtmgr-bin-windows-1.4.1.tgz -C $GOPATH/bin
 
    - If you are installing newtmgr for the first time and do not have Go
      setup, you can extract into /usr/bin directory:
 
      ::
-          tar -xzf /tmp/newtmgr_1_3_0_windows_amd64.tar.gz -C /usr/bin
+          tar -xzf /tmp/apache-mynewt-newtmgr-bin-windows-1.4.1.tgz -C /usr/bin
 
 4. Verify the installed version of newtmgr. See `Checking the Installed
    Version <#check_newtmgr>`__.
@@ -100,8 +100,8 @@ build and install the latest release version of newtmgr from source.
    .. code-block:: console
 
       $ cd src/mynewt.apache.org/newtmgr
-      $ git checkout mynewt_1_3_0_tag
-      Note: checking out 'mynewt_1_3_0_tag'.
+      $ git checkout mynewt_1_4_1_tag
+      Note: checking out 'mynewt_1_4_1_tag'.
 
 6. Build newtmgr from the latest release version:
 
