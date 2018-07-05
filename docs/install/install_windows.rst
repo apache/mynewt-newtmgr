@@ -44,13 +44,15 @@ tested on Windows 10 64 bit platform.
      overwrites the current newtmgr.exe in the directory and assumes that
      you are using $GOPATH/bin for your Go applications.
 
-     ::
+     .. code-block:: console
+     
           tar -xzf /tmp/apache-mynewt-newtmgr-bin-windows-1.4.1.tgz -C $GOPATH/bin
 
    - If you are installing newtmgr for the first time and do not have Go
      setup, you can extract into /usr/bin directory:
 
-     ::
+     .. code-block:: console
+     
           tar -xzf /tmp/apache-mynewt-newtmgr-bin-windows-1.4.1.tgz -C /usr/bin
 
 4. Verify the installed version of newtmgr. See `Checking the Installed
