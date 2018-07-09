@@ -23,7 +23,9 @@ package config
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-ble/ble"
 
@@ -38,10 +40,15 @@ type BllConfig struct {
 	OwnAddrType bledefs.BleAddrType
 	PeerId      string
 	PeerName    string
+
+	// Connection timeout, in seconds.
+	ConnTimeout float64
 }
 
 func NewBllConfig() *BllConfig {
-	return &BllConfig{}
+	return &BllConfig{
+		ConnTimeout: nmutil.Timeout,
+	}
 }
 
 func einvalBllConnString(f string, args ...interface{}) error {
@@ -80,6 +87,13 @@ func ParseBllConnString(cs string) (*BllConfig, error) {
 			bc.PeerId = v
 		case "peer_name":
 			bc.PeerName = v
+		case "conn_timeout":
+			var err error
+			bc.ConnTimeout, err = strconv.ParseFloat(v, 64)
+			if err != nil {
+				return nil, einvalBleConnString("Invalid conn_timeout: %s", v)
+			}
+
 		default:
 			return nil, einvalBllConnString("Unrecognized key: %s", k)
 		}
@@ -108,6 +122,7 @@ func BuildBllSesnCfg(bc *BllConfig) (bll.BllSesnCfg, error) {
 	}
 
 	sc.WriteRsp = nmutil.BleWriteRsp
+	sc.ConnTimeout = time.Duration(bc.ConnTimeout*1000000000) * time.Nanosecond
 
 	return sc, nil
 }
