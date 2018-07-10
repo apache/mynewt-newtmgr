@@ -21,8 +21,6 @@ package nmp
 
 import (
 	"fmt"
-
-	"github.com/ugorji/go/codec"
 )
 
 //////////////////////////////////////////////////////////////////////////////
@@ -125,7 +123,7 @@ var LogEntryTypeStringMap = map[LogEntryType]string{
 }
 
 type LogShowReq struct {
-	NmpBase          `codec:"-"`
+	NmpBase   `codec:"-"`
 	Name      string `codec:"log_name"`
 	Timestamp int64  `codec:"ts"`
 	Index     uint32 `codec:"index"`
@@ -305,37 +303,17 @@ func (l LogEntryType) String() string {
 	return LogEntryTypeToString(l)
 }
 
-func (l LogEntryType) MarshalBinary([]byte, error) error {
-	var err error
-	var s string
-	var b []byte
-
-	handle := new(codec.CborHandle)
-
-	s = LogEntryTypeToString(l)
-
-	dec := codec.NewEncoderBytes(&b, handle)
-
-	err = dec.Encode(&b)
-	if err != nil {
-		return err
-	}
-
-	b = append(b, s...)
-
-	return err
+func (l LogEntryType) MarshalBinary() ([]byte, error) {
+	return []byte(l.String()), nil
 }
 
 func (l *LogEntryType) UnmarshalBinary(data []byte) error {
 	var err error
-	var s string
 
-	handle := new(codec.CborHandle)
-	dec := codec.NewDecoderBytes(data, handle)
+	*l, err = LogEntryTypeFromString(string(data))
+	if err != nil {
+		return err
+	}
 
-	err = dec.Decode(&s)
-
-	*l, err = LogEntryTypeFromString(s)
-
-	return err
+	return nil
 }
