@@ -40,6 +40,9 @@ type BleConfig struct {
 	OwnAddrType bledefs.BleAddrType
 	OwnAddr     bledefs.BleAddr
 
+	// Connection timeout, in seconds.
+	ConnTimeout float64
+
 	BlehostdPath   string
 	ControllerPath string
 }
@@ -47,6 +50,7 @@ type BleConfig struct {
 func NewBleConfig() *BleConfig {
 	return &BleConfig{
 		OwnAddrType:  bledefs.BLE_ADDR_TYPE_RANDOM,
+		ConnTimeout:  nmutil.Timeout,
 		BlehostdPath: "blehostd",
 	}
 }
@@ -138,7 +142,8 @@ func FillSesnCfg(bx *nmble.BleXport, bc *BleConfig, sc *sesn.SesnCfg) error {
 		}
 	}
 
-	// We don't need to stick around until a connection closes.
+	sc.Ble.Central.ConnTimeout =
+		time.Duration(bc.ConnTimeout*1000000000) * time.Nanosecond
 	sc.Ble.CloseTimeout = 10000 * time.Millisecond
 
 	sc.Ble.WriteRsp = nmutil.BleWriteRsp
