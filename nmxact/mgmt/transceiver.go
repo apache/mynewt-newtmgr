@@ -301,6 +301,7 @@ func (t *Transceiver) DispatchNmpRsp(data []byte) {
 	if t.nd != nil {
 		t.nd.Dispatch(data)
 	} else {
+		log.Debugf("Rx OIC response: %s", hex.Dump(data))
 		t.od.Dispatch(data)
 	}
 }
