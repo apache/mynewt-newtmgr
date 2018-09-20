@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"encoding/json"
 
 	"github.com/runtimeco/go-coap"
 	"github.com/spf13/cobra"
@@ -92,6 +93,39 @@ func extractResKv(params []string) (map[string]interface{}, error) {
 	return m, nil
 }
 
+/* Helper functions to convert JSON object into pretty format
+   Adapted from elastic/beats/libbeat/common/mapstr.go
+*/
+
+func cleanUpInterfaceArray(in []interface{}) []interface{} {
+	result := make(map[string]interface{})
+	for k, v := range in {
+		result[i] = cleanUpMapValue(v)
+	}
+	return result
+}
+
+func cleanUpInterfaceMap(in map[interface{}]interface{}) map[string]interface{} {
+	result := make(map[string]interface{})
+	for k, v := range in {
+		result[fmt.Sprintf("%v", k)] = cleanUpMapValue(v)
+	}
+	return result
+}
+
+func cleanUpMapValue(v interface{}) interface{} {
+	switch v := v.(type) {
+	case []interface{}:
+		return cleanUpInterfaceArray(v)
+	case map[interface{}]interface{}:
+		return cleanUpInterfaceMap(v)
+	case string:
+		return v
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
 func resResponseStr(path string, cbor []byte) string {
 	s := path
 
@@ -101,7 +135,11 @@ func resResponseStr(path string, cbor []byte) string {
 			s += fmt.Sprintf("\n    invalid incoming cbor:%v\n%s",
 				err, hex.Dump(cbor))
 		}
-		s += fmt.Sprintf("\n%v", m)
+		j, err := json.MarshalINdent(cleanUpMapValue(m), "", "    ")
+		if err != nil {
+			s += fmt.Sprintf("\nerror: ", err)
+		}
+		s += fmt.Sprintf("\n%v", string(j))
 	} else {
 		s += "\n    <empty>"
 	}
