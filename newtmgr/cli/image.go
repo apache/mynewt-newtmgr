@@ -191,6 +191,7 @@ func imageUploadCmd(cmd *cobra.Command, args []string) {
 	}
 	c.ProgressBar = pb.StartNew(len(imageFile))
 	c.ProgressBar.SetUnits(pb.U_BYTES)
+	c.ProgressBar.ShowSpeed = true
 	c.LastOff = 0
 	c.ProgressCb = func(cmd *xact.ImageUploadCmd, rsp *nmp.ImageUploadRsp) {
 		c.ProgressBar.Add(int(rsp.Off - c.LastOff))
@@ -207,6 +208,7 @@ func imageUploadCmd(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	c.ProgressBar.Finish()
 	fmt.Printf("Done\n")
 }
 
