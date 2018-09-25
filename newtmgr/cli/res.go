@@ -98,8 +98,8 @@ func extractResKv(params []string) (map[string]interface{}, error) {
 */
 
 func cleanUpInterfaceArray(in []interface{}) []interface{} {
-	result := make(map[string]interface{})
-	for k, v := range in {
+	result := make([]interface{}, len(in))
+	for i, v := range in {
 		result[i] = cleanUpMapValue(v)
 	}
 	return result
@@ -135,7 +135,7 @@ func resResponseStr(path string, cbor []byte) string {
 			s += fmt.Sprintf("\n    invalid incoming cbor:%v\n%s",
 				err, hex.Dump(cbor))
 		}
-		j, err := json.MarshalINdent(cleanUpMapValue(m), "", "    ")
+		j, err := json.MarshalIndent(cleanUpMapValue(m), "", "    ")
 		if err != nil {
 			s += fmt.Sprintf("\nerror: ", err)
 		}
