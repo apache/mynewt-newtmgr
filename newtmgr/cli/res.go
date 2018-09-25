@@ -36,6 +36,8 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/xact"
 )
 
+var details bool
+
 func indent(s string, numSpaces int) string {
 	b := make([]byte, numSpaces)
 	for i, _ := range b {
