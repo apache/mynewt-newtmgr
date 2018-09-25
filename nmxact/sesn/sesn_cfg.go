@@ -20,7 +20,6 @@
 package sesn
 
 import (
-	"fmt"
 	"time"
 
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
