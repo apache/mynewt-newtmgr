@@ -76,6 +76,15 @@ func extractResKv(params []string) (map[string]interface{}, error) {
 			strings.HasSuffix(parts[1], "\"") {
 
 			val = parts[1][1 : len(parts[1])-1]
+		} else if strings.ToLower(parts[1]) == "false" ||
+			strings.ToLower(parts[1]) == "true" {
+			// parse value as boolean
+			b, err := strconv.ParseBool(strings.ToLower(parts[1]))
+			if err == nil {
+				val = b
+			} else {
+				val = parts[1]
+			}
 		} else {
 			// Try to parse value as an integer.
 			num, err := strconv.Atoi(parts[1])
