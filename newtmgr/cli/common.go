@@ -30,6 +30,7 @@ import (
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/mtech_lora"
 	"mynewt.apache.org/newtmgr/nmxact/nmble"
+	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 	"mynewt.apache.org/newtmgr/nmxact/nmserial"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 	"mynewt.apache.org/newtmgr/nmxact/udp"
@@ -43,6 +44,8 @@ var globalP *config.ConnProfile
 // This keeps track of whether the global interface has been assigned.  This
 // is necessary to accommodate golang's nil-interface semantics.
 var globalXportSet bool
+var globalTxFilter nmcoap.MsgFilter
+var globalRxFilter nmcoap.MsgFilter
 
 func initConnProfile() error {
 	var p *config.ConnProfile
@@ -283,6 +286,9 @@ func buildBllSesn(cp *config.ConnProfile) (sesn.Sesn, error) {
 		return nil, util.NewNewtError("ERROR")
 	}
 
+	sc.TxFilterCb = globalTxFilter
+	sc.RxFilterCb = globalRxFilter
+
 	s, err := bx.BuildBllSesn(sc)
 	if err != nil {
 		return nil, util.ChildNewtError(err)
@@ -314,6 +320,8 @@ func GetSesn() (sesn.Sesn, error) {
 		if err != nil {
 			return nil, err
 		}
+		sc.TxFilterCb = globalTxFilter
+		sc.RxFilterCb = globalRxFilter
 
 		x, err := GetXport()
 		if err != nil {
@@ -340,4 +348,9 @@ func GetSesnIfOpen() (sesn.Sesn, error) {
 	}
 
 	return globalSesn, nil
+}
+
+func SetFilters(txFilter nmcoap.MsgFilter, rxFilter nmcoap.MsgFilter) {
+	globalTxFilter = txFilter
+	globalRxFilter = rxFilter
 }
