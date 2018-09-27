@@ -282,7 +282,7 @@ func resPostCmd(cmd *cobra.Command, args []string) {
 	path := args[0]
 
 	var m map[string]interface{}
-	m, err = extractResKv(args[2:])
+	m, err = extractResKv(args[1:])
 	if err != nil {
 		nmUsage(cmd, err)
 	}
@@ -331,7 +331,7 @@ func resDeleteCmd(cmd *cobra.Command, args []string) {
 	path := args[0]
 
 	var m map[string]interface{}
-	m, err = extractResKv(args[2:])
+	m, err = extractResKv(args[1:])
 	if err != nil {
 		nmUsage(cmd, err)
 	}
