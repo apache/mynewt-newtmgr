@@ -43,6 +43,8 @@ type BllConfig struct {
 
 	// Connection timeout, in seconds.
 	ConnTimeout float64
+
+	HciIdx int
 }
 
 func NewBllConfig() *BllConfig {
@@ -98,6 +100,8 @@ func ParseBllConnString(cs string) (*BllConfig, error) {
 			return nil, einvalBllConnString("Unrecognized key: %s", k)
 		}
 	}
+
+	bc.HciIdx = nmutil.HciIdx
 
 	return bc, nil
 }

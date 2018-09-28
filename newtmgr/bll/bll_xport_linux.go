@@ -24,7 +24,6 @@ package bll
 import (
 	"github.com/go-ble/ble"
 	"github.com/go-ble/ble/linux"
-	"github.com/go-ble/ble/linux/hci"
 	"github.com/go-ble/ble/linux/hci/cmd"
 
 	"mynewt.apache.org/newt/util"
@@ -51,7 +50,7 @@ func BllXportSetConnParams(dev ble.Device, ownAddrType bledefs.BleAddrType) erro
 		PeerAddress:     [6]byte{}, //
 	}
 
-	opt := hci.OptConnParams(cc)
+	opt := ble.OptConnParams(cc)
 	if err := ldev.HCI.Option(opt); err != nil {
 		return util.FmtNewtError("error setting connection parameters: %s",
 			err.Error())

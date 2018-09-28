@@ -23,10 +23,8 @@ package bll
 
 import (
 	"fmt"
-
 	"github.com/go-ble/ble"
 	"github.com/go-ble/ble/examples/lib/dev"
-
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
@@ -44,11 +42,13 @@ func NewXportCfg() XportCfg {
 
 type BllXport struct {
 	cfg XportCfg
+	hciIdx	int
 }
 
-func NewBllXport(cfg XportCfg) *BllXport {
+func NewBllXport(cfg XportCfg, hciIdx int) *BllXport {
 	return &BllXport{
 		cfg: cfg,
+		hciIdx: hciIdx,
 	}
 }
 
@@ -62,9 +62,9 @@ func (bx *BllXport) BuildBllSesn(cfg BllSesnCfg) (sesn.Sesn, error) {
 }
 
 func (bx *BllXport) Start() error {
-	d, err := dev.NewDevice(bx.cfg.CtlrName)
+	d, err := dev.NewDevice(bx.cfg.CtlrName, ble.OptDeviceID(bx.hciIdx))
 	if err != nil {
-		return err
+		return fmt.Errorf("[hci%d]: %s", bx.hciIdx, err)
 	}
 
 	// Set the connection parameters to use for all initiated connections.
