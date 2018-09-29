@@ -104,6 +104,33 @@ func extractResKv(params []string) (map[string]interface{}, error) {
 	return m, nil
 }
 
+func printCode(code coap.COAPCode) string {
+	var s string
+	class := (code & 0xE0)>>5
+	d1 := (code & 0x18)>>3
+	d2 := code & 0x07
+	s += fmt.Sprintf("CoAP Response Code: %d.%d%d %s\n", class, d1, d2, code)
+	return s
+}
+
+func printDetails(sres interface{}) string {
+	var s string
+	switch sres := sres.(type) {
+	case *xact.GetResResult:
+		s += printCode(sres.Code)
+		if sres.Token != nil {
+			s += fmt.Sprintf("CoAP Response Token: %v\n", hex.EncodeToString(sres.Token))
+		}
+	case *xact.PutResResult:
+		s += printCode(sres.Code)
+	case *xact.PostResResult:
+		s += printCode(sres.Code)
+	case *xact.DeleteResResult:
+		s += printCode(sres.Code)
+	}
+	return s
+}
+
 /* Helper functions to convert JSON object into pretty format
    Adapted from elastic/beats/libbeat/common/mapstr.go
 */
@@ -194,6 +221,10 @@ func resGetCmd(cmd *cobra.Command, args []string) {
 	if sres.Value != nil {
 		fmt.Printf("%s\n", resResponseStr(c.Path, sres.Value))
 	}
+
+	if details {
+		fmt.Printf(printDetails(sres))
+	}
 }
 
 func resPutCmd(cmd *cobra.Command, args []string) {
@@ -244,6 +275,10 @@ func resPutCmd(cmd *cobra.Command, args []string) {
 
 	if sres.Value != nil {
 		fmt.Printf("%s\n", resResponseStr(c.Path, sres.Value))
+	}
+
+	if details {
+		fmt.Printf(printDetails(sres))
 	}
 }
 
@@ -296,6 +331,10 @@ func resPostCmd(cmd *cobra.Command, args []string) {
 	if sres.Value != nil {
 		fmt.Printf("%s\n", resResponseStr(c.Path, sres.Value))
 	}
+
+	if details {
+		fmt.Printf(printDetails(sres))
+	}
 }
 
 func resDeleteCmd(cmd *cobra.Command, args []string) {
@@ -347,6 +386,10 @@ func resDeleteCmd(cmd *cobra.Command, args []string) {
 	if sres.Value != nil {
 		fmt.Printf("%s\n", resResponseStr(c.Path, sres.Value))
 	}
+
+	if details {
+		fmt.Printf(printDetails(sres))
+	}
 }
 
 func resCmd() *cobra.Command {
@@ -381,6 +424,8 @@ func resCmd() *cobra.Command {
 		Short: "Send a CoAP DELETE request",
 		Run:   resDeleteCmd,
 	})
+
+	resCmd.PersistentFlags().BoolVarP(&details, "details", "d", false, "Show more details about the CoAP response")
 
 	return resCmd
 }
