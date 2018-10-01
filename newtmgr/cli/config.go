@@ -106,12 +106,17 @@ func configRunCmd(cmd *cobra.Command, args []string) {
 
 func configCmd() *cobra.Command {
 	configCmdLongHelp := "Read or write a config value for <var-name> variable on " +
-		"a device.\nSpecify a var-value to write a value to a device.\n"
+		"a device.\nSpecify a var-value to write a value to a device.\n" +
+		"To persist existing configuration use 'save' as the var-name.\n"
+	configEx := "    " + nmutil.ToolInfo.ExeName + " -c olimex config test/8\n"
+	configEx += "    " + nmutil.ToolInfo.ExeName + " -c olimex config test/8 1\n"
+	configEx += "    " + nmutil.ToolInfo.ExeName + " -c olimex config save\n"
 	configCmd := &cobra.Command{
-		Use:   "config <var-name> [var-value] -c <conn_profile>",
-		Short: "Read or write a config value on a device",
-		Long:  configCmdLongHelp,
-		Run:   configRunCmd,
+		Use:     "config <var-name> [var-value] -c <conn_profile>",
+		Short:   "Read or write a config value on a device",
+		Long:    configCmdLongHelp,
+		Example: configEx,
+		Run:     configRunCmd,
 	}
 
 	return configCmd
