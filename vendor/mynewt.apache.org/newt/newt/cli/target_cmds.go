@@ -36,18 +36,17 @@ import (
 	"mynewt.apache.org/newt/newt/resolve"
 	"mynewt.apache.org/newt/newt/syscfg"
 	"mynewt.apache.org/newt/newt/target"
+	"mynewt.apache.org/newt/newt/ycfg"
 	"mynewt.apache.org/newt/util"
-	"mynewt.apache.org/newt/viper"
 )
 
-var targetForce bool = false
 var amendDelete bool = false
 
 // target variables that can have values amended with the amend command.
-var amendVars = []string{"aflags", "cflags", "lflags", "syscfg"}
+var amendVars = []string{"aflags", "cflags", "cxxflags", "lflags", "syscfg"}
 
 var setVars = []string{"aflags", "app", "build_profile", "bsp", "cflags",
-	"lflags", "loader", "syscfg"}
+	"cxxflags", "lflags", "loader", "syscfg"}
 
 func resolveExistingTargetArg(arg string) (*target.Target, error) {
 	t := ResolveTarget(arg)
@@ -81,11 +80,11 @@ func targetContainsUserFiles(t *target.Target) (bool, error) {
 }
 
 func pkgVarSliceString(pack *pkg.LocalPackage, key string) string {
-	features := pack.PkgV.GetStringSlice(key)
-	sort.Strings(features)
+	vals := pack.PkgY.GetValStringSlice(key, nil)
+	sort.Strings(vals)
 	var buffer bytes.Buffer
-	for _, f := range features {
-		buffer.WriteString(f)
+	for _, v := range vals {
+		buffer.WriteString(v)
 		buffer.WriteString(" ")
 	}
 	return buffer.String()
@@ -93,9 +92,8 @@ func pkgVarSliceString(pack *pkg.LocalPackage, key string) string {
 
 //Process amend command for syscfg target variable
 func amendSysCfg(value string, t *target.Target) error {
-
 	// Get the current syscfg.vals name-value pairs
-	sysVals := t.Package().SyscfgV.GetStringMapString("syscfg.vals")
+	sysVals := t.Package().SyscfgY.GetValStringMapString("syscfg.vals", nil)
 
 	// Convert the input syscfg into name-value pairs
 	amendSysVals, err := syscfg.KeyValueFromStr(value)
@@ -119,14 +117,16 @@ func amendSysCfg(value string, t *target.Target) error {
 			sysVals = amendSysVals
 		}
 	}
-	t.Package().SyscfgV.Set("syscfg.vals", sysVals)
+
+	itfMap := util.StringMapStringToItfMapItf(sysVals)
+	t.Package().SyscfgY.Replace("syscfg.vals", itfMap)
 	return nil
 }
 
-//Process amend command for aflags, cflags, and lflags target variables.
+//Process amend command for aflags, cflags, cxxflags, and lflags target variables.
 func amendBuildFlags(kv []string, t *target.Target) error {
-	pkg_var := "pkg." + kv[0]
-	curFlags := t.Package().PkgV.GetStringSlice(pkg_var)
+	pkgVar := "pkg." + kv[0]
+	curFlags := t.Package().PkgY.GetValStringSlice(pkgVar, nil)
 	amendFlags := strings.Fields(kv[1])
 
 	newFlags := []string{}
@@ -164,7 +164,7 @@ func amendBuildFlags(kv []string, t *target.Target) error {
 			}
 		}
 	}
-	t.Package().PkgV.Set(pkg_var, newFlags)
+	t.Package().PkgY.Replace(pkgVar, newFlags)
 	return nil
 }
 
@@ -200,14 +200,16 @@ func targetShowCmd(cmd *cobra.Command, args []string) {
 		util.StatusMessage(util.VERBOSITY_DEFAULT, name+"\n")
 
 		target := target.GetTargets()[name]
-		for k, v := range target.Vars {
+		settings := target.TargetY.AllSettingsAsStrings()
+		for k, v := range settings {
 			kvPairs[strings.TrimPrefix(k, "target.")] = v
 		}
 
 		// A few variables come from the base package rather than the target.
 		kvPairs["syscfg"] = syscfg.KeyValueToStr(
-			target.Package().SyscfgV.GetStringMapString("syscfg.vals"))
+			target.Package().SyscfgY.GetValStringMapString("syscfg.vals", nil))
 		kvPairs["cflags"] = pkgVarSliceString(target.Package(), "pkg.cflags")
+		kvPairs["cxxflags"] = pkgVarSliceString(target.Package(), "pkg.cxxflags")
 		kvPairs["lflags"] = pkgVarSliceString(target.Package(), "pkg.lflags")
 		kvPairs["aflags"] = pkgVarSliceString(target.Package(), "pkg.aflags")
 
@@ -223,6 +225,27 @@ func targetShowCmd(cmd *cobra.Command, args []string) {
 					k, kvPairs[k])
 			}
 		}
+	}
+}
+
+func targetCmakeCmd(cmd *cobra.Command, args []string) {
+	TryGetProject()
+
+	// Verify and resolve each specified package.
+	targets, err := ResolveTargets(args...)
+	if err != nil {
+		NewtUsage(cmd, err)
+		return
+	}
+
+	if len(targets) != 1 {
+		NewtUsage(cmd, err)
+		return
+	}
+
+	err = builder.CMakeTargetGenerate(targets[0])
+	if err != nil {
+		NewtUsage(nil, err)
 	}
 }
 
@@ -282,31 +305,33 @@ func targetSetCmd(cmd *cobra.Command, args []string) {
 		// A few variables are special cases; they get set in the base package
 		// instead of the target.
 		if kv[0] == "target.syscfg" {
-			t.Package().SyscfgV = viper.New()
+			t.Package().SyscfgY = ycfg.YCfg{}
 			kv, err := syscfg.KeyValueFromStr(kv[1])
 			if err != nil {
 				NewtUsage(cmd, err)
 			}
 
-			t.Package().SyscfgV.Set("syscfg.vals", kv)
+			itfMap := util.StringMapStringToItfMapItf(kv)
+			t.Package().SyscfgY.Replace("syscfg.vals", itfMap)
 		} else if kv[0] == "target.cflags" ||
+			kv[0] == "target.cxxflags" ||
 			kv[0] == "target.lflags" ||
 			kv[0] == "target.aflags" {
 
 			kv[0] = "pkg." + strings.TrimPrefix(kv[0], "target.")
 			if kv[1] == "" {
 				// User specified empty value; delete variable.
-				t.Package().PkgV.Set(kv[0], nil)
+				t.Package().PkgY.Replace(kv[0], nil)
 			} else {
-				t.Package().PkgV.Set(kv[0], strings.Fields(kv[1]))
+				t.Package().PkgY.Replace(kv[0], strings.Fields(kv[1]))
 			}
 		} else {
 			if kv[1] == "" {
 				// User specified empty value; delete variable.
-				delete(t.Vars, kv[0])
+				t.TargetY.Delete(kv[0])
 			} else {
 				// Assign value to specified variable.
-				t.Vars[kv[0]] = kv[1]
+				t.TargetY.Replace(kv[0], kv[1])
 			}
 		}
 	}
@@ -383,6 +408,7 @@ func targetAmendCmd(cmd *cobra.Command, args []string) {
 				NewtUsage(cmd, err)
 			}
 		} else if kv[0] == "cflags" ||
+			kv[0] == "cxxflags" ||
 			kv[0] == "lflags" ||
 			kv[0] == "aflags" {
 			err = amendBuildFlags(kv, t)
@@ -430,7 +456,7 @@ func targetCreateCmd(cmd *cobra.Command, args []string) {
 }
 
 func targetDelOne(t *target.Target) error {
-	if !targetForce {
+	if !newtutil.NewtForce {
 		// Determine if the target directory contains extra user files.  If it
 		// does, a prompt (or force) is required to delete it.
 		userFiles, err := targetContainsUserFiles(t)
@@ -543,11 +569,40 @@ func printSetting(entry syscfg.CfgEntry) {
 			"    * Overridden: ")
 		for i := 1; i < len(entry.History); i++ {
 			util.StatusMessage(util.VERBOSITY_DEFAULT, "%s, ",
-				entry.History[i].Source.Name())
+				entry.History[i].Source.FullName())
 		}
 		util.StatusMessage(util.VERBOSITY_DEFAULT,
 			"default=%s\n", entry.History[0].Value)
 	}
+	if len(entry.ValueRefName) > 0 {
+		util.StatusMessage(util.VERBOSITY_DEFAULT,
+			"    * Copied from: %s\n",
+			entry.ValueRefName)
+	}
+}
+
+func printBriefSetting(entry syscfg.CfgEntry) {
+	util.StatusMessage(util.VERBOSITY_DEFAULT, "  %s: %s",
+		entry.Name, entry.Value)
+
+	var extras []string
+
+	if len(entry.History) > 1 {
+		s := fmt.Sprintf("overridden by %s",
+			entry.History[len(entry.History)-1].Source.FullName())
+		extras = append(extras, s)
+	}
+	if len(entry.ValueRefName) > 0 {
+		s := fmt.Sprintf("copied from %s", entry.ValueRefName)
+		extras = append(extras, s)
+	}
+
+	if len(extras) > 0 {
+		util.StatusMessage(util.VERBOSITY_DEFAULT, " (%s)",
+			strings.Join(extras, ", "))
+	}
+
+	util.StatusMessage(util.VERBOSITY_DEFAULT, "\n")
 }
 
 func printPkgCfg(pkgName string, cfg syscfg.Cfg, entries []syscfg.CfgEntry) {
@@ -583,6 +638,42 @@ func printCfg(targetName string, cfg syscfg.Cfg) {
 			util.StatusMessage(util.VERBOSITY_DEFAULT, "\n")
 		}
 		printPkgCfg(pkgName, cfg, pkgNameEntryMap[pkgName])
+	}
+}
+
+func printPkgBriefCfg(pkgName string, cfg syscfg.Cfg, entries []syscfg.CfgEntry) {
+	util.StatusMessage(util.VERBOSITY_DEFAULT, "[%s]\n", pkgName)
+
+	settingNames := make([]string, len(entries))
+	for i, entry := range entries {
+		settingNames[i] = entry.Name
+	}
+	sort.Strings(settingNames)
+
+	for _, name := range settingNames {
+		printBriefSetting(cfg.Settings[name])
+	}
+}
+
+func printBriefCfg(targetName string, cfg syscfg.Cfg) {
+	if errText := cfg.ErrorText(); errText != "" {
+		util.StatusMessage(util.VERBOSITY_DEFAULT, "!!! %s\n\n", errText)
+	}
+
+	util.StatusMessage(util.VERBOSITY_DEFAULT, "Brief syscfg for %s:\n", targetName)
+	pkgNameEntryMap := syscfg.EntriesByPkg(cfg)
+
+	pkgNames := make([]string, 0, len(pkgNameEntryMap))
+	for pkgName, _ := range pkgNameEntryMap {
+		pkgNames = append(pkgNames, pkgName)
+	}
+	sort.Strings(pkgNames)
+
+	for i, pkgName := range pkgNames {
+		if i > 0 {
+			util.StatusMessage(util.VERBOSITY_DEFAULT, "\n")
+		}
+		printPkgBriefCfg(pkgName, cfg, pkgNameEntryMap[pkgName])
 	}
 }
 
@@ -635,9 +726,7 @@ func targetBuilderConfigResolve(b *builder.TargetBuilder) *resolve.Resolution {
 
 	warningText := strings.TrimSpace(res.WarningText())
 	if warningText != "" {
-		for _, line := range strings.Split(warningText, "\n") {
-			log.Warn(line)
-		}
+		log.Warn(warningText + "\n")
 	}
 
 	return res
@@ -649,7 +738,9 @@ func targetConfigShowCmd(cmd *cobra.Command, args []string) {
 			util.NewNewtError("Must specify target or unittest name"))
 	}
 
-	for _, arg := range args {
+	TryGetProject()
+
+	for i, arg := range args {
 		b, err := TargetBuilderForTargetOrUnittest(arg)
 		if err != nil {
 			NewtUsage(cmd, err)
@@ -657,6 +748,33 @@ func targetConfigShowCmd(cmd *cobra.Command, args []string) {
 
 		res := targetBuilderConfigResolve(b)
 		printCfg(b.GetTarget().Name(), res.Cfg)
+
+		if i < len(args)-1 {
+			util.StatusMessage(util.VERBOSITY_DEFAULT, "\n")
+		}
+	}
+}
+
+func targetConfigBriefCmd(cmd *cobra.Command, args []string) {
+	if len(args) < 1 {
+		NewtUsage(cmd,
+			util.NewNewtError("Must specify target or unittest name"))
+	}
+
+	TryGetProject()
+
+	for i, arg := range args {
+		b, err := TargetBuilderForTargetOrUnittest(arg)
+		if err != nil {
+			NewtUsage(cmd, err)
+		}
+
+		res := targetBuilderConfigResolve(b)
+		printBriefCfg(b.GetTarget().Name(), res.Cfg)
+
+		if i < len(args)-1 {
+			util.StatusMessage(util.VERBOSITY_DEFAULT, "\n")
+		}
 	}
 }
 
@@ -672,6 +790,8 @@ func targetConfigInitCmd(cmd *cobra.Command, args []string) {
 		b      *builder.TargetBuilder
 		exists bool
 	}
+
+	TryGetProject()
 
 	anyExist := false
 	entries := make([]entry, len(args))
@@ -697,7 +817,7 @@ func targetConfigInitCmd(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	if anyExist && !targetForce {
+	if anyExist && !newtutil.NewtForce {
 		util.StatusMessage(util.VERBOSITY_DEFAULT,
 			"Configuration files already exist:\n")
 		for _, e := range entries {
@@ -845,6 +965,21 @@ func AddTargetCommands(cmd *cobra.Command) {
 	targetCmd.AddCommand(showCmd)
 	AddTabCompleteFn(showCmd, targetList)
 
+	cmakeHelpText := "Generate CMakeLists.txt for target specified " +
+		"by <target-name>."
+	cmakeHelpEx := "  newt target cmake <target-name>\n"
+	cmakeHelpEx += "  newt target cmake my_target1"
+
+	cmakeCmd := &cobra.Command{
+		Use:     "cmake",
+		Short:   "",
+		Long:    cmakeHelpText,
+		Example: cmakeHelpEx,
+		Run:     targetCmakeCmd,
+	}
+	targetCmd.AddCommand(cmakeCmd)
+	AddTabCompleteFn(cmakeCmd, targetList)
+
 	setHelpText := "Set a target variable (<var-name>) on target "
 	setHelpText += "<target-name> to value <value>.\n"
 	setHelpText += "Variables that can be set are:\n"
@@ -956,7 +1091,7 @@ func AddTargetCommands(cmd *cobra.Command) {
 	targetCmd.AddCommand(configCmd)
 
 	configShowCmd := &cobra.Command{
-		Use:   "show <target>",
+		Use:   "show <target> [target...]",
 		Short: "View a target's system configuration",
 		Long:  "View a target's system configuration",
 		Run:   targetConfigShowCmd,
@@ -964,6 +1099,18 @@ func AddTargetCommands(cmd *cobra.Command) {
 
 	configCmd.AddCommand(configShowCmd)
 	AddTabCompleteFn(configShowCmd, func() []string {
+		return append(targetList(), unittestList()...)
+	})
+
+	configBriefCmd := &cobra.Command{
+		Use:   "brief <target> [target...]",
+		Short: "View a summary of target's system configuration",
+		Long:  "View a summary of target's system configuration",
+		Run:   targetConfigBriefCmd,
+	}
+
+	configCmd.AddCommand(configBriefCmd)
+	AddTabCompleteFn(configBriefCmd, func() []string {
 		return append(targetList(), unittestList()...)
 	})
 

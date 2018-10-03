@@ -38,8 +38,8 @@ import (
 	"mynewt.apache.org/newt/newt/newtutil"
 	"mynewt.apache.org/newt/newt/project"
 	"mynewt.apache.org/newt/newt/symbol"
+	"mynewt.apache.org/newt/newt/ycfg"
 	"mynewt.apache.org/newt/util"
-	"mynewt.apache.org/newt/viper"
 )
 
 const COMPILER_FILENAME string = "compiler.yml"
@@ -54,6 +54,7 @@ const (
 type CompilerInfo struct {
 	Includes    []string
 	Cflags      []string
+	CXXflags    []string
 	Lflags      []string
 	Aflags      []string
 	IgnoreFiles []*regexp.Regexp
@@ -110,6 +111,34 @@ func (c *Compiler) GetCompileCommands() []CompileCommand {
 	return c.compileCommands
 }
 
+func (c *Compiler) GetCcPath() string {
+	return c.ccPath
+}
+
+func (c *Compiler) GetCppPath() string {
+	return c.cppPath
+}
+
+func (c *Compiler) GetAsPath() string {
+	return c.asPath
+}
+
+func (c *Compiler) GetArPath() string {
+	return c.arPath
+}
+
+func (c *Compiler) GetLdResolveCircularDeps() bool {
+	return c.ldResolveCircularDeps
+}
+
+func (c *Compiler) GetCompilerInfo() CompilerInfo {
+	return c.info
+}
+
+func (c *Compiler) GetLocalCompilerInfo() CompilerInfo {
+	return c.lclInfo
+}
+
 type CompilerJob struct {
 	Filename     string
 	Compiler     *Compiler
@@ -120,6 +149,7 @@ func NewCompilerInfo() *CompilerInfo {
 	ci := &CompilerInfo{}
 	ci.Includes = []string{}
 	ci.Cflags = []string{}
+	ci.CXXflags = []string{}
 	ci.Lflags = []string{}
 	ci.Aflags = []string{}
 	ci.IgnoreFiles = []*regexp.Regexp{}
@@ -131,6 +161,15 @@ func NewCompilerInfo() *CompilerInfo {
 // Extracts the base of a flag string.  A flag base is used when detecting flag
 // conflicts.  If two flags have identicial bases, then they are in conflict.
 func flagsBase(cflags string) string {
+	// "-O" (optimization level) is one possible flag base.  By singling these
+	// out, newt can prevent the original optimization flag from being
+	// overwritten by subsequent ones.
+	if cflags == "-O" || len(cflags) == 3 && strings.HasPrefix(cflags, "-O") {
+		return "-O"
+	}
+
+	// Identify <key>=<value> pairs.  Newt prevents subsequent assignments to
+	// the same key from overriding the original.
 	eqIdx := strings.IndexByte(cflags, '=')
 	if eqIdx == -1 {
 		return cflags
@@ -190,6 +229,7 @@ func (ci *CompilerInfo) AddCflags(cflags []string) {
 func (ci *CompilerInfo) AddCompilerInfo(newCi *CompilerInfo) {
 	ci.Includes = append(ci.Includes, newCi.Includes...)
 	ci.Cflags = addFlags("cflag", ci.Cflags, newCi.Cflags)
+	ci.CXXflags = addFlags("cxxflag", ci.CXXflags, newCi.CXXflags)
 	ci.Lflags = addFlags("lflag", ci.Lflags, newCi.Lflags)
 	ci.Aflags = addFlags("aflag", ci.Aflags, newCi.Aflags)
 	ci.IgnoreFiles = append(ci.IgnoreFiles, newCi.IgnoreFiles...)
@@ -222,17 +262,13 @@ func NewCompiler(compilerDir string, dstDir string,
 	return c, nil
 }
 
-func loadFlags(v *viper.Viper, features map[string]bool,
-	key string) []string {
-
+func loadFlags(yc ycfg.YCfg, settings map[string]string, key string) []string {
 	flags := []string{}
 
-	rawFlags := newtutil.GetStringSliceFeatures(v, features, key)
+	rawFlags := yc.GetValStringSlice(key, settings)
 	for _, rawFlag := range rawFlags {
 		if strings.HasPrefix(rawFlag, key) {
-			expandedFlags := newtutil.GetStringSliceFeatures(v, features,
-				rawFlag)
-
+			expandedFlags := yc.GetValStringSlice(rawFlag, settings)
 			flags = append(flags, expandedFlags...)
 		} else {
 			flags = append(flags, strings.Trim(rawFlag, "\n"))
@@ -243,45 +279,33 @@ func loadFlags(v *viper.Viper, features map[string]bool,
 }
 
 func (c *Compiler) load(compilerDir string, buildProfile string) error {
-	v, err := util.ReadConfig(compilerDir, "compiler")
+	yc, err := newtutil.ReadConfig(compilerDir, "compiler")
 	if err != nil {
 		return err
 	}
 
-	features := map[string]bool{
-		buildProfile:                  true,
-		strings.ToUpper(runtime.GOOS): true,
+	settings := map[string]string{
+		buildProfile:                  "1",
+		strings.ToUpper(runtime.GOOS): "1",
 	}
 
-	c.ccPath = newtutil.GetStringFeatures(v, features, "compiler.path.cc")
-	c.cppPath = newtutil.GetStringFeatures(v, features, "compiler.path.cpp")
-	c.asPath = newtutil.GetStringFeatures(v, features, "compiler.path.as")
-	c.arPath = newtutil.GetStringFeatures(v, features, "compiler.path.archive")
-	c.odPath = newtutil.GetStringFeatures(v, features, "compiler.path.objdump")
-	c.osPath = newtutil.GetStringFeatures(v, features, "compiler.path.objsize")
-	c.ocPath = newtutil.GetStringFeatures(v, features, "compiler.path.objcopy")
+	c.ccPath = yc.GetValString("compiler.path.cc", settings)
+	c.cppPath = yc.GetValString("compiler.path.cpp", settings)
+	c.asPath = yc.GetValString("compiler.path.as", settings)
+	c.arPath = yc.GetValString("compiler.path.archive", settings)
+	c.odPath = yc.GetValString("compiler.path.objdump", settings)
+	c.osPath = yc.GetValString("compiler.path.objsize", settings)
+	c.ocPath = yc.GetValString("compiler.path.objcopy", settings)
 
-	c.lclInfo.Cflags = loadFlags(v, features, "compiler.flags")
-	c.lclInfo.Lflags = loadFlags(v, features, "compiler.ld.flags")
-	c.lclInfo.Aflags = loadFlags(v, features, "compiler.as.flags")
+	c.lclInfo.Cflags = loadFlags(yc, settings, "compiler.flags")
+	c.lclInfo.CXXflags = loadFlags(yc, settings, "compiler.cxx.flags")
+	c.lclInfo.Lflags = loadFlags(yc, settings, "compiler.ld.flags")
+	c.lclInfo.Aflags = loadFlags(yc, settings, "compiler.as.flags")
 
-	c.ldResolveCircularDeps, err = newtutil.GetBoolFeatures(v, features,
-		"compiler.ld.resolve_circular_deps")
-	if err != nil {
-		return err
-	}
-
-	c.ldMapFile, err = newtutil.GetBoolFeatures(v, features,
-		"compiler.ld.mapfile")
-	if err != nil {
-		return err
-	}
-
-	c.ldBinFile, err = newtutil.GetBoolFeaturesDflt(v, features,
-		"compiler.ld.binfile", true)
-	if err != nil {
-		return err
-	}
+	c.ldResolveCircularDeps = yc.GetValBool(
+		"compiler.ld.resolve_circular_deps", settings)
+	c.ldMapFile = yc.GetValBool("compiler.ld.mapfile", settings)
+	c.ldBinFile = yc.GetValBoolDflt("compiler.ld.binfile", settings, true)
 
 	if len(c.lclInfo.Cflags) == 0 {
 		// Assume no Cflags implies an unsupported build profile.
@@ -356,6 +380,11 @@ func (c *Compiler) cflagsStrings() []string {
 	return cflags
 }
 
+func (c *Compiler) cxxflagsStrings() []string {
+	cxxflags := util.SortFields(c.info.CXXflags...)
+	return cxxflags
+}
+
 func (c *Compiler) aflagsStrings() []string {
 	aflags := util.SortFields(c.info.Aflags...)
 	return aflags
@@ -405,7 +434,7 @@ func (c *Compiler) CompileFileCmd(file string, compilerType int) (
 		flags = append(c.cflagsStrings(), c.aflagsStrings()...)
 	case COMPILER_TYPE_CPP:
 		cmdName = c.cppPath
-		flags = c.cflagsStrings()
+		flags = append(c.cflagsStrings(), c.cxxflagsStrings()...)
 	default:
 		return nil, util.NewNewtError("Unknown compiler type")
 	}
@@ -440,7 +469,7 @@ func (c *Compiler) GenDepsForFile(file string) error {
 	cmd = append(cmd, c.includesStrings()...)
 	cmd = append(cmd, []string{"-MM", "-MG", srcPath}...)
 
-	o, err := util.ShellCommandLimitDbgOutput(cmd, nil, 0)
+	o, err := util.ShellCommandLimitDbgOutput(cmd, nil, true, 0)
 	if err != nil {
 		return err
 	}
@@ -554,8 +583,9 @@ func (c *Compiler) CompileFile(file string, compilerType int) error {
 	return nil
 }
 
-func (c *Compiler) shouldIgnoreFile(file string) bool {
+func (c *Compiler) ShouldIgnoreFile(file string) bool {
 	file = strings.TrimPrefix(file, c.srcDir)
+	file = strings.TrimLeft(file, "/\\")
 	for _, re := range c.info.IgnoreFiles {
 		if match := re.MatchString(file); match {
 			return true
@@ -585,7 +615,7 @@ func compilerTypeToExts(compilerType int) ([]string, error) {
 func (c *Compiler) CompileC(filename string) error {
 	filename = filepath.ToSlash(filename)
 
-	if c.shouldIgnoreFile(filename) {
+	if c.ShouldIgnoreFile(filename) {
 		log.Infof("Ignoring %s because package dictates it.", filename)
 		return nil
 	}
@@ -611,7 +641,7 @@ func (c *Compiler) CompileC(filename string) error {
 func (c *Compiler) CompileCpp(filename string) error {
 	filename = filepath.ToSlash(filename)
 
-	if c.shouldIgnoreFile(filename) {
+	if c.ShouldIgnoreFile(filename) {
 		log.Infof("Ignoring %s because package dictates it.", filename)
 		return nil
 	}
@@ -642,7 +672,7 @@ func (c *Compiler) CompileCpp(filename string) error {
 func (c *Compiler) CompileAs(filename string) error {
 	filename = filepath.ToSlash(filename)
 
-	if c.shouldIgnoreFile(filename) {
+	if c.ShouldIgnoreFile(filename) {
 		log.Infof("Ignoring %s because package dictates it.", filename)
 		return nil
 	}
@@ -671,7 +701,7 @@ func (c *Compiler) CompileAs(filename string) error {
 func (c *Compiler) CopyArchive(filename string) error {
 	filename = filepath.ToSlash(filename)
 
-	if c.shouldIgnoreFile(filename) {
+	if c.ShouldIgnoreFile(filename) {
 		log.Infof("Ignoring %s because package dictates it.", filename)
 		return nil
 	}
@@ -683,7 +713,7 @@ func (c *Compiler) CopyArchive(filename string) error {
 	}
 	if copyRequired {
 		err = util.CopyFile(filename, tgtFile)
-		util.StatusMessage(util.VERBOSITY_DEFAULT, "copying %s\n",
+		util.StatusMessage(util.VERBOSITY_DEFAULT, "Copying %s\n",
 			filepath.ToSlash(tgtFile))
 	}
 
@@ -948,7 +978,7 @@ func (c *Compiler) generateExtras(elfFilename string,
 			"-wxdS",
 			elfFilename,
 		}
-		o, err := util.ShellCommandLimitDbgOutput(cmd, nil, 0)
+		o, err := util.ShellCommandLimitDbgOutput(cmd, nil, true, 0)
 		if err != nil {
 			// XXX: gobjdump appears to always crash.  Until we get that sorted
 			// out, don't fail the link process if lst generation fails.
@@ -968,7 +998,7 @@ func (c *Compiler) generateExtras(elfFilename string,
 				sect,
 				elfFilename,
 			}
-			o, err := util.ShellCommandLimitDbgOutput(cmd, nil, 0)
+			o, err := util.ShellCommandLimitDbgOutput(cmd, nil, true, 0)
 			if err != nil {
 				if _, err := f.Write(o); err != nil {
 					return util.NewNewtError(err.Error())
@@ -980,7 +1010,7 @@ func (c *Compiler) generateExtras(elfFilename string,
 			c.osPath,
 			elfFilename,
 		}
-		o, err = util.ShellCommandLimitDbgOutput(cmd, nil, 0)
+		o, err = util.ShellCommandLimitDbgOutput(cmd, nil, true, 0)
 		if err != nil {
 			return err
 		}
@@ -1168,11 +1198,8 @@ func (c *Compiler) CompileArchive(archiveFile string) error {
 		return util.NewNewtError(err.Error())
 	}
 
-	// Delete the old archive, if it exists.
-	os.Remove(archiveFile)
-
 	objList := c.getObjFiles([]string{})
-	if objList == nil {
+	if len(objList) == 0 {
 		return nil
 	}
 
@@ -1181,6 +1208,9 @@ func (c *Compiler) CompileArchive(archiveFile string) error {
 			"Not archiving %s; no object files\n", archiveFile)
 		return nil
 	}
+
+	// Delete the old archive, if it exists.
+	os.Remove(archiveFile)
 
 	util.StatusMessage(util.VERBOSITY_DEFAULT, "Archiving %s",
 		path.Base(archiveFile))

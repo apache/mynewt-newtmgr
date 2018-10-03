@@ -84,15 +84,13 @@ func Contains(s []UUID, u UUID) bool {
 
 // Reverse returns a reversed copy of u.
 func Reverse(u []byte) []byte {
-	// Special-case 16 bit UUIDS for speed.
 	l := len(u)
-	if l == 2 {
-		return []byte{u[1], u[0]}
-	}
 	b := make([]byte, l)
-	for i := 0; i < l/2+1; i++ {
-		b[i], b[l-i-1] = u[l-i-1], u[i]
+
+	for i := 0; i < l; i++ {
+		b[l-i-1] = u[i]
 	}
+
 	return b
 }
 

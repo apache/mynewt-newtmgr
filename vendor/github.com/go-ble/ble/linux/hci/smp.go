@@ -25,9 +25,15 @@ const (
 
 func (c *Conn) sendSMP(p pdu) error {
 	buf := bytes.NewBuffer(make([]byte, 0))
-	binary.Write(buf, binary.LittleEndian, uint16(4+len(p)))
-	binary.Write(buf, binary.LittleEndian, cidSMP)
-	binary.Write(buf, binary.LittleEndian, p)
+	if err := binary.Write(buf, binary.LittleEndian, uint16(4+len(p))); err != nil {
+		return err
+	}
+	if err := binary.Write(buf, binary.LittleEndian, cidSMP); err != nil {
+		return err
+	}
+	if err := binary.Write(buf, binary.LittleEndian, p); err != nil {
+		return err
+	}
 	_, err := c.writePDU(buf.Bytes())
 	logger.Debug("smp", "send", fmt.Sprintf("[%X]", buf.Bytes()))
 	return err

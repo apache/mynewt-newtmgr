@@ -302,7 +302,7 @@ func (s *Server) handleFindByTypeValueRequest(r FindByTypeValueRequest) []byte {
 
 	for _, a := range s.db.subrange(r.StartingHandle(), r.EndingHandle()) {
 		v, starth, endh := a.v, a.h, a.endh
-		if !(ble.UUID(a.typ).Equal(ble.UUID16(r.AttributeType()))) {
+		if !a.typ.Equal(ble.UUID16(r.AttributeType())) {
 			continue
 		}
 		if v == nil {

@@ -13,7 +13,7 @@ import (
 // Signal ...
 type Signal interface {
 	Code() int
-	Marshal() []byte
+	Marshal() ([]byte, error)
 	Unmarshal([]byte) error
 }
 
@@ -26,15 +26,30 @@ func (s sigCmd) data() []byte { return s[4 : 4+s.len()] }
 
 // Signal ...
 func (c *Conn) Signal(req Signal, rsp Signal) error {
-	data := req.Marshal()
+	data, err := req.Marshal()
+	if err != nil {
+		return err
+	}
 	buf := bytes.NewBuffer(make([]byte, 0))
-	binary.Write(buf, binary.LittleEndian, uint16(4+len(data)))
-	binary.Write(buf, binary.LittleEndian, uint16(cidLESignal))
+	if err := binary.Write(buf, binary.LittleEndian, uint16(4+len(data))); err != nil {
+		return err
+	}
+	if err := binary.Write(buf, binary.LittleEndian, cidLESignal); err != nil {
+		return err
+	}
 
-	binary.Write(buf, binary.LittleEndian, uint8(req.Code()))
-	binary.Write(buf, binary.LittleEndian, uint8(c.sigID))
-	binary.Write(buf, binary.LittleEndian, uint16(len(data)))
-	binary.Write(buf, binary.LittleEndian, data)
+	if err := binary.Write(buf, binary.LittleEndian, uint8(req.Code())); err != nil {
+		return err
+	}
+	if err := binary.Write(buf, binary.LittleEndian, uint8(c.sigID)); err != nil {
+		return err
+	}
+	if err := binary.Write(buf, binary.LittleEndian, uint16(len(data))); err != nil {
+		return err
+	}
+	if err := binary.Write(buf, binary.LittleEndian, data); err != nil {
+		return err
+	}
 
 	c.sigSent = make(chan []byte)
 	defer close(c.sigSent)
@@ -63,13 +78,26 @@ func (c *Conn) Signal(req Signal, rsp Signal) error {
 }
 
 func (c *Conn) sendResponse(code uint8, id uint8, r Signal) (int, error) {
-	data := r.Marshal()
+	data, err := r.Marshal()
+	if err != nil {
+		return 0, err
+	}
 	buf := bytes.NewBuffer(make([]byte, 0))
-	binary.Write(buf, binary.LittleEndian, uint16(4+len(data)))
-	binary.Write(buf, binary.LittleEndian, uint16(cidLESignal))
-	binary.Write(buf, binary.LittleEndian, uint8(code))
-	binary.Write(buf, binary.LittleEndian, uint8(id))
-	binary.Write(buf, binary.LittleEndian, uint16(len(data)))
+	if err := binary.Write(buf, binary.LittleEndian, uint16(4+len(data))); err != nil {
+		return 0, err
+	}
+	if err := binary.Write(buf, binary.LittleEndian, cidLESignal); err != nil {
+		return 0, err
+	}
+	if err := binary.Write(buf, binary.LittleEndian, code); err != nil {
+		return 0, err
+	}
+	if err := binary.Write(buf, binary.LittleEndian, id); err != nil {
+		return 0, err
+	}
+	if err := binary.Write(buf, binary.LittleEndian, uint16(len(data))); err != nil {
+		return 0, err
+	}
 	if err := binary.Write(buf, binary.LittleEndian, data); err != nil {
 		return 0, err
 	}
@@ -85,13 +113,16 @@ func (c *Conn) handleSignal(p pdu) error {
 	// command in the L2CAP packet. If only Responses are recognized, the packet
 	// shall be silently discarded. [Vol3, Part A, 4.1]
 	if p.dlen() > c.sigRxMTU {
-		c.sendResponse(
+		_, err := c.sendResponse(
 			SignalCommandReject,
 			sigCmd(p.payload()).id(),
 			&CommandReject{
 				Reason: 0x0001,                                            // Signaling MTU exceeded.
 				Data:   []byte{uint8(c.sigRxMTU), uint8(c.sigRxMTU >> 8)}, // Actual MTUsig.
 			})
+		if err != nil {
+			_ = logger.Error("send repsonse", fmt.Sprintf("%v", err))
+		}
 		return nil
 	}
 

@@ -37,8 +37,6 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
-
-	"mynewt.apache.org/newt/viper"
 )
 
 var Verbosity int
@@ -255,20 +253,15 @@ func Init(logLevel log.Level, logFile string, verbosity int) error {
 	return nil
 }
 
-// Read in the configuration file specified by name, in path
-// return a new viper config object if successful, and error if not
-func ReadConfig(path string, name string) (*viper.Viper, error) {
-	v := viper.New()
-	v.SetConfigType("yaml")
-	v.SetConfigName(name)
-	v.AddConfigPath(path)
+func LogShellCmd(cmdStrs []string, env []string) {
+	envLogStr := ""
+	if len(env) > 0 {
+		envLogStr = strings.Join(env, " ") + " "
+	}
+	log.Debugf("%s%s", envLogStr, strings.Join(cmdStrs, " "))
 
-	err := v.ReadInConfig()
-	if err != nil {
-		return nil, NewNewtError(fmt.Sprintf("Error reading %s.yml: %s",
-			filepath.Join(path, name), err.Error()))
-	} else {
-		return v, nil
+	if PrintShellCmds {
+		StatusMessage(VERBOSITY_DEFAULT, "%s\n", strings.Join(cmdStrs, " "))
 	}
 }
 
@@ -280,28 +273,28 @@ func ReadConfig(path string, name string) (*viper.Viper, error) {
 // @param env                   Additional key=value pairs to inject into the
 //                                  child process's environment.  Specify null
 //                                  to just inherit the parent environment.
+// @param logCmd                Whether to log the command being executed.
 // @param maxDbgOutputChrs      The maximum number of combined stdout+stderr
 //                                  characters to write to the debug log.
 //                                  Specify -1 for no limit; 0 for no output.
 //
 // @return []byte               Combined stdout and stderr output of process.
-// @return error                NewtError on failure.
+// @return error                NewtError on failure.  Use IsExit() to
+//                                  determine if the command failed to execute
+//                                  or if it just returned a non-zero exit
+//                                  status.
 func ShellCommandLimitDbgOutput(
-	cmdStrs []string, env []string, maxDbgOutputChrs int) ([]byte, error) {
+	cmdStrs []string, env []string, logCmd bool, maxDbgOutputChrs int) (
+	[]byte, error) {
+
 	var name string
 	var args []string
 
-	envLogStr := ""
-	if env != nil {
-		envLogStr = strings.Join(env, " ") + " "
-	}
-	log.Debugf("%s%s", envLogStr, strings.Join(cmdStrs, " "))
-
-	if PrintShellCmds {
-		StatusMessage(VERBOSITY_SILENT, "%s\n", strings.Join(cmdStrs, " "))
+	if logCmd {
+		LogShellCmd(cmdStrs, env)
 	}
 
-	if ExecuteShell && ((runtime.GOOS == "linux") || (runtime.GOOS == "darwin")) {
+	if ExecuteShell && (runtime.GOOS == "linux" || runtime.GOOS == "darwin") {
 		cmd := strings.Join(cmdStrs, " ")
 		name = "/bin/sh"
 		args = []string{"-c", strings.Replace(cmd, "\"", "\\\"", -1)}
@@ -326,12 +319,12 @@ func ShellCommandLimitDbgOutput(
 	}
 
 	if err != nil {
+		err = ChildNewtError(err)
 		log.Debugf("err=%s", err.Error())
 		if len(o) > 0 {
-			return o, NewNewtError(string(o))
-		} else {
-			return o, NewNewtError(err.Error())
+			err.(*NewtError).Text = string(o)
 		}
+		return o, err
 	} else {
 		return o, nil
 	}
@@ -347,7 +340,7 @@ func ShellCommandLimitDbgOutput(
 // @return []byte               Combined stdout and stderr output of process.
 // @return error                NewtError on failure.
 func ShellCommand(cmdStrs []string, env []string) ([]byte, error) {
-	return ShellCommandLimitDbgOutput(cmdStrs, env, -1)
+	return ShellCommandLimitDbgOutput(cmdStrs, env, true, -1)
 }
 
 // Run interactive shell command
@@ -560,7 +553,13 @@ func SortFields(wsSepStrings ...string) []string {
 	return slice
 }
 
-func AtoiNoOct(s string) (int, error) {
+// Converts the specified string to an integer.  The string can be in base-10
+// or base-16.  This is equivalent to the "0" base used in the standard
+// conversion functions, except octal is not supported (a leading zero implies
+// decimal).
+//
+// The second return value is true on success.
+func AtoiNoOctTry(s string) (int, bool) {
 	var runLen int
 	for runLen = 0; runLen < len(s)-1; runLen++ {
 		if s[runLen] != '0' || s[runLen+1] == 'x' {
@@ -574,10 +573,23 @@ func AtoiNoOct(s string) (int, error) {
 
 	i, err := strconv.ParseInt(s, 0, 0)
 	if err != nil {
-		return 0, NewNewtError(err.Error())
+		return 0, false
 	}
 
-	return int(i), nil
+	return int(i), true
+}
+
+// Converts the specified string to an integer.  The string can be in base-10
+// or base-16.  This is equivalent to the "0" base used in the standard
+// conversion functions, except octal is not supported (a leading zero implies
+// decimal).
+func AtoiNoOct(s string) (int, error) {
+	val, success := AtoiNoOctTry(s)
+	if !success {
+		return 0, FmtNewtError("Invalid number: \"%s\"", s)
+	}
+
+	return val, nil
 }
 
 func IsNotExist(err error) bool {
@@ -587,6 +599,18 @@ func IsNotExist(err error) bool {
 	}
 
 	return os.IsNotExist(err)
+}
+
+// Indicates whether the provided error is of type *exec.ExitError (raised when
+// a child process exits with a non-zero status code).
+func IsExit(err error) bool {
+	newtErr, ok := err.(*NewtError)
+	if ok {
+		err = newtErr.Parent
+	}
+
+	_, ok = err.(*exec.ExitError)
+	return ok
 }
 
 func FileContentsChanged(path string, newContents []byte) (bool, error) {
@@ -641,4 +665,34 @@ func PrintStacks() {
 	buf := make([]byte, 1024*1024)
 	stacklen := runtime.Stack(buf, true)
 	fmt.Printf("*** goroutine dump\n%s\n*** end\n", buf[:stacklen])
+}
+
+// Attempts to convert the specified absolute path into a relative path
+// (relative to the current working directory).  If the path cannot be
+// converted, it is returned unchanged.
+func TryRelPath(full string) string {
+	pwd, err := os.Getwd()
+	if err != nil {
+		return full
+	}
+
+	rel, err := filepath.Rel(pwd, full)
+	if err != nil {
+		return full
+	}
+
+	return rel
+}
+
+// StringMapStringToItfMapItf converts a map[string]string to the more generic
+// map[interface{}]interface{} type.
+func StringMapStringToItfMapItf(
+	sms map[string]string) map[interface{}]interface{} {
+
+	imi := map[interface{}]interface{}{}
+	for k, v := range sms {
+		imi[k] = v
+	}
+
+	return imi
 }

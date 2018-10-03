@@ -88,11 +88,9 @@ func pkgToUnitTests(pack *pkg.LocalPackage) []*pkg.LocalPackage {
 	// Otherwise, return all the package's direct descendants that are unit
 	// test packages.
 	result := []*pkg.LocalPackage{}
-	srcPath := pack.BasePath()
 	for p, _ := range testablePkgs() {
-		dirPath := filepath.ToSlash(filepath.Dir(p.BasePath()))
 		if p.Type() == pkg.PACKAGE_TYPE_UNITTEST &&
-			dirPath == srcPath {
+			strings.HasPrefix(p.FullName(), pack.FullName()) {
 
 			result = append(result, p)
 		}
@@ -265,7 +263,10 @@ func testRunCmd(cmd *cobra.Command, args []string, exclude string, executeShell 
 	packLoop:
 		for _, pack := range orig {
 			for _, excl := range excls {
-				if pack.Name() == excl || strings.HasPrefix(pack.Name(), excl+"/") {
+				if pack.Name() == excl ||
+					strings.HasPrefix(pack.Name(), excl+"/") ||
+					pack.NameWithRepo() == excl ||
+					strings.HasPrefix(pack.NameWithRepo(), excl+"/") {
 					continue packLoop
 				}
 			}
@@ -364,7 +365,7 @@ func debugRunCmd(cmd *cobra.Command, args []string) {
 	}
 }
 
-func sizeRunCmd(cmd *cobra.Command, args []string, ram bool, flash bool) {
+func sizeRunCmd(cmd *cobra.Command, args []string, ram bool, flash bool, section string) {
 	if len(args) < 1 {
 		NewtUsage(cmd, util.NewNewtError("Must specify target"))
 	}
@@ -381,10 +382,27 @@ func sizeRunCmd(cmd *cobra.Command, args []string, ram bool, flash bool) {
 		NewtUsage(nil, err)
 	}
 
-	if ram || flash {
-		if err := b.SizeReport(ram, flash); err != nil {
-			NewtUsage(cmd, err)
+	var sections []string
+
+	if ram {
+		sections = append(sections, "RAM")
+	}
+
+	if flash {
+		sections = append(sections, "FLASH")
+	}
+
+	if section != "" {
+		sections = append(sections, section)
+	}
+
+	if len(sections) > 0 {
+		for _, sectionName := range sections {
+			if err := b.SizeReport(sectionName); err != nil {
+				NewtUsage(cmd, err)
+			}
 		}
+
 		return
 	}
 
@@ -479,18 +497,20 @@ func AddBuildCommands(cmd *cobra.Command) {
 		"<target-name>."
 
 	var ram, flash bool
+	var section string
 	sizeCmd := &cobra.Command{
 		Use:   "size <target-name>",
 		Short: "Size of target components",
 		Long:  sizeHelpText,
 		Run: func(cmd *cobra.Command, args []string) {
-			sizeRunCmd(cmd, args, ram, flash)
+			sizeRunCmd(cmd, args, ram, flash, section)
 		},
 	}
 
 	sizeCmd.Flags().BoolVarP(&ram, "ram", "R", false, "Print RAM statistics")
 	sizeCmd.Flags().BoolVarP(&flash, "flash", "F", false,
 		"Print FLASH statistics")
+	sizeCmd.Flags().StringVarP(&section, "section", "S", "", "Print section statistics")
 
 	cmd.AddCommand(sizeCmd)
 	AddTabCompleteFn(sizeCmd, targetList)

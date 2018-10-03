@@ -209,26 +209,33 @@ func (h *HCI) Dial(ctx context.Context, a ble.Addr) (ble.Client, error) {
 	if h.dialerTmo != time.Duration(0) {
 		tmo = time.After(h.dialerTmo)
 	}
+
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return h.cancelDial()
+	case <-tmo:
+		return h.cancelDial()
 	case <-h.done:
 		return nil, h.err
 	case c := <-h.chMasterConn:
 		return gatt.NewClient(c)
-	case <-tmo:
-		err := h.Send(&h.params.connCancel, nil)
-		if err == nil {
-			// The pending connection was canceled successfully.
-			return nil, fmt.Errorf("connection timed out")
-		}
-		// The connection has been established, the cancel command
-		// failed with ErrDisallowed.
-		if err == ErrDisallowed {
-			return gatt.NewClient(<-h.chMasterConn)
-		}
-		return nil, errors.Wrap(err, "cancel connection failed")
+
 	}
+}
+
+// cancelDial cancels the Dialing
+func (h *HCI) cancelDial() (ble.Client, error) {
+	err := h.Send(&h.params.connCancel, nil)
+	if err == nil {
+		// The pending connection was canceled successfully.
+		return nil, fmt.Errorf("connection canceled")
+	}
+	// The connection has been established, the cancel command
+	// failed with ErrDisallowed.
+	if err == ErrDisallowed {
+		return gatt.NewClient(<-h.chMasterConn)
+	}
+	return nil, errors.Wrap(err, "cancel connection failed")
 }
 
 // Advertise starts advertising.

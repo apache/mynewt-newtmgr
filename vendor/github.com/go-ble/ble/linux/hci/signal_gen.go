@@ -18,10 +18,12 @@ type CommandReject struct {
 func (s CommandReject) Code() int { return 0x01 }
 
 // Marshal serializes the command parameters into binary form.
-func (s *CommandReject) Marshal() []byte {
+func (s *CommandReject) Marshal() ([]byte, error) {
 	buf := bytes.NewBuffer(make([]byte, 0))
-	binary.Write(buf, binary.LittleEndian, s)
-	return buf.Bytes()
+	if err := binary.Write(buf, binary.LittleEndian, s); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 // Unmarshal de-serializes the binary data and stores the result in the receiver.
@@ -42,10 +44,12 @@ type DisconnectRequest struct {
 func (s DisconnectRequest) Code() int { return 0x06 }
 
 // Marshal serializes the command parameters into binary form.
-func (s *DisconnectRequest) Marshal() []byte {
+func (s *DisconnectRequest) Marshal() ([]byte, error) {
 	buf := bytes.NewBuffer(make([]byte, 0))
-	binary.Write(buf, binary.LittleEndian, s)
-	return buf.Bytes()
+	if err := binary.Write(buf, binary.LittleEndian, s); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 // Unmarshal de-serializes the binary data and stores the result in the receiver.
@@ -66,10 +70,12 @@ type DisconnectResponse struct {
 func (s DisconnectResponse) Code() int { return 0x07 }
 
 // Marshal serializes the command parameters into binary form.
-func (s *DisconnectResponse) Marshal() []byte {
+func (s *DisconnectResponse) Marshal() ([]byte, error) {
 	buf := bytes.NewBuffer(make([]byte, 0))
-	binary.Write(buf, binary.LittleEndian, s)
-	return buf.Bytes()
+	if err := binary.Write(buf, binary.LittleEndian, s); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 // Unmarshal de-serializes the binary data and stores the result in the receiver.
@@ -92,10 +98,12 @@ type ConnectionParameterUpdateRequest struct {
 func (s ConnectionParameterUpdateRequest) Code() int { return 0x12 }
 
 // Marshal serializes the command parameters into binary form.
-func (s *ConnectionParameterUpdateRequest) Marshal() []byte {
+func (s *ConnectionParameterUpdateRequest) Marshal() ([]byte, error) {
 	buf := bytes.NewBuffer(make([]byte, 0))
-	binary.Write(buf, binary.LittleEndian, s)
-	return buf.Bytes()
+	if err := binary.Write(buf, binary.LittleEndian, s); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 // Unmarshal de-serializes the binary data and stores the result in the receiver.
@@ -115,10 +123,12 @@ type ConnectionParameterUpdateResponse struct {
 func (s ConnectionParameterUpdateResponse) Code() int { return 0x13 }
 
 // Marshal serializes the command parameters into binary form.
-func (s *ConnectionParameterUpdateResponse) Marshal() []byte {
+func (s *ConnectionParameterUpdateResponse) Marshal() ([]byte, error) {
 	buf := bytes.NewBuffer(make([]byte, 0))
-	binary.Write(buf, binary.LittleEndian, s)
-	return buf.Bytes()
+	if err := binary.Write(buf, binary.LittleEndian, s); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 // Unmarshal de-serializes the binary data and stores the result in the receiver.
@@ -142,10 +152,12 @@ type LECreditBasedConnectionRequest struct {
 func (s LECreditBasedConnectionRequest) Code() int { return 0x14 }
 
 // Marshal serializes the command parameters into binary form.
-func (s *LECreditBasedConnectionRequest) Marshal() []byte {
+func (s *LECreditBasedConnectionRequest) Marshal() ([]byte, error) {
 	buf := bytes.NewBuffer(make([]byte, 0))
-	binary.Write(buf, binary.LittleEndian, s)
-	return buf.Bytes()
+	if err := binary.Write(buf, binary.LittleEndian, s); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 // Unmarshal de-serializes the binary data and stores the result in the receiver.
@@ -169,10 +181,12 @@ type LECreditBasedConnectionResponse struct {
 func (s LECreditBasedConnectionResponse) Code() int { return 0x15 }
 
 // Marshal serializes the command parameters into binary form.
-func (s *LECreditBasedConnectionResponse) Marshal() []byte {
+func (s *LECreditBasedConnectionResponse) Marshal() ([]byte, error) {
 	buf := bytes.NewBuffer(make([]byte, 0))
-	binary.Write(buf, binary.LittleEndian, s)
-	return buf.Bytes()
+	if err := binary.Write(buf, binary.LittleEndian, s); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 // Unmarshal de-serializes the binary data and stores the result in the receiver.
@@ -193,10 +207,12 @@ type LEFlowControlCredit struct {
 func (s LEFlowControlCredit) Code() int { return 0x16 }
 
 // Marshal serializes the command parameters into binary form.
-func (s *LEFlowControlCredit) Marshal() []byte {
+func (s *LEFlowControlCredit) Marshal() ([]byte, error) {
 	buf := bytes.NewBuffer(make([]byte, 0))
-	binary.Write(buf, binary.LittleEndian, s)
-	return buf.Bytes()
+	if err := binary.Write(buf, binary.LittleEndian, s); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 // Unmarshal de-serializes the binary data and stores the result in the receiver.
