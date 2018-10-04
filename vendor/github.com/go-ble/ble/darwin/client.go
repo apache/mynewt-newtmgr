@@ -176,6 +176,7 @@ func (cln *Client) ReadCharacteristic(c *ble.Characteristic) ([]byte, error) {
 	if rsp.err() != nil {
 		return nil, rsp.err()
 	}
+	c.Value = rsp.data()
 	return rsp.data(), nil
 }
 
@@ -215,6 +216,7 @@ func (cln *Client) ReadDescriptor(d *ble.Descriptor) ([]byte, error) {
 	if err := rsp.err(); err != nil {
 		return nil, err
 	}
+	d.Value = rsp.data()
 	return rsp.data(), nil
 }
 
@@ -316,6 +318,11 @@ func (cln *Client) CancelConnection() error {
 // Disconnected returns a receiving channel, which is closed when the client disconnects.
 func (cln *Client) Disconnected() <-chan struct{} {
 	return cln.conn.Disconnected()
+}
+
+// Conn returns the client's current connection.
+func (cln *Client) Conn() ble.Conn {
+	return cln.conn
 }
 
 type sub struct {

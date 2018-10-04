@@ -45,6 +45,8 @@ type BleConfig struct {
 
 	BlehostdPath   string
 	ControllerPath string
+
+	HciIdx int
 }
 
 func NewBleConfig() *BleConfig {
@@ -108,6 +110,8 @@ func ParseBleConnString(cs string) (*BleConfig, error) {
 			return nil, einvalBleConnString("Unrecognized key: %s", k)
 		}
 	}
+
+	bc.HciIdx = nmutil.HciIdx
 
 	return bc, nil
 }

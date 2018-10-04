@@ -27,7 +27,7 @@
 
 [[constraint]]
   branch = "master"
-  name = "github.com/currantlabs/ble"
+  name = "github.com/go-ble/ble"
 
 [[constraint]]
   name = "github.com/fatih/structs"

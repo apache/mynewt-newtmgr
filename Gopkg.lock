@@ -4,8 +4,8 @@
 [[projects]]
   name = "github.com/Sirupsen/logrus"
   packages = ["."]
-  revision = "f006c2ac4710855cf0f916dd6b77acf6b048dc6e"
-  version = "v1.0.3"
+  revision = "a67f783a3814b8729bd2dac5780b5f78f8dbd64d"
+  version = "v1.1.0"
 
 [[projects]]
   name = "github.com/cheggaaa/pb"
@@ -40,7 +40,7 @@
   branch = "master"
   name = "github.com/go-ble/ble"
   packages = [".","darwin","examples/lib/dev","linux","linux/adv","linux/att","linux/gatt","linux/hci","linux/hci/cmd","linux/hci/evt","linux/hci/socket"]
-  revision = "cb19fdfd5cb4f8c420bedd0c9e1bfc4717a4be2e"
+  revision = "e78417b510a348171f21754ff934fe8408b21b90"
 
 [[projects]]
   name = "github.com/inconshreveable/mousetrap"
@@ -56,9 +56,15 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/konsorten/go-windows-terminal-sequences"
+  packages = ["."]
+  revision = "b729f2633dfe35f4d1d8a32385f6685610ce1cb5"
+
+[[projects]]
   name = "github.com/kr/pretty"
   packages = ["."]
-  revision = "cfb55aafdaf3ec08f0db22699ab822c50091b1c4"
+  revision = "73f6ac0b30a98e433b289500d779f50c1a6f0712"
+  version = "v0.1.0"
 
 [[projects]]
   branch = "master"
@@ -129,8 +135,8 @@
 [[projects]]
   name = "github.com/spf13/cast"
   packages = ["."]
-  revision = "acbeb36b902d72a7a4c18e8f3241075e7ab763e4"
-  version = "v1.1.0"
+  revision = "8965335b8c7107321228e3e3702cab9832751bac"
+  version = "v1.2.0"
 
 [[projects]]
   branch = "master"
@@ -147,8 +153,8 @@
 [[projects]]
   name = "github.com/spf13/pflag"
   packages = ["."]
-  revision = "e57e3eeb33f795204c1ca35f56c44f83227c6e66"
-  version = "v1.0.0"
+  revision = "298182f68c66c05229eb03ac171abe6e309ee79a"
+  version = "v1.0.3"
 
 [[projects]]
   branch = "master"
@@ -190,17 +196,18 @@
   name = "gopkg.in/fsnotify.v1"
   packages = ["."]
   revision = "629574ca2a5df945712d3079857300b5e4da0236"
+  source = "https://github.com/fsnotify/fsnotify.git"
   version = "v1.4.2"
 
 [[projects]]
   branch = "master"
   name = "mynewt.apache.org/newt"
   packages = ["util","util/unixchild","viper","yaml"]
-  revision = "773413552ff0e4e7d5a04c526da089a33c21680f"
+  revision = "757fadf0338039637436ee990f55ec12d48e9439"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e2cc5a4fab95a5eccf8d614680b609c21280660ed87513eacbda6f9d0072b9c8"
+  inputs-digest = "214d5c29d58ea2f019ab38724d7b4211b816f30df75d00960a2ffecab6abe2f9"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -44,6 +44,7 @@ var ConnType string
 var ConnString string
 var ConnExtra string
 var ToolInfo ToolInfoType
+var HciIdx int
 
 func TxOptions() sesn.TxOptions {
 	return sesn.TxOptions{

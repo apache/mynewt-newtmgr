@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -36,6 +37,7 @@ import (
 	"mynewt.apache.org/newt/newt/flash"
 	"mynewt.apache.org/newt/newt/interfaces"
 	"mynewt.apache.org/newt/newt/newtutil"
+	"mynewt.apache.org/newt/newt/parse"
 	"mynewt.apache.org/newt/newt/pkg"
 	"mynewt.apache.org/newt/util"
 )
@@ -51,6 +53,14 @@ const (
 	CFG_SETTING_TYPE_TASK_PRIO
 	CFG_SETTING_TYPE_INTERRUPT_PRIO
 	CFG_SETTING_TYPE_FLASH_OWNER
+)
+
+type CfgSettingState int
+
+const (
+	CFG_SETTING_STATE_GOOD CfgSettingState = iota
+	CFG_SETTING_STATE_DEPRECATED
+	CFG_SETTING_STATE_DEFUNCT
 )
 
 const SYSCFG_PRIO_ANY = "any"
@@ -69,14 +79,21 @@ type CfgPoint struct {
 	Source *pkg.LocalPackage
 }
 
+type CfgDeprecatedPoint struct {
+	Entry  *CfgEntry
+	Source *pkg.LocalPackage
+}
+
 type CfgEntry struct {
 	Name         string
 	Value        string
+	ValueRefName string
 	Description  string
 	SettingType  CfgSettingType
 	Restrictions []CfgRestriction
 	PackageDef   *pkg.LocalPackage
 	History      []CfgPoint
+	State        CfgSettingState
 }
 
 type CfgPriority struct {
@@ -100,6 +117,9 @@ type CfgFlashConflict struct {
 type Cfg struct {
 	Settings map[string]CfgEntry
 
+	// Restrictions at the package level (i.e. "syscfg.restrictions").
+	PackageRestrictions map[string][]CfgRestriction
+
 	//// Errors
 	// Overrides of undefined settings.
 	Orphans map[string][]CfgPoint
@@ -108,73 +128,131 @@ type Cfg struct {
 	// values; not overridden by higher priority package.
 	Ambiguities map[string][]CfgPoint
 
-	// Setting restrictions not met.
-	Violations map[string][]CfgRestriction
+	// Setting-level restrictions not met.
+	SettingViolations map[string][]CfgRestriction
+
+	// Package-level restrictions not met.
+	PackageViolations map[string][]CfgRestriction
 
 	// Attempted override by bottom-priority packages (libraries).
 	PriorityViolations []CfgPriority
 
+	// Two or more flash areas overlap.
 	FlashConflicts []CfgFlashConflict
+
+	// Multiple packages defining the same setting.
+	// [setting-name][defining-package][{}]
+	Redefines map[string]map[*pkg.LocalPackage]struct{}
+
+	// Use of deprecated settings (warning).
+	Deprecated map[string]struct{}
+
+	// Use of defunct settings (error).
+	Defunct map[string]struct{}
+
+	// Unresolved value references
+	UnresolvedValueRefs map[string]struct{}
 }
 
 func NewCfg() Cfg {
 	return Cfg{
-		Settings:           map[string]CfgEntry{},
-		Orphans:            map[string][]CfgPoint{},
-		Ambiguities:        map[string][]CfgPoint{},
-		Violations:         map[string][]CfgRestriction{},
-		PriorityViolations: []CfgPriority{},
-		FlashConflicts:     []CfgFlashConflict{},
+		Settings:            map[string]CfgEntry{},
+		PackageRestrictions: map[string][]CfgRestriction{},
+		Orphans:             map[string][]CfgPoint{},
+		Ambiguities:         map[string][]CfgPoint{},
+		SettingViolations:   map[string][]CfgRestriction{},
+		PackageViolations:   map[string][]CfgRestriction{},
+		PriorityViolations:  []CfgPriority{},
+		FlashConflicts:      []CfgFlashConflict{},
+		Redefines:           map[string]map[*pkg.LocalPackage]struct{}{},
+		Deprecated:          map[string]struct{}{},
+		Defunct:             map[string]struct{}{},
+		UnresolvedValueRefs: map[string]struct{}{},
 	}
 }
 
-func ValueIsTrue(val string) bool {
-	if val == "" {
-		return false
-	}
-
-	i, err := util.AtoiNoOct(val)
-	if err == nil && i == 0 {
-		return false
-	}
-
-	return true
-}
-
-func (cfg *Cfg) Features() map[string]bool {
-	features := map[string]bool{}
+func (cfg *Cfg) SettingValues() map[string]string {
+	values := make(map[string]string, len(cfg.Settings))
 	for k, v := range cfg.Settings {
-		if v.IsTrue() {
-			features[k] = true
-		}
+		values[k] = v.Value
 	}
 
-	return features
+	return values
 }
 
-func (cfg *Cfg) FeaturesForLpkg(lpkg *pkg.LocalPackage) map[string]bool {
-	features := cfg.Features()
+func (cfg *Cfg) ResolveValueRefs() {
+	re := regexp.MustCompile("MYNEWT_VAL\\((\\w+)\\)")
+	for k, entry := range cfg.Settings {
+		value := strings.TrimSpace(entry.Value)
+
+		m := re.FindStringSubmatch(value)
+		if len(m) == 0 || len(m[0]) != len(value) {
+			// either there is no reference or there's something else besides
+			// reference - skip it
+			// TODO we may want to emit warning in the latter case (?)
+			continue
+		}
+
+		newName := m[1]
+
+		// TODO we may try to resolve nested references...
+
+		newEntry, exists := cfg.Settings[newName]
+		entry.ValueRefName = newName
+		if exists {
+			entry.Value = newEntry.Value
+		} else {
+			// set unresolved setting value to 0, this way restrictions
+			// can be evaluated and won't create spurious warnings
+			entry.Value = "0"
+			cfg.UnresolvedValueRefs[k] = struct{}{}
+		}
+		cfg.Settings[k] = entry
+	}
+}
+
+// If the specified package has any injected settings, returns a new map
+// consisting of the union of the injected settings and the provided base
+// settings.
+//
+// Else (no injected settings), returns the base settings unmodified.
+func (cfg *Cfg) settingsForLpkg(lpkg *pkg.LocalPackage,
+	baseSettings map[string]string) map[string]string {
+
+	var settings map[string]string
+
+	injected := lpkg.InjectedSettings()
+	if len(injected) == 0 {
+		return baseSettings
+	}
+
+	settings = make(map[string]string, len(baseSettings))
+	for k, v := range baseSettings {
+		settings[k] = v
+	}
 
 	for k, v := range lpkg.InjectedSettings() {
-		_, ok := features[k]
+		_, ok := settings[k]
 		if ok {
 			log.Warnf("Attempt to override syscfg setting %s with "+
-				"injected feature from package %s", k, lpkg.Name())
+				"injected feature from package %s", k, lpkg.FullName())
 		} else {
-			if ValueIsTrue(v) {
-				features[k] = true
-			}
+			settings[k] = v
 		}
 	}
 
-	return features
+	return settings
+}
+
+func (cfg *Cfg) AllSettingsForLpkg(lpkg *pkg.LocalPackage) map[string]string {
+	return cfg.settingsForLpkg(lpkg, cfg.SettingValues())
 }
 
 func (point CfgPoint) Name() string {
 	if point.Source == nil {
 		return "newt"
 	} else {
-		return point.Source.Name()
+		return point.Source.FullName()
 	}
 }
 
@@ -183,7 +261,7 @@ func (point CfgPoint) IsInjected() bool {
 }
 
 func (entry *CfgEntry) IsTrue() bool {
-	return ValueIsTrue(entry.Value)
+	return parse.ValueIsTrue(entry.Value)
 }
 
 func (entry *CfgEntry) appendValue(lpkg *pkg.LocalPackage, value interface{}) {
@@ -193,7 +271,17 @@ func (entry *CfgEntry) appendValue(lpkg *pkg.LocalPackage, value interface{}) {
 	entry.Value = strval
 }
 
+// Replaces the source (defining) package in a syscfg entry.
+func (entry *CfgEntry) replaceSource(lpkg *pkg.LocalPackage) {
+	entry.PackageDef = lpkg
+	entry.History[0].Source = lpkg
+}
+
 func historyToString(history []CfgPoint) string {
+	if len(history) == 0 {
+		return "(undefined)"
+	}
+
 	str := "["
 	for i, _ := range history {
 		if i != 0 {
@@ -257,11 +345,36 @@ func (entry *CfgEntry) ambiguityText() string {
 			str += ", "
 		}
 
-		str += p.Source.Name()
+		str += p.Source.FullName()
 	}
 	str += "]"
 
 	return str
+}
+
+// Detects all priority violations in an entry and returns them in a slice.
+func (entry *CfgEntry) priorityViolations() []CfgPriority {
+	var violations []CfgPriority
+
+	for i := 1; i < len(entry.History); i++ {
+		p := entry.History[i]
+
+		// Overrides must come from a higher priority package, with one
+		// exception: a package can override its own setting.
+		curType := normalizePkgType(p.Source.Type())
+		defType := normalizePkgType(entry.PackageDef.Type())
+
+		if p.Source != entry.PackageDef && curType <= defType {
+			priority := CfgPriority{
+				PackageDef:  entry.PackageDef,
+				PackageSrc:  p.Source,
+				SettingName: entry.Name,
+			}
+			violations = append(violations, priority)
+		}
+	}
+
+	return violations
 }
 
 func FeatureToCflag(featureName string) string {
@@ -272,6 +385,21 @@ func stringValue(val interface{}) string {
 	return strings.TrimSpace(cast.ToString(val))
 }
 
+func boolValue(val interface{}) bool {
+	if val == nil {
+		return false
+	}
+
+	switch v := val.(type) {
+	case bool:
+		return v
+	case int:
+		return v != 0
+	default:
+		return true
+	}
+}
+
 func readSetting(name string, lpkg *pkg.LocalPackage,
 	vals map[interface{}]interface{}) (CfgEntry, error) {
 
@@ -280,6 +408,14 @@ func readSetting(name string, lpkg *pkg.LocalPackage,
 	entry.Name = name
 	entry.PackageDef = lpkg
 	entry.Description = stringValue(vals["description"])
+
+	if boolValue(vals["defunct"]) {
+		entry.State = CFG_SETTING_STATE_DEFUNCT
+	} else if boolValue(vals["deprecated"]) {
+		entry.State = CFG_SETTING_STATE_DEPRECATED
+	} else {
+		entry.State = CFG_SETTING_STATE_GOOD
+	}
 
 	// The value field for setting definition is required.
 	valueVal, valueExist := vals["value"]
@@ -317,93 +453,135 @@ func readSetting(name string, lpkg *pkg.LocalPackage,
 	return entry, nil
 }
 
+// Records a redefinition error (two packages defining the same setting).
+func (cfg *Cfg) addRedefine(settingName string,
+	pkg1 *pkg.LocalPackage, pkg2 *pkg.LocalPackage) {
+
+	if cfg.Redefines[settingName] == nil {
+		cfg.Redefines[settingName] = map[*pkg.LocalPackage]struct{}{}
+	}
+
+	log.Debugf("Detected multiple definitions of the same setting: "+
+		"setting=%s pkg1=%s pkg2=%s",
+		settingName, pkg1.FullName(), pkg2.FullName())
+
+	cfg.Redefines[settingName][pkg1] = struct{}{}
+	cfg.Redefines[settingName][pkg2] = struct{}{}
+}
+
 func (cfg *Cfg) readDefsOnce(lpkg *pkg.LocalPackage,
-	features map[string]bool) error {
-	v := lpkg.SyscfgV
+	settings map[string]string) error {
+	yc := lpkg.SyscfgY
 
-	lfeatures := cfg.FeaturesForLpkg(lpkg)
-	for k, v := range features {
-		if v {
-			lfeatures[k] = true
-		}
-	}
-	for k, _ := range lfeatures {
-		if _, ok := features[k]; ok == false {
-			delete(lfeatures, k)
-		}
-	}
+	lsettings := cfg.settingsForLpkg(lpkg, settings)
 
-	settings := newtutil.GetStringMapFeatures(v, lfeatures, "syscfg.defs")
-	if settings != nil {
-		for k, v := range settings {
-			vals := v.(map[interface{}]interface{})
+	defs := yc.GetValStringMap("syscfg.defs", lsettings)
+	if defs != nil {
+		for k, v := range defs {
+			vals, ok := v.(map[interface{}]interface{})
+			if !ok {
+				return util.FmtNewtError("Package \"%s\" contains invalid "+
+					"\"syscfg.defs\" map; expected full setting definition, "+
+					"but setting \"%s\" specifies a single value.  "+
+					"Did you mix up \"syscfg.defs\" and \"syscfg.vals\"?",
+					lpkg.FullName(), k)
+			}
+
 			entry, err := readSetting(k, lpkg, vals)
 			if err != nil {
 				return util.FmtNewtError("Config for package %s: %s",
-					lpkg.Name(), err.Error())
+					lpkg.FullName(), err.Error())
 			}
 
+			replace := true
 			if oldEntry, exists := cfg.Settings[k]; exists {
-				// Setting already defined.  Allow this only if the setting is
-				// injected, in which case the injected value takes precedence.
+				// Setting already defined.  This is allowed for injected
+				// settings (settings automatically populated by newt).  For
+				// all other settings, record a redefinition error.
 				point := mostRecentPoint(oldEntry)
-				if !point.IsInjected() {
-					// XXX: Better error message.
-					return util.FmtNewtError("setting %s redefined", k)
-				}
+				if point.IsInjected() {
+					// Indicate that the setting came from this package, not
+					// from newt.
+					entry.replaceSource(lpkg)
 
-				entry.History = append(entry.History, oldEntry.History...)
-				entry.Value = oldEntry.Value
+					// Keep the injected value (override the default).
+					entry.Value = oldEntry.Value
+				} else {
+					replace = false
+					cfg.addRedefine(k, oldEntry.PackageDef, lpkg)
+				}
 			}
-			cfg.Settings[k] = entry
+
+			if replace {
+				// Not an illegal redefine; populate the master settings list
+				// with the new entry.
+				cfg.Settings[k] = entry
+			}
 		}
 	}
 
 	return nil
 }
 
+// Records an orphan override error (override of undefined setting).
+func (cfg *Cfg) addOrphan(settingName string, value string,
+	lpkg *pkg.LocalPackage) {
+
+	cfg.Orphans[settingName] = append(cfg.Orphans[settingName], CfgPoint{
+		Value:  value,
+		Source: lpkg,
+	})
+}
+
+func (cfg *Cfg) readRestrictions(lpkg *pkg.LocalPackage,
+	settings map[string]string) error {
+
+	yc := lpkg.SyscfgY
+	lsettings := cfg.settingsForLpkg(lpkg, settings)
+
+	restrictionStrings := yc.GetValStringSlice("syscfg.restrictions", lsettings)
+	for _, rstring := range restrictionStrings {
+		r, err := readRestriction("", rstring)
+		if err != nil {
+			return util.PreNewtError(err, "error parsing restriction: %s", rstring)
+		}
+		cfg.PackageRestrictions[lpkg.Name()] =
+			append(cfg.PackageRestrictions[lpkg.Name()], r)
+	}
+
+	return nil
+}
+
 func (cfg *Cfg) readValsOnce(lpkg *pkg.LocalPackage,
-	features map[string]bool) error {
-	v := lpkg.SyscfgV
+	settings map[string]string) error {
+	yc := lpkg.SyscfgY
 
-	lfeatures := cfg.FeaturesForLpkg(lpkg)
-	for k, v := range features {
-		if v {
-			lfeatures[k] = true
-		}
-	}
-	for k, _ := range lfeatures {
-		if _, ok := features[k]; ok == false {
-			delete(lfeatures, k)
-		}
-	}
+	lsettings := cfg.settingsForLpkg(lpkg, settings)
 
-	values := newtutil.GetStringMapFeatures(v, lfeatures, "syscfg.vals")
+	values := yc.GetValStringMap("syscfg.vals", lsettings)
 	for k, v := range values {
+		switch v.(type) {
+		case map[interface{}]interface{}, []interface{}:
+			return util.FmtNewtError("Package \"%s\" contains invalid "+
+				"\"syscfg.vals\" map; expected single value, but setting "+
+				"\"%s\" specifies multiple values.  Did you mix up "+
+				"\"syscfg.defs\" and \"syscfg.vals\"?",
+				lpkg.FullName(), k)
+		}
+
 		entry, ok := cfg.Settings[k]
 		if ok {
-			sourcetype := normalizePkgType(lpkg.Type())
-			deftype := normalizePkgType(entry.PackageDef.Type())
-
-			// Overrides must come from a higher priority package, with one
-			// exception: a package can override its own setting.
-			if lpkg != entry.PackageDef && sourcetype <= deftype {
-				priority := CfgPriority{
-					PackageDef:  entry.PackageDef,
-					PackageSrc:  lpkg,
-					SettingName: k,
-				}
-				cfg.PriorityViolations = append(cfg.PriorityViolations, priority)
-			} else {
-				entry.appendValue(lpkg, v)
-				cfg.Settings[k] = entry
-			}
+			entry.appendValue(lpkg, v)
+			cfg.Settings[k] = entry
 		} else {
-			orphan := CfgPoint{
-				Value:  stringValue(v),
-				Source: lpkg,
-			}
-			cfg.Orphans[k] = append(cfg.Orphans[k], orphan)
+			cfg.addOrphan(k, stringValue(v), lpkg)
+		}
+
+		switch entry.State {
+		case CFG_SETTING_STATE_DEPRECATED:
+			cfg.Deprecated[k] = struct{}{}
+		case CFG_SETTING_STATE_DEFUNCT:
+			cfg.Defunct[k] = struct{}{}
 		}
 	}
 
@@ -428,6 +606,64 @@ func (cfg *Cfg) Log() {
 	}
 }
 
+// Removes all traces of a package from syscfg.
+func (cfg *Cfg) DeletePkg(lpkg *pkg.LocalPackage) {
+	log.Debugf("Deleting package from syscfg: %s", lpkg.FullName())
+
+	// First, check if the specified package contributes to a redefinition
+	// error.  If so, the deletion of this package might resolve the error.
+	for name, m := range cfg.Redefines {
+		delete(m, lpkg)
+		if len(m) == 1 {
+			// Only one package defines this setting now; the redefinition
+			// error is resolved.
+			delete(cfg.Redefines, name)
+
+			//Loop through the map `m` just to get access to its only element.
+			var source *pkg.LocalPackage
+			for lp, _ := range m {
+				source = lp
+			}
+
+			// Replace the setting's source with the one remaining package that
+			// defines the setting.
+			entry := cfg.Settings[name]
+			entry.replaceSource(source)
+
+			// Update the master settings map.
+			cfg.Settings[name] = entry
+
+			log.Debugf("Resolved syscfg redefine; setting=%s pkg=%s",
+				name, source.FullName())
+		}
+	}
+
+	// Next, delete the specified package from the master settings map.
+	for name, entry := range cfg.Settings {
+		if entry.PackageDef == lpkg {
+			// The package-to-delete is this setting's source.  All overrides
+			// become orphans.
+			for i := 1; i < len(entry.History); i++ {
+				p := entry.History[i]
+				cfg.addOrphan(name, stringValue(p.Value), p.Source)
+			}
+			delete(cfg.Settings, name)
+		} else {
+			// Remove any overrides created by the deleted package.
+			for i := 1; i < len(entry.History); /* i inc. in loop body */ {
+				if entry.History[i].Source == lpkg {
+					entry.History = append(
+						entry.History[:i], entry.History[i+1:]...)
+
+					cfg.Settings[name] = entry
+				} else {
+					i++
+				}
+			}
+		}
+	}
+}
+
 func (cfg *Cfg) settingsOfType(typ CfgSettingType) []CfgEntry {
 	entries := []CfgEntry{}
 
@@ -441,20 +677,49 @@ func (cfg *Cfg) settingsOfType(typ CfgSettingType) []CfgEntry {
 }
 
 func (cfg *Cfg) detectViolations() {
+	settings := cfg.SettingValues()
 	for _, entry := range cfg.Settings {
-		var ev []CfgRestriction
+		var sv []CfgRestriction
 		for _, r := range entry.Restrictions {
-			if !cfg.restrictionMet(r) {
-				ev = append(ev, r)
+			if !cfg.restrictionMet(r, settings) {
+				sv = append(sv, r)
 			}
 		}
 
-		if ev != nil {
-			cfg.Violations[entry.Name] = ev
+		if sv != nil {
+			cfg.SettingViolations[entry.Name] = sv
+		}
+	}
+
+	pkgNames := make([]string, 0, len(cfg.PackageRestrictions))
+	for n, _ := range cfg.PackageRestrictions {
+		pkgNames = append(pkgNames, n)
+	}
+	sort.Strings(pkgNames)
+
+	for _, n := range pkgNames {
+		var pv []CfgRestriction
+		for _, r := range cfg.PackageRestrictions[n] {
+			if !cfg.restrictionMet(r, settings) {
+				pv = append(pv, r)
+			}
+		}
+
+		if pv != nil {
+			cfg.PackageViolations[n] = pv
 		}
 	}
 }
 
+// Detects all priority violations in the syscfg and records them internally.
+func (cfg *Cfg) detectPriorityViolations() {
+	for _, entry := range cfg.Settings {
+		cfg.PriorityViolations = append(
+			cfg.PriorityViolations, entry.priorityViolations()...)
+	}
+}
+
+// Detects all flash conflict errors in the syscfg and records them internally.
 func (cfg *Cfg) detectFlashConflicts(flashMap flash.FlashMap) {
 	entries := cfg.settingsOfType(CFG_SETTING_TYPE_FLASH_OWNER)
 
@@ -544,9 +809,37 @@ func (cfg *Cfg) ErrorText() string {
 
 	historyMap := map[string][]CfgPoint{}
 
-	if len(cfg.Violations) > 0 {
+	// Redefinition errors.
+	if len(cfg.Redefines) > 0 {
+		settingNames := make([]string, len(cfg.Redefines))
+		i := 0
+		for k, _ := range cfg.Redefines {
+			settingNames[i] = k
+			i++
+		}
+		sort.Strings(settingNames)
+
+		str += "Settings defined by multiple packages:"
+		for _, n := range settingNames {
+			pkgNames := make([]string, len(cfg.Redefines[n]))
+			i := 0
+			for p, _ := range cfg.Redefines[n] {
+				pkgNames[i] = p.FullName()
+				i++
+			}
+			sort.Strings(pkgNames)
+
+			str += fmt.Sprintf("\n    %s:", n)
+			for _, pn := range pkgNames {
+				str += " " + pn
+			}
+		}
+	}
+
+	// Violation errors.
+	if len(cfg.SettingViolations) > 0 || len(cfg.PackageViolations) > 0 {
 		str += "Syscfg restriction violations detected:\n"
-		for settingName, rslice := range cfg.Violations {
+		for settingName, rslice := range cfg.SettingViolations {
 			baseEntry := cfg.Settings[settingName]
 			historyMap[settingName] = baseEntry.History
 			for _, r := range rslice {
@@ -554,11 +847,21 @@ func (cfg *Cfg) ErrorText() string {
 					reqEntry := cfg.Settings[name]
 					historyMap[name] = reqEntry.History
 				}
-				str += "    " + cfg.violationText(baseEntry, r) + "\n"
+				str += "    " + cfg.settingViolationText(baseEntry, r) + "\n"
+			}
+		}
+		for pkgName, rslice := range cfg.PackageViolations {
+			for _, r := range rslice {
+				for _, name := range r.relevantSettingNames() {
+					reqEntry := cfg.Settings[name]
+					historyMap[name] = reqEntry.History
+				}
+				str += "    " + cfg.packageViolationText(pkgName, r) + "\n"
 			}
 		}
 	}
 
+	// Ambiguity errors.
 	if len(cfg.Ambiguities) > 0 {
 		str += "Syscfg ambiguities detected:\n"
 
@@ -575,6 +878,7 @@ func (cfg *Cfg) ErrorText() string {
 		}
 	}
 
+	// Priority violation errors.
 	if len(cfg.PriorityViolations) > 0 {
 		str += "Priority violations detected (Packages can only override " +
 			"settings defined by packages of lower priority):\n"
@@ -582,11 +886,14 @@ func (cfg *Cfg) ErrorText() string {
 			entry := cfg.Settings[priority.SettingName]
 			historyMap[priority.SettingName] = entry.History
 
-			str += fmt.Sprintf("    Package: %s overriding setting: %s defined by %s\n",
-				priority.PackageSrc.Name(), priority.SettingName, priority.PackageDef.Name())
+			str += fmt.Sprintf(
+				"    Package: %s overriding setting: %s defined by %s\n",
+				priority.PackageSrc.FullName(), priority.SettingName,
+				priority.PackageDef.FullName())
 		}
 	}
 
+	// Flash conflicts.
 	if len(cfg.FlashConflicts) > 0 {
 		str += "Flash errors detected:\n"
 		for _, conflict := range cfg.FlashConflicts {
@@ -599,11 +906,29 @@ func (cfg *Cfg) ErrorText() string {
 		}
 	}
 
-	if str == "" {
-		return ""
+	// Overrides of defunct settings.
+	if len(cfg.Defunct) > 0 {
+		str += "Override of defunct settings detected:\n"
+		for name, _ := range cfg.Defunct {
+			entry := cfg.Settings[name]
+			str += "    " + fmt.Sprintf("%s: %s\n", name, entry.Description)
+			historyMap[name] = entry.History
+		}
 	}
 
-	str += "\n" + historyText(historyMap)
+	// Unresolved value references
+	if len(cfg.UnresolvedValueRefs) > 0 {
+		str += "Unresolved value references:\n"
+		for name, _ := range cfg.UnresolvedValueRefs {
+			entry := cfg.Settings[name]
+			str += "    " + fmt.Sprintf("%s -> %s\n", name, entry.ValueRefName)
+			historyMap[name] = entry.History
+		}
+	}
+
+	if len(historyMap) > 0 {
+		str += "\n" + historyText(historyMap)
+	}
 
 	return str
 }
@@ -629,13 +954,30 @@ func (cfg *Cfg) WarningText() string {
 		}
 	}
 
-	if str == "" {
-		return ""
+	if len(historyMap) > 0 {
+		str += "\n" + historyText(historyMap)
 	}
 
-	str += "\n" + historyText(historyMap)
-
 	return str
+}
+
+func (cfg *Cfg) DeprecatedWarning() []string {
+	lines := []string{}
+
+	for k, _ := range cfg.Deprecated {
+		entry, ok := cfg.Settings[k]
+		if !ok {
+			log.Errorf("Internal error; deprecated setting \"%s\" not in cfg",
+				k)
+		}
+
+		point := mostRecentPoint(entry)
+		lines = append(lines,
+			fmt.Sprintf("Use of deprecated setting %s in %s: %s", k,
+				point.Source.FullName(), entry.Description))
+	}
+
+	return lines
 }
 
 func escapeStr(s string) string {
@@ -685,20 +1027,20 @@ func categorizePkgs(
 }
 
 func (cfg *Cfg) readDefsForPkgType(lpkgs []*pkg.LocalPackage,
-	features map[string]bool) error {
+	settings map[string]string) error {
 
 	for _, lpkg := range lpkgs {
-		if err := cfg.readDefsOnce(lpkg, features); err != nil {
+		if err := cfg.readDefsOnce(lpkg, settings); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 func (cfg *Cfg) readValsForPkgType(lpkgs []*pkg.LocalPackage,
-	features map[string]bool) error {
+	settings map[string]string) error {
 
 	for _, lpkg := range lpkgs {
-		if err := cfg.readValsOnce(lpkg, features); err != nil {
+		if err := cfg.readValsOnce(lpkg, settings); err != nil {
 			return err
 		}
 	}
@@ -714,8 +1056,17 @@ func (cfg *Cfg) detectAmbiguities() {
 	}
 }
 
+// Detects and records errors in the build's syscfg.  This should only be
+// called after APIs are resolved to avoid false positives.
+func (cfg *Cfg) DetectErrors(flashMap flash.FlashMap) {
+	cfg.detectAmbiguities()
+	cfg.detectViolations()
+	cfg.detectPriorityViolations()
+	cfg.detectFlashConflicts(flashMap)
+}
+
 func Read(lpkgs []*pkg.LocalPackage, apis []string,
-	injectedSettings map[string]string, features map[string]bool,
+	injectedSettings map[string]string, settings map[string]string,
 	flashMap flash.FlashMap) (Cfg, error) {
 
 	cfg := NewCfg()
@@ -730,9 +1081,7 @@ func Read(lpkgs []*pkg.LocalPackage, apis []string,
 			}},
 		}
 
-		if ValueIsTrue(v) {
-			features[k] = true
-		}
+		settings[k] = v
 	}
 
 	// Read system configuration files.  In case of conflicting settings, the
@@ -753,7 +1102,7 @@ func Read(lpkgs []*pkg.LocalPackage, apis []string,
 		pkg.PACKAGE_TYPE_APP,
 		pkg.PACKAGE_TYPE_TARGET,
 	} {
-		if err := cfg.readDefsForPkgType(lpkgMap[ptype], features); err != nil {
+		if err := cfg.readDefsForPkgType(lpkgMap[ptype], settings); err != nil {
 			return cfg, err
 		}
 	}
@@ -765,14 +1114,16 @@ func Read(lpkgs []*pkg.LocalPackage, apis []string,
 		pkg.PACKAGE_TYPE_APP,
 		pkg.PACKAGE_TYPE_TARGET,
 	} {
-		if err := cfg.readValsForPkgType(lpkgMap[ptype], features); err != nil {
+		if err := cfg.readValsForPkgType(lpkgMap[ptype], settings); err != nil {
 			return cfg, err
 		}
 	}
 
-	cfg.detectAmbiguities()
-	cfg.detectViolations()
-	cfg.detectFlashConflicts(flashMap)
+	for _, lpkg := range lpkgs {
+		if err := cfg.readRestrictions(lpkg, settings); err != nil {
+			return cfg, err
+		}
+	}
 
 	return cfg, nil
 }
@@ -819,9 +1170,9 @@ func calcPriorities(cfg Cfg, settingType CfgSettingType, max int,
 						return util.FmtNewtError(
 							"duplicate priority value: setting1=%s "+
 								"setting2=%s pkg1=%s pkg2=%s value=%s",
-							oldEntry.Name, entry.Name, entry.Value,
+							oldEntry.Name, entry.Name,
 							oldEntry.History[0].Name(),
-							entry.History[0].Name())
+							entry.History[0].Name(), entry.Value)
 					}
 				}
 
@@ -879,6 +1230,10 @@ func writeComment(entry CfgEntry, w io.Writer) {
 		fmt.Fprintf(w, "/* Overridden by %s (defined by %s) */\n",
 			mostRecentPoint(entry).Name(),
 			entry.History[0].Name())
+	}
+	if len(entry.ValueRefName) > 1 {
+		fmt.Fprintf(w, "/* Value copied from %s */\n",
+			entry.ValueRefName)
 	}
 }
 

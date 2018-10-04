@@ -95,6 +95,9 @@ func Commands() *cobra.Command {
 	}
 	nmCmd.AddCommand(versCmd)
 
+	nmCmd.PersistentFlags().IntVarP(&nmutil.HciIdx, "hci", "i",
+		0, "HCI index for the controller on Linux machine")
+
 	nmCmd.AddCommand(crashCmd())
 	nmCmd.AddCommand(dateTimeCmd())
 	nmCmd.AddCommand(fsCmd())

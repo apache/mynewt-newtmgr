@@ -25,7 +25,7 @@ func (r *DB) idx(h int) int {
 	if h < int(r.base) {
 		return tooSmall
 	}
-	if int(h) >= int(r.base)+len(r.attrs) {
+	if h >= int(r.base)+len(r.attrs) {
 		return tooLarge
 	}
 	return h - int(r.base)

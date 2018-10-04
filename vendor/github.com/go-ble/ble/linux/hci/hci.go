@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,13 +35,14 @@ type pkt struct {
 }
 
 // NewHCI returns a hci device.
-func NewHCI(opts ...Option) (*HCI, error) {
+func NewHCI(opts ...ble.Option) (*HCI, error) {
 	h := &HCI{
 		id: -1,
 
 		chCmdPkt:  make(chan *pkt),
-		chCmdBufs: make(chan []byte, 8),
+		chCmdBufs: make(chan []byte, 16),
 		sent:      make(map[int]*pkt),
+		muSent:    &sync.Mutex{},
 
 		evth: map[int]handlerFn{},
 		subh: map[int]handlerFn{},
@@ -72,6 +74,7 @@ type HCI struct {
 	// Host to Controller command flow control [Vol 2, Part E, 4.4]
 	chCmdPkt  chan *pkt
 	chCmdBufs chan []byte
+	muSent    *sync.Mutex
 	sent      map[int]*pkt
 
 	// evtHub
@@ -168,7 +171,7 @@ func (h *HCI) Error() error {
 }
 
 // Option sets the options specified.
-func (h *HCI) Option(opts ...Option) error {
+func (h *HCI) Option(opts ...ble.Option) error {
 	var err error
 	for _, opt := range opts {
 		err = opt(h)
@@ -247,7 +250,9 @@ func (h *HCI) send(c Command) ([]byte, error) {
 		h.close(fmt.Errorf("hci: failed to marshal cmd"))
 	}
 
-	h.sent[c.OpCode()] = p // TODO: lock
+	h.muSent.Lock()
+	h.sent[c.OpCode()] = p
+	h.muSent.Unlock()
 	if n, err := h.skt.Write(b[:4+c.Len()]); err != nil {
 		h.close(fmt.Errorf("hci: failed to send cmd"))
 	} else if n != 4+c.Len() {
@@ -274,8 +279,14 @@ func (h *HCI) sktLoop() {
 		p := make([]byte, n)
 		copy(p, b)
 		if err := h.handlePkt(p); err != nil {
-			h.err = fmt.Errorf("skt: %s", err)
-			return
+			// Some bluetooth devices may append vendor specific packets at the last,
+			// in this case, simply ignore them.
+			if strings.HasPrefix(err.Error(), "unsupported vendor packet:") {
+				_ = logger.Error("skt: %v", err)
+			} else {
+				h.err = fmt.Errorf("skt: %v", err)
+				return
+			}
 		}
 	}
 }
@@ -310,7 +321,7 @@ func (h *HCI) handleACL(b []byte) error {
 	c, ok := h.conns[handle]
 	h.muConns.Unlock()
 	if !ok {
-		logger.Warn("invalid connection handle on ACL packet", "handle", handle)
+		_ = logger.Warn("invalid connection handle on ACL packet", "handle", handle)
 		return nil
 	}
 	c.chInPkt <- b
@@ -402,10 +413,12 @@ func (h *HCI) handleCommandComplete(b []byte) error {
 
 	// NOP command, used for flow control purpose [Vol 2, Part E, 4.4]
 	if e.CommandOpcode() == 0x0000 {
-		h.chCmdBufs = make(chan []byte, 8)
+		h.chCmdBufs = make(chan []byte, 16)
 		return nil
 	}
+	h.muSent.Lock()
 	p, found := h.sent[int(e.CommandOpcode())]
+	h.muSent.Unlock()
 	if !found {
 		return fmt.Errorf("can't find the cmd for CommandCompleteEP: % X", e)
 	}
@@ -419,7 +432,9 @@ func (h *HCI) handleCommandStatus(b []byte) error {
 		h.chCmdBufs <- make([]byte, 64)
 	}
 
+	h.muSent.Lock()
 	p, found := h.sent[int(e.CommandOpcode())]
+	h.muSent.Unlock()
 	if !found {
 		return fmt.Errorf("can't find the cmd for CommandStatusEP: % X", e)
 	}
@@ -435,7 +450,11 @@ func (h *HCI) handleLEConnectionComplete(b []byte) error {
 	h.muConns.Unlock()
 	if e.Role() == roleMaster {
 		if e.Status() == 0x00 {
-			h.chMasterConn <- c
+			select {
+			case h.chMasterConn <- c:
+			default:
+				go c.Close()
+			}
 			return nil
 		}
 		if ErrCommand(e.Status()) == ErrConnID {
@@ -479,7 +498,7 @@ func (h *HCI) handleDisconnectionComplete(b []byte) error {
 	}
 	close(c.chInPkt)
 
-	if c.param.Role() == roleMaster {
+	if c.param.Role() == roleSlave {
 		// Re-enable advertising, if it was advertising. Refer to the
 		// handleLEConnectionComplete() for details.
 		// This may failed with ErrCommandDisallowed, if the controller

@@ -245,10 +245,38 @@ func collectCompileEntriesDir(srcDir string, c *toolchain.Compiler,
 	return entries, nil
 }
 
+// Determines which build profile to use when building the specified package.
+// 1. If the package specifies a "pkg.build_profile" value, that is returned:
+//
+//      pkg.build_profile: debug
+//
+// 2. Else if the target specifies this package in its
+//    "target.package_profiles" map, that value is returned:
+//
+//      target.package_profiles:
+//          'apps/blinky': debug
+//          '@apache-mynewt-core/sys/log/full': debug
+//
+// 3. Else, "" is returned (falls back to the target's general build profile).
+func (b *Builder) buildProfileFor(bpkg *BuildPackage) string {
+	bp := bpkg.BuildProfile(b)
+	if bp != "" {
+		return bp
+	}
+
+	tgt := b.targetBuilder.GetTarget()
+	return tgt.PkgProfiles[bpkg.rpkg.Lpkg.FullName()]
+}
+
 func (b *Builder) newCompiler(bpkg *BuildPackage,
 	dstDir string) (*toolchain.Compiler, error) {
 
-	c, err := b.targetBuilder.NewCompiler(dstDir)
+	var buildProfile string
+	if bpkg != nil {
+		buildProfile = b.buildProfileFor(bpkg)
+	}
+
+	c, err := b.targetBuilder.NewCompiler(dstDir, buildProfile)
 	if err != nil {
 		return nil, err
 	}
@@ -312,6 +340,11 @@ func (b *Builder) collectCompileEntriesBpkg(bpkg *BuildPackage) (
 	return entries, nil
 }
 
+func (b *Builder) CollectCompileEntriesBpkg(bpkg *BuildPackage) (
+	[]toolchain.CompilerJob, error) {
+	return b.collectCompileEntriesBpkg(bpkg)
+}
+
 func (b *Builder) createArchive(c *toolchain.Compiler,
 	bpkg *BuildPackage) error {
 
@@ -361,12 +394,21 @@ func (b *Builder) link(elfName string, linkerScripts []string,
 	/* Always used the trimmed archive files. */
 	pkgNames := []string{}
 
-	for _, bpkg := range b.PkgMap {
+	for _, bpkg := range b.sortedBuildPackages() {
 		archiveNames, _ := filepath.Glob(b.PkgBinDir(bpkg) + "/*.a")
 		for i, archiveName := range archiveNames {
 			archiveNames[i] = filepath.ToSlash(archiveName)
 		}
 		pkgNames = append(pkgNames, archiveNames...)
+
+		// Collect lflags from all constituent packages.  Discard everything
+		// from the compiler info except lflags; that is all that is relevant
+		// to the link command.
+		ci, err := bpkg.CompilerInfo(b)
+		if err != nil {
+			return err
+		}
+		c.AddInfo(&toolchain.CompilerInfo{Lflags: ci.Lflags})
 	}
 
 	c.LinkerScripts = linkerScripts
@@ -448,11 +490,14 @@ func (b *Builder) PrepBuild() error {
 	baseCi.AddCompilerInfo(bspCi)
 
 	// All packages have access to the generated code header directory.
-	baseCi.Cflags = append(baseCi.Cflags,
-		"-I"+GeneratedIncludeDir(b.targetPkg.rpkg.Lpkg.Name()))
+	baseCi.Includes = append(baseCi.Includes,
+		GeneratedIncludeDir(b.targetPkg.rpkg.Lpkg.Name()))
 
-	// Note: Compiler flags get added at the end, after the flags for library
-	// package being built are calculated.
+	// Let multiplatform libraries know that a Mynewt binary is being build.
+	baseCi.Cflags = append(baseCi.Cflags, "-DMYNEWT=1")
+
+	// Note: The compiler package's flags get added at the end, after the flags
+	// for library package being built are calculated.
 	b.compilerInfo = baseCi
 
 	return nil
@@ -670,7 +715,7 @@ func (b *Builder) buildRomElf(common *symbol.SymbolMap) error {
 	// check dependencies on the ROM ELF.  This is really dependent on
 	// all of the .a files, but since we already depend on the loader
 	// .as to build the initial elf, we only need to check the app .a
-	c, err := b.targetBuilder.NewCompiler(b.AppElfPath())
+	c, err := b.targetBuilder.NewCompiler(b.AppElfPath(), "")
 	d := toolchain.NewDepTracker(c)
 	if err != nil {
 		return err
@@ -754,6 +799,7 @@ func (b *Builder) CreateImage(version string,
 		}
 	}
 
+	img.HeaderSize = uint(b.targetBuilder.target.HeaderSize)
 	err = img.Generate(loaderImg)
 	if err != nil {
 		return nil, err

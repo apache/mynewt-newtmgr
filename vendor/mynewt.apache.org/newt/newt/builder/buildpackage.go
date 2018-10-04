@@ -61,7 +61,7 @@ func (bpkg *BuildPackage) collectDepsAux(b *Builder,
 		dbpkg := b.PkgMap[dep.Rpkg]
 		if dbpkg == nil {
 			return util.FmtNewtError("Package not found %s; required by %s",
-				dbpkg.rpkg.Lpkg.Name(), bpkg.rpkg.Lpkg.Name())
+				dep.Rpkg.Lpkg.Name(), bpkg.rpkg.Lpkg.Name())
 		}
 
 		if err := dbpkg.collectDepsAux(b, set); err != nil {
@@ -118,30 +118,38 @@ func expandFlags(flags []string) {
 	}
 }
 
+// Retrieves the build package's build profile override, as specified in its
+// `pkg.yml` file.  If the package does not override the build profile, "" is
+// returned.
+func (bpkg *BuildPackage) BuildProfile(b *Builder) string {
+	settings := b.cfg.AllSettingsForLpkg(bpkg.rpkg.Lpkg)
+	return bpkg.rpkg.Lpkg.PkgY.GetValString("pkg.build_profile", settings)
+}
+
 func (bpkg *BuildPackage) CompilerInfo(
 	b *Builder) (*toolchain.CompilerInfo, error) {
 
-	// If this package's compiler info has already been generated, returned the
+	// If this package's compiler info has already been generated, return the
 	// cached copy.
 	if bpkg.ci != nil {
 		return bpkg.ci, nil
 	}
 
 	ci := toolchain.NewCompilerInfo()
-	features := b.cfg.FeaturesForLpkg(bpkg.rpkg.Lpkg)
+	settings := b.cfg.AllSettingsForLpkg(bpkg.rpkg.Lpkg)
 
-	// Read each set of flags and expand repo designators ("@<repo-nme>") into
+	// Read each set of flags and expand repo designators ("@<repo-name>") into
 	// paths.
-	ci.Cflags = newtutil.GetStringSliceFeatures(bpkg.rpkg.Lpkg.PkgV, features,
-		"pkg.cflags")
+	ci.Cflags = bpkg.rpkg.Lpkg.PkgY.GetValStringSlice("pkg.cflags", settings)
 	expandFlags(ci.Cflags)
 
-	ci.Lflags = newtutil.GetStringSliceFeatures(bpkg.rpkg.Lpkg.PkgV, features,
-		"pkg.lflags")
+	ci.CXXflags = bpkg.rpkg.Lpkg.PkgY.GetValStringSlice("pkg.cxxflags", settings)
+	expandFlags(ci.CXXflags)
+
+	ci.Lflags = bpkg.rpkg.Lpkg.PkgY.GetValStringSlice("pkg.lflags", settings)
 	expandFlags(ci.Lflags)
 
-	ci.Aflags = newtutil.GetStringSliceFeatures(bpkg.rpkg.Lpkg.PkgV, features,
-		"pkg.aflags")
+	ci.Aflags = bpkg.rpkg.Lpkg.PkgY.GetValStringSlice("pkg.aflags", settings)
 	expandFlags(ci.Aflags)
 
 	// Package-specific injected settings get specified as C flags on the
@@ -151,8 +159,7 @@ func (bpkg *BuildPackage) CompilerInfo(
 	}
 
 	ci.IgnoreFiles = []*regexp.Regexp{}
-	ignPats := newtutil.GetStringSliceFeatures(bpkg.rpkg.Lpkg.PkgV,
-		features, "pkg.ign_files")
+	ignPats := bpkg.rpkg.Lpkg.PkgY.GetValStringSlice("pkg.ign_files", settings)
 	for _, str := range ignPats {
 		re, err := regexp.Compile(str)
 		if err != nil {
@@ -163,8 +170,7 @@ func (bpkg *BuildPackage) CompilerInfo(
 	}
 
 	ci.IgnoreDirs = []*regexp.Regexp{}
-	ignPats = newtutil.GetStringSliceFeatures(bpkg.rpkg.Lpkg.PkgV,
-		features, "pkg.ign_dirs")
+	ignPats = bpkg.rpkg.Lpkg.PkgY.GetValStringSlice("pkg.ign_dirs", settings)
 	for _, str := range ignPats {
 		re, err := regexp.Compile(str)
 		if err != nil {
@@ -174,9 +180,8 @@ func (bpkg *BuildPackage) CompilerInfo(
 		ci.IgnoreDirs = append(ci.IgnoreDirs, re)
 	}
 
-	bpkg.SourceDirectories = newtutil.GetStringSliceFeatures(
-		bpkg.rpkg.Lpkg.PkgV,
-		features, "pkg.src_dirs")
+	bpkg.SourceDirectories = bpkg.rpkg.Lpkg.PkgY.GetValStringSlice(
+		"pkg.src_dirs", settings)
 
 	includePaths, err := bpkg.recursiveIncludePaths(b)
 	if err != nil {

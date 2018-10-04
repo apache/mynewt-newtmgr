@@ -35,23 +35,6 @@ type RepoInterface interface {
 	Path() string
 }
 
-type VersionReqInterface interface {
-	CompareType() string
-	Version() VersionInterface
-	String() string
-}
-
-type VersionInterface interface {
-	SatisfiesVersion(versReq []VersionReqInterface) bool
-	CompareVersions(vers1 VersionInterface, vers2 VersionInterface) int64
-	Major() int64
-	Minor() int64
-	Revision() int64
-	Stability() string
-	Tag() string
-	String() string
-}
-
 type PackageList map[string]*map[string]PackageInterface
 
 type DependencyInterface interface {
@@ -66,6 +49,7 @@ type ProjectInterface interface {
 	ResolvePath(basePath string, name string) (string, error)
 	PackageList() PackageList
 	FindRepoPath(rname string) string
+	RepoIsInstalled(rname string) bool
 }
 
 var globalProject ProjectInterface

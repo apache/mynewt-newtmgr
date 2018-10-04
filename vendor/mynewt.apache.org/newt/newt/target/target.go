@@ -22,18 +22,20 @@ package target
 import (
 	"os"
 	"path/filepath"
-	"sort"
+	"strconv"
 	"strings"
 
+	"mynewt.apache.org/newt/newt/newtutil"
 	"mynewt.apache.org/newt/newt/pkg"
 	"mynewt.apache.org/newt/newt/project"
 	"mynewt.apache.org/newt/newt/repo"
+	"mynewt.apache.org/newt/newt/ycfg"
 	"mynewt.apache.org/newt/util"
-	"mynewt.apache.org/newt/yaml"
 )
 
 const TARGET_FILENAME string = "target.yml"
 const DEFAULT_BUILD_PROFILE string = "default"
+const DEFAULT_HEADER_SIZE uint32 = 0x20
 
 var globalTargetMap map[string]*Target
 
@@ -44,13 +46,18 @@ type Target struct {
 	AppName      string
 	LoaderName   string
 	BuildProfile string
+	HeaderSize   uint32
+	KeyFile      string
+	PkgProfiles  map[string]string
 
 	// target.yml configuration structure
-	Vars map[string]string
+	TargetY ycfg.YCfg
 }
 
 func NewTarget(basePkg *pkg.LocalPackage) *Target {
-	target := &Target{}
+	target := &Target{
+		TargetY: ycfg.YCfg{},
+	}
 	target.Init(basePkg)
 	return target
 }
@@ -69,27 +76,35 @@ func (target *Target) Init(basePkg *pkg.LocalPackage) {
 }
 
 func (target *Target) Load(basePkg *pkg.LocalPackage) error {
-	v, err := util.ReadConfig(basePkg.BasePath(),
+	yc, err := newtutil.ReadConfig(basePkg.BasePath(),
 		strings.TrimSuffix(TARGET_FILENAME, ".yml"))
 	if err != nil {
 		return err
 	}
 
-	target.Vars = map[string]string{}
+	target.TargetY = yc
 
-	settings := v.AllSettings()
-	for k, v := range settings {
-		target.Vars[k] = v.(string)
-	}
+	target.BspName = yc.GetValString("target.bsp", nil)
+	target.AppName = yc.GetValString("target.app", nil)
+	target.LoaderName = yc.GetValString("target.loader", nil)
 
-	target.BspName = target.Vars["target.bsp"]
-	target.AppName = target.Vars["target.app"]
-	target.LoaderName = target.Vars["target.loader"]
-	target.BuildProfile = target.Vars["target.build_profile"]
-
+	target.BuildProfile = yc.GetValString("target.build_profile", nil)
 	if target.BuildProfile == "" {
 		target.BuildProfile = DEFAULT_BUILD_PROFILE
 	}
+
+	target.HeaderSize = DEFAULT_HEADER_SIZE
+	if yc.GetValString("target.header_size", nil) != "" {
+		hs, err := strconv.ParseUint(
+			yc.GetValString("target.header_size", nil), 0, 32)
+		if err == nil {
+			target.HeaderSize = uint32(hs)
+		}
+	}
+
+	target.KeyFile = yc.GetValString("target.key_file", nil)
+	target.PkgProfiles = yc.GetValStringMapString(
+		"target.package_profiles", nil)
 
 	// Note: App not required in the case of unit tests.
 
@@ -180,8 +195,8 @@ func (target *Target) Clone(newRepo *repo.Repo, newName string) *Target {
 	return &newTarget
 }
 
-func (target *Target) resolvePackageName(name string) *pkg.LocalPackage {
-	dep, err := pkg.NewDependency(target.basePkg.Repo(), name)
+func (target *Target) resolvePackageRepoAndName(repo *repo.Repo, name string) *pkg.LocalPackage {
+	dep, err := pkg.NewDependency(repo, name)
 	if err != nil {
 		return nil
 	}
@@ -193,6 +208,27 @@ func (target *Target) resolvePackageName(name string) *pkg.LocalPackage {
 
 	return pack
 }
+
+func (target *Target) resolvePackageName(name string) *pkg.LocalPackage {
+	pack := target.resolvePackageYmlName(name)
+
+	if pack == nil || pack.Type() != pkg.PACKAGE_TYPE_TRANSIENT {
+		return pack
+	}
+
+	// We follow only one level of linking here to make things easier and assuming
+	// nested linking means someone using really deprecated packages ;)
+
+	pack = target.resolvePackageRepoAndName(pack.Repo().(*repo.Repo), pack.LinkedName())
+
+	return pack
+}
+
+func (target *Target) resolvePackageYmlName(name string) *pkg.LocalPackage {
+	return target.resolvePackageRepoAndName(target.basePkg.Repo().(*repo.Repo), name)
+}
+
+// Methods below resolve package by name and follow links to get proper package
 
 func (target *Target) App() *pkg.LocalPackage {
 	return target.resolvePackageName(target.AppName)
@@ -206,22 +242,19 @@ func (target *Target) Bsp() *pkg.LocalPackage {
 	return target.resolvePackageName(target.BspName)
 }
 
-func (target *Target) BinBasePath() string {
-	appPkg := target.App()
-	if appPkg == nil {
-		return ""
-	}
+// Methods below resolve package by name as stated in YML file (so do not follow links)
+// e.g. to use as seed for dependencies calculation
 
-	return appPkg.BasePath() + "/bin/" + target.Name() + "/" +
-		appPkg.Name()
+func (target *Target) AppYml() *pkg.LocalPackage {
+	return target.resolvePackageYmlName(target.AppName)
 }
 
-func (target *Target) ElfPath() string {
-	return target.BinBasePath() + ".elf"
+func (target *Target) LoaderYml() *pkg.LocalPackage {
+	return target.resolvePackageYmlName(target.LoaderName)
 }
 
-func (target *Target) ImagePath() string {
-	return target.BinBasePath() + ".img"
+func (target *Target) BspYml() *pkg.LocalPackage {
+	return target.resolvePackageYmlName(target.BspName)
 }
 
 // Save the target's configuration elements
@@ -238,19 +271,10 @@ func (t *Target) Save() error {
 	}
 	defer file.Close()
 
-	file.WriteString("### Target: " + t.Name() + "\n")
+	s := newtutil.YCfgToYaml(t.TargetY)
+	file.WriteString(s)
 
-	keys := []string{}
-	for k, _ := range t.Vars {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	for _, k := range keys {
-		file.WriteString(k + ": " + yaml.EscapeString(t.Vars[k]) + "\n")
-	}
-
-	if err := t.basePkg.SaveSyscfgVals(); err != nil {
+	if err := t.basePkg.SaveSyscfg(); err != nil {
 		return err
 	}
 

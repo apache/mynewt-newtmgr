@@ -6,6 +6,9 @@
 .gdb_out
 tags
 
+# Ignore documentation folder
+docs
+
 # Non-source files
 COMPATIBLE
 COPYING
@@ -13,7 +16,7 @@ INSTALLING.md
 RELEASE_NOTES.md
 Godeps.json
 .gitignore
-
+Makefile
 
 # Viper - MIT license.
 viper

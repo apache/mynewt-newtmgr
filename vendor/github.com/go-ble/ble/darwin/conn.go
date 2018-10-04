@@ -9,10 +9,10 @@ import (
 	"github.com/raff/goble/xpc"
 )
 
-func newConn(d *Device, a ble.Addr) *conn {
+func newConn(d *Device, a ble.Addr, rxMTU int) *conn {
 	return &conn{
 		dev:   d,
-		rxMTU: 23,
+		rxMTU: rxMTU,
 		txMTU: 23,
 		addr:  a,
 		done:  make(chan struct{}),
@@ -43,6 +43,8 @@ type conn struct {
 	notifiers map[uint16]ble.Notifier // central connection only
 
 	subs map[uint16]*sub
+
+	isConnected bool
 }
 
 func (c *conn) Context() context.Context {
@@ -75,7 +77,9 @@ func (c *conn) TxMTU() int {
 }
 
 func (c *conn) SetTxMTU(mtu int) {
+	c.Lock()
 	c.txMTU = mtu
+	c.Unlock()
 }
 
 func (c *conn) Read(b []byte) (int, error) {

@@ -131,7 +131,7 @@ func GetXport() (xport.Xport, error) {
 			cfg.CtlrName = bc.CtlrName
 		}
 		cfg.OwnAddrType = bc.OwnAddrType
-		globalXport = bll.NewBllXport(cfg)
+		globalXport = bll.NewBllXport(cfg, bc.HciIdx)
 
 	case config.CONN_TYPE_BLE_PLAIN, config.CONN_TYPE_BLE_OIC:
 		bc, err := config.ParseBleConnString(cp.ConnString)
@@ -261,16 +261,16 @@ func buildBllSesn(cp *config.ConnProfile) (sesn.Sesn, error) {
 		return nil, err
 	}
 
+	sc, err := config.BuildBllSesnCfg(bc)
+	if err != nil {
+		return nil, err
+	}
+
 	x, err := GetXport()
 	if err != nil {
 		return nil, err
 	}
 	bx := x.(*bll.BllXport)
-
-	sc, err := config.BuildBllSesnCfg(bc)
-	if err != nil {
-		return nil, err
-	}
 
 	switch cp.Type {
 	case config.CONN_TYPE_BLL_PLAIN:

@@ -23,13 +23,24 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 
+	"mynewt.apache.org/newt/newt/image"
 	"mynewt.apache.org/newt/newt/newtutil"
+	"mynewt.apache.org/newt/newt/parse"
 	"mynewt.apache.org/newt/util"
 )
 
 func runRunCmd(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
 		NewtUsage(cmd, util.NewNewtError("Must specify target"))
+	}
+
+	if useV1 && useV2 {
+		NewtUsage(cmd, util.NewNewtError("Either -1, or -2, but not both"))
+	}
+	if useV2 {
+		image.UseV1 = false
+	} else {
+		image.UseV1 = true
 	}
 
 	TryGetProject()
@@ -62,9 +73,11 @@ func runRunCmd(cmd *cobra.Command, args []string) {
 			if err != nil {
 				NewtUsage(nil, err)
 			}
-			features := res.Cfg.Features()
+			settings := res.Cfg.SettingValues()
 
-			if !features["BOOT_LOADER"] && !features["BSP_SIMULATED"] {
+			if !parse.ValueIsTrue(settings["BOOT_LOADER"]) &&
+				!parse.ValueIsTrue(settings["BSP_SIMULATED"]) {
+
 				version = "0"
 				fmt.Println("Enter image version(default 0):")
 				fmt.Scanf("%s\n", &version)
@@ -116,6 +129,10 @@ func AddRunCommands(cmd *cobra.Command) {
 	runCmd.PersistentFlags().BoolVarP(&newtutil.NewtForce,
 		"force", "f", false,
 		"Ignore flash overflow errors during image creation")
+	runCmd.PersistentFlags().BoolVarP(&useV1,
+		"1", "1", false, "Use old image header format")
+	runCmd.PersistentFlags().BoolVarP(&useV2,
+		"2", "2", false, "Use new image header format")
 
 	cmd.AddCommand(runCmd)
 	AddTabCompleteFn(runCmd, func() []string {
