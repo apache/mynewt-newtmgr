@@ -32,7 +32,6 @@ import (
 	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
-	"mynewt.apache.org/newtmgr/nmxact/sesn"
 	"mynewt.apache.org/newtmgr/nmxact/xact"
 )
 
@@ -185,7 +184,7 @@ func resResponseStr(path string, cbor []byte) string {
 }
 
 func resGetCmd(cmd *cobra.Command, args []string) {
-	if len(args) < 2 {
+	if len(args) < 1 {
 		nmUsage(cmd, nil)
 	}
 
@@ -194,17 +193,11 @@ func resGetCmd(cmd *cobra.Command, args []string) {
 		nmUsage(nil, err)
 	}
 
-	rt, err := sesn.ParseResType(args[0])
-	if err != nil {
-		nmUsage(cmd, err)
-	}
-
-	path := args[1]
+	path := args[0]
 
 	c := xact.NewGetResCmd()
 	c.SetTxOptions(nmutil.TxOptions())
 	c.Path = path
-	c.Typ = rt
 
 	res, err := c.Run(s)
 	if err != nil {
@@ -228,7 +221,7 @@ func resGetCmd(cmd *cobra.Command, args []string) {
 }
 
 func resPutCmd(cmd *cobra.Command, args []string) {
-	if len(args) < 3 {
+	if len(args) < 2 {
 		nmUsage(cmd, nil)
 	}
 
@@ -237,15 +230,10 @@ func resPutCmd(cmd *cobra.Command, args []string) {
 		nmUsage(nil, err)
 	}
 
-	rt, err := sesn.ParseResType(args[0])
-	if err != nil {
-		nmUsage(cmd, err)
-	}
-
-	path := args[1]
+	path := args[0]
 
 	var m map[string]interface{}
-	m, err = extractResKv(args[2:])
+	m, err = extractResKv(args[1:])
 	if err != nil {
 		nmUsage(cmd, err)
 	}
@@ -258,7 +246,6 @@ func resPutCmd(cmd *cobra.Command, args []string) {
 	c := xact.NewPutResCmd()
 	c.SetTxOptions(nmutil.TxOptions())
 	c.Path = path
-	c.Typ = rt
 	c.Value = b
 
 	res, err := c.Run(s)
@@ -283,7 +270,7 @@ func resPutCmd(cmd *cobra.Command, args []string) {
 }
 
 func resPostCmd(cmd *cobra.Command, args []string) {
-	if len(args) < 3 {
+	if len(args) < 2 {
 		nmUsage(cmd, nil)
 	}
 
@@ -292,15 +279,10 @@ func resPostCmd(cmd *cobra.Command, args []string) {
 		nmUsage(nil, err)
 	}
 
-	rt, err := sesn.ParseResType(args[0])
-	if err != nil {
-		nmUsage(cmd, err)
-	}
-
-	path := args[1]
+	path := args[0]
 
 	var m map[string]interface{}
-	m, err = extractResKv(args[2:])
+	m, err = extractResKv(args[1:])
 	if err != nil {
 		nmUsage(cmd, err)
 	}
@@ -313,7 +295,6 @@ func resPostCmd(cmd *cobra.Command, args []string) {
 	c := xact.NewPostResCmd()
 	c.SetTxOptions(nmutil.TxOptions())
 	c.Path = path
-	c.Typ = rt
 	c.Value = b
 
 	res, err := c.Run(s)
@@ -338,7 +319,7 @@ func resPostCmd(cmd *cobra.Command, args []string) {
 }
 
 func resDeleteCmd(cmd *cobra.Command, args []string) {
-	if len(args) < 2 {
+	if len(args) < 1 {
 		nmUsage(cmd, nil)
 	}
 
@@ -347,15 +328,10 @@ func resDeleteCmd(cmd *cobra.Command, args []string) {
 		nmUsage(nil, err)
 	}
 
-	rt, err := sesn.ParseResType(args[0])
-	if err != nil {
-		nmUsage(cmd, err)
-	}
-
-	path := args[1]
+	path := args[0]
 
 	var m map[string]interface{}
-	m, err = extractResKv(args[2:])
+	m, err = extractResKv(args[1:])
 	if err != nil {
 		nmUsage(cmd, err)
 	}
@@ -368,7 +344,6 @@ func resDeleteCmd(cmd *cobra.Command, args []string) {
 	c := xact.NewDeleteResCmd()
 	c.SetTxOptions(nmutil.TxOptions())
 	c.Path = path
-	c.Typ = rt
 	c.Value = b
 
 	res, err := c.Run(s)
@@ -402,25 +377,25 @@ func resCmd() *cobra.Command {
 	}
 
 	resCmd.AddCommand(&cobra.Command{
-		Use:   "get <type> <path>",
+		Use:   "get <path>",
 		Short: "Send a CoAP GET request",
 		Run:   resGetCmd,
 	})
 
 	resCmd.AddCommand(&cobra.Command{
-		Use:   "put <type> <path> <k=v> [k=v] [k=v]",
+		Use:   "put <path> <k=v> [k=v] [k=v]",
 		Short: "Send a CoAP PUT request",
 		Run:   resPutCmd,
 	})
 
 	resCmd.AddCommand(&cobra.Command{
-		Use:   "post <type> <path> <k=v> [k=v] [k=v]",
+		Use:   "post <path> <k=v> [k=v] [k=v]",
 		Short: "Send a CoAP POST request",
 		Run:   resPostCmd,
 	})
 
 	resCmd.AddCommand(&cobra.Command{
-		Use:   "delete <type> <path>",
+		Use:   "delete <path>",
 		Short: "Send a CoAP DELETE request",
 		Run:   resDeleteCmd,
 	})

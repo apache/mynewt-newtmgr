@@ -28,7 +28,6 @@ import (
 	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
-	"mynewt.apache.org/newtmgr/nmxact/sesn"
 	"mynewt.apache.org/newtmgr/nmxact/xact"
 	"strconv"
 	"strings"
@@ -44,7 +43,6 @@ type ObserveElem struct {
 	Path       string
 }
 
-var ResourceType string
 var ResourcePath string
 var ObserversList *list.List
 
@@ -85,34 +83,23 @@ func copyFromMap(m map[string]interface{}, key string) (value string) {
 
 func hasStoredParams() bool {
 
-	if strings.Compare(ResourcePath, "") == 0 || strings.Compare(ResourceType, "") == 0 {
+	if strings.Compare(ResourcePath, "") == 0 {
 		return false
 	}
 
 	return true
 }
 
-func getPathAndType(m map[string]interface{}) {
+func getPath(m map[string]interface{}) {
 
 	rpath := copyFromMap(m, "path")
-	rtype := copyFromMap(m, "type")
 
 	if strings.Compare(rpath, "") != 0 {
 		ResourcePath = rpath
 	}
-
-	if strings.Compare(rtype, "") != 0 {
-		ResourceType = rtype
-	}
 }
 
 func getCmdCommon(c *ishell.Context, observe int, token []byte) error {
-
-	rt, err := sesn.ParseResType(ResourceType)
-	if err != nil {
-		c.Println("Incorrect resource type")
-		return err
-	}
 
 	s, err := GetSesn()
 	if err != nil {
@@ -123,7 +110,6 @@ func getCmdCommon(c *ishell.Context, observe int, token []byte) error {
 	cmd.SetTxOptions(nmutil.TxOptions())
 	cmd.Path = ResourcePath
 	cmd.Observe = observe
-	cmd.Typ = rt
 	cmd.NotifyFunc = notificationCb
 	cmd.StopSignal = make(chan int)
 	cmd.Token = token
@@ -161,11 +147,11 @@ func getCmd(c *ishell.Context) {
 	if err != nil || len(c.Args) == 0 {
 		c.Println("Incorrect or no parameters provided ... using cached ones")
 	} else {
-		getPathAndType(m)
+		getPath(m)
 	}
 
 	if hasStoredParams() == false {
-		c.Println("Missing resource path or type")
+		c.Println("Missing resource path")
 		c.Println(c.HelpText())
 		return
 	}
@@ -174,7 +160,6 @@ func getCmd(c *ishell.Context) {
 
 	c.Println("command: ", c.Cmd.Name)
 	c.Println("path: ", ResourcePath)
-	c.Println("type: ", ResourceType)
 	c.Println()
 
 	getCmdCommon(c, -1, nil)
@@ -185,11 +170,11 @@ func registerCmd(c *ishell.Context) {
 	if err != nil || len(c.Args) == 0 {
 		c.Println("Incorrect or no parameters provided ... using cached ones")
 	} else {
-		getPathAndType(m)
+		getPath(m)
 	}
 
 	if hasStoredParams() == false {
-		c.Println("Missing resource path or type")
+		c.Println("Missing resource path")
 		c.Println(c.HelpText())
 		return
 	}
@@ -198,7 +183,6 @@ func registerCmd(c *ishell.Context) {
 
 	c.Println("Register for notifications")
 	c.Println("path: ", ResourcePath)
-	c.Println("type: ", ResourceType)
 	c.Println()
 
 	getCmdCommon(c, 0, nil)
@@ -209,11 +193,11 @@ func unregisterCmd(c *ishell.Context) {
 	if err != nil || len(c.Args) == 0 {
 		c.Println("Incorrect or no parameters provided ... using cached ones")
 	} else {
-		getPathAndType(m)
+		getPath(m)
 	}
 
 	if hasStoredParams() == false {
-		c.Println("Missing resource path or type")
+		c.Println("Missing resource path")
 		c.Println(c.HelpText())
 		return
 	}
@@ -286,18 +270,12 @@ func putCmd(c *ishell.Context) {
 	if err != nil || len(c.Args) == 0 {
 		c.Println("Incorrect or no parameters provided ... using cached ones")
 	} else {
-		getPathAndType(m)
+		getPath(m)
 	}
 
 	if hasStoredParams() == false {
-		c.Println("Missing resource path or type")
+		c.Println("Missing resource path")
 		c.Println(c.HelpText())
-		return
-	}
-
-	rt, err := sesn.ParseResType(ResourceType)
-	if err != nil {
-		c.Println("Incorrect resource type")
 		return
 	}
 
@@ -320,7 +298,6 @@ func putCmd(c *ishell.Context) {
 	cmd := xact.NewPutResCmd()
 	cmd.SetTxOptions(nmutil.TxOptions())
 	cmd.Path = ResourcePath
-	cmd.Typ = rt
 	cmd.Value = b
 
 	res, err := cmd.Run(s)
@@ -347,18 +324,12 @@ func postCmd(c *ishell.Context) {
 	if err != nil || len(c.Args) == 0 {
 		c.Println("Incorrect or no parameters provided ... using cached ones")
 	} else {
-		getPathAndType(m)
+		getPath(m)
 	}
 
 	if hasStoredParams() == false {
-		c.Println("Missing resource path or type")
+		c.Println("Missing resource path")
 		c.Println(c.HelpText())
-		return
-	}
-
-	rt, err := sesn.ParseResType(ResourceType)
-	if err != nil {
-		c.Println("Incorrect resource type")
 		return
 	}
 
@@ -381,7 +352,6 @@ func postCmd(c *ishell.Context) {
 	cmd := xact.NewPostResCmd()
 	cmd.SetTxOptions(nmutil.TxOptions())
 	cmd.Path = ResourcePath
-	cmd.Typ = rt
 	cmd.Value = b
 
 	res, err := cmd.Run(s)
@@ -408,11 +378,11 @@ func deleteCmd(c *ishell.Context) {
 	if err != nil || len(c.Args) == 0 {
 		c.Println("Incorrect or no parameters provided ... using cached ones")
 	} else {
-		getPathAndType(m)
+		getPath(m)
 	}
 
 	if hasStoredParams() == false {
-		c.Println("Missing resource path or type")
+		c.Println("Missing resource path")
 		c.Println(c.HelpText())
 		return
 	}
@@ -422,16 +392,9 @@ func deleteCmd(c *ishell.Context) {
 		nmUsage(nil, err)
 	}
 
-	rt, err := sesn.ParseResType(ResourceType)
-	if err != nil {
-		c.Println("Incorrect resource type")
-		return
-	}
-
 	cmd := xact.NewDeleteResCmd()
 	cmd.SetTxOptions(nmutil.TxOptions())
 	cmd.Path = ResourcePath
-	cmd.Typ = rt
 
 	res, err := cmd.Run(s)
 	if err != nil {
@@ -480,31 +443,31 @@ func startInteractive(cmd *cobra.Command, args []string) {
 
 	shell.AddCmd(&ishell.Cmd{
 		Name: "get",
-		Help: "Send a CoAP GET request: get path=v type=v",
+		Help: "Send a CoAP GET request: get path=v",
 		Func: getCmd,
 	})
 
 	shell.AddCmd(&ishell.Cmd{
 		Name: "put",
-		Help: "Send a CoAP PUT request: path=v type=v <you will be asked for params>",
+		Help: "Send a CoAP PUT request: path=v <you will be asked for params>",
 		Func: putCmd,
 	})
 
 	shell.AddCmd(&ishell.Cmd{
 		Name: "post",
-		Help: "Send a CoAP POST request: post type=v path=v <you will be asked for params>",
+		Help: "Send a CoAP POST request: post path=v <you will be asked for params>",
 		Func: postCmd,
 	})
 
 	shell.AddCmd(&ishell.Cmd{
 		Name: "delete",
-		Help: "Send a CoAP POST request: delete type=v path=v",
+		Help: "Send a CoAP POST request: delete path=v",
 		Func: deleteCmd,
 	})
 
 	shell.AddCmd(&ishell.Cmd{
 		Name: "reg",
-		Help: "Register for notifications: req path=v type=v",
+		Help: "Register for notifications: req path=v",
 		Func: registerCmd,
 	})
 

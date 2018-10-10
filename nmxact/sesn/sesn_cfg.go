@@ -20,7 +20,6 @@
 package sesn
 
 import (
-	"fmt"
 	"time"
 
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
@@ -62,16 +61,6 @@ var resTypeMap = map[ResourceType]string{
 
 func (r ResourceType) String() string {
 	return resTypeMap[r]
-}
-
-func ParseResType(s string) (ResourceType, error) {
-	for r, n := range resTypeMap {
-		if s == n {
-			return r, nil
-		}
-	}
-
-	return ResourceType(0), fmt.Errorf("Unknown resource type: %s", s)
 }
 
 type OnCloseFn func(s Sesn, err error)
