@@ -41,11 +41,13 @@ func NewXportCfg() XportCfg {
 
 type BllXport struct {
 	cfg XportCfg
+	hciIdx int
 }
 
-func NewBllXport(cfg XportCfg) *BllXport {
+func NewBllXport(cfg XportCfg, hciIdx int) *BllXport {
 	return &BllXport{
 		cfg: cfg,
+		hciIdx: hciIdx,
 	}
 }
 
