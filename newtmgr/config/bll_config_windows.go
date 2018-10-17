@@ -34,6 +34,7 @@ type BllConfig struct {
 	OwnAddrType bledefs.BleAddrType
 	PeerId      string
 	PeerName    string
+	HciIdx	    int
 }
 
 func NewBllConfig() *BllConfig {
