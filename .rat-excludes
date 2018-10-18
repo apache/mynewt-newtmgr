@@ -107,3 +107,6 @@ go-ble
 
 # ishell.v1 (interactive shell) - MIT license
 ishell.v1
+
+# go-windows-terminal-sequences - MIT license
+go-windows-terminal-sequences
