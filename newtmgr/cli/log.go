@@ -20,6 +20,8 @@
 package cli
 
 import (
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strconv"
@@ -29,8 +31,24 @@ import (
 	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
+	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/xact"
 )
+
+// Converts the provided CBOR map to a JSON string.
+func logCborMsgText(cborMap []byte) (string, error) {
+	cm, err := nmxutil.DecodeCborMap(cborMap)
+	if err != nil {
+		return "", err
+	}
+
+	msg, err := json.Marshal(cm)
+	if err != nil {
+		return "", util.ChildNewtError(err)
+	}
+
+	return string(msg), nil
+}
 
 func logShowCmd(cmd *cobra.Command, args []string) {
 	c := xact.NewLogShowCmd()
@@ -89,16 +107,45 @@ func logShowCmd(cmd *cobra.Command, args []string) {
 			return
 		}
 
-		fmt.Printf("%10s %22s | %11s %11s %6s %s\n",
-			"[index]", "[timestamp]", "[module]", "[level]", "[type]", "[message]")
+		fmt.Printf("%10s %22s | %16s %16s %6s %s\n",
+			"[index]", "[timestamp]", "[module]", "[level]", "[type]",
+			"[message]")
 		for _, entry := range log.Entries {
-			fmt.Printf("%10d %20dus | %11s %11s %6s %s\n",
+			modText := fmt.Sprintf("%s (%d)",
+				nmp.LogModuleToString(int(entry.Module)), entry.Module)
+			levText := fmt.Sprintf("%s (%d)",
+				nmp.LogLevelToString(int(entry.Level)), entry.Level)
+
+			msgText := ""
+			switch entry.Type {
+			case nmp.LOG_ENTRY_TYPE_STRING:
+				msgText = string(entry.Msg)
+			case nmp.LOG_ENTRY_TYPE_CBOR:
+				msgText, err = logCborMsgText(entry.Msg)
+				if err != nil {
+					fmt.Printf("Error decoding CBOR entry: %s; "+
+						"idx=%d",
+						err.Error(), entry.Index)
+					msgText = hex.EncodeToString(entry.Msg)
+				}
+
+			case nmp.LOG_ENTRY_TYPE_BINARY:
+				msgText = hex.EncodeToString(entry.Msg)
+
+			default:
+				fmt.Printf(
+					"Error decoding entry: unknown entry type (%d); idx=%d",
+					int(entry.Type), entry.Index)
+				msgText = hex.EncodeToString(entry.Msg)
+			}
+			fmt.Printf("%10d %20dus | %16s %16s %6s %s\n",
 				entry.Index,
 				entry.Timestamp,
-				nmp.LogModuleToString(int(entry.Module)),
-				nmp.LogLevelToString(int(entry.Level)),
+				modText,
+				levText,
 				entry.Type,
-				entry.Msg)
+				msgText)
+
 		}
 	}
 }
