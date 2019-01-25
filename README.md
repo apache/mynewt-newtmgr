@@ -25,7 +25,7 @@ Newt Manager (newtmgr) is the application tool that enables a user to communicat
 remote devices running the Mynewt OS. It uses a connection profile to establish a connection with
 a device and sends command requests to the device.
 The newtmgr tool documentation can be found under [/docs](/docs) which are
-published at http://mynewt.apache.org/latest/newtmgr/overview/
+published at http://mynewt.apache.org/latest/os/modules/devmgmt/newtmgr.html
 
 ### Building
 
