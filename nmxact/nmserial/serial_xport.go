@@ -220,6 +220,8 @@ func (sx *SerialXport) Stop() error {
 
 	err := sx.port.Close()
 	sx.wg.Wait()
+
+	sx.closing = false
 	return err
 }
 
