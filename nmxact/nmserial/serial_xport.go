@@ -101,6 +101,11 @@ func (sx *SerialXport) acceptServerSesn(sl *SerialSesn) (*SerialSesn, error) {
 }
 
 func (sx *SerialXport) Start() error {
+	if sx.port != nil {
+		// Already started.
+		return nil
+	}
+
 	c := &serial.Config{
 		Name:        sx.cfg.DevPath,
 		Baud:        sx.cfg.Baud,
@@ -221,7 +226,12 @@ func (sx *SerialXport) Stop() error {
 	err := sx.port.Close()
 	sx.wg.Wait()
 
+	if err == nil {
+		sx.port = nil
+	}
+
 	sx.closing = false
+
 	return err
 }
 
