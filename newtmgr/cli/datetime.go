@@ -21,6 +21,7 @@ package cli
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -48,7 +49,13 @@ func dateTimeRead(s sesn.Sesn) error {
 func dateTimeWrite(s sesn.Sesn, args []string) error {
 	c := xact.NewDateTimeWriteCmd()
 	c.SetTxOptions(nmutil.TxOptions())
-	c.DateTime = args[0]
+
+	if args[0] != "now" {
+		c.DateTime = args[0]
+	} else {
+		c.DateTime = time.Now().Format(time.RFC3339)
+		fmt.Printf("Setting time to %s\n", c.DateTime)
+	}
 
 	res, err := c.Run(s)
 	if err != nil {
@@ -86,7 +93,8 @@ func dateTimeCmd() *cobra.Command {
 	dateTimeHelpText := "Display or set datetime on a device. "
 	dateTimeHelpText += "Specify a datetime-value\n"
 	dateTimeHelpText += "to set the datetime on the device.\n\n"
-	dateTimeHelpText += "Must specify datetime-value in RFC 3339 format.\n"
+	dateTimeHelpText += "Must specify datetime-value in RFC 3339 format, "
+	dateTimeHelpText += "or use keyword 'now'.\n"
 
 	dateTimeEx := nmutil.ToolInfo.ExeName + " datetime -c myserial\n"
 	dateTimeEx += nmutil.ToolInfo.ExeName +
@@ -104,6 +112,9 @@ func dateTimeCmd() *cobra.Command {
 	dateTimeEx += nmutil.ToolInfo.ExeName +
 		" datetime 2016-03-02T22:44:00.101+05:30 -c myserial" +
 		"   (fractional secs + timezone)\n"
+	dateTimeEx += nmutil.ToolInfo.ExeName +
+		" datetime now -c myserial " +
+		"                            (current system time)\n"
 
 	dateTimeCmd := &cobra.Command{
 		Use:     "datetime [rfc-3339-date-string] -c <conn_profile>",
