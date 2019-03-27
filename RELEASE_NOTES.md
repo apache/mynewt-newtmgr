@@ -1,6 +1,6 @@
 # RELEASE NOTES
 
-04 June 2018 - Apache Newtmgr v1.4.0
+27 March 2019 - Apache Newtmgr v1.6.0
 
 For full release notes, please visit the
 [Apache Mynewt Wiki](https://cwiki.apache.org/confluence/display/MYNEWT/Release+Notes).
@@ -12,9 +12,7 @@ Thew newtmgr tool is documented at http://mynewt.apache.org/latest/newtmgr/overv
 
 New features in this version of newtmgr include:
 
-* interactive shell for COAP operations
-* "version" command
-* moved documentation from apache-core to newtmgr repo
+* Display CBOR/binary log entries as text
 * various bugfixes
 
 If working on next-generation build and source package management systems
