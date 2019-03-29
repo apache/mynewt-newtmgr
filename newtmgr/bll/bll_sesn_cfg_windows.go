@@ -24,6 +24,7 @@ package bll
 import (
 	"time"
 
+	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
@@ -31,6 +32,8 @@ type BllSesnCfg struct {
 	MgmtProto    sesn.MgmtProto
 	PreferredMtu int
 	ConnTimeout  time.Duration
+	TxFilterCb   nmcoap.MsgFilter
+	RxFilterCb   nmcoap.MsgFilter
 }
 
 func NewBllSesnCfg() BllSesnCfg {
