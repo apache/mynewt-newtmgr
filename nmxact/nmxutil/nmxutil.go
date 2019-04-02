@@ -39,6 +39,7 @@ import (
 const DURATION_FOREVER time.Duration = math.MaxInt64
 
 var Debug bool
+var OmpRes string = "/omgr"
 
 var nextNmpSeq uint8
 var nmpSeqBeenRead bool

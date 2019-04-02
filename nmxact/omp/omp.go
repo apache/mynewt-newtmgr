@@ -30,6 +30,7 @@ import (
 
 	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
+	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 )
 
 // OIC wrapping adds this many bytes to an NMP message.  Calculated by
@@ -46,7 +47,6 @@ type OicMsg struct {
  * newtmgr response part.
  */
 func DecodeOmp(m coap.Message, rxFilterCb nmcoap.MsgFilter) (nmp.NmpRsp, error) {
-
 	// Ignore non-responses.
 	if m.Code() == coap.GET || m.Code() == coap.PUT || m.Code() == coap.POST ||
 		m.Code() == coap.DELETE {
@@ -115,7 +115,7 @@ func encodeOmpBase(txFilterCb nmcoap.MsgFilter, isTcp bool, nmr *nmp.NmpMsg) (en
 		er.m = coap.NewDgramMessage(mp)
 	}
 
-	er.m.SetPathString("/omgr")
+	er.m.SetPathString(nmxutil.OmpRes)
 
 	payload := []byte{}
 	enc := codec.NewEncoderBytes(&payload, new(codec.CborHandle))
