@@ -19,18 +19,17 @@
 
 package nmp
 
-import ()
-
 //////////////////////////////////////////////////////////////////////////////
 // $upload                                                                  //
 //////////////////////////////////////////////////////////////////////////////
 
 type ImageUploadReq struct {
-	NmpBase         `codec:"-"`
-	Off      uint32 `codec:"off"`
-	Len      uint32 `codec:"len,omitempty"`
-	DataSha  []byte `codec:"sha,omitempty"`
-	Data     []byte `codec:"data"`
+	NmpBase `codec:"-"`
+	Off     uint32 `codec:"off"`
+	Len     uint32 `codec:"len,omitempty"`
+	DataSha []byte `codec:"sha,omitempty"`
+	Upgrade bool   `codec:"upgrade,omitempty"`
+	Data    []byte `codec:"data"`
 }
 
 type ImageUploadRsp struct {
@@ -97,7 +96,7 @@ type ImageStateReadReq struct {
 }
 
 type ImageStateWriteReq struct {
-	NmpBase        `codec:"-"`
+	NmpBase `codec:"-"`
 	Hash    []byte `codec:"hash"`
 	Confirm bool   `codec:"confirm"`
 }
@@ -163,8 +162,8 @@ func (r *CoreListRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 //////////////////////////////////////////////////////////////////////////////
 
 type CoreLoadReq struct {
-	NmpBase    `codec:"-"`
-	Off uint32 `codec:"off"`
+	NmpBase `codec:"-"`
+	Off     uint32 `codec:"off"`
 }
 
 type CoreLoadRsp struct {
