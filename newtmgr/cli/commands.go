@@ -83,6 +83,9 @@ func Commands() *cobra.Command {
 	nmCmd.PersistentFlags().StringVar(&nmutil.ConnExtra, "connextra", "",
 		"Additional key-value pair to append to the connstring")
 
+	nmCmd.PersistentFlags().StringVar(&nmxutil.OmpRes, "ompres", "/omgr",
+		"Use this CoAP resource instead of /omgr")
+
 	versCmd := &cobra.Command{
 		Use:     "version",
 		Short:   "Display the " + nmutil.ToolInfo.ShortName + " version number",
