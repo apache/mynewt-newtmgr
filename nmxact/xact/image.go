@@ -41,6 +41,7 @@ type ImageUploadCmd struct {
 	CmdBase
 	Data       []byte
 	StartOff   int
+	Upgrade    bool
 	ProgressCb ImageUploadProgressFn
 }
 
@@ -66,7 +67,7 @@ func (r *ImageUploadResult) Status() int {
 	}
 }
 
-func buildImageUploadReq(imageSz int, hash []byte, chunk []byte,
+func buildImageUploadReq(imageSz int, hash []byte, upgrade bool, chunk []byte,
 	off int) *nmp.ImageUploadReq {
 
 	r := nmp.NewImageUploadReq()
@@ -74,6 +75,7 @@ func buildImageUploadReq(imageSz int, hash []byte, chunk []byte,
 	if off == 0 {
 		r.Len = uint32(imageSz)
 		r.DataSha = hash
+		r.Upgrade = upgrade
 	}
 	r.Off = uint32(off)
 	r.Data = chunk
@@ -88,11 +90,14 @@ func min(a, b int) int {
 	return b
 }
 
-func findChunkLen(s sesn.Sesn, hash []byte, data []byte, off int) (int, error) {
+func findChunkLen(s sesn.Sesn, hash []byte, upgrade bool, data []byte,
+	off int) (int, error) {
+
 	// Let's start by encoding max allowed chunk len and we will see how many
 	// bytes we need to cut
-	chunklen := min(len(data) - off, IMAGE_UPLOAD_MAX_CHUNK)
-	r := buildImageUploadReq(len(data), hash, data[off:off+chunklen], off)
+	chunklen := min(len(data)-off, IMAGE_UPLOAD_MAX_CHUNK)
+	r := buildImageUploadReq(len(data), hash, upgrade, data[off:off+chunklen],
+		off)
 	enc, err := mgmt.EncodeMgmt(s, r.Msg())
 	if err != nil {
 		return 0, err
@@ -107,7 +112,7 @@ func findChunkLen(s sesn.Sesn, hash []byte, data []byte, off int) (int, error) {
 	return chunklen, nil
 }
 
-func nextImageUploadReq(s sesn.Sesn, data []byte, off int) (
+func nextImageUploadReq(s sesn.Sesn, upgrade bool, data []byte, off int) (
 	*nmp.ImageUploadReq, error) {
 	var hash []byte = nil
 
@@ -118,7 +123,7 @@ func nextImageUploadReq(s sesn.Sesn, data []byte, off int) (
 	}
 
 	// Find chunk length
-	chunklen, err := findChunkLen(s, hash, data, off)
+	chunklen, err := findChunkLen(s, hash, upgrade, data, off)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +132,7 @@ func nextImageUploadReq(s sesn.Sesn, data []byte, off int) (
 	// fit we'll recalculate without hash
 	if off == 0 && chunklen < IMAGE_UPLOAD_MIN_1ST_CHUNK {
 		hash = nil
-		chunklen, err = findChunkLen(s, hash, data, off)
+		chunklen, err = findChunkLen(s, hash, upgrade, data, off)
 		if err != nil {
 			return nil, err
 		}
@@ -141,10 +146,11 @@ func nextImageUploadReq(s sesn.Sesn, data []byte, off int) (
 			s.MtuOut())
 	}
 
-	r := buildImageUploadReq(len(data), hash, data[off:off+chunklen], off)
+	r := buildImageUploadReq(len(data), hash, upgrade,
+		data[off:off+chunklen], off)
 
-	// Request above should encode just fine since we calculate proper chunk length
-	// but (at least for now) let's double check it
+	// Request above should encode just fine since we calculate proper chunk
+	// length but (at least for now) let's double check it
 	enc, err := mgmt.EncodeMgmt(s, r.Msg())
 	if err != nil {
 		return nil, err
@@ -161,7 +167,7 @@ func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 	res := newImageUploadResult()
 
 	for off := c.StartOff; off < len(c.Data); {
-		r, err := nextImageUploadReq(s, c.Data, off)
+		r, err := nextImageUploadReq(s, c.Upgrade, c.Data, off)
 		if err != nil {
 			return nil, err
 		}
@@ -211,6 +217,7 @@ type ImageUpgradeCmd struct {
 	NoErase     bool
 	ProgressCb  ImageUploadProgressFn
 	LastOff     uint32
+	Upgrade     bool
 	ProgressBar *pb.ProgressBar
 }
 
@@ -284,6 +291,7 @@ func (c *ImageUpgradeCmd) runUpload(s sesn.Sesn) (*ImageUploadResult, error) {
 		cmd := NewImageUploadCmd()
 		cmd.Data = c.Data
 		cmd.StartOff = startOff
+		cmd.Upgrade = c.Upgrade
 		cmd.ProgressCb = progressCb
 		cmd.SetTxOptions(c.TxOptions())
 

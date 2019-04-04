@@ -43,6 +43,7 @@ var (
 )
 
 var noerase bool
+var upgrade bool
 
 func imageFlagsStr(image nmp.ImageStateEntry) string {
 	strs := []string{}
@@ -189,6 +190,7 @@ func imageUploadCmd(cmd *cobra.Command, args []string) {
 	if noerase == true {
 		c.NoErase = true
 	}
+	c.Upgrade = upgrade
 	c.ProgressBar = pb.StartNew(len(imageFile))
 	c.ProgressBar.SetUnits(pb.U_BYTES)
 	c.ProgressBar.ShowSpeed = true
@@ -397,6 +399,10 @@ func imageCmd() *cobra.Command {
 	uploadCmd.PersistentFlags().BoolVarP(&noerase,
 		"noerase", "e", false,
 		"Don't send specific image erase command to start with")
+	uploadCmd.PersistentFlags().BoolVarP(&upgrade,
+		"upgrade", "u", false,
+		"Only allow the upload if the new image's version is greater than "+
+			"that of the currently running image")
 	imageCmd.AddCommand(uploadCmd)
 
 	coreListCmd := &cobra.Command{
