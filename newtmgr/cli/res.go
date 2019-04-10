@@ -220,8 +220,26 @@ func resGetCmd(cmd *cobra.Command, args []string) {
 	}
 }
 
+func parsePutPostMap(args []string) ([]byte, error) {
+	if len(args) == 0 {
+		return nil, nil
+	}
+
+	m, err := extractResKv(args)
+	if err != nil {
+		return nil, err
+	}
+
+	b, err := nmxutil.EncodeCborMap(m)
+	if err != nil {
+		return nil, util.ChildNewtError(err)
+	}
+
+	return b, nil
+}
+
 func resPutCmd(cmd *cobra.Command, args []string) {
-	if len(args) < 2 {
+	if len(args) == 0 {
 		nmUsage(cmd, nil)
 	}
 
@@ -230,23 +248,15 @@ func resPutCmd(cmd *cobra.Command, args []string) {
 		nmUsage(nil, err)
 	}
 
-	path := args[0]
-
-	var m map[string]interface{}
-	m, err = extractResKv(args[1:])
+	m, err := parsePutPostMap(args[1:])
 	if err != nil {
 		nmUsage(cmd, err)
 	}
 
-	b, err := nmxutil.EncodeCborMap(m)
-	if err != nil {
-		nmUsage(nil, util.ChildNewtError(err))
-	}
-
 	c := xact.NewPutResCmd()
 	c.SetTxOptions(nmutil.TxOptions())
-	c.Path = path
-	c.Value = b
+	c.Path = args[0]
+	c.Value = m
 
 	res, err := c.Run(s)
 	if err != nil {
@@ -279,23 +289,15 @@ func resPostCmd(cmd *cobra.Command, args []string) {
 		nmUsage(nil, err)
 	}
 
-	path := args[0]
-
-	var m map[string]interface{}
-	m, err = extractResKv(args[1:])
+	m, err := parsePutPostMap(args[1:])
 	if err != nil {
 		nmUsage(cmd, err)
 	}
 
-	b, err := nmxutil.EncodeCborMap(m)
-	if err != nil {
-		nmUsage(nil, util.ChildNewtError(err))
-	}
-
 	c := xact.NewPostResCmd()
 	c.SetTxOptions(nmutil.TxOptions())
-	c.Path = path
-	c.Value = b
+	c.Path = args[0]
+	c.Value = m
 
 	res, err := c.Run(s)
 	if err != nil {
