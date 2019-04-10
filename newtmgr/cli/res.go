@@ -21,10 +21,10 @@ package cli
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
-	"encoding/json"
 
 	"github.com/runtimeco/go-coap"
 	"github.com/spf13/cobra"
@@ -105,8 +105,8 @@ func extractResKv(params []string) (map[string]interface{}, error) {
 
 func printCode(code coap.COAPCode) string {
 	var s string
-	class := (code & 0xE0)>>5
-	d1 := (code & 0x18)>>3
+	class := (code & 0xE0) >> 5
+	d1 := (code & 0x18) >> 3
 	d2 := code & 0x07
 	s += fmt.Sprintf("CoAP Response Code: %d.%d%d %s\n", class, d1, d2, code)
 	return s
