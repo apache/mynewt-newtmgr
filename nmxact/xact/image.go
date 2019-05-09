@@ -90,21 +90,44 @@ func min(a, b int) int {
 	return b
 }
 
+func encodeUploadReq(s sesn.Sesn, hash []byte, upgrade bool, data []byte,
+	off int, chunklen int) ([]byte, error) {
+
+	r := buildImageUploadReq(len(data), hash, upgrade, data[off:off+chunklen],
+		off)
+	enc, err := mgmt.EncodeMgmt(s, r.Msg())
+	if err != nil {
+		return nil, err
+	}
+
+	// If encoded length is larger than MTU, we need to make chunk shorter
+	if len(enc) > s.MtuOut() {
+		overflow := len(enc) - s.MtuOut()
+		chunklen -= overflow
+	}
+
+	return enc, nil
+}
+
 func findChunkLen(s sesn.Sesn, hash []byte, upgrade bool, data []byte,
 	off int) (int, error) {
 
 	// Let's start by encoding max allowed chunk len and we will see how many
 	// bytes we need to cut
 	chunklen := min(len(data)-off, IMAGE_UPLOAD_MAX_CHUNK)
-	r := buildImageUploadReq(len(data), hash, upgrade, data[off:off+chunklen],
-		off)
-	enc, err := mgmt.EncodeMgmt(s, r.Msg())
-	if err != nil {
-		return 0, err
-	}
 
-	// If encoded length is larger than MTU, we need to make chunk shorter
-	if len(enc) > s.MtuOut() {
+	// Keep reducing the chunk size until the request fits the MTU.
+	for {
+		enc, err := encodeUploadReq(s, hash, upgrade, data, off, chunklen)
+		if err != nil {
+			return 0, err
+		}
+
+		if len(enc) <= s.MtuOut() {
+			break
+		}
+
+		// Encoded length is larger than MTU, we need to make chunk shorter
 		overflow := len(enc) - s.MtuOut()
 		chunklen -= overflow
 	}
