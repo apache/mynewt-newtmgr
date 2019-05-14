@@ -29,7 +29,7 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/joaojeronimo/go-crc16"
 	"github.com/runtimeco/go-coap"
 	"github.com/tarm/serial"

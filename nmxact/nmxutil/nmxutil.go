@@ -30,7 +30,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/ugorji/go/codec"
 
 	"mynewt.apache.org/newt/util"

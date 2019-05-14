@@ -23,8 +23,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	log "github.com/Sirupsen/logrus"
-	"github.com/runtimeco/go-coap"
+	log "github.com/sirupsen/logrus"
+        "github.com/runtimeco/go-coap"
 
 	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"

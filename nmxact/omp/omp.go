@@ -23,7 +23,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/fatih/structs"
 	"github.com/runtimeco/go-coap"
 	"github.com/ugorji/go/codec"
