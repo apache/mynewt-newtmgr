@@ -23,129 +23,124 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"sort"
-	"strings"
-
-	log "github.com/Sirupsen/logrus"
 
 	"mynewt.apache.org/newt/newt/newtutil"
 	"mynewt.apache.org/newt/newt/pkg"
-	"mynewt.apache.org/newt/util"
+	"mynewt.apache.org/newt/newt/stage"
+	"mynewt.apache.org/newt/newt/syscfg"
 )
 
-type initFunc struct {
-	stage int
-	name  string
-	pkg   *pkg.LocalPackage
+type SysinitCfg struct {
+	// Sorted in call order (stage-num,function-name).
+	StageFuncs []stage.StageFunc
+
+	// Strings describing errors encountered while parsing the sysinit config.
+	InvalidSettings []string
+
+	// Contains sets of entries with conflicting function names.
+	//     [function-name] => <slice-of-stages-with-function-name>
+	Conflicts map[string][]stage.StageFunc
 }
 
-func buildStageMap(pkgs []*pkg.LocalPackage) map[int][]*initFunc {
-	sm := map[int][]*initFunc{}
-
-	for _, p := range pkgs {
-		for name, stage := range p.Init() {
-			initFunc := &initFunc{
-				stage: stage,
-				name:  name,
-				pkg:   p,
-			}
-			sm[stage] = append(sm[stage], initFunc)
-		}
-	}
-
-	return sm
-}
-
-type initFuncSorter struct {
-	fns []*initFunc
-}
-
-func (s initFuncSorter) Len() int {
-	return len(s.fns)
-}
-func (s initFuncSorter) Swap(i, j int) {
-	s.fns[i], s.fns[j] = s.fns[j], s.fns[i]
-}
-func (s initFuncSorter) Less(i, j int) bool {
-	a := s.fns[i]
-	b := s.fns[j]
-
-	// 1: Sort by stage number.
-	if a.stage < b.stage {
-		return true
-	} else if b.stage < a.stage {
-		return false
-	}
-
-	// 2: Sort by function name.
-	switch strings.Compare(a.name, b.name) {
-	case -1:
-		return true
-	case 1:
-		return false
-	}
-
-	// Same stage and function name?
-	log.Warnf("Warning: Identical sysinit functions detected: %s", a.name)
-	return true
-}
-
-func sortedInitFuncs(pkgs []*pkg.LocalPackage) []*initFunc {
-	sorter := initFuncSorter{
-		fns: make([]*initFunc, 0, len(pkgs)),
-	}
-
-	for _, p := range pkgs {
-		initMap := p.Init()
-		for name, stage := range initMap {
-			fn := &initFunc{
-				name:  name,
-				stage: stage,
-				pkg:   p,
-			}
-			sorter.fns = append(sorter.fns, fn)
-		}
-	}
-
-	sort.Sort(sorter)
-	return sorter.fns
-}
-
-func writePrototypes(pkgs []*pkg.LocalPackage, w io.Writer) {
-	sortedFns := sortedInitFuncs(pkgs)
-	for _, f := range sortedFns {
-		fmt.Fprintf(w, "void %s(void);\n", f.name)
-	}
-}
-
-func writeCalls(sortedInitFuncs []*initFunc, w io.Writer) {
-	prevStage := -1
-	dupCount := 0
-
-	for i, f := range sortedInitFuncs {
-		if f.stage != prevStage {
-			prevStage = f.stage
-			dupCount = 0
-
-			if i != 0 {
-				fmt.Fprintf(w, "\n")
-			}
-			fmt.Fprintf(w, "    /*** Stage %d */\n", f.stage)
+func (scfg *SysinitCfg) readOnePkg(lpkg *pkg.LocalPackage, cfg *syscfg.Cfg) {
+	settings := cfg.AllSettingsForLpkg(lpkg)
+	initMap := lpkg.InitFuncs(settings)
+	for name, stageStr := range initMap {
+		sf, err := stage.NewStageFunc(name, stageStr, lpkg, cfg)
+		if err != nil {
+			scfg.InvalidSettings = append(scfg.InvalidSettings, err.Error())
 		} else {
-			dupCount += 1
+			scfg.StageFuncs = append(scfg.StageFuncs, sf)
 		}
-
-		fmt.Fprintf(w, "    /* %d.%d: %s (%s) */\n",
-			f.stage, dupCount, f.name, f.pkg.Name())
-		fmt.Fprintf(w, "    %s();\n", f.name)
 	}
 }
 
-func write(pkgs []*pkg.LocalPackage, isLoader bool,
-	w io.Writer) {
+// Searches the sysinit configuration for entries with identical function
+// names.  The sysinit configuration object is populated with the results.
+func (scfg *SysinitCfg) detectConflicts() {
+	m := map[string][]stage.StageFunc{}
+
+	for _, sf := range scfg.StageFuncs {
+		m[sf.Name] = append(m[sf.Name], sf)
+	}
+
+	for name, sfs := range m {
+		if len(sfs) > 1 {
+			scfg.Conflicts[name] = sfs
+		}
+	}
+}
+
+func Read(lpkgs []*pkg.LocalPackage, cfg *syscfg.Cfg) SysinitCfg {
+	scfg := SysinitCfg{
+		Conflicts: map[string][]stage.StageFunc{},
+	}
+
+	for _, lpkg := range lpkgs {
+		scfg.readOnePkg(lpkg, cfg)
+	}
+
+	scfg.detectConflicts()
+	stage.SortStageFuncs(scfg.StageFuncs, "sysinit")
+
+	return scfg
+}
+
+func (scfg *SysinitCfg) filter(lpkgs []*pkg.LocalPackage) []stage.StageFunc {
+	m := make(map[*pkg.LocalPackage]struct{}, len(lpkgs))
+
+	for _, lpkg := range lpkgs {
+		m[lpkg] = struct{}{}
+	}
+
+	filtered := []stage.StageFunc{}
+	for _, sf := range scfg.StageFuncs {
+		if _, ok := m[sf.Pkg]; ok {
+			filtered = append(filtered, sf)
+		}
+	}
+
+	return filtered
+}
+
+// If any errors were encountered while parsing sysinit definitions, this
+// function returns a string indicating the errors.  If no errors were
+// encountered, "" is returned.
+func (scfg *SysinitCfg) ErrorText() string {
+	str := ""
+
+	if len(scfg.InvalidSettings) > 0 {
+		str += "Invalid sysinit definitions detected:"
+		for _, e := range scfg.InvalidSettings {
+			str += "\n    " + e
+		}
+	}
+
+	if len(scfg.Conflicts) > 0 {
+		str += "Sysinit function name conflicts detected:\n"
+		for name, sfs := range scfg.Conflicts {
+			for _, sf := range sfs {
+				str += fmt.Sprintf("    Function=%s Package=%s\n",
+					name, sf.Pkg.FullName())
+			}
+		}
+
+		str += "\nResolve the problem by assigning unique function names " +
+			"to each entry."
+	}
+
+	return str
+}
+
+func (scfg *SysinitCfg) write(lpkgs []*pkg.LocalPackage, isLoader bool,
+	w io.Writer) error {
+
+	var sfs []stage.StageFunc
+	if lpkgs == nil {
+		sfs = scfg.StageFuncs
+	} else {
+		sfs = scfg.filter(lpkgs)
+	}
 
 	fmt.Fprintf(w, newtutil.GeneratedPreamble())
 
@@ -155,7 +150,7 @@ func write(pkgs []*pkg.LocalPackage, isLoader bool,
 		fmt.Fprintf(w, "#if !SPLIT_LOADER\n\n")
 	}
 
-	writePrototypes(pkgs, w)
+	stage.WritePrototypes(sfs, w)
 
 	var fnName string
 	if isLoader {
@@ -167,32 +162,21 @@ func write(pkgs []*pkg.LocalPackage, isLoader bool,
 	fmt.Fprintf(w, "\n")
 	fmt.Fprintf(w, "void\n%s(void)\n{\n", fnName)
 
-	writeCalls(sortedInitFuncs(pkgs), w)
+	stage.WriteCalls(sfs, "", w)
 
 	fmt.Fprintf(w, "}\n\n")
 	fmt.Fprintf(w, "#endif\n")
+
+	return nil
 }
 
-func writeRequired(contents []byte, path string) (bool, error) {
-	oldSrc, err := ioutil.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// File doesn't exist; write required.
-			return true, nil
-		}
-
-		return true, util.NewNewtError(err.Error())
-	}
-
-	rc := bytes.Compare(oldSrc, contents)
-	return rc != 0, nil
-}
-
-func EnsureWritten(pkgs []*pkg.LocalPackage, srcDir string, targetName string,
-	isLoader bool) error {
+func (scfg *SysinitCfg) EnsureWritten(lpkgs []*pkg.LocalPackage, srcDir string,
+	targetName string, isLoader bool) error {
 
 	buf := bytes.Buffer{}
-	write(pkgs, isLoader, &buf)
+	if err := scfg.write(lpkgs, isLoader, &buf); err != nil {
+		return err
+	}
 
 	var path string
 	if isLoader {
@@ -201,25 +185,5 @@ func EnsureWritten(pkgs []*pkg.LocalPackage, srcDir string, targetName string,
 		path = fmt.Sprintf("%s/%s-sysinit-app.c", srcDir, targetName)
 	}
 
-	writeReqd, err := writeRequired(buf.Bytes(), path)
-	if err != nil {
-		return err
-	}
-
-	if !writeReqd {
-		log.Debugf("sysinit unchanged; not writing src file (%s).", path)
-		return nil
-	}
-
-	log.Debugf("sysinit changed; writing src file (%s).", path)
-
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return util.NewNewtError(err.Error())
-	}
-
-	if err := ioutil.WriteFile(path, buf.Bytes(), 0644); err != nil {
-		return util.NewNewtError(err.Error())
-	}
-
-	return nil
+	return stage.EnsureWritten(path, buf.Bytes())
 }

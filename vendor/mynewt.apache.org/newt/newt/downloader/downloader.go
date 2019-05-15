@@ -28,7 +28,7 @@ import (
 	"sort"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 
 	"mynewt.apache.org/newt/newt/settings"
 	"mynewt.apache.org/newt/util"
@@ -420,9 +420,9 @@ func setRemoteUrl(path string, remote string, url string, logCmd bool) error {
 }
 
 func warnWrongOriginUrl(path string, curUrl string, goodUrl string) {
-	util.StatusMessage(util.VERBOSITY_QUIET,
-		"WARNING: Repo's \"origin\" remote points to unexpected URL: "+
-			"%s; correcting it to %s.  Repo contents may be incorrect.\n",
+	util.OneTimeWarning(
+		"Repo's \"origin\" remote points to unexpected URL: "+
+			"%s; correcting it to %s.  Repo contents may be incorrect.",
 		curUrl, goodUrl)
 }
 
@@ -556,13 +556,18 @@ func (gd *GenericDownloader) DirtyState(path string) (string, error) {
 		return "staged changes", nil
 	}
 
-	// If on a branch, check for unpushed commits.
+	// If on a branch with a configured upstream, check for unpushed commits.
 	branch, err := gd.CurrentBranch(path)
 	if err != nil {
 		return "", err
 	}
 
-	if branch != "" {
+	upstream, err := upstreamFor(path, "HEAD")
+	if err != nil {
+		return "", err
+	}
+
+	if upstream != "" && branch != "" {
 		cmd = []string{
 			"rev-list",
 			"@{u}..",

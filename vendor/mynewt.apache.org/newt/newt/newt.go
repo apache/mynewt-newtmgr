@@ -24,11 +24,12 @@ import (
 	"os"
 	"runtime"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"mynewt.apache.org/newt/newt/cli"
 	"mynewt.apache.org/newt/newt/newtutil"
+	"mynewt.apache.org/newt/newt/settings"
 	"mynewt.apache.org/newt/util"
 )
 
@@ -39,6 +40,7 @@ var newtVerbose bool
 var newtLogFile string
 var newtNumJobs int
 var newtHelp bool
+var newtEscapeShellCmds bool
 
 func newtDfltNumJobs() int {
 	maxProcs := runtime.GOMAXPROCS(0)
@@ -77,6 +79,9 @@ func newtCmd() *cobra.Command {
 		Long:    newtHelpText,
 		Example: newtHelpEx,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// Ensure .newtrc file gets read.
+			settings.Newtrc()
+
 			verbosity := util.VERBOSITY_DEFAULT
 			if newtSilent {
 				verbosity = util.VERBOSITY_SILENT
@@ -84,6 +89,10 @@ func newtCmd() *cobra.Command {
 				verbosity = util.VERBOSITY_QUIET
 			} else if newtVerbose {
 				verbosity = util.VERBOSITY_VERBOSE
+			}
+
+			if newtEscapeShellCmds {
+				util.EscapeShellCmds = true
 			}
 
 			var err error
@@ -118,6 +127,8 @@ func newtCmd() *cobra.Command {
 		newtDfltNumJobs(), "Number of concurrent build jobs")
 	newtCmd.PersistentFlags().BoolVarP(&newtHelp, "help", "h",
 		false, "Help for newt commands")
+	newtCmd.PersistentFlags().BoolVarP(&newtEscapeShellCmds, "escape", "",
+		false, "Apply Windows escapes to shell commands")
 
 	versHelpText := cli.FormatHelp(`Display the Newt version number`)
 	versHelpEx := "  newt version"
@@ -127,7 +138,10 @@ func newtCmd() *cobra.Command {
 		Long:    versHelpText,
 		Example: versHelpEx,
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("%s\n", newtutil.NewtVersionStr)
+			fmt.Printf("Apache Newt\n")
+			fmt.Printf("   Version: %s\n", newtutil.NewtVersionStr)
+			fmt.Printf("  Git Hash: %s\n", newtutil.NewtGitHash)
+			fmt.Printf("Build Date: %s\n", newtutil.NewtDate)
 		},
 	}
 
@@ -148,6 +162,7 @@ func main() {
 	cli.AddTargetCommands(cmd)
 	cli.AddValsCommands(cmd)
 	cli.AddMfgCommands(cmd)
+	cli.AddDocsCommands(cmd)
 
 	/* only pass the first two args to check for complete command */
 	if len(os.Args) > 2 {

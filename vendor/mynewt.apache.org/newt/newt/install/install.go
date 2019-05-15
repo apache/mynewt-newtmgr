@@ -119,8 +119,9 @@ import (
 	"sort"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 
+	"mynewt.apache.org/newt/newt/compat"
 	"mynewt.apache.org/newt/newt/deprepo"
 	"mynewt.apache.org/newt/newt/newtutil"
 	"mynewt.apache.org/newt/newt/repo"
@@ -156,9 +157,9 @@ func detectVersion(r *repo.Repo) (newtutil.RepoVersion, error) {
 			Commit: commit,
 		}
 
-		util.StatusMessage(util.VERBOSITY_QUIET,
-			"WARNING: Could not detect version of installed repo \"%s\"; "+
-				"assuming %s\n", r.Name(), ver.String())
+		util.OneTimeWarning(
+			"Could not detect version of installed repo \"%s\"; assuming %s",
+			r.Name(), ver.String())
 	}
 
 	log.Debugf("currently installed version of repo \"%s\": %s",
@@ -291,9 +292,9 @@ func (inst *Installer) inferReqVers(repos []*repo.Repo) error {
 					}
 
 					if ver == nil {
-						util.StatusMessage(util.VERBOSITY_QUIET,
-							"WARNING: Could not detect version of "+
-								"requested repo %s:%s; assuming 0.0.0\n",
+						util.OneTimeWarning(
+							"Could not detect version of requested repo "+
+								"%s:%s; assuming 0.0.0",
 							r.Name(), req.Ver.Commit)
 
 						ver = &req.Ver
@@ -670,11 +671,10 @@ func (inst *Installer) calcVersionMap(candidates []*repo.Repo) (
 	// Try to find a version set that satisfies the dependency graph.  If no
 	// such set exists, report the conflicts and abort.
 	vm, conflicts := deprepo.FindAcceptableVersions(m, dg)
-	if vm == nil {
+	log.Debugf("Repo version map:\n%s\n", vm.String())
+	if len(conflicts) > 0 {
 		return nil, deprepo.ConflictError(conflicts)
 	}
-
-	log.Debugf("Repo version map:\n%s\n", vm.String())
 
 	// If project.yml specified any specific git commits, ensure we get them.
 	for name, ver := range vm {
@@ -731,8 +731,31 @@ func verifyRepoDirtyState(repos []*repo.Repo, force bool) error {
 			s += "Specify the `-f` (force) switch to attempt anyway"
 			return util.NewNewtError(s)
 		} else {
-			util.StatusMessage(util.VERBOSITY_QUIET, "WARNING: %s\n", s)
+			util.OneTimeWarning("%s", s)
 		}
+	}
+
+	return nil
+
+}
+
+func verifyNewtCompat(repos []*repo.Repo, vm deprepo.VersionMap) error {
+	var errors []string
+
+	for _, r := range repos {
+		destVer := vm[r.Name()]
+		code, msg := r.CheckNewtCompatibility(destVer, newtutil.NewtVersion)
+
+		switch code {
+		case compat.NEWT_COMPAT_WARN:
+			util.OneTimeWarning("%s", msg)
+		case compat.NEWT_COMPAT_ERROR:
+			errors = append(errors, msg)
+		}
+	}
+
+	if errors != nil {
+		return util.NewNewtError(strings.Join(errors, "\n"))
 	}
 
 	return nil
@@ -769,6 +792,10 @@ func (inst *Installer) Install(
 
 	repos, err := inst.versionMapRepos(vm)
 	if err != nil {
+		return err
+	}
+
+	if err := verifyNewtCompat(repos, vm); err != nil {
 		return err
 	}
 
@@ -832,6 +859,10 @@ func (inst *Installer) Upgrade(candidates []*repo.Repo, force bool,
 
 	repos, err := inst.versionMapRepos(vm)
 	if err != nil {
+		return err
+	}
+
+	if err := verifyNewtCompat(repos, vm); err != nil {
 		return err
 	}
 
@@ -903,7 +934,8 @@ func (inst *Installer) Sync(candidates []*repo.Repo,
 }
 
 type repoInfo struct {
-	installedVer *newtutil.RepoVersion
+	installedVer *newtutil.RepoVersion // nil if not installed.
+	commitHash   string
 	errorText    string
 	dirtyState   string
 	needsUpgrade bool
@@ -921,12 +953,19 @@ func (inst *Installer) gatherInfo(r *repo.Repo,
 		return ri
 	}
 
-	ver, err := r.InstalledVersion()
+	commitHash, err := r.CurrentHash()
 	if err != nil {
 		ri.errorText = strings.TrimSpace(err.Error())
 		return ri
 	}
-	ri.installedVer = ver
+	ri.commitHash = commitHash
+
+	ver, err := detectVersion(r)
+	if err != nil {
+		ri.errorText = strings.TrimSpace(err.Error())
+		return ri
+	}
+	ri.installedVer = &ver
 
 	dirty, err := r.DirtyState()
 	if err != nil {
@@ -936,7 +975,7 @@ func (inst *Installer) gatherInfo(r *repo.Repo,
 	ri.dirtyState = dirty
 
 	if vm != nil {
-		if ver == nil || *ver != (*vm)[r.Name()] {
+		if ver != (*vm)[r.Name()] {
 			ri.needsUpgrade = true
 		}
 	}
@@ -969,6 +1008,7 @@ func (inst *Installer) Info(repos []*repo.Repo, remote bool) error {
 		ri := inst.gatherInfo(r, vmp)
 		s := fmt.Sprintf("    * %s:", r.Name())
 
+		s += fmt.Sprintf(" %s,", ri.commitHash)
 		if ri.installedVer == nil {
 			s += " (not installed)"
 		} else if ri.errorText != "" {

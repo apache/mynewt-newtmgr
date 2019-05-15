@@ -26,11 +26,9 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
-
+	"mynewt.apache.org/newt/newt/config"
 	"mynewt.apache.org/newt/newt/interfaces"
 	"mynewt.apache.org/newt/newt/newtutil"
 	"mynewt.apache.org/newt/newt/repo"
@@ -61,10 +59,6 @@ type LocalPackage struct {
 	// General information about the package
 	desc *PackageDesc
 
-	// Package init function name and stage.  These are used to generate the
-	// sysinit C file.
-	init map[string]int
-
 	// Extra package-specific settings that don't come from syscfg.  For
 	// example, SELFTEST gets set when the newt test command is used.
 	injectedSettings map[string]string
@@ -82,13 +76,13 @@ type LocalPackage struct {
 func NewLocalPackage(r *repo.Repo, pkgDir string) *LocalPackage {
 	pkg := &LocalPackage{
 		desc:             &PackageDesc{},
-		PkgY:             ycfg.YCfg{},
-		SyscfgY:          ycfg.YCfg{},
 		repo:             r,
 		basePath:         filepath.ToSlash(filepath.Clean(pkgDir)),
-		init:             map[string]int{},
 		injectedSettings: map[string]string{},
 	}
+
+	pkg.PkgY = ycfg.NewYCfg(pkg.PkgYamlPath())
+	pkg.SyscfgY = ycfg.NewYCfg(pkg.SyscfgYamlPath())
 	return pkg
 }
 
@@ -121,6 +115,14 @@ func (pkg *LocalPackage) BasePath() string {
 func (pkg *LocalPackage) RelativePath() string {
 	proj := interfaces.GetProject()
 	return strings.TrimPrefix(pkg.BasePath(), proj.Path())
+}
+
+func (pkg *LocalPackage) PkgYamlPath() string {
+	return fmt.Sprintf("%s/%s", pkg.BasePath(), PACKAGE_FILE_NAME)
+}
+
+func (pkg *LocalPackage) SyscfgYamlPath() string {
+	return fmt.Sprintf("%s/%s", pkg.BasePath(), SYSCFG_YAML_FILENAME)
 }
 
 func (pkg *LocalPackage) Type() interfaces.PackageType {
@@ -209,10 +211,8 @@ func (pkg *LocalPackage) readDesc(yc ycfg.YCfg) (*PackageDesc, error) {
 func (pkg *LocalPackage) sequenceString(key string) string {
 	var buffer bytes.Buffer
 
-	if pkg.PkgY != nil {
-		for _, f := range pkg.PkgY.GetValStringSlice(key, nil) {
-			buffer.WriteString("    - " + yaml.EscapeString(f) + "\n")
-		}
+	for _, f := range pkg.PkgY.GetValStringSlice(key, nil) {
+		buffer.WriteString("    - " + yaml.EscapeString(f) + "\n")
 	}
 
 	if buffer.Len() == 0 {
@@ -228,14 +228,13 @@ func (lpkg *LocalPackage) SaveSyscfg() error {
 		return util.NewNewtError(err.Error())
 	}
 
-	filepath := dirpath + "/" + SYSCFG_YAML_FILENAME
-	file, err := os.Create(filepath)
+	file, err := os.Create(lpkg.SyscfgYamlPath())
 	if err != nil {
 		return util.NewNewtError(err.Error())
 	}
 	defer file.Close()
 
-	s := newtutil.YCfgToYaml(lpkg.SyscfgY)
+	s := lpkg.SyscfgY.YAML()
 	file.WriteString(s)
 
 	return nil
@@ -250,8 +249,7 @@ func (pkg *LocalPackage) Save() error {
 		return util.NewNewtError(err.Error())
 	}
 
-	filepath := dirpath + "/" + PACKAGE_FILE_NAME
-	file, err := os.Create(filepath)
+	file, err := os.Create(pkg.PkgYamlPath())
 	if err != nil {
 		return util.NewNewtError(err.Error())
 	}
@@ -292,17 +290,13 @@ func matchNamePath(name, path string) bool {
 
 // Load reads everything that isn't identity specific into the package
 func (pkg *LocalPackage) Load() error {
-	// Load configuration
-	log.Debugf("Loading configuration for package %s", pkg.basePath)
-
 	var err error
 
-	pkg.PkgY, err = newtutil.ReadConfig(pkg.basePath,
-		strings.TrimSuffix(PACKAGE_FILE_NAME, ".yml"))
+	pkg.PkgY, err = config.ReadFile(pkg.PkgYamlPath())
 	if err != nil {
 		return err
 	}
-	pkg.AddCfgFilename(pkg.basePath + "/" + PACKAGE_FILE_NAME)
+	pkg.AddCfgFilename(pkg.PkgYamlPath())
 
 	// Set package name from the package
 	pkg.name = pkg.PkgY.GetValString("pkg.name", nil)
@@ -352,22 +346,6 @@ func (pkg *LocalPackage) Load() error {
 		return nil
 	}
 
-	init := pkg.PkgY.GetValStringMapString("pkg.init", nil)
-	for name, stageStr := range init {
-		stage, err := strconv.ParseInt(stageStr, 10, 64)
-		if err != nil {
-			return util.NewNewtError(fmt.Sprintf("Parsing pkg %s config: %s",
-				pkg.FullName(), err.Error()))
-		}
-		pkg.init[name] = int(stage)
-	}
-	initFnName := pkg.PkgY.GetValString("pkg.init_function", nil)
-	initStage := pkg.PkgY.GetValInt("pkg.init_stage", nil)
-
-	if initFnName != "" {
-		pkg.init[initFnName] = initStage
-	}
-
 	// Read the package description from the file
 	pkg.desc, err = pkg.readDesc(pkg.PkgY)
 	if err != nil {
@@ -375,20 +353,28 @@ func (pkg *LocalPackage) Load() error {
 	}
 
 	// Load syscfg settings.
-	if util.NodeExist(pkg.basePath + "/" + SYSCFG_YAML_FILENAME) {
-		pkg.SyscfgY, err = newtutil.ReadConfig(pkg.basePath,
-			strings.TrimSuffix(SYSCFG_YAML_FILENAME, ".yml"))
-		if err != nil {
-			return err
-		}
-		pkg.AddCfgFilename(pkg.basePath + "/" + SYSCFG_YAML_FILENAME)
+	pkg.SyscfgY, err = config.ReadFile(pkg.SyscfgYamlPath())
+	if err != nil && !util.IsNotExist(err) {
+		return err
 	}
+
+	pkg.AddCfgFilename(pkg.SyscfgYamlPath())
 
 	return nil
 }
 
-func (pkg *LocalPackage) Init() map[string]int {
-	return pkg.init
+func (pkg *LocalPackage) InitFuncs(
+	settings map[string]string) map[string]string {
+
+	return pkg.PkgY.GetValStringMapString("pkg.init", settings)
+}
+
+// DownFuncs retrieves the package's shutdown functions.  The returned map has:
+// key=C-function-name, value=numeric-stage.
+func (pkg *LocalPackage) DownFuncs(
+	settings map[string]string) map[string]string {
+
+	return pkg.PkgY.GetValStringMapString("pkg.down", settings)
 }
 
 func (pkg *LocalPackage) InjectedSettings() map[string]string {
@@ -419,7 +405,8 @@ func LoadLocalPackage(repo *repo.Repo, pkgDir string) (*LocalPackage, error) {
 	pkg := NewLocalPackage(repo, pkgDir)
 	err := pkg.Load()
 	if err != nil {
-		err = util.FmtNewtError("%s; ignoring package.", err.Error())
+		err = util.FmtNewtError("%s; ignoring package %s.",
+			err.Error(), pkgDir)
 		return nil, err
 	}
 

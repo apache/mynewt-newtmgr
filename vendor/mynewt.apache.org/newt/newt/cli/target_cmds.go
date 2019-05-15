@@ -22,21 +22,19 @@ package cli
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"sort"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/spf13/cobra"
+
 	"mynewt.apache.org/newt/newt/builder"
 	"mynewt.apache.org/newt/newt/newtutil"
 	"mynewt.apache.org/newt/newt/pkg"
 	"mynewt.apache.org/newt/newt/resolve"
 	"mynewt.apache.org/newt/newt/syscfg"
 	"mynewt.apache.org/newt/newt/target"
-	"mynewt.apache.org/newt/newt/ycfg"
 	"mynewt.apache.org/newt/util"
 )
 
@@ -305,7 +303,7 @@ func targetSetCmd(cmd *cobra.Command, args []string) {
 		// A few variables are special cases; they get set in the base package
 		// instead of the target.
 		if kv[0] == "target.syscfg" {
-			t.Package().SyscfgY = ycfg.YCfg{}
+			t.Package().SyscfgY.Clear()
 			kv, err := syscfg.KeyValueFromStr(kv[1])
 			if err != nil {
 				NewtUsage(cmd, err)
@@ -552,300 +550,6 @@ func targetCopyCmd(cmd *cobra.Command, args []string) {
 		srcTarget.FullName(), dstTarget.FullName())
 }
 
-func printSetting(entry syscfg.CfgEntry) {
-	util.StatusMessage(util.VERBOSITY_DEFAULT,
-		"  * Setting: %s\n", entry.Name)
-
-	util.StatusMessage(util.VERBOSITY_DEFAULT,
-		"    * Description: %s\n", entry.Description)
-
-	util.StatusMessage(util.VERBOSITY_DEFAULT,
-		"    * Value: %s", entry.Value)
-
-	util.StatusMessage(util.VERBOSITY_DEFAULT, "\n")
-
-	if len(entry.History) > 1 {
-		util.StatusMessage(util.VERBOSITY_DEFAULT,
-			"    * Overridden: ")
-		for i := 1; i < len(entry.History); i++ {
-			util.StatusMessage(util.VERBOSITY_DEFAULT, "%s, ",
-				entry.History[i].Source.FullName())
-		}
-		util.StatusMessage(util.VERBOSITY_DEFAULT,
-			"default=%s\n", entry.History[0].Value)
-	}
-	if len(entry.ValueRefName) > 0 {
-		util.StatusMessage(util.VERBOSITY_DEFAULT,
-			"    * Copied from: %s\n",
-			entry.ValueRefName)
-	}
-}
-
-func printBriefSetting(entry syscfg.CfgEntry) {
-	util.StatusMessage(util.VERBOSITY_DEFAULT, "  %s: %s",
-		entry.Name, entry.Value)
-
-	var extras []string
-
-	if len(entry.History) > 1 {
-		s := fmt.Sprintf("overridden by %s",
-			entry.History[len(entry.History)-1].Source.FullName())
-		extras = append(extras, s)
-	}
-	if len(entry.ValueRefName) > 0 {
-		s := fmt.Sprintf("copied from %s", entry.ValueRefName)
-		extras = append(extras, s)
-	}
-
-	if len(extras) > 0 {
-		util.StatusMessage(util.VERBOSITY_DEFAULT, " (%s)",
-			strings.Join(extras, ", "))
-	}
-
-	util.StatusMessage(util.VERBOSITY_DEFAULT, "\n")
-}
-
-func printPkgCfg(pkgName string, cfg syscfg.Cfg, entries []syscfg.CfgEntry) {
-	util.StatusMessage(util.VERBOSITY_DEFAULT, "* PACKAGE: %s\n", pkgName)
-
-	settingNames := make([]string, len(entries))
-	for i, entry := range entries {
-		settingNames[i] = entry.Name
-	}
-	sort.Strings(settingNames)
-
-	for _, name := range settingNames {
-		printSetting(cfg.Settings[name])
-	}
-}
-
-func printCfg(targetName string, cfg syscfg.Cfg) {
-	if errText := cfg.ErrorText(); errText != "" {
-		util.StatusMessage(util.VERBOSITY_DEFAULT, "!!! %s\n\n", errText)
-	}
-
-	util.StatusMessage(util.VERBOSITY_DEFAULT, "Syscfg for %s:\n", targetName)
-	pkgNameEntryMap := syscfg.EntriesByPkg(cfg)
-
-	pkgNames := make([]string, 0, len(pkgNameEntryMap))
-	for pkgName, _ := range pkgNameEntryMap {
-		pkgNames = append(pkgNames, pkgName)
-	}
-	sort.Strings(pkgNames)
-
-	for i, pkgName := range pkgNames {
-		if i > 0 {
-			util.StatusMessage(util.VERBOSITY_DEFAULT, "\n")
-		}
-		printPkgCfg(pkgName, cfg, pkgNameEntryMap[pkgName])
-	}
-}
-
-func printPkgBriefCfg(pkgName string, cfg syscfg.Cfg, entries []syscfg.CfgEntry) {
-	util.StatusMessage(util.VERBOSITY_DEFAULT, "[%s]\n", pkgName)
-
-	settingNames := make([]string, len(entries))
-	for i, entry := range entries {
-		settingNames[i] = entry.Name
-	}
-	sort.Strings(settingNames)
-
-	for _, name := range settingNames {
-		printBriefSetting(cfg.Settings[name])
-	}
-}
-
-func printBriefCfg(targetName string, cfg syscfg.Cfg) {
-	if errText := cfg.ErrorText(); errText != "" {
-		util.StatusMessage(util.VERBOSITY_DEFAULT, "!!! %s\n\n", errText)
-	}
-
-	util.StatusMessage(util.VERBOSITY_DEFAULT, "Brief syscfg for %s:\n", targetName)
-	pkgNameEntryMap := syscfg.EntriesByPkg(cfg)
-
-	pkgNames := make([]string, 0, len(pkgNameEntryMap))
-	for pkgName, _ := range pkgNameEntryMap {
-		pkgNames = append(pkgNames, pkgName)
-	}
-	sort.Strings(pkgNames)
-
-	for i, pkgName := range pkgNames {
-		if i > 0 {
-			util.StatusMessage(util.VERBOSITY_DEFAULT, "\n")
-		}
-		printPkgBriefCfg(pkgName, cfg, pkgNameEntryMap[pkgName])
-	}
-}
-
-func yamlPkgCfg(w io.Writer, pkgName string, cfg syscfg.Cfg,
-	entries []syscfg.CfgEntry) {
-
-	settingNames := make([]string, len(entries))
-	for i, entry := range entries {
-		settingNames[i] = entry.Name
-	}
-	sort.Strings(settingNames)
-
-	fmt.Fprintf(w, "    ### %s\n", pkgName)
-	for _, name := range settingNames {
-		fmt.Fprintf(w, "    %s: '%s'\n", name, cfg.Settings[name].Value)
-	}
-}
-
-func yamlCfg(cfg syscfg.Cfg) string {
-	if errText := cfg.ErrorText(); errText != "" {
-		util.StatusMessage(util.VERBOSITY_DEFAULT, "!!! %s\n\n", errText)
-	}
-
-	pkgNameEntryMap := syscfg.EntriesByPkg(cfg)
-
-	pkgNames := make([]string, 0, len(pkgNameEntryMap))
-	for pkgName, _ := range pkgNameEntryMap {
-		pkgNames = append(pkgNames, pkgName)
-	}
-	sort.Strings(pkgNames)
-
-	buf := bytes.Buffer{}
-
-	fmt.Fprintf(&buf, "syscfg.vals:\n")
-	for i, pkgName := range pkgNames {
-		if i > 0 {
-			fmt.Fprintf(&buf, "\n")
-		}
-		yamlPkgCfg(&buf, pkgName, cfg, pkgNameEntryMap[pkgName])
-	}
-
-	return string(buf.Bytes())
-}
-
-func targetBuilderConfigResolve(b *builder.TargetBuilder) *resolve.Resolution {
-	res, err := b.Resolve()
-	if err != nil {
-		NewtUsage(nil, err)
-	}
-
-	warningText := strings.TrimSpace(res.WarningText())
-	if warningText != "" {
-		log.Warn(warningText + "\n")
-	}
-
-	return res
-}
-
-func targetConfigShowCmd(cmd *cobra.Command, args []string) {
-	if len(args) < 1 {
-		NewtUsage(cmd,
-			util.NewNewtError("Must specify target or unittest name"))
-	}
-
-	TryGetProject()
-
-	for i, arg := range args {
-		b, err := TargetBuilderForTargetOrUnittest(arg)
-		if err != nil {
-			NewtUsage(cmd, err)
-		}
-
-		res := targetBuilderConfigResolve(b)
-		printCfg(b.GetTarget().Name(), res.Cfg)
-
-		if i < len(args)-1 {
-			util.StatusMessage(util.VERBOSITY_DEFAULT, "\n")
-		}
-	}
-}
-
-func targetConfigBriefCmd(cmd *cobra.Command, args []string) {
-	if len(args) < 1 {
-		NewtUsage(cmd,
-			util.NewNewtError("Must specify target or unittest name"))
-	}
-
-	TryGetProject()
-
-	for i, arg := range args {
-		b, err := TargetBuilderForTargetOrUnittest(arg)
-		if err != nil {
-			NewtUsage(cmd, err)
-		}
-
-		res := targetBuilderConfigResolve(b)
-		printBriefCfg(b.GetTarget().Name(), res.Cfg)
-
-		if i < len(args)-1 {
-			util.StatusMessage(util.VERBOSITY_DEFAULT, "\n")
-		}
-	}
-}
-
-func targetConfigInitCmd(cmd *cobra.Command, args []string) {
-	if len(args) < 1 {
-		NewtUsage(cmd,
-			util.NewNewtError("Must specify target or unittest name"))
-	}
-
-	type entry struct {
-		lpkg   *pkg.LocalPackage
-		path   string
-		b      *builder.TargetBuilder
-		exists bool
-	}
-
-	TryGetProject()
-
-	anyExist := false
-	entries := make([]entry, len(args))
-	for i, pkgName := range args {
-		e := &entries[i]
-
-		b, err := TargetBuilderForTargetOrUnittest(pkgName)
-		if err != nil {
-			NewtUsage(cmd, err)
-		}
-		e.b = b
-
-		e.lpkg = b.GetTestPkg()
-		if e.lpkg == nil {
-			e.lpkg = b.GetTarget().Package()
-		}
-
-		e.path = builder.PkgSyscfgPath(e.lpkg.BasePath())
-
-		if util.NodeExist(e.path) {
-			e.exists = true
-			anyExist = true
-		}
-	}
-
-	if anyExist && !newtutil.NewtForce {
-		util.StatusMessage(util.VERBOSITY_DEFAULT,
-			"Configuration files already exist:\n")
-		for _, e := range entries {
-			if e.exists {
-				util.StatusMessage(util.VERBOSITY_DEFAULT, "    * %s\n",
-					e.path)
-			}
-		}
-		util.StatusMessage(util.VERBOSITY_DEFAULT, "\n")
-
-		fmt.Printf("Overwrite them? (y/N): ")
-		rsp := PromptYesNo(false)
-		if !rsp {
-			return
-		}
-	}
-
-	for _, e := range entries {
-		res := targetBuilderConfigResolve(e.b)
-		yaml := yamlCfg(res.Cfg)
-
-		if err := ioutil.WriteFile(e.path, []byte(yaml), 0644); err != nil {
-			NewtUsage(nil, util.FmtNewtError("Error writing file \"%s\"; %s",
-				e.path, err.Error()))
-		}
-	}
-}
-
 func targetDepCmd(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
 		NewtUsage(cmd,
@@ -1077,59 +781,6 @@ func AddTargetCommands(cmd *cobra.Command) {
 	targetCmd.AddCommand(copyCmd)
 	AddTabCompleteFn(copyCmd, targetList)
 
-	configHelpText := "View or populate a target's system configuration"
-
-	configCmd := &cobra.Command{
-		Use:   "config",
-		Short: configHelpText,
-		Long:  configHelpText,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Usage()
-		},
-	}
-
-	targetCmd.AddCommand(configCmd)
-
-	configShowCmd := &cobra.Command{
-		Use:   "show <target> [target...]",
-		Short: "View a target's system configuration",
-		Long:  "View a target's system configuration",
-		Run:   targetConfigShowCmd,
-	}
-
-	configCmd.AddCommand(configShowCmd)
-	AddTabCompleteFn(configShowCmd, func() []string {
-		return append(targetList(), unittestList()...)
-	})
-
-	configBriefCmd := &cobra.Command{
-		Use:   "brief <target> [target...]",
-		Short: "View a summary of target's system configuration",
-		Long:  "View a summary of target's system configuration",
-		Run:   targetConfigBriefCmd,
-	}
-
-	configCmd.AddCommand(configBriefCmd)
-	AddTabCompleteFn(configBriefCmd, func() []string {
-		return append(targetList(), unittestList()...)
-	})
-
-	configInitCmd := &cobra.Command{
-		Use:   "init",
-		Short: "Populate a target's system configuration file",
-		Long: "Populate a target's system configuration file (syscfg). " +
-			"Unspecified settings are given default values.",
-		Run: targetConfigInitCmd,
-	}
-	configInitCmd.PersistentFlags().BoolVarP(&newtutil.NewtForce,
-		"force", "f", false,
-		"Force overwrite of target configuration")
-
-	configCmd.AddCommand(configInitCmd)
-	AddTabCompleteFn(configInitCmd, func() []string {
-		return append(targetList(), unittestList()...)
-	})
-
 	depHelpText := "View a target's dependency graph."
 
 	depCmd := &cobra.Command{
@@ -1157,4 +808,8 @@ func AddTargetCommands(cmd *cobra.Command) {
 	AddTabCompleteFn(revdepCmd, func() []string {
 		return append(targetList(), unittestList()...)
 	})
+
+	for _, cmd := range targetCfgCmdAll() {
+		targetCmd.AddCommand(cmd)
+	}
 }

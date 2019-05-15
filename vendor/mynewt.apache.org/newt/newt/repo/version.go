@@ -24,8 +24,9 @@ package repo
 import (
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 
+	"mynewt.apache.org/newt/newt/config"
 	"mynewt.apache.org/newt/newt/newtutil"
 	"mynewt.apache.org/newt/util"
 )
@@ -76,6 +77,12 @@ func normalizeCommit(commit string) string {
 // Retrieves the repo's currently checked-out hash.
 func (r *Repo) CurrentHash() (string, error) {
 	dl := r.downloader
+	if dl == nil {
+		return "",
+			util.FmtNewtError("No downloader for %s",
+				r.Name())
+	}
+
 	commit, err := dl.HashFor(r.Path(), "HEAD")
 	if err != nil {
 		return "",
@@ -245,7 +252,8 @@ func (r *Repo) NormalizeVersion(
 
 		nextVer, err := newtutil.ParseRepoVersion(verStr)
 		if err != nil {
-			return ver, err
+			return ver, util.PreNewtError(err,
+				"failure parsing version for repo \"%s\"", r.Name())
 		}
 		ver = nextVer
 	}
@@ -305,7 +313,7 @@ func (r *Repo) VersionsEqual(v1 newtutil.RepoVersion,
 // Parses the `version.yml` file at the specified path.  On success, the parsed
 // version is returned.
 func parseVersionYml(path string) (newtutil.RepoVersion, error) {
-	yc, err := newtutil.ReadConfigPath(path)
+	yc, err := config.ReadFile(path)
 	if err != nil {
 		if util.IsNotExist(err) {
 			return newtutil.RepoVersion{}, versionYmlMissing
@@ -386,9 +394,8 @@ func (r *Repo) inferVersion(commit string, vyVer *newtutil.RepoVersion) (
 				}
 			}
 
-			util.StatusMessage(util.VERBOSITY_QUIET,
-				"WARNING: Version mismatch in %s:%s; "+
-					"repository.yml:%s, version.yml:%s\n",
+			util.OneTimeWarning(
+				"Version mismatch in %s:%s; repository.yml:%s, version.yml:%s",
 				r.Name(), commit, versString(ryVers), vyVer.String())
 		} else {
 			// If the set of commits don't match a version from
@@ -458,12 +465,12 @@ func (r *Repo) NonInstalledVersion(
 
 	if ver == nil {
 		if versionYmlErr == versionYmlMissing {
-			util.StatusMessage(util.VERBOSITY_QUIET,
-				"WARNING: %s:%s does not contain a `version.yml` file.\n",
+			util.OneTimeWarning(
+				"%s:%s does not contain a `version.yml` file.",
 				r.Name(), commit)
 		} else if versionYmlErr == versionYmlBad {
-			util.StatusMessage(util.VERBOSITY_QUIET,
-				"WARNING: %s:%s contains a malformed `version.yml` file.\n",
+			util.OneTimeWarning(
+				"%s:%s contains a malformed `version.yml` file.",
 				r.Name(), commit)
 		}
 	}

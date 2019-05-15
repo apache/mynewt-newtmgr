@@ -21,6 +21,7 @@ package newtutil
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"sort"
 	"strconv"
@@ -28,7 +29,7 @@ import (
 
 	"mynewt.apache.org/newt/util"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -68,7 +69,24 @@ func (vm *RepoVersionReq) String() string {
 	return vm.CompareType + vm.Ver.String()
 }
 
+func (v *RepoVersion) toComparable() RepoVersion {
+	clone := *v
+
+	// 0.0.0 means "latest develop"; it is greater than all over version
+	// numbers.
+	if v.Major == 0 && v.Minor == 0 && v.Revision == 0 {
+		clone.Major = math.MaxInt64
+		clone.Minor = math.MaxInt64
+		clone.Revision = math.MaxInt64
+	}
+
+	return clone
+}
+
 func CompareRepoVersions(v1 RepoVersion, v2 RepoVersion) int64 {
+	v1 = v1.toComparable()
+	v2 = v2.toComparable()
+
 	if r := v1.Major - v2.Major; r != 0 {
 		return r
 	}
@@ -186,12 +204,14 @@ func ParseRepoVersion(verStr string) (RepoVersion, error) {
 	parts := strings.Split(base, ".")
 	if len(parts) > 3 {
 		return RepoVersion{},
-			util.FmtNewtError("Invalid version string: %s", verStr)
+			util.FmtNewtError("Invalid version string: \"%s\"; "+
+				"must be fixed (X.X.X) or floating (X[.X]-stability)", verStr)
 	}
 
 	if len(parts) != 3 && stability == VERSION_STABILITY_NONE {
 		return RepoVersion{},
-			util.FmtNewtError("Invalid version string: %s", verStr)
+			util.FmtNewtError("Invalid version string: \"%s\"; "+
+				"must be fixed (X.X.X) or floating (X[.X]-stability)", verStr)
 	}
 
 	// Assume no parts of the version are specified.
@@ -233,7 +253,7 @@ func ParseRepoVersionReqs(versStr string) ([]RepoVersionReq, error) {
 
 	verReqs := []RepoVersionReq{}
 
-	re, err := regexp.Compile(`(<=|>=|==|>|<)([\d\.]+)`)
+	re, err := regexp.Compile(`(<=|>=|==|>|<)(.+)`)
 	if err != nil {
 		return nil, err
 	}
