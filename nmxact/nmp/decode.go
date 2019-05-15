@@ -36,6 +36,7 @@ const gr_log = NMP_GROUP_LOG
 const gr_cra = NMP_GROUP_CRASH
 const gr_run = NMP_GROUP_RUN
 const gr_fil = NMP_GROUP_FS
+const gr_she = NMP_GROUP_SHELL
 
 // Op-Group-Id
 type Ogi struct {
@@ -72,6 +73,7 @@ func fsDownloadRspCtor() NmpRsp    { return NewFsDownloadRsp() }
 func fsUploadRspCtor() NmpRsp      { return NewFsUploadRsp() }
 func configReadRspCtor() NmpRsp    { return NewConfigReadRsp() }
 func configWriteRspCtor() NmpRsp   { return NewConfigWriteRsp() }
+func shellExecRspCtor() NmpRsp     { return NewShellExecRsp() }
 
 var rspCtorMap = map[Ogi]rspCtor{
 	{op_wr, gr_def, NMP_ID_DEF_ECHO}:         echoRspCtor,
@@ -101,6 +103,7 @@ var rspCtorMap = map[Ogi]rspCtor{
 	{op_wr, gr_fil, NMP_ID_FS_FILE}:          fsUploadRspCtor,
 	{op_rr, gr_cfg, NMP_ID_CONFIG_VAL}:       configReadRspCtor,
 	{op_wr, gr_cfg, NMP_ID_CONFIG_VAL}:       configWriteRspCtor,
+	{op_wr, gr_she, NMP_ID_SHELL_EXEC}:       shellExecRspCtor,
 }
 
 func DecodeRspBody(hdr *NmpHdr, body []byte) (NmpRsp, error) {
