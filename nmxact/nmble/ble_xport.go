@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 
 	"mynewt.apache.org/newt/util/unixchild"
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"

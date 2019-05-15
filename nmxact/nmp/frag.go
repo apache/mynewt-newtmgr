@@ -20,7 +20,7 @@
 package nmp
 
 import (
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 type Reassembler struct {

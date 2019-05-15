@@ -20,7 +20,7 @@
 package config
 
 import (
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/mitchellh/go-homedir"
 
 	"encoding/json"

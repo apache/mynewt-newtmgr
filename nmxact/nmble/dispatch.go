@@ -26,7 +26,7 @@ import (
 
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 type MsgBase struct {
