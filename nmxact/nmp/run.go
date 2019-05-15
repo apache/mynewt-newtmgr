@@ -19,14 +19,12 @@
 
 package nmp
 
-import ()
-
 //////////////////////////////////////////////////////////////////////////////
 // $test                                                                    //
 //////////////////////////////////////////////////////////////////////////////
 
 type RunTestReq struct {
-	NmpBase         `codec:"-"`
+	NmpBase  `codec:"-"`
 	Testname string `codec:"testname"`
 	Token    string `codec:"token"`
 }

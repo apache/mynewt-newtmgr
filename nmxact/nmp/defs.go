@@ -48,6 +48,7 @@ const (
 	NMP_GROUP_SPLIT   = 6
 	NMP_GROUP_RUN     = 7
 	NMP_GROUP_FS      = 8
+	NMP_GROUP_SHELL   = 9
 	NMP_GROUP_PERUSER = 64
 )
 
@@ -105,4 +106,9 @@ const (
 // File system group (8).
 const (
 	NMP_ID_FS_FILE = 0
+)
+
+// Shell group (8).
+const (
+	NMP_ID_SHELL_EXEC = 0
 )
