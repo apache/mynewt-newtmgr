@@ -42,13 +42,9 @@ func NewRunTestReq() *RunTestReq {
 	return r
 }
 
-func (r *RunTestReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewRunTestRsp() *RunTestRsp {
 	return &RunTestRsp{}
 }
-
-func (r *RunTestRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 
 //////////////////////////////////////////////////////////////////////////////
 // $list                                                                    //
@@ -70,10 +66,6 @@ func NewRunListReq() *RunListReq {
 	return r
 }
 
-func (r *RunListReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewRunListRsp() *RunListRsp {
 	return &RunListRsp{}
 }
-
-func (r *RunListRsp) Msg() *NmpMsg { return MsgFromReq(r) }

@@ -19,8 +19,6 @@
 
 package nmp
 
-import ()
-
 type ResetReq struct {
 	NmpBase `codec:"-"`
 }
@@ -35,10 +33,6 @@ func NewResetReq() *ResetReq {
 	return r
 }
 
-func (r *ResetReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewResetRsp() *ResetRsp {
 	return &ResetRsp{}
 }
-
-func (r *ResetRsp) Msg() *NmpMsg { return MsgFromReq(r) }

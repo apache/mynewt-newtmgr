@@ -19,15 +19,13 @@
 
 package nmp
 
-import ()
-
 //////////////////////////////////////////////////////////////////////////////
 // $read                                                                    //
 //////////////////////////////////////////////////////////////////////////////
 
 type StatReadReq struct {
-	NmpBase     `codec:"-"`
-	Name string `codec:"name"`
+	NmpBase `codec:"-"`
+	Name    string `codec:"name"`
 }
 
 type StatReadRsp struct {
@@ -44,13 +42,9 @@ func NewStatReadReq() *StatReadReq {
 	return r
 }
 
-func (r *StatReadReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewStatReadRsp() *StatReadRsp {
 	return &StatReadRsp{}
 }
-
-func (r *StatReadRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 
 //////////////////////////////////////////////////////////////////////////////
 // $list                                                                    //
@@ -72,10 +66,6 @@ func NewStatListReq() *StatListReq {
 	return r
 }
 
-func (r *StatListReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewStatListRsp() *StatListRsp {
 	return &StatListRsp{}
 }
-
-func (r *StatListRsp) Msg() *NmpMsg { return MsgFromReq(r) }

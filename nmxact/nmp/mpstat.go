@@ -19,8 +19,6 @@
 
 package nmp
 
-import ()
-
 type MempoolStatReq struct {
 	NmpBase `codec:"-"`
 }
@@ -37,10 +35,6 @@ func NewMempoolStatReq() *MempoolStatReq {
 	return r
 }
 
-func (r *MempoolStatReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewMempoolStatRsp() *MempoolStatRsp {
 	return &MempoolStatRsp{}
 }
-
-func (r *MempoolStatRsp) Msg() *NmpMsg { return MsgFromReq(r) }

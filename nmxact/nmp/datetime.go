@@ -19,8 +19,6 @@
 
 package nmp
 
-import ()
-
 ///////////////////////////////////////////////////////////////////////////////
 // $read                                                                     //
 ///////////////////////////////////////////////////////////////////////////////
@@ -41,20 +39,16 @@ func NewDateTimeReadReq() *DateTimeReadReq {
 	return r
 }
 
-func (r *DateTimeReadReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewDateTimeReadRsp() *DateTimeReadRsp {
 	return &DateTimeReadRsp{}
 }
-
-func (r *DateTimeReadRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 
 ///////////////////////////////////////////////////////////////////////////////
 // $write                                                                    //
 ///////////////////////////////////////////////////////////////////////////////
 
 type DateTimeWriteReq struct {
-	NmpBase         `codec:"-"`
+	NmpBase  `codec:"-"`
 	DateTime string `codec:"datetime"`
 }
 
@@ -69,10 +63,6 @@ func NewDateTimeWriteReq() *DateTimeWriteReq {
 	return r
 }
 
-func (r *DateTimeWriteReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewDateTimeWriteRsp() *DateTimeWriteRsp {
 	return &DateTimeWriteRsp{}
 }
-
-func (r *DateTimeWriteRsp) Msg() *NmpMsg { return MsgFromReq(r) }

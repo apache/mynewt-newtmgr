@@ -27,8 +27,8 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/ugorji/go/codec"
 
-	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newt/util"
+	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 )
 
 const NMP_HDR_SIZE = 8
@@ -74,10 +74,10 @@ func (b *NmpBase) SetHdr(h *NmpHdr) {
 	b.hdr = *h
 }
 
-func MsgFromReq(r NmpReq) *NmpMsg {
+func (b *NmpBase) Msg() *NmpMsg {
 	return &NmpMsg{
-		*r.Hdr(),
-		r,
+		*b.Hdr(),
+		b,
 	}
 }
 

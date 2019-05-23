@@ -19,8 +19,6 @@
 
 package nmp
 
-import ()
-
 type TaskStatReq struct {
 	NmpBase `codec:"-"`
 }
@@ -37,10 +35,6 @@ func NewTaskStatReq() *TaskStatReq {
 	return r
 }
 
-func (r *TaskStatReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewTaskStatRsp() *TaskStatRsp {
 	return &TaskStatRsp{}
 }
-
-func (r *TaskStatRsp) Msg() *NmpMsg { return MsgFromReq(r) }

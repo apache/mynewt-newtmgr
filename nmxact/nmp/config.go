@@ -19,14 +19,12 @@
 
 package nmp
 
-import ()
-
 //////////////////////////////////////////////////////////////////////////////
 // $read                                                                    //
 //////////////////////////////////////////////////////////////////////////////
 
 type ConfigReadReq struct {
-	NmpBase        `codec:"-"`
+	NmpBase `codec:"-"`
 	Name    string `codec:"name"`
 }
 
@@ -42,23 +40,19 @@ func NewConfigReadReq() *ConfigReadReq {
 	return r
 }
 
-func (r *ConfigReadReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewConfigReadRsp() *ConfigReadRsp {
 	return &ConfigReadRsp{}
 }
-
-func (r *ConfigReadRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 
 //////////////////////////////////////////////////////////////////////////////
 // $write                                                                   //
 //////////////////////////////////////////////////////////////////////////////
 
 type ConfigWriteReq struct {
-	NmpBase     `codec:"-"`
-	Name string `codec:"name,omitempty"`
-	Val  string `codec:"val,omitempty"`
-	Save bool   `codec:"save,omitempty"`
+	NmpBase `codec:"-"`
+	Name    string `codec:"name,omitempty"`
+	Val     string `codec:"val,omitempty"`
+	Save    bool   `codec:"save,omitempty"`
 }
 
 type ConfigWriteRsp struct {
@@ -72,10 +66,6 @@ func NewConfigWriteReq() *ConfigWriteReq {
 	return r
 }
 
-func (r *ConfigWriteReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewConfigWriteRsp() *ConfigWriteRsp {
 	return &ConfigWriteRsp{}
 }
-
-func (r *ConfigWriteRsp) Msg() *NmpMsg { return MsgFromReq(r) }

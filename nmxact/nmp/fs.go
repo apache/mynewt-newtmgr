@@ -19,16 +19,14 @@
 
 package nmp
 
-import ()
-
 //////////////////////////////////////////////////////////////////////////////
 // $download                                                                //
 //////////////////////////////////////////////////////////////////////////////
 
 type FsDownloadReq struct {
-	NmpBase     `codec:"-"`
-	Name string `codec:"name"`
-	Off  uint32 `codec:"off"`
+	NmpBase `codec:"-"`
+	Name    string `codec:"name"`
+	Off     uint32 `codec:"off"`
 }
 
 type FsDownloadRsp struct {
@@ -45,24 +43,20 @@ func NewFsDownloadReq() *FsDownloadReq {
 	return r
 }
 
-func (r *FsDownloadReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewFsDownloadRsp() *FsDownloadRsp {
 	return &FsDownloadRsp{}
 }
-
-func (r *FsDownloadRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 
 //////////////////////////////////////////////////////////////////////////////
 // $upload                                                                  //
 //////////////////////////////////////////////////////////////////////////////
 
 type FsUploadReq struct {
-	NmpBase     `codec:"-"`
-	Name string `codec:"name"`
-	Len  uint32 `codec:"len"`
-	Off  uint32 `codec:"off"`
-	Data []byte `codec:"data"`
+	NmpBase `codec:"-"`
+	Name    string `codec:"name"`
+	Len     uint32 `codec:"len"`
+	Off     uint32 `codec:"off"`
+	Data    []byte `codec:"data"`
 }
 
 type FsUploadRsp struct {
@@ -77,10 +71,6 @@ func NewFsUploadReq() *FsUploadReq {
 	return r
 }
 
-func (r *FsUploadReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewFsUploadRsp() *FsUploadRsp {
 	return &FsUploadRsp{}
 }
-
-func (r *FsUploadRsp) Msg() *NmpMsg { return MsgFromReq(r) }

@@ -157,13 +157,9 @@ func NewLogShowReq() *LogShowReq {
 	return r
 }
 
-func (r *LogShowReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewLogShowRsp() *LogShowRsp {
 	return &LogShowRsp{}
 }
-
-func (r *LogShowRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 
 //////////////////////////////////////////////////////////////////////////////
 // $list                                                                    //
@@ -185,13 +181,9 @@ func NewLogListReq() *LogListReq {
 	return r
 }
 
-func (r *LogListReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewLogListRsp() *LogListRsp {
 	return &LogListRsp{}
 }
-
-func (r *LogListRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 
 //////////////////////////////////////////////////////////////////////////////
 // $module list                                                             //
@@ -213,13 +205,9 @@ func NewLogModuleListReq() *LogModuleListReq {
 	return r
 }
 
-func (r *LogModuleListReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewLogModuleListRsp() *LogModuleListRsp {
 	return &LogModuleListRsp{}
 }
-
-func (r *LogModuleListRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 
 //////////////////////////////////////////////////////////////////////////////
 // $level list                                                              //
@@ -241,13 +229,9 @@ func NewLogLevelListReq() *LogLevelListReq {
 	return r
 }
 
-func (r *LogLevelListReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewLogLevelListRsp() *LogLevelListRsp {
 	return &LogLevelListRsp{}
 }
-
-func (r *LogLevelListRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 
 //////////////////////////////////////////////////////////////////////////////
 // $clear                                                                   //
@@ -268,13 +252,9 @@ func NewLogClearReq() *LogClearReq {
 	return r
 }
 
-func (r *LogClearReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewLogClearRsp() *LogClearRsp {
 	return &LogClearRsp{}
 }
-
-func (r *LogClearRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 
 //////////////////////////////////////////////////////////////////////////////
 // $LogType Marshal/Unmarshal                                               //

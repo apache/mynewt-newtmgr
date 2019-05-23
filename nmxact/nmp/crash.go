@@ -19,10 +19,8 @@
 
 package nmp
 
-import ()
-
 type CrashReq struct {
-	NmpBase          `codec:"-"`
+	NmpBase   `codec:"-"`
 	CrashType string `codec:"t"`
 }
 
@@ -37,10 +35,6 @@ func NewCrashReq() *CrashReq {
 	return r
 }
 
-func (r *CrashReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewCrashRsp() *CrashRsp {
 	return &CrashRsp{}
 }
-
-func (r *CrashRsp) Msg() *NmpMsg { return MsgFromReq(r) }

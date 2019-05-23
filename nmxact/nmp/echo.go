@@ -19,10 +19,8 @@
 
 package nmp
 
-import ()
-
 type EchoReq struct {
-	NmpBase        `codec:"-"`
+	NmpBase `codec:"-"`
 	Payload string `codec:"d"`
 }
 
@@ -38,10 +36,6 @@ func NewEchoReq() *EchoReq {
 	return r
 }
 
-func (r *EchoReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewEchoRsp() *EchoRsp {
 	return &EchoRsp{}
 }
-
-func (r *EchoRsp) Msg() *NmpMsg { return MsgFromReq(r) }

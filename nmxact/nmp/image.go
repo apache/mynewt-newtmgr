@@ -44,13 +44,9 @@ func NewImageUploadReq() *ImageUploadReq {
 	return r
 }
 
-func (r *ImageUploadReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewImageUploadRsp() *ImageUploadRsp {
 	return &ImageUploadRsp{}
 }
-
-func (r *ImageUploadRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 
 //////////////////////////////////////////////////////////////////////////////
 // $state                                                                   //
@@ -114,21 +110,15 @@ func NewImageStateReadReq() *ImageStateReadReq {
 	return r
 }
 
-func (r *ImageStateReadReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewImageStateWriteReq() *ImageStateWriteReq {
 	r := &ImageStateWriteReq{}
 	fillNmpReq(r, NMP_OP_WRITE, NMP_GROUP_IMAGE, NMP_ID_IMAGE_STATE)
 	return r
 }
 
-func (r *ImageStateWriteReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewImageStateRsp() *ImageStateRsp {
 	return &ImageStateRsp{}
 }
-
-func (r *ImageStateRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 
 //////////////////////////////////////////////////////////////////////////////
 // $corelist                                                                //
@@ -149,13 +139,9 @@ func NewCoreListReq() *CoreListReq {
 	return r
 }
 
-func (r *CoreListReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewCoreListRsp() *CoreListRsp {
 	return &CoreListRsp{}
 }
-
-func (r *CoreListRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 
 //////////////////////////////////////////////////////////////////////////////
 // $coreload                                                                //
@@ -180,13 +166,9 @@ func NewCoreLoadReq() *CoreLoadReq {
 	return r
 }
 
-func (r *CoreLoadReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewCoreLoadRsp() *CoreLoadRsp {
 	return &CoreLoadRsp{}
 }
-
-func (r *CoreLoadRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 
 //////////////////////////////////////////////////////////////////////////////
 // $coreerase                                                               //
@@ -207,13 +189,9 @@ func NewCoreEraseReq() *CoreEraseReq {
 	return r
 }
 
-func (r *CoreEraseReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewCoreEraseRsp() *CoreEraseRsp {
 	return &CoreEraseRsp{}
 }
-
-func (r *CoreEraseRsp) Msg() *NmpMsg { return MsgFromReq(r) }
 
 //////////////////////////////////////////////////////////////////////////////
 // $erase                                                                   //
@@ -234,10 +212,6 @@ func NewImageEraseReq() *ImageEraseReq {
 	return r
 }
 
-func (r *ImageEraseReq) Msg() *NmpMsg { return MsgFromReq(r) }
-
 func NewImageEraseRsp() *ImageEraseRsp {
 	return &ImageEraseRsp{}
 }
-
-func (r *ImageEraseRsp) Msg() *NmpMsg { return MsgFromReq(r) }
