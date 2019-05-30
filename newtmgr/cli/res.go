@@ -36,6 +36,7 @@ import (
 )
 
 var details bool
+var resJson bool
 
 func indent(s string, numSpaces int) string {
 	b := make([]byte, numSpaces)
@@ -220,7 +221,7 @@ func resGetCmd(cmd *cobra.Command, args []string) {
 	}
 }
 
-func parsePutPostMap(args []string) ([]byte, error) {
+func parsePayloadMap(args []string) ([]byte, error) {
 	if len(args) == 0 {
 		return nil, nil
 	}
@@ -238,6 +239,33 @@ func parsePutPostMap(args []string) ([]byte, error) {
 	return b, nil
 }
 
+func parsePayloadJson(args []string) ([]byte, error) {
+	if len(args) == 0 {
+		return nil, nil
+	}
+
+	var obj interface{}
+
+	if err := json.Unmarshal([]byte(args[0]), &obj); err != nil {
+		return nil, util.ChildNewtError(err)
+	}
+
+	b, err := nmxutil.EncodeCbor(obj)
+	if err != nil {
+		return nil, util.ChildNewtError(err)
+	}
+
+	return b, nil
+}
+
+func parsePayload(args []string) ([]byte, error) {
+	if resJson {
+		return parsePayloadJson(args)
+	} else {
+		return parsePayloadMap(args)
+	}
+}
+
 func resPutCmd(cmd *cobra.Command, args []string) {
 	if len(args) == 0 {
 		nmUsage(cmd, nil)
@@ -248,7 +276,7 @@ func resPutCmd(cmd *cobra.Command, args []string) {
 		nmUsage(nil, err)
 	}
 
-	m, err := parsePutPostMap(args[1:])
+	m, err := parsePayload(args[1:])
 	if err != nil {
 		nmUsage(cmd, err)
 	}
@@ -289,7 +317,7 @@ func resPostCmd(cmd *cobra.Command, args []string) {
 		nmUsage(nil, err)
 	}
 
-	m, err := parsePutPostMap(args[1:])
+	m, err := parsePayload(args[1:])
 	if err != nil {
 		nmUsage(cmd, err)
 	}
@@ -377,6 +405,9 @@ func resCmd() *cobra.Command {
 			cmd.HelpFunc()(cmd, args)
 		},
 	}
+
+	resCmd.PersistentFlags().BoolVarP(&resJson, "json", "j", false,
+		"Accept a JSON string for the CoAP message body (not `k=v` pairs)")
 
 	resCmd.AddCommand(&cobra.Command{
 		Use:   "get <path>",
