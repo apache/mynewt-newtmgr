@@ -26,9 +26,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 
 	"mynewt.apache.org/newt/newt/compat"
+	"mynewt.apache.org/newt/newt/config"
 	"mynewt.apache.org/newt/newt/deprepo"
 	"mynewt.apache.org/newt/newt/downloader"
 	"mynewt.apache.org/newt/newt/install"
@@ -210,10 +211,6 @@ func (proj *Project) GetRepoVersion(
 
 		if _, ok := proj.unknownRepoVers[rname]; !ok {
 			proj.unknownRepoVers[rname] = struct{}{}
-
-			util.StatusMessage(util.VERBOSITY_QUIET,
-				"WARNING: Could not detect version of installed repo \"%s\"; "+
-					"assuming 0.0.0/%s\n", r.Name(), commit)
 		}
 		ver = &newtutil.RepoVersion{
 			Commit: commit,
@@ -366,22 +363,6 @@ func (proj *Project) loadRepo(name string, fields map[string]string) (
 		return r, err
 	}
 
-	// Warn the user about incompatibilities with this version of newt.
-	ver, err := proj.GetRepoVersion(name)
-	if err != nil {
-		return nil, err
-	}
-	if ver != nil {
-		code, msg := r.CheckNewtCompatibility(*ver, newtutil.NewtVersion)
-		switch code {
-		case compat.NEWT_COMPAT_GOOD:
-		case compat.NEWT_COMPAT_WARN:
-			util.StatusMessage(util.VERBOSITY_QUIET, "WARNING: %s.\n", msg)
-		case compat.NEWT_COMPAT_ERROR:
-			return nil, util.NewNewtError(msg)
-		}
-	}
-
 	// XXX: This log message assumes a "github" type repo.
 	log.Debugf("Loaded repository %s (type: %s, user: %s, repo: %s)", name,
 		fields["type"], fields["user"], fields["repo"])
@@ -412,7 +393,7 @@ func (proj *Project) checkNewtVer() error {
 	case compat.NEWT_COMPAT_GOOD:
 		return nil
 	case compat.NEWT_COMPAT_WARN:
-		util.StatusMessage(util.VERBOSITY_QUIET, "WARNING: %s.\n", msg)
+		util.OneTimeWarning("%s", msg)
 		return nil
 	case compat.NEWT_COMPAT_ERROR:
 		return util.NewNewtError(msg)
@@ -436,7 +417,15 @@ func (proj *Project) loadRepoDeps(download bool) error {
 
 					depRepo := proj.repos[dep.Name]
 					if depRepo == nil {
-						depRepo, _ = proj.loadRepo(dep.Name, dep.Fields)
+						var err error
+						depRepo, err = proj.loadRepo(dep.Name, dep.Fields)
+						if err != nil {
+							// if `repository.yml` does not exist, it is not an
+							// error; we will just download a new copy.
+							if !util.IsNotExist(err) {
+								return nil, err
+							}
+						}
 						proj.repos[dep.Name] = depRepo
 					}
 					newRepos = append(newRepos, depRepo)
@@ -491,9 +480,47 @@ func (proj *Project) downloadRepositoryYmlFiles() error {
 	return nil
 }
 
+func (proj *Project) verifyNewtCompat() error {
+	var errors []string
+
+	for name, r := range proj.repos {
+		// If a repo doesn't have a downloader then it is
+		// a project root that is not a repository
+		if r.Downloader() == nil {
+			continue
+		}
+
+		// Cannot verify version if project is not installed
+		if !proj.RepoIsInstalled(name) {
+			continue
+		}
+
+		ver, err := proj.GetRepoVersion(name)
+		if err != nil {
+			return err
+		}
+
+		if ver != nil {
+			code, msg := r.CheckNewtCompatibility(*ver, newtutil.NewtVersion)
+			switch code {
+			case compat.NEWT_COMPAT_GOOD:
+			case compat.NEWT_COMPAT_WARN:
+				util.OneTimeWarning("%s", msg)
+			case compat.NEWT_COMPAT_ERROR:
+				errors = append(errors, msg)
+			}
+		}
+	}
+
+	if errors != nil {
+		return util.NewNewtError(strings.Join(errors, "\n"))
+	}
+
+	return nil
+}
+
 func (proj *Project) loadConfig() error {
-	yc, err := newtutil.ReadConfig(proj.BasePath,
-		strings.TrimSuffix(PROJECT_FILE_NAME, ".yml"))
+	yc, err := config.ReadFile(proj.BasePath + "/" + PROJECT_FILE_NAME)
 	if err != nil {
 		return util.NewNewtError(err.Error())
 	}
@@ -522,12 +549,19 @@ func (proj *Project) loadConfig() error {
 		repoName := strings.TrimPrefix(k, "repository.")
 		if repoName != k {
 			fields := yc.GetValStringMapString(k, nil)
-			r, _ := proj.loadRepo(repoName, fields)
-
+			r, err := proj.loadRepo(repoName, fields)
+			if err != nil {
+				// if `repository.yml` does not exist, it is not an error; we
+				// will just download a new copy.
+				if !util.IsNotExist(err) {
+					return err
+				}
+			}
 			verReqs, err := newtutil.ParseRepoVersionReqs(fields["vers"])
 			if err != nil {
 				return util.FmtNewtError(
-					"Repo \"%s\" contains invalid version requirement: %s (%s)",
+					"Repo \"%s\" contains invalid version requirement: "+
+						"%s (%s)",
 					repoName, fields["vers"], err.Error())
 			}
 
@@ -540,6 +574,11 @@ func (proj *Project) loadConfig() error {
 	// These repos might not be specified in the `project.yml` file, but they
 	// are still part of the project.
 	if err := proj.loadRepoDeps(false); err != nil {
+		return err
+	}
+
+	// Warn the user about incompatibilities with this version of newt.
+	if err := proj.verifyNewtCompat(); err != nil {
 		return err
 	}
 

@@ -20,9 +20,12 @@
 package cli
 
 import (
+	"fmt"
+	"sort"
+
 	"github.com/spf13/cobra"
 
-	"mynewt.apache.org/newt/newt/image"
+	"mynewt.apache.org/newt/artifact/image"
 	"mynewt.apache.org/newt/newt/mfg"
 	"mynewt.apache.org/newt/newt/pkg"
 	"mynewt.apache.org/newt/util"
@@ -50,31 +53,36 @@ func ResolveMfgPkg(pkgName string) (*pkg.LocalPackage, error) {
 	return lpkg, nil
 }
 
-func mfgCreate(mi *mfg.MfgImage) {
-	pathStr := ""
-	for _, path := range mi.FromPaths() {
-		pathStr += "    * " + path + "\n"
-	}
-
-	util.StatusMessage(util.VERBOSITY_DEFAULT,
-		"Creating a manufacturing image from the following files:\n%s\n",
-		pathStr)
-
-	outputPaths, err := mi.CreateMfgImage()
+func mfgCreate(me mfg.MfgEmitter) {
+	srcPaths, dstPaths, err := me.Emit()
 	if err != nil {
 		NewtUsage(nil, err)
 	}
 
-	pathStr = ""
-	for _, path := range outputPaths {
-		pathStr += "    * " + path + "\n"
+	sort.Strings(srcPaths)
+	sort.Strings(dstPaths)
+	srcStr := ""
+	dstStr := ""
+
+	for _, p := range srcPaths {
+		srcStr += fmt.Sprintf("    %s\n", p)
 	}
+
+	for _, p := range dstPaths {
+		dstStr += fmt.Sprintf("    %s\n", p)
+	}
+
 	util.StatusMessage(util.VERBOSITY_DEFAULT,
-		"Generated the following files:\n%s", pathStr)
+		"Creating a manufacturing image from the following files:\n%s\n",
+		srcStr)
+
+	util.StatusMessage(util.VERBOSITY_DEFAULT,
+		"Generated the following files:\n%s\n",
+		dstStr)
 }
 
-func mfgLoad(mi *mfg.MfgImage) {
-	binPath, err := mi.Upload()
+func mfgLoad(basePkg *pkg.LocalPackage) {
+	binPath, err := mfg.Upload(basePkg)
 	if err != nil {
 		NewtUsage(nil, err)
 	}
@@ -101,13 +109,17 @@ func mfgCreateRunCmd(cmd *cobra.Command, args []string) {
 		NewtUsage(cmd, err)
 	}
 
-	mi, err := mfg.Load(lpkg)
+	keys, _, err := parseKeyArgs(args[2:])
 	if err != nil {
 		NewtUsage(nil, err)
 	}
 
-	mi.SetVersion(ver)
-	mfgCreate(mi)
+	me, err := mfg.LoadMfgEmitter(lpkg, ver, keys)
+	if err != nil {
+		NewtUsage(nil, err)
+	}
+
+	mfgCreate(me)
 }
 
 func mfgLoadRunCmd(cmd *cobra.Command, args []string) {
@@ -121,12 +133,7 @@ func mfgLoadRunCmd(cmd *cobra.Command, args []string) {
 		NewtUsage(cmd, err)
 	}
 
-	mi, err := mfg.Load(lpkg)
-	if err != nil {
-		NewtUsage(nil, err)
-	}
-
-	mfgLoad(mi)
+	mfgLoad(lpkg)
 }
 
 func mfgDeployRunCmd(cmd *cobra.Command, args []string) {
@@ -149,15 +156,14 @@ func mfgDeployRunCmd(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	mi, err := mfg.Load(lpkg)
+	me, err := mfg.LoadMfgEmitter(lpkg, ver, nil)
 	if err != nil {
 		NewtUsage(nil, err)
 	}
 
-	mi.SetVersion(ver)
-	mfgCreate(mi)
+	mfgCreate(me)
 
-	mfgLoad(mi)
+	mfgLoad(lpkg)
 }
 
 func AddMfgCommands(cmd *cobra.Command) {
@@ -176,7 +182,8 @@ func AddMfgCommands(cmd *cobra.Command) {
 	cmd.AddCommand(mfgCmd)
 
 	mfgCreateCmd := &cobra.Command{
-		Use:   "create <mfg-package-name> <version #.#.#.#>",
+		Use: "create <mfg-package-name> <version #.#.#.#> [signing-key-1] " +
+			"[signing-key-2] [...]",
 		Short: "Create a manufacturing flash image",
 		Run:   mfgCreateRunCmd,
 	}

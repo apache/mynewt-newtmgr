@@ -21,6 +21,7 @@ package parse
 
 import (
 	"fmt"
+	"sort"
 
 	"mynewt.apache.org/newt/util"
 )
@@ -59,13 +60,22 @@ type Node struct {
 }
 
 func (n *Node) String() string {
+	if n == nil {
+		return ""
+	}
+
 	s := ""
 
 	if n.Left != nil {
 		s += n.Left.String()
 	}
 
-	s += fmt.Sprintf("%s", n.Data)
+	if n.Left != nil && n.Right != nil {
+		// Pad binary operators with spaces on both sides.
+		s += " " + n.Data + " "
+	} else {
+		s += n.Data
+	}
 
 	if n.Right != nil {
 		s += n.Right.String()
@@ -75,6 +85,10 @@ func (n *Node) String() string {
 }
 
 func (n *Node) RpnString() string {
+	if n == nil {
+		return ""
+	}
+
 	s := fmt.Sprintf("<%s>", n.Data)
 	if n.Left != nil {
 		s += " " + n.Left.RpnString()
@@ -84,6 +98,28 @@ func (n *Node) RpnString() string {
 	}
 
 	return s
+}
+
+type nodeSorter struct {
+	nodes []*Node
+}
+
+func (s nodeSorter) Len() int {
+	return len(s.nodes)
+}
+func (s nodeSorter) Swap(i, j int) {
+	s.nodes[i], s.nodes[j] = s.nodes[j], s.nodes[i]
+}
+func (s nodeSorter) Less(i, j int) bool {
+	return s.nodes[i].String() < s.nodes[j].String()
+}
+
+func SortNodes(nodes []*Node) {
+	sort.Sort(nodeSorter{nodes})
+}
+
+func NodesEqual(a *Node, b *Node) bool {
+	return a.String() == b.String()
 }
 
 // Searches a tokenized expression.  The location of the first token that
@@ -471,6 +507,11 @@ func evalEquals(
 //
 // @return bool                 Whether the expression evaluates to true.
 func Eval(expr *Node, settings map[string]string) (bool, error) {
+	// The null expression is true by default.
+	if expr == nil {
+		return true, nil
+	}
+
 	switch expr.Code {
 	case PARSE_NOT:
 		r, err := Eval(expr.Right, settings)
@@ -554,6 +595,21 @@ func Eval(expr *Node, settings map[string]string) (bool, error) {
 	}
 }
 
+func LexAndParse(expr string) (*Node, error) {
+	tokens, err := Lex(expr)
+	if err != nil {
+		return nil, err
+	}
+
+	n, err := Parse(tokens)
+	if err != nil {
+		return nil, util.FmtNewtError("error parsing [%s]: %s",
+			expr, err.Error())
+	}
+
+	return n, nil
+}
+
 // Parses and evaluates string containing a syscfg expression.
 //
 // @param expr                  The expression to parse.
@@ -561,18 +617,27 @@ func Eval(expr *Node, settings map[string]string) (bool, error) {
 //
 // @return bool                 Whether the expression evaluates to true.
 func ParseAndEval(expr string, settings map[string]string) (bool, error) {
-	tokens, err := Lex(expr)
+	n, err := LexAndParse(expr)
 	if err != nil {
 		return false, err
 	}
 
-	n, err := Parse(tokens)
-	if err != nil {
-		return false, fmt.Errorf("error parsing [%s]: %s\n", expr, err.Error())
-	}
-
 	v, err := Eval(n, settings)
 	return v, err
+}
+
+// Parses an expression and converts it to its normalized text form.
+func NormalizeExpr(expr string) (string, error) {
+	n, err := LexAndParse(expr)
+	if err != nil {
+		return "", err
+	}
+
+	if n == nil {
+		return "", nil
+	}
+
+	return n.String(), nil
 }
 
 // Evaluates the truthfulness of a text expression.

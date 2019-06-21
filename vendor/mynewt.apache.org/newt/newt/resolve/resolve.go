@@ -24,14 +24,18 @@ import (
 	"sort"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 
-	"mynewt.apache.org/newt/newt/flash"
+	"mynewt.apache.org/newt/newt/flashmap"
+	"mynewt.apache.org/newt/newt/logcfg"
+	"mynewt.apache.org/newt/newt/newtutil"
+	"mynewt.apache.org/newt/newt/parse"
 	"mynewt.apache.org/newt/newt/pkg"
 	"mynewt.apache.org/newt/newt/project"
 	"mynewt.apache.org/newt/newt/syscfg"
+	"mynewt.apache.org/newt/newt/sysdown"
+	"mynewt.apache.org/newt/newt/sysinit"
 	"mynewt.apache.org/newt/util"
-	"mynewt.apache.org/newt/newt/ycfg"
 )
 
 // Represents a supplied API.
@@ -40,7 +44,7 @@ type resolveApi struct {
 	rpkg *ResolvePackage
 
 	// The expression which enabled this API.
-	expr string
+	expr *parse.Node
 }
 
 // Represents a required API.
@@ -48,16 +52,21 @@ type resolveReqApi struct {
 	// Whether the API requirement has been satisfied by a hard dependency.
 	satisfied bool
 
-	// The expression which enabled this API requirement.
-	expr string
+	// The set of expressions which enabled this API requirement.  If any
+	// expressions are true, the API requirement is enabled.
+	exprs parse.ExprSet
 }
 
 type Resolver struct {
 	apis             map[string]resolveApi
 	pkgMap           map[*pkg.LocalPackage]*ResolvePackage
+	seedPkgs         []*pkg.LocalPackage
 	injectedSettings map[string]string
-	flashMap         flash.FlashMap
+	flashMap         flashmap.FlashMap
 	cfg              syscfg.Cfg
+	lcfg             logcfg.LCfg
+	sysinitCfg       sysinit.SysinitCfg
+	sysdownCfg       sysdown.SysdownCfg
 
 	// [api-name][api-supplier]
 	apiConflicts map[string]map[*ResolvePackage]struct{}
@@ -67,32 +76,35 @@ type ResolveDep struct {
 	// Package being depended on.
 	Rpkg *ResolvePackage
 
-	// Name of API that generated the dependency; "" if a hard dependency.
-	Api string
+	// Set of syscfg expressions that generated this dependency.
+	Exprs parse.ExprSet
 
-	// Text of syscfg expression that generated this dependency; "" for none.
-	Expr string
+	// Represents the set of API requirements that this dependency satisfies.
+	// The map key is the API name.
+	ApiExprMap parse.ExprMap
 }
 
 type ResolvePackage struct {
 	Lpkg *pkg.LocalPackage
 	Deps map[*ResolvePackage]*ResolveDep
 
+	Apis parse.ExprMap
+
 	// Keeps track of API requirements and whether they are satisfied.
 	reqApiMap map[string]resolveReqApi
 
 	depsResolved bool
 
-	// Tracks this package's number of dependents.  If this number reaches 0,
-	// this package can be deleted from the resolver.
-	refCount int
+	// Tracks this package's dependents (things that depend on us).  If this
+	// map becomes empty, this package can be deleted from the resolver.
+	revDeps map[*ResolvePackage]struct{}
 }
 
 type ResolveSet struct {
-	// Parent resoluion.  Contains this ResolveSet.
+	// Parent resolution.  Contains this ResolveSet.
 	Res *Resolution
 
-	// All seed pacakges and their dependencies.
+	// All seed packages and their dependencies.
 	Rpkgs []*ResolvePackage
 }
 
@@ -104,6 +116,9 @@ type ApiConflict struct {
 // The result of resolving a target's configuration, APIs, and dependencies.
 type Resolution struct {
 	Cfg             syscfg.Cfg
+	LCfg            logcfg.LCfg
+	SysinitCfg      sysinit.SysinitCfg
+	SysdownCfg      sysdown.SysdownCfg
 	ApiMap          map[string]*ResolvePackage
 	UnsatisfiedApis map[string][]*ResolvePackage
 	ApiConflicts    []ApiConflict
@@ -120,11 +135,12 @@ type Resolution struct {
 func newResolver(
 	seedPkgs []*pkg.LocalPackage,
 	injectedSettings map[string]string,
-	flashMap flash.FlashMap) *Resolver {
+	flashMap flashmap.FlashMap) *Resolver {
 
 	r := &Resolver{
 		apis:             map[string]resolveApi{},
 		pkgMap:           map[*pkg.LocalPackage]*ResolvePackage{},
+		seedPkgs:         seedPkgs,
 		injectedSettings: injectedSettings,
 		flashMap:         flashMap,
 		cfg:              syscfg.NewCfg(),
@@ -160,10 +176,32 @@ func NewResolvePkg(lpkg *pkg.LocalPackage) *ResolvePackage {
 		Lpkg:      lpkg,
 		reqApiMap: map[string]resolveReqApi{},
 		Deps:      map[*ResolvePackage]*ResolveDep{},
+		revDeps:   map[*ResolvePackage]struct{}{},
 	}
 }
 
-func (r *Resolver) resolveDep(dep *pkg.Dependency, depender string) (*pkg.LocalPackage, error) {
+// useMasterPkgs replaces a resolve set's packages with their equivalents from
+// the master set.  This function is necessary to ensure only a single copy of
+// each package exists among all resolve sets in a split build.
+func (rs *ResolveSet) useMasterPkgs() error {
+	for i, rdst := range rs.Rpkgs {
+		rsrc := rs.Res.LpkgRpkgMap[rdst.Lpkg]
+		if rsrc == nil {
+			return util.FmtNewtError(
+				"cannot use master packages in resolve set; "+
+					"package \"%s\" missing",
+				rdst.Lpkg.FullName())
+		}
+
+		rs.Rpkgs[i] = rsrc
+	}
+
+	return nil
+}
+
+func (r *Resolver) resolveDep(dep *pkg.Dependency,
+	depender string) (*pkg.LocalPackage, error) {
+
 	proj := project.GetProject()
 
 	if proj.ResolveDependency(dep) == nil {
@@ -178,33 +216,60 @@ func (r *Resolver) resolveDep(dep *pkg.Dependency, depender string) (*pkg.LocalP
 // @return                      true if the package's dependency list was
 //                                  modified.
 func (rpkg *ResolvePackage) AddDep(
-	apiPkg *ResolvePackage, api string, expr string) bool {
+	depPkg *ResolvePackage, expr *parse.Node) bool {
 
-	if dep := rpkg.Deps[apiPkg]; dep != nil {
-		if dep.Api != "" && api == "" {
-			dep.Api = api
-		} else {
-			return false
+	exprString := expr.String()
+
+	var changed bool
+	var dep *ResolveDep
+	if dep = rpkg.Deps[depPkg]; dep != nil {
+		// This package already depends on dep.  If the conditional expression
+		// is new, then the existing dependency needs to be updated with the
+		// new information.  Otherwise, ignore the duplicate.
+
+		if _, ok := dep.Exprs[exprString]; !ok {
+			changed = true
 		}
 	} else {
-		rpkg.Deps[apiPkg] = &ResolveDep{
-			Rpkg: apiPkg,
-			Api:  api,
-			Expr: expr,
+		// New dependency.
+		dep = &ResolveDep{
+			Rpkg: depPkg,
 		}
+
+		rpkg.Deps[depPkg] = dep
+		depPkg.revDeps[rpkg] = struct{}{}
+		changed = true
 	}
 
-	// If this dependency came from an API requirement, record that the API
-	// requirement is now satisfied.
-	if api != "" {
-		apiReq := rpkg.reqApiMap[api]
-		apiReq.expr = expr
-		apiReq.satisfied = true
-		rpkg.reqApiMap[api] = apiReq
+	if dep.Exprs == nil {
+		dep.Exprs = parse.ExprSet{}
+	}
+	dep.Exprs[exprString] = expr
+
+	return changed
+}
+
+func (rpkg *ResolvePackage) AddApiDep(
+	depPkg *ResolvePackage, api string, exprs []*parse.Node) {
+
+	// Satisfy the API dependency.
+	rpkg.reqApiMap[api] = resolveReqApi{
+		satisfied: true,
+		exprs:     parse.NewExprSet(exprs),
 	}
 
-	apiPkg.refCount++
-	return true
+	// Add a reverse dependency to the API-supplier.
+	dep := rpkg.Deps[depPkg]
+	if dep == nil {
+		dep = &ResolveDep{
+			Rpkg: depPkg,
+		}
+		rpkg.Deps[depPkg] = dep
+	}
+	if dep.ApiExprMap == nil {
+		dep.ApiExprMap = parse.ExprMap{}
+	}
+	dep.ApiExprMap.Add(api, exprs)
 }
 
 func (r *Resolver) rpkgSlice() []*ResolvePackage {
@@ -255,26 +320,36 @@ func (r *Resolver) sortedRpkgs() []*ResolvePackage {
 	return rpkgs
 }
 
+func (r *Resolver) fillApisFor(rpkg *ResolvePackage) error {
+	settings := r.cfg.AllSettingsForLpkg(rpkg.Lpkg)
+
+	em, err := readExprMap(rpkg.Lpkg.PkgY, "pkg.apis", settings)
+	if err != nil {
+		return err
+	}
+
+	rpkg.Apis = em
+	return nil
+}
+
 // Selects the final API suppliers among all packages implementing APIs.  The
 // result gets written to the resolver's `apis` map.  If more than one package
 // implements the same API, an API conflict error is recorded.
 func (r *Resolver) selectApiSuppliers() {
 	apiMap := map[string][]resolveApi{}
 
+	// Fill each package's list of supplied APIs.
 	for _, rpkg := range r.sortedRpkgs() {
-		settings := r.cfg.AllSettingsForLpkg(rpkg.Lpkg)
-		apiStrings := rpkg.Lpkg.PkgY.GetSlice("pkg.apis", settings)
-		for _, entry := range apiStrings {
-			apiStr, ok := entry.Value.(string)
-			if ok && apiStr != "" {
-				apiMap[apiStr] = append(apiMap[apiStr], resolveApi{
-					rpkg: rpkg,
-					expr: entry.Expr,
-				})
-			}
+		r.fillApisFor(rpkg)
+		for apiName, exprSet := range rpkg.Apis {
+			apiMap[apiName] = append(apiMap[apiName], resolveApi{
+				rpkg: rpkg,
+				expr: exprSet.Disjunction(),
+			})
 		}
 	}
 
+	// Detect API conflicts and determine which packages supply which APIs.
 	apiNames := make([]string, 0, len(apiMap))
 	for name, _ := range apiMap {
 		apiNames = append(apiNames, name)
@@ -299,26 +374,77 @@ func (r *Resolver) selectApiSuppliers() {
 }
 
 // Populates the specified package's set of API requirements.
-func (r *Resolver) calcApiReqsFor(rpkg *ResolvePackage) {
+func (r *Resolver) calcApiReqsFor(rpkg *ResolvePackage) error {
 	settings := r.cfg.AllSettingsForLpkg(rpkg.Lpkg)
 
-	reqApiEntries := rpkg.Lpkg.PkgY.GetSlice("pkg.req_apis", settings)
-	for _, entry := range reqApiEntries {
-		apiStr, ok := entry.Value.(string)
-		if ok && apiStr != "" {
-			rpkg.reqApiMap[apiStr] = resolveReqApi{
-				satisfied: false,
-				expr:      "",
-			}
+	em, err := readExprMap(rpkg.Lpkg.PkgY, "pkg.req_apis", settings)
+	if err != nil {
+		return err
+	}
+
+	for api, es := range em {
+		rpkg.reqApiMap[api] = resolveReqApi{
+			satisfied: false,
+			exprs:     es,
 		}
 	}
+
+	return nil
 }
 
 // Populates all packages' API requirements sets.
-func (r *Resolver) calcApiReqs() {
+func (r *Resolver) calcApiReqs() error {
 	for _, rpkg := range r.pkgMap {
-		r.calcApiReqsFor(rpkg)
+		if err := r.calcApiReqsFor(rpkg); err != nil {
+			return err
+		}
 	}
+
+	return nil
+}
+
+// Completely removes a package from the resolver.  This is used to prune
+// packages when newly-discovered syscfg values nullify dependencies.
+func (r *Resolver) deletePkg(rpkg *ResolvePackage) error {
+	i := 0
+	for i < len(r.seedPkgs) {
+		lpkg := r.seedPkgs[i]
+		if lpkg == rpkg.Lpkg {
+			fmt.Printf("DELETING SEED: %s (%p)\n", lpkg.FullName(), lpkg)
+			r.seedPkgs = append(r.seedPkgs[:i], r.seedPkgs[i+1:]...)
+		} else {
+			i++
+		}
+	}
+	delete(r.pkgMap, rpkg.Lpkg)
+
+	// Delete the package from syscfg.
+	r.cfg.DeletePkg(rpkg.Lpkg)
+
+	// Remove all dependencies on the deleted package.
+	for revdep, _ := range rpkg.revDeps {
+		delete(revdep.Deps, rpkg)
+	}
+
+	// Remove all reverse dependencies pointing to the deleted package.  If the
+	// deleted package is the only depender for any other packages (i.e., if
+	// any of its dependencies have only one reverse dependency),
+	// delete them as well.
+	for dep, _ := range rpkg.Deps {
+		if len(dep.revDeps) == 0 {
+			return util.FmtNewtError(
+				"package %s unexpectedly has 0 reverse dependencies",
+				dep.Lpkg.FullName())
+		}
+		delete(dep.revDeps, rpkg)
+		if len(dep.revDeps) == 0 {
+			if err := r.deletePkg(dep); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 // @return bool                 True if this this function changed the resolver
@@ -330,21 +456,26 @@ func (r *Resolver) loadDepsForPkg(rpkg *ResolvePackage) (bool, error) {
 
 	changed := false
 
-	var depEntries []ycfg.YCfgEntry
+	var depEm map[*parse.Node][]string
+	var err error
 
 	if rpkg.Lpkg.Type() == pkg.PACKAGE_TYPE_TRANSIENT {
-		depEntries = rpkg.Lpkg.PkgY.GetSlice("pkg.link", nil)
+		depEm, err = getExprMapStringSlice(rpkg.Lpkg.PkgY, "pkg.link", nil)
 	} else {
-		depEntries = rpkg.Lpkg.PkgY.GetSlice("pkg.deps", settings)
+		depEm, err = getExprMapStringSlice(rpkg.Lpkg.PkgY, "pkg.deps",
+			settings)
 	}
+	if err != nil {
+		return false, err
+	}
+
 	depender := rpkg.Lpkg.Name()
 
-	seen := make(map[*ResolvePackage]struct{}, len(rpkg.Deps))
-
-	for _, entry := range depEntries {
-		depStr, ok := entry.Value.(string)
-		if ok && depStr != "" {
-			newDep, err := pkg.NewDependency(rpkg.Lpkg.Repo(), depStr)
+	oldDeps := rpkg.Deps
+	rpkg.Deps = make(map[*ResolvePackage]*ResolveDep, len(oldDeps))
+	for expr, depNames := range depEm {
+		for _, depName := range depNames {
+			newDep, err := pkg.NewDependency(rpkg.Lpkg.Repo(), depName)
 			if err != nil {
 				return false, err
 			}
@@ -355,10 +486,7 @@ func (r *Resolver) loadDepsForPkg(rpkg *ResolvePackage) (bool, error) {
 			}
 
 			depRpkg, _ := r.addPkg(lpkg)
-			if rpkg.AddDep(depRpkg, "", entry.Expr) {
-				changed = true
-			}
-			seen[depRpkg] = struct{}{}
+			rpkg.AddDep(depRpkg, expr)
 		}
 	}
 
@@ -366,20 +494,24 @@ func (r *Resolver) loadDepsForPkg(rpkg *ResolvePackage) (bool, error) {
 	// a new syscfg setting was discovered which causes this package's
 	// dependency list to be overwritten).  Detect and delete these
 	// relationships.
-	for rdep, _ := range rpkg.Deps {
-		if _, ok := seen[rdep]; !ok {
-			delete(rpkg.Deps, rdep)
-			rdep.refCount--
+	for rdep, _ := range oldDeps {
+		if _, ok := rpkg.Deps[rdep]; !ok {
+			delete(rdep.revDeps, rpkg)
 			changed = true
 
 			// If we just deleted the last reference to a package, remove the
 			// package entirely from the resolver and syscfg.
-			if rdep.refCount == 0 {
-				delete(r.pkgMap, rdep.Lpkg)
-
-				// Delete the package from syscfg.
-				r.cfg.DeletePkg(rdep.Lpkg)
+			if len(rdep.revDeps) == 0 {
+				if err := r.deletePkg(rdep); err != nil {
+					return true, err
+				}
 			}
+		}
+	}
+
+	for rdep, _ := range rpkg.Deps {
+		if _, ok := oldDeps[rdep]; !ok {
+			changed = true
 		}
 	}
 
@@ -428,7 +560,8 @@ func (r *Resolver) reloadCfg() (bool, error) {
 
 	cfg.ResolveValueRefs()
 
-	// Determine if any settings have changed.
+	// Determine if any new settings have been added or if any existing
+	// settings have changed.
 	for k, v := range cfg.Settings {
 		oldval, ok := r.cfg.Settings[k]
 		if !ok || len(oldval.History) != len(v.History) {
@@ -437,34 +570,340 @@ func (r *Resolver) reloadCfg() (bool, error) {
 		}
 	}
 
+	// Determine if any existing settings have been removed.
+	for k, _ := range r.cfg.Settings {
+		if _, ok := cfg.Settings[k]; !ok {
+			r.cfg = cfg
+			return true, nil
+		}
+	}
+
 	return false, nil
 }
 
-func (r *Resolver) resolveDepsOnce() (bool, error) {
-	// Circularly resolve dependencies, APIs, and required APIs until no new
-	// ones exist.
-	newDeps := false
-	for {
-		reprocess := false
-		for _, rpkg := range r.pkgMap {
-			newDeps, err := r.resolvePkg(rpkg)
+// traceToSeed determines if the specified package can be reached from a seed
+// package via a traversal of the dependency graph.  The supplied settings are
+// used to determine the validity of dependencies in the graph.
+func (rpkg *ResolvePackage) traceToSeed(
+	settings map[string]string) (bool, error) {
+
+	seen := map[*ResolvePackage]struct{}{}
+
+	// A nested function is used here so that the `seen` map can be used across
+	// multiple invocations.
+	var iter func(cur *ResolvePackage) (bool, error)
+	iter = func(cur *ResolvePackage) (bool, error) {
+		// Don't process the same package twice.
+		if _, ok := seen[cur]; ok {
+			return false, nil
+		}
+		seen[cur] = struct{}{}
+
+		// A type greater than "library" is a seed package.
+		if cur.Lpkg.Type() > pkg.PACKAGE_TYPE_LIB {
+			return true, nil
+		}
+
+		// Repeat the trace recursively for each depending package.
+		for depender, _ := range cur.revDeps {
+			rdep := depender.Deps[cur]
+
+			// Only process this reverse dependency if it is valid given the
+			// specified syscfg.
+			expr := rdep.Exprs.Disjunction()
+			depValid, err := parse.Eval(expr, settings)
 			if err != nil {
 				return false, err
 			}
 
-			if newDeps {
-				// The new dependencies need to be processed.  Iterate again
-				// after this iteration completes.
-				reprocess = true
+			if depValid {
+				traced, err := iter(depender)
+				if err != nil {
+					return false, err
+				}
+				if traced {
+					// Depender can be traced to a seed package.
+					return true, nil
+				}
 			}
 		}
 
-		if !reprocess {
-			break
+		// All dependencies processed without reaching a seed package.
+		return false, nil
+	}
+
+	return iter(rpkg)
+}
+
+// detectImposter returns true if the package is an imposter.  A package is an
+// imposter if it is in the dependency graph by virtue of its own syscfg
+// defines and overrides.  For example, say we have a package `foo`:
+//
+//     pkg.name: foo
+//     syscfg.defs:
+//         FOO_SETTING:
+//		       value: 1
+//
+// Then we have a BSP package:
+//
+//     pkg.name: my_bsp
+//     pkg.deps.FOO_SETTING:
+//         - foo
+//
+// If this is the only dependency on `foo`, then `foo` is an imposter.  It
+// should be removed from the graph, and its syscfg defines and overrides
+// should be deleted.
+//
+// Because the syscfg state changes as newt discovers new dependencies, it is
+// possible for imposters to end up in the graph.
+func (r *Resolver) detectImposter(rpkg *ResolvePackage) (bool, error) {
+	// Calculate a new syscfg instance, pretending the specified package
+	// doesn't exist.
+	settings := make(map[string]syscfg.CfgEntry, len(r.cfg.Settings))
+	for k, src := range r.cfg.Settings {
+		// Copy the source entry in full, then check its history for the
+		// potential imposter.
+		dst := src
+		dst.History = make([]syscfg.CfgPoint, len(src.History))
+		copy(dst.History, src.History)
+
+		for i, _ := range dst.History {
+			if dst.History[i].Source == rpkg.Lpkg {
+				if i == 0 {
+					// This setting is defined by the package; remove it
+					// entirely.
+					dst.History = nil
+				} else {
+					// Remove the package's override.
+					dst.History = append(dst.History[:i], dst.History[i+1:]...)
+				}
+				break
+			}
+		}
+
+		// Retain the setting if it wasn't defined by the potential imposter.
+		if len(dst.History) > 0 {
+			settings[k] = dst
 		}
 	}
 
-	return newDeps, nil
+	// See if the package can still be traced to a seed package when the
+	// modified settings are used.
+	found, err := rpkg.traceToSeed(syscfg.SettingValues(settings))
+	if err != nil {
+		return false, err
+	}
+
+	return !found, nil
+}
+
+// detectImpostersWorker reads packages from a channel and determines if they
+// are imposters.  It is meant to be run in parallel via multiple go routines.
+//
+// See detectImposter() for a definition of "imposter package".
+func (r *Resolver) detectImpostersWorker(
+	jobsCh <-chan *ResolvePackage,
+	stopCh chan struct{},
+	resultsCh chan<- *ResolvePackage,
+	errCh chan<- error,
+) {
+
+	// Repeatedly process jobs until any of:
+	// 1. Stop signal from another go routine.
+	// 2. Error encountered.
+	// 3. No more jobs.
+	for {
+		select {
+		case <-stopCh:
+			// Re-enqueue the stop signal for the other go routines.
+			stopCh <- struct{}{}
+
+			// Completed without error.
+			errCh <- nil
+			return
+
+		case rpkg := <-jobsCh:
+			isImposter, err := r.detectImposter(rpkg)
+			if err != nil {
+				stopCh <- struct{}{}
+				errCh <- err
+				return
+			}
+
+			if isImposter {
+				// Signal that this package can be pruned.
+				resultsCh <- rpkg
+			}
+
+		default:
+			// No more jobs to process.
+			errCh <- nil
+			return
+		}
+	}
+}
+
+// pruneImposters identifies and deletes imposters contained by the resolver.
+// This function should be called repeatedly until no more imposters are
+// identified.  It returns true if any imposters were found and deleted.
+func (r *Resolver) pruneImposters() (bool, error) {
+	jobsCh := make(chan *ResolvePackage, len(r.pkgMap))
+	defer close(jobsCh)
+
+	stopCh := make(chan struct{}, newtutil.NewtNumJobs)
+	defer close(stopCh)
+
+	resultsCh := make(chan *ResolvePackage, len(r.pkgMap))
+	defer close(resultsCh)
+
+	errCh := make(chan error, newtutil.NewtNumJobs)
+	defer close(errCh)
+
+	seedMap := map[*pkg.LocalPackage]struct{}{}
+	for _, lpkg := range r.seedPkgs {
+		seedMap[lpkg] = struct{}{}
+	}
+
+	// Enqueue all packages to the jobs channel.
+	for _, rpkg := range r.pkgMap {
+		if _, ok := seedMap[rpkg.Lpkg]; !ok {
+			jobsCh <- rpkg
+		}
+	}
+
+	// Iterate through all packages with a collection of go routines.
+	for i := 0; i < newtutil.NewtNumJobs; i++ {
+		go r.detectImpostersWorker(jobsCh, stopCh, resultsCh, errCh)
+	}
+
+	// Collect errors from each routine.  Abort on first error.
+	for i := 0; i < newtutil.NewtNumJobs; i++ {
+		if err := <-errCh; err != nil {
+			return false, err
+		}
+	}
+
+	// Delete all imposter packages.
+	anyPruned := false
+	for {
+		select {
+		case rpkg := <-resultsCh:
+			// This package may have already been deleted indirectly via a
+			// prior delete.  If it has no more reverse dependencies, it is
+			// already invalid.
+			if len(rpkg.revDeps) > 0 {
+				if err := r.deletePkg(rpkg); err != nil {
+					return false, err
+				}
+				anyPruned = true
+			}
+
+		default:
+			return anyPruned, nil
+		}
+	}
+}
+
+// @return bool                 True if any packages were pruned, false
+//                                  otherwise.
+// @return err                  Error
+func (r *Resolver) pruneOrphans() (bool, error) {
+	seenMap := map[*ResolvePackage]struct{}{}
+
+	// This function traverses the specified package's dependency list,
+	// recording each visited packges in `seenMap`.
+	var visit func(rpkg *ResolvePackage)
+	visit = func(rpkg *ResolvePackage) {
+		if _, ok := seenMap[rpkg]; ok {
+			return
+		}
+
+		seenMap[rpkg] = struct{}{}
+		for dep, _ := range rpkg.Deps {
+			visit(dep)
+		}
+	}
+
+	// Starting from each seed package, recursively traverse the package's
+	// dependency list, keeping track of which packages were visited.
+	for _, lpkg := range r.seedPkgs {
+		rpkg := r.pkgMap[lpkg]
+		if rpkg == nil {
+			panic(fmt.Sprintf("Resolver lacks mapping for seed package %s (%p)", lpkg.FullName(), lpkg))
+		}
+
+		visit(rpkg)
+	}
+
+	// Any non-visited packages in the resolver are orphans and can be removed.
+	anyPruned := false
+	for _, rpkg := range r.pkgMap {
+		if _, ok := seenMap[rpkg]; !ok {
+			anyPruned = true
+			if err := r.deletePkg(rpkg); err != nil {
+				return false, err
+			}
+		}
+	}
+
+	return anyPruned, nil
+}
+
+func (r *Resolver) resolveHardDepsOnce() (bool, error) {
+	// Circularly resolve dependencies, APIs, and required APIs until no new
+	// ones exist.
+	reprocess := false
+	for _, rpkg := range r.pkgMap {
+		newDeps, err := r.resolvePkg(rpkg)
+		if err != nil {
+			return false, err
+		}
+
+		if newDeps {
+			// The new dependencies need to be processed.  Iterate again
+			// after this iteration completes.
+			reprocess = true
+		}
+	}
+
+	if reprocess {
+		return true, nil
+	}
+
+	// Prune orphan packages.
+	anyPruned, err := r.pruneOrphans()
+	if err != nil {
+		return false, err
+	}
+	if anyPruned {
+		return true, nil
+	}
+
+	// Prune imposter packages.
+	anyPruned, err = r.pruneImposters()
+	if err != nil {
+		return false, err
+	}
+	if anyPruned {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+// Fully resolves all hard dependencies (i.e., packages listed in `pkg.deps`;
+// not API dependencies).
+func (r *Resolver) resolveHardDeps() error {
+	for {
+		reprocess, err := r.resolveHardDepsOnce()
+		if err != nil {
+			return err
+		}
+
+		if !reprocess {
+			return nil
+		}
+	}
 }
 
 // Given a fully calculated syscfg and API map, resolves package dependencies
@@ -474,7 +913,7 @@ func (r *Resolver) resolveDepsOnce() (bool, error) {
 // resolved separately, after the master syscfg and API map have been
 // calculated.
 func (r *Resolver) resolveDeps() ([]*ResolvePackage, error) {
-	if _, err := r.resolveDepsOnce(); err != nil {
+	if err := r.resolveHardDeps(); err != nil {
 		return nil, err
 	}
 
@@ -483,7 +922,9 @@ func (r *Resolver) resolveDeps() ([]*ResolvePackage, error) {
 	r.selectApiSuppliers()
 
 	// Determine which packages have API requirements.
-	r.calcApiReqs()
+	if err := r.calcApiReqs(); err != nil {
+		return nil, err
+	}
 
 	// Satisfy API requirements.
 	if err := r.resolveApiDeps(); err != nil {
@@ -499,7 +940,7 @@ func (r *Resolver) resolveDeps() ([]*ResolvePackage, error) {
 // 2. Determines which packages satisfy which API requirements.
 // 3. Resolves package dependencies by populating the resolver's package map.
 func (r *Resolver) resolveDepsAndCfg() error {
-	if _, err := r.resolveDepsOnce(); err != nil {
+	if err := r.resolveHardDeps(); err != nil {
 		return err
 	}
 
@@ -518,12 +959,11 @@ func (r *Resolver) resolveDepsAndCfg() error {
 			}
 		}
 
-		newDeps, err := r.resolveDepsOnce()
-		if err != nil {
+		if err := r.resolveHardDeps(); err != nil {
 			return err
 		}
 
-		if !newDeps && !cfgChanged {
+		if !cfgChanged {
 			break
 		}
 	}
@@ -533,12 +973,19 @@ func (r *Resolver) resolveDepsAndCfg() error {
 	r.selectApiSuppliers()
 
 	// Determine which packages have API requirements.
-	r.calcApiReqs()
+	if err := r.calcApiReqs(); err != nil {
+		return err
+	}
 
 	// Satisfy API requirements.
 	if err := r.resolveApiDeps(); err != nil {
 		return err
 	}
+
+	lpkgs := RpkgSliceToLpkgSlice(r.rpkgSlice())
+	r.lcfg = logcfg.Read(lpkgs, &r.cfg)
+	r.sysinitCfg = sysinit.Read(lpkgs, &r.cfg)
+	r.sysdownCfg = sysdown.Read(lpkgs, &r.cfg)
 
 	// Log the final syscfg.
 	r.cfg.Log()
@@ -570,8 +1017,7 @@ func (r *Resolver) resolveApiDeps() error {
 			// hard dependency to the package.  Otherwise, record an
 			// unsatisfied API requirement with an empty API struct.
 			if ok && api.rpkg != nil {
-				rpkg.AddDep(api.rpkg, apiString,
-					joinExprs(api.expr, reqApi.expr))
+				rpkg.AddApiDep(api.rpkg, apiString, reqApi.exprs.Exprs())
 			} else if !ok {
 				r.apis[apiString] = resolveApi{}
 			}
@@ -608,6 +1054,10 @@ func (r *Resolver) apiResolution() (
 		}
 	}
 
+	for _, slice := range unsatisfied {
+		SortResolvePkgs(slice)
+	}
+
 	return apiMap, unsatisfied
 }
 
@@ -615,7 +1065,7 @@ func ResolveFull(
 	loaderSeeds []*pkg.LocalPackage,
 	appSeeds []*pkg.LocalPackage,
 	injectedSettings map[string]string,
-	flashMap flash.FlashMap) (*Resolution, error) {
+	flashMap flashmap.FlashMap) (*Resolution, error) {
 
 	// First, calculate syscfg and determine which package provides each
 	// required API.  Syscfg and APIs are project-wide; that is, they are
@@ -632,11 +1082,13 @@ func ResolveFull(
 
 	res := newResolution()
 	res.Cfg = r.cfg
+	res.LCfg = r.lcfg
+	res.SysinitCfg = r.sysinitCfg
+	res.SysdownCfg = r.sysdownCfg
 
 	// Determine which package satisfies each API and which APIs are
 	// unsatisfied.
-	apiMap := map[string]*ResolvePackage{}
-	apiMap, res.UnsatisfiedApis = r.apiResolution()
+	res.ApiMap, res.UnsatisfiedApis = r.apiResolution()
 
 	for api, m := range r.apiConflicts {
 		c := ApiConflict{
@@ -676,7 +1128,7 @@ func ResolveFull(
 	}
 
 	// Otherwise, we need to resolve dependencies separately for:
-	// 1. The set of loader pacakges, and
+	// 1. The set of loader packages, and
 	// 2. The set of app packages.
 	//
 	// These need to be resolved separately so that it is possible later to
@@ -684,7 +1136,7 @@ func ResolveFull(
 
 	// It is OK if the app requires an API that is supplied by the loader.
 	// Ensure each set of packages has access to the API-providers.
-	for _, rpkg := range apiMap {
+	for _, rpkg := range res.ApiMap {
 		loaderSeeds = append(loaderSeeds, rpkg.Lpkg)
 		appSeeds = append(appSeeds, rpkg.Lpkg)
 	}
@@ -697,6 +1149,9 @@ func ResolveFull(
 
 	res.LoaderSet.Rpkgs, err = r.resolveDeps()
 	if err != nil {
+		return nil, err
+	}
+	if err := res.LoaderSet.useMasterPkgs(); err != nil {
 		return nil, err
 	}
 
@@ -713,6 +1168,9 @@ func ResolveFull(
 
 	res.AppSet.Rpkgs, err = r.resolveDeps()
 	if err != nil {
+		return nil, err
+	}
+	if err := res.AppSet.useMasterPkgs(); err != nil {
 		return nil, err
 	}
 
@@ -748,6 +1206,9 @@ func (res *Resolution) ErrorText() string {
 	}
 
 	str += res.Cfg.ErrorText()
+	str += res.LCfg.ErrorText()
+	str += res.SysinitCfg.ErrorText()
+	str += res.SysdownCfg.ErrorText()
 
 	str = strings.TrimSpace(str)
 	if str != "" {

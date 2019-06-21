@@ -20,12 +20,13 @@
 package pkg
 
 import (
+	"fmt"
 	"runtime"
 	"strings"
 
-	"mynewt.apache.org/newt/newt/flash"
+	"mynewt.apache.org/newt/newt/config"
+	"mynewt.apache.org/newt/newt/flashmap"
 	"mynewt.apache.org/newt/newt/interfaces"
-	"mynewt.apache.org/newt/newt/newtutil"
 	"mynewt.apache.org/newt/newt/ycfg"
 	"mynewt.apache.org/newt/util"
 )
@@ -40,8 +41,12 @@ type BspPackage struct {
 	Part2LinkerScripts []string /* scripts to link app to second partition */
 	DownloadScript     string
 	DebugScript        string
-	FlashMap           flash.FlashMap
+	FlashMap           flashmap.FlashMap
 	BspV               ycfg.YCfg
+}
+
+func (bsp *BspPackage) BspYamlPath() string {
+	return fmt.Sprintf("%s/%s", bsp.BasePath(), BSP_YAML_FILENAME)
 }
 
 func (bsp *BspPackage) resolvePathSetting(
@@ -111,12 +116,11 @@ func (bsp *BspPackage) Reload(settings map[string]string) error {
 	}
 	settings[strings.ToUpper(runtime.GOOS)] = "1"
 
-	bsp.BspV, err = newtutil.ReadConfig(bsp.BasePath(),
-		strings.TrimSuffix(BSP_YAML_FILENAME, ".yml"))
+	bsp.BspV, err = config.ReadFile(bsp.BspYamlPath())
 	if err != nil {
 		return err
 	}
-	bsp.AddCfgFilename(bsp.BasePath() + BSP_YAML_FILENAME)
+	bsp.AddCfgFilename(bsp.BspYamlPath())
 
 	bsp.CompilerName = bsp.BspV.GetValString("bsp.compiler", settings)
 	bsp.Arch = bsp.BspV.GetValString("bsp.arch", settings)
@@ -158,7 +162,7 @@ func (bsp *BspPackage) Reload(settings map[string]string) error {
 		return util.NewNewtError("BSP does not specify a flash map " +
 			"(bsp.flash_map)")
 	}
-	bsp.FlashMap, err = flash.Read(ymlFlashMap)
+	bsp.FlashMap, err = flashmap.Read(ymlFlashMap)
 	if err != nil {
 		return err
 	}
@@ -171,10 +175,12 @@ func NewBspPackage(lpkg *LocalPackage) (*BspPackage, error) {
 		CompilerName:   "",
 		DownloadScript: "",
 		DebugScript:    "",
-		BspV:           ycfg.YCfg{},
 	}
+
 	lpkg.Load()
 	bsp.LocalPackage = lpkg
+	bsp.BspV = ycfg.NewYCfg(bsp.BspYamlPath())
+
 	err := bsp.Reload(nil)
 
 	return bsp, err

@@ -27,10 +27,11 @@ import (
 	"sort"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cast"
 
 	"mynewt.apache.org/newt/newt/compat"
+	"mynewt.apache.org/newt/newt/config"
 	"mynewt.apache.org/newt/newt/downloader"
 	"mynewt.apache.org/newt/newt/interfaces"
 	"mynewt.apache.org/newt/newt/newtutil"
@@ -100,6 +101,10 @@ func (r *Repo) ignoreDir(dir string) bool {
 		}
 	}
 	return false
+}
+
+func (r *Repo) Downloader() downloader.Downloader {
+	return r.downloader
 }
 
 func (repo *Repo) FilteredSearchList(
@@ -497,8 +502,7 @@ func (r *Repo) readDepRepos(yc ycfg.YCfg) error {
 func (r *Repo) Read() error {
 	r.Init(r.Name(), r.downloader)
 
-	yc, err := newtutil.ReadConfig(r.repoFilePath(),
-		strings.TrimSuffix(REPO_FILE_NAME, ".yml"))
+	yc, err := config.ReadFile(r.repoFilePath() + "/" + REPO_FILE_NAME)
 	if err != nil {
 		return err
 	}
@@ -508,7 +512,8 @@ func (r *Repo) Read() error {
 		log.Debugf("Printing version %s for remote repo %s", versStr, r.name)
 		vers, err := newtutil.ParseRepoVersion(versStr)
 		if err != nil {
-			return err
+			return util.PreNewtError(err,
+				"failure parsing version for repo \"%s\"", r.Name())
 		}
 
 		// store commit->version mapping

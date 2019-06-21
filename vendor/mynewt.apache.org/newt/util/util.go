@@ -22,6 +22,7 @@ package util
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -36,12 +37,13 @@ import (
 	"syscall"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 var Verbosity int
 var PrintShellCmds bool
 var ExecuteShell bool
+var EscapeShellCmds bool = runtime.GOOS == "windows"
 var logFile *os.File
 
 func ParseEqualsPair(v string) (string, string, error) {
@@ -101,6 +103,14 @@ func ChildNewtError(parent error) *NewtError {
 	newtErr := NewNewtError(parent.Error())
 	newtErr.Parent = parent
 	return newtErr
+}
+
+func FmtChildNewtError(parent error, format string,
+	args ...interface{}) *NewtError {
+
+	ne := ChildNewtError(parent)
+	ne.Text = fmt.Sprintf(format, args...)
+	return ne
 }
 
 // Print Silent, Quiet and Verbose aware status messages to stdout.
@@ -253,6 +263,16 @@ func Init(logLevel log.Level, logFile string, verbosity int) error {
 	return nil
 }
 
+// Escapes special characters for Windows builds (not in an MSYS environment).
+func fixupCmdArgs(args []string) {
+	if EscapeShellCmds {
+		for i, _ := range args {
+			args[i] = strings.Replace(args[i], "{", "\\{", -1)
+			args[i] = strings.Replace(args[i], "}", "\\}", -1)
+		}
+	}
+}
+
 func LogShellCmd(cmdStrs []string, env []string) {
 	envLogStr := ""
 	if len(env) > 0 {
@@ -289,6 +309,9 @@ func ShellCommandLimitDbgOutput(
 
 	var name string
 	var args []string
+
+	// Escape special characters for Windows.
+	fixupCmdArgs(cmdStrs)
 
 	if logCmd {
 		LogShellCmd(cmdStrs, env)
@@ -345,12 +368,13 @@ func ShellCommand(cmdStrs []string, env []string) ([]byte, error) {
 
 // Run interactive shell command
 func ShellInteractiveCommand(cmdStr []string, env []string) error {
+	// Escape special characters for Windows.
+	fixupCmdArgs(cmdStr)
+
 	log.Print("[VERBOSE] " + cmdStr[0])
 
-	//
 	// Block SIGINT, at least.
 	// Otherwise Ctrl-C meant for gdb would kill newt.
-	//
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	signal.Notify(c, syscall.SIGTERM)
@@ -477,6 +501,21 @@ func MoveDir(srcDir string, destDir string) error {
 	}
 
 	return nil
+}
+
+func CallInDir(path string, execFunc func() error) error {
+	wd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	os.Chdir(path)
+
+	err = execFunc()
+
+	os.Chdir(wd)
+
+	return err
 }
 
 // Reads each line from the specified text file into an array of strings.  If a
@@ -695,4 +734,46 @@ func StringMapStringToItfMapItf(
 	}
 
 	return imi
+}
+
+// FileContains indicates whether the specified file's contents are equal to
+// the provided byte slice.
+func FileContains(contents []byte, path string) (bool, error) {
+	oldSrc, err := ioutil.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// File doesn't exist; contents aren't equal.
+			return false, nil
+		}
+
+		return false, NewNewtError(err.Error())
+	}
+
+	rc := bytes.Compare(oldSrc, contents)
+	return rc == 0, nil
+}
+
+// Keeps track of warnings that have already been reported.
+// [warning-text] => struct{}
+var warnings = map[string]struct{}{}
+
+// Displays the specified warning if it has not been displayed yet.
+func OneTimeWarning(text string, args ...interface{}) {
+	body := fmt.Sprintf(text, args...)
+	if _, ok := warnings[body]; !ok {
+		warnings[body] = struct{}{}
+
+		body := fmt.Sprintf(text, args...)
+		StatusMessage(VERBOSITY_QUIET, "WARNING: %s\n", body)
+	}
+}
+
+func MarshalJSONStringer(sr fmt.Stringer) ([]byte, error) {
+	s := sr.String()
+	j, err := json.Marshal(s)
+	if err != nil {
+		return nil, ChildNewtError(err)
+	}
+
+	return j, nil
 }

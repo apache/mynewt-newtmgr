@@ -33,9 +33,9 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 
-	"mynewt.apache.org/newt/newt/newtutil"
+	"mynewt.apache.org/newt/newt/config"
 	"mynewt.apache.org/newt/newt/project"
 	"mynewt.apache.org/newt/newt/symbol"
 	"mynewt.apache.org/newt/newt/ycfg"
@@ -279,7 +279,7 @@ func loadFlags(yc ycfg.YCfg, settings map[string]string, key string) []string {
 }
 
 func (c *Compiler) load(compilerDir string, buildProfile string) error {
-	yc, err := newtutil.ReadConfig(compilerDir, "compiler")
+	yc, err := config.ReadFile(compilerDir + "/" + COMPILER_FILENAME)
 	if err != nil {
 		return err
 	}
@@ -578,7 +578,7 @@ func (c *Compiler) CompileFile(file string, compilerType int) error {
 	}
 
 	// Tell the dependency tracker that an object file was just rebuilt.
-	c.depTracker.MostRecent = time.Now()
+	c.depTracker.SetMostRecent(objPath, time.Now())
 
 	return nil
 }

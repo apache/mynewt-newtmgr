@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"sync"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/go-ble/ble"
 	"github.com/runtimeco/go-coap"
 	"golang.org/x/net/context"

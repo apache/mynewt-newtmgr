@@ -25,10 +25,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 
-	"mynewt.apache.org/newt/newt/image"
 	"mynewt.apache.org/newt/newt/interfaces"
 	"mynewt.apache.org/newt/newt/newtutil"
 	"mynewt.apache.org/newt/newt/pkg"
@@ -91,9 +91,6 @@ func NewBuilder(
 	for api, rpkg := range apiMap {
 		bpkg := b.PkgMap[rpkg]
 		if bpkg == nil {
-			for _, rpkg := range b.sortedRpkgs() {
-				log.Debugf("    * %s", rpkg.Lpkg.Name())
-			}
 			return nil, util.FmtNewtError(
 				"Unexpected unsatisfied API: %s; required by: %s", api,
 				rpkg.Lpkg.Name())
@@ -259,13 +256,13 @@ func collectCompileEntriesDir(srcDir string, c *toolchain.Compiler,
 //
 // 3. Else, "" is returned (falls back to the target's general build profile).
 func (b *Builder) buildProfileFor(bpkg *BuildPackage) string {
-	bp := bpkg.BuildProfile(b)
+	tgt := b.targetBuilder.GetTarget()
+	bp := tgt.PkgProfiles[bpkg.rpkg.Lpkg.FullName()]
 	if bp != "" {
 		return bp
 	}
 
-	tgt := b.targetBuilder.GetTarget()
-	return tgt.PkgProfiles[bpkg.rpkg.Lpkg.FullName()]
+	return bpkg.BuildProfile(b)
 }
 
 func (b *Builder) newCompiler(bpkg *BuildPackage,
@@ -278,7 +275,20 @@ func (b *Builder) newCompiler(bpkg *BuildPackage,
 
 	c, err := b.targetBuilder.NewCompiler(dstDir, buildProfile)
 	if err != nil {
-		return nil, err
+		// If default build profile was used, just return an error.
+		// Otherwise we emit a warning and try with default build profile.
+		if buildProfile == "" {
+			return nil, err
+		}
+
+		log.Warnf("Unsupported build profile for package, using default build profile "+
+			"(pkg=\"%s\" build_profile=\"%s\" OS=\"%s\")",
+			bpkg.rpkg.Lpkg.FullName(), buildProfile, runtime.GOOS)
+
+		c, err = b.targetBuilder.NewCompiler(dstDir, "")
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	c.AddInfo(b.compilerInfo)
@@ -472,7 +482,8 @@ func (b *Builder) PrepBuild() error {
 
 	// Define a cpp symbol indicating the BSP architecture, name of the
 	// BSP and app.
-
+	// The arch, app, and bsp defines are kept here for backwards compatiblity.
+	// Users should prefer the equivalent syscfg defines.
 	archName := b.targetBuilder.bspPkg.Arch
 	bspCi.Cflags = append(bspCi.Cflags, "-DARCH_"+util.CIdentifier(archName))
 	bspCi.Cflags = append(bspCi.Cflags, "-DARCH_NAME="+archName+"")
@@ -707,6 +718,10 @@ func (b *Builder) FetchSymbolMap() (error, *symbol.SymbolMap) {
 	return nil, loaderSm
 }
 
+func (b *Builder) GetCompilerInfo() *toolchain.CompilerInfo {
+	return b.compilerInfo
+}
+
 func (b *Builder) GetTarget() *target.Target {
 	return b.targetBuilder.GetTarget()
 }
@@ -777,38 +792,6 @@ func (b *Builder) buildRomElf(common *symbol.SymbolMap) error {
 		return err
 	}
 	return nil
-}
-
-func (b *Builder) CreateImage(version string,
-	keystr string, keyId uint8, loaderImg *image.Image) (*image.Image, error) {
-
-	img, err := image.NewImage(b.AppBinPath(), b.AppImgPath())
-	if err != nil {
-		return nil, err
-	}
-
-	err = img.SetVersion(version)
-	if err != nil {
-		return nil, err
-	}
-
-	if keystr != "" {
-		err = img.SetSigningKey(keystr, keyId)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	img.HeaderSize = uint(b.targetBuilder.target.HeaderSize)
-	err = img.Generate(loaderImg)
-	if err != nil {
-		return nil, err
-	}
-
-	util.StatusMessage(util.VERBOSITY_DEFAULT,
-		"App image succesfully generated: %s\n", img.TargetImg)
-
-	return img, nil
 }
 
 // Deletes files that should never be reused for a subsequent build.  This

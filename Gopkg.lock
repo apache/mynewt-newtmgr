@@ -2,212 +2,257 @@
 
 
 [[projects]]
-  name = "github.com/Sirupsen/logrus"
-  packages = ["."]
-  revision = "a67f783a3814b8729bd2dac5780b5f78f8dbd64d"
-  version = "v1.1.0"
-
-[[projects]]
+  digest = "1:08e6c45727cd02e582ae132a46829581231375083af207b05f95587929122c08"
   name = "github.com/cheggaaa/pb"
   packages = ["."]
+  pruneopts = ""
   revision = "657164d0228d6bebe316fdf725c69f131a50fb10"
   version = "v1.0.18"
 
 [[projects]]
+  digest = "1:8e9e9b413d0d42246340a89debd1d2c2ae0284774462c11a7ea1b1e25d913700"
   name = "github.com/chzyer/readline"
   packages = ["."]
+  pruneopts = ""
   revision = "f6d7a1f6fbf35bbf9beb80dc63c56a29dcfb759f"
 
 [[projects]]
+  digest = "1:c9bebdae4ac52d0c3bbe5876de3d72f3bb05b4986865cdb3f15e305e1dc4fbca"
   name = "github.com/fatih/color"
   packages = ["."]
+  pruneopts = ""
   revision = "570b54cabe6b8eb0bc2dfce68d964677d63b5260"
   version = "v1.5.0"
 
 [[projects]]
+  digest = "1:55848e643a99a9dfceb19e090ce67111328fbb1780f34c62a0430994ff85fb90"
   name = "github.com/fatih/structs"
   packages = ["."]
+  pruneopts = ""
   revision = "a720dfa8df582c51dee1b36feabb906bde1588bd"
   version = "v1.0"
 
 [[projects]]
   branch = "master"
+  digest = "1:93a4238f875be092b3bc5c68424a91d8f948d5f0cda99b44bc6de4849047d883"
   name = "github.com/flynn-archive/go-shlex"
   packages = ["."]
+  pruneopts = ""
   revision = "3f9db97f856818214da2e1057f8ad84803971cff"
 
 [[projects]]
   branch = "master"
+  digest = "1:6e0d72ab02249af8504fd0554378a973fc7309397d3c3f8e15cf5c8edbdd1641"
   name = "github.com/go-ble/ble"
-  packages = [".","darwin","examples/lib/dev","linux","linux/adv","linux/att","linux/gatt","linux/hci","linux/hci/cmd","linux/hci/evt","linux/hci/socket"]
+  packages = [
+    ".",
+    "darwin",
+    "examples/lib/dev",
+    "linux",
+    "linux/adv",
+    "linux/att",
+    "linux/gatt",
+    "linux/hci",
+    "linux/hci/cmd",
+    "linux/hci/evt",
+    "linux/hci/socket",
+  ]
+  pruneopts = ""
   revision = "e78417b510a348171f21754ff934fe8408b21b90"
 
 [[projects]]
+  digest = "1:870d441fe217b8e689d7949fef6e43efbc787e50f200cb1e70dbca9204a1d6be"
   name = "github.com/inconshreveable/mousetrap"
   packages = ["."]
+  pruneopts = ""
   revision = "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75"
   version = "v1.0"
 
 [[projects]]
   branch = "master"
+  digest = "1:540541376b7e88d21f39e0f508be7f79e7661332a80a79f6b245b2d16abf20be"
   name = "github.com/joaojeronimo/go-crc16"
   packages = ["."]
+  pruneopts = ""
   revision = "59bd0194935ecff6f47039ee12efd09ff894a14a"
 
 [[projects]]
   branch = "master"
+  digest = "1:448b4a6e39e46d8740b00dc871f26d58dc39341b160e01267b7917132831a136"
   name = "github.com/konsorten/go-windows-terminal-sequences"
   packages = ["."]
+  pruneopts = ""
   revision = "b729f2633dfe35f4d1d8a32385f6685610ce1cb5"
 
 [[projects]]
-  name = "github.com/kr/pretty"
-  packages = ["."]
-  revision = "73f6ac0b30a98e433b289500d779f50c1a6f0712"
-  version = "v0.1.0"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/kr/text"
-  packages = ["."]
-  revision = "7cafcd837844e784b526369c9bce262804aebc60"
-
-[[projects]]
+  digest = "1:9ea83adf8e96d6304f394d40436f2eb44c1dc3250d223b74088cc253a6cd0a1c"
   name = "github.com/mattn/go-colorable"
   packages = ["."]
+  pruneopts = ""
   revision = "167de6bfdfba052fa6b2d3664c8f5272e23c9072"
   version = "v0.0.9"
 
 [[projects]]
+  digest = "1:420bb8eabfa6dff0cb5c8e786489a420e7e9d93a8b1d83882cce70c5a5b9bc3e"
   name = "github.com/mattn/go-isatty"
   packages = ["."]
+  pruneopts = ""
   revision = "fc9e8d8ef48496124e79ae0df75490096eccf6fe"
   version = "v0.0.2"
 
 [[projects]]
+  digest = "1:81e673df85e765593a863f67cba4544cf40e8919590f04d67664940786c2b61a"
   name = "github.com/mattn/go-runewidth"
   packages = ["."]
+  pruneopts = ""
   revision = "9e777a8366cce605130a531d2cd6363d07ad7317"
   version = "v0.0.2"
 
 [[projects]]
   branch = "master"
+  digest = "1:50416da10e189bc201e122e20078fb8e680a439cbdd24aaece06c434b4415b60"
   name = "github.com/mgutz/ansi"
   packages = ["."]
+  pruneopts = ""
   revision = "9520e82c474b0a04dd04f8a40959027271bab992"
 
 [[projects]]
+  digest = "1:47af139ef25cee26d54b8422b73a043ab5d8f5ec26a1ae49d3ca9212f1dbfdac"
   name = "github.com/mgutz/logxi"
   packages = ["v1"]
+  pruneopts = ""
   revision = "aebf8a7d67ab4625e0fd4a665766fef9a709161b"
   version = "v1"
 
 [[projects]]
   branch = "master"
+  digest = "1:59d11e81d6fdd12a771321696bb22abdd9a94d26ac864787e98c9b419e428734"
   name = "github.com/mitchellh/go-homedir"
   packages = ["."]
+  pruneopts = ""
   revision = "b8bc1bf767474819792c23f32d8286a45736f1c6"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/mitchellh/mapstructure"
-  packages = ["."]
-  revision = "d0303fe809921458f417bcf828397a65db30a7e4"
-
-[[projects]]
+  digest = "1:7365acd48986e205ccb8652cc746f09c8b7876030d53710ea6ef7d0bd0dcd7ca"
   name = "github.com/pkg/errors"
   packages = ["."]
+  pruneopts = ""
   revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
   version = "v0.8.0"
 
 [[projects]]
   branch = "master"
+  digest = "1:744cbb55a2034758dc8f884d41e8aa68f0b66c38853e3ad3b37f69089c03f481"
   name = "github.com/raff/goble"
   packages = ["xpc"]
+  pruneopts = ""
   revision = "b12b34f940c4cf4363660073539b5fa9fd96bd16"
 
 [[projects]]
   branch = "master"
+  digest = "1:20417a4b3abaac7a137e30d59c4c90d88d97300736a4bcf11d3d51adf22e256e"
   name = "github.com/runtimeco/go-coap"
   packages = ["."]
+  pruneopts = ""
   revision = "47c23e2a63eacf038a17b17d72cf7b9168736c9a"
 
 [[projects]]
-  name = "github.com/spf13/cast"
+  digest = "1:631ea4a52a20ca54eceb1077e8c7e553a4f86a58639824825d9259374f7c362f"
+  name = "github.com/sirupsen/logrus"
   packages = ["."]
-  revision = "8965335b8c7107321228e3e3702cab9832751bac"
-  version = "v1.2.0"
+  pruneopts = ""
+  revision = "8bdbc7bcc01dcbb8ec23dc8a28e332258d25251f"
+  version = "v1.4.1"
 
 [[projects]]
   branch = "master"
+  digest = "1:c0862beafc0aeec30c4a0cfa4dfbc609ddabfd475c51e4b9abbb5e4c477f5357"
   name = "github.com/spf13/cobra"
   packages = ["."]
+  pruneopts = ""
   revision = "2df9a531813370438a4d79bfc33e21f58063ed87"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/spf13/jwalterweatherman"
-  packages = ["."]
-  revision = "0efa5202c04663c757d84f90f5219c1250baf94f"
-
-[[projects]]
+  digest = "1:cbaf13cdbfef0e4734ed8a7504f57fe893d471d62a35b982bf6fb3f036449a66"
   name = "github.com/spf13/pflag"
   packages = ["."]
+  pruneopts = ""
   revision = "298182f68c66c05229eb03ac171abe6e309ee79a"
   version = "v1.0.3"
 
 [[projects]]
   branch = "master"
+  digest = "1:8c7c90e66ae82cabd496c123e31765d48271ea80fa19ff66e1689a9e3592896e"
   name = "github.com/tarm/serial"
   packages = ["."]
+  pruneopts = ""
   revision = "e50d7d20b1f68657808356d33b4404890487ceee"
 
 [[projects]]
   branch = "master"
+  digest = "1:444c05e2a216066b0def62df62e3cef74d51f5ea0ecd6547a100daa2281547ff"
   name = "github.com/ugorji/go"
   packages = ["codec"]
+  pruneopts = ""
   revision = "8c0409fcbb70099c748d71f714529204975f6c3f"
 
 [[projects]]
   branch = "master"
-  name = "golang.org/x/crypto"
-  packages = ["ssh/terminal"]
-  revision = "81e90905daefcd6fd217b62423c0908922eadb30"
-
-[[projects]]
-  branch = "master"
+  digest = "1:ac3ee562ea184c7b47276d00d7bec2a0ac19fd87451125d57a432a934e65a6e4"
   name = "golang.org/x/net"
   packages = ["context"]
+  pruneopts = ""
   revision = "66aacef3dd8a676686c7ae3716979581e8b03c47"
 
 [[projects]]
   branch = "master"
+  digest = "1:fdad18ab7fac0fe299cc2e2fbf0cefda286faca8286b023de18eefc9ba3e4262"
   name = "golang.org/x/sys"
-  packages = ["unix","windows"]
+  packages = ["unix"]
+  pruneopts = ""
   revision = "ab9e364efd8b52800ff7ee48a9ffba4e0ed78dfb"
 
 [[projects]]
+  digest = "1:cadd26caf52dc3bbc37de1f5fe37f21c82b2cd8d5bf4e3c9a0094c28d5d086c9"
   name = "gopkg.in/abiosoft/ishell.v1"
   packages = ["."]
+  pruneopts = ""
   revision = "50251d04cb42673a9df901983eeaf9f369c82551"
   version = "v1"
 
 [[projects]]
-  name = "gopkg.in/fsnotify.v1"
-  packages = ["."]
-  revision = "629574ca2a5df945712d3079857300b5e4da0236"
-  source = "https://github.com/fsnotify/fsnotify.git"
-  version = "v1.4.2"
-
-[[projects]]
   branch = "master"
+  digest = "1:50125362d86a9595d02f00addc883d1de79e661d38b0019b029e7a050cdc9422"
   name = "mynewt.apache.org/newt"
-  packages = ["util","util/unixchild","viper","yaml"]
-  revision = "757fadf0338039637436ee990f55ec12d48e9439"
+  packages = [
+    "util",
+    "util/unixchild",
+  ]
+  pruneopts = ""
+  revision = "60fc2df06bfc80e07c1e2fc9b5c4a73e01c8adc3"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "214d5c29d58ea2f019ab38724d7b4211b816f30df75d00960a2ffecab6abe2f9"
+  input-imports = [
+    "github.com/cheggaaa/pb",
+    "github.com/fatih/structs",
+    "github.com/go-ble/ble",
+    "github.com/go-ble/ble/examples/lib/dev",
+    "github.com/go-ble/ble/linux",
+    "github.com/go-ble/ble/linux/hci/cmd",
+    "github.com/joaojeronimo/go-crc16",
+    "github.com/mitchellh/go-homedir",
+    "github.com/pkg/errors",
+    "github.com/runtimeco/go-coap",
+    "github.com/sirupsen/logrus",
+    "github.com/spf13/cobra",
+    "github.com/tarm/serial",
+    "github.com/ugorji/go/codec",
+    "golang.org/x/net/context",
+    "gopkg.in/abiosoft/ishell.v1",
+    "mynewt.apache.org/newt/util",
+    "mynewt.apache.org/newt/util/unixchild",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -31,10 +31,10 @@ import (
 	"strconv"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cast"
 
-	"mynewt.apache.org/newt/newt/flash"
+	"mynewt.apache.org/newt/newt/flashmap"
 	"mynewt.apache.org/newt/newt/interfaces"
 	"mynewt.apache.org/newt/newt/newtutil"
 	"mynewt.apache.org/newt/newt/parse"
@@ -63,16 +63,20 @@ const (
 	CFG_SETTING_STATE_DEFUNCT
 )
 
+type CfgFlashConflictCode int
+
+const (
+	CFG_FLASH_CONFLICT_CODE_BAD_NAME CfgFlashConflictCode = iota
+	CFG_FLASH_CONFLICT_CODE_NOT_UNIQUE
+)
+
 const SYSCFG_PRIO_ANY = "any"
 
 // Reserve last 16 priorities for the system (sanity, idle).
 const SYSCFG_TASK_PRIO_MAX = 0xef
 
-var cfgSettingNameTypeMap = map[string]CfgSettingType{
-	"raw":           CFG_SETTING_TYPE_RAW,
-	"task_priority": CFG_SETTING_TYPE_TASK_PRIO,
-	"flash_owner":   CFG_SETTING_TYPE_FLASH_OWNER,
-}
+var cfgRefRe = regexp.MustCompile("MYNEWT_VAL\\((\\w+)\\)")
+var cfgChoiceValRe = regexp.MustCompile("^[A-Za-z0-9_]+$")
 
 type CfgPoint struct {
 	Value  string
@@ -91,6 +95,7 @@ type CfgEntry struct {
 	Description  string
 	SettingType  CfgSettingType
 	Restrictions []CfgRestriction
+	ValidChoices []string
 	PackageDef   *pkg.LocalPackage
 	History      []CfgPoint
 	State        CfgSettingState
@@ -101,13 +106,6 @@ type CfgPriority struct {
 	PackageDef  *pkg.LocalPackage // package that define the setting.
 	PackageSrc  *pkg.LocalPackage // package overriding setting value.
 }
-
-type CfgFlashConflictCode int
-
-const (
-	CFG_FLASH_CONFLICT_CODE_BAD_NAME CfgFlashConflictCode = iota
-	CFG_FLASH_CONFLICT_CODE_NOT_UNIQUE
-)
 
 type CfgFlashConflict struct {
 	SettingNames []string
@@ -121,7 +119,7 @@ type Cfg struct {
 	PackageRestrictions map[string][]CfgRestriction
 
 	//// Errors
-	// Overrides of undefined settings.
+	// Overrides of undefined settings ([setting-name] => ...).
 	Orphans map[string][]CfgPoint
 
 	// Two packages of equal priority override a setting with different
@@ -171,43 +169,63 @@ func NewCfg() Cfg {
 	}
 }
 
-func (cfg *Cfg) SettingValues() map[string]string {
-	values := make(map[string]string, len(cfg.Settings))
-	for k, v := range cfg.Settings {
+func SettingValues(settings map[string]CfgEntry) map[string]string {
+	values := make(map[string]string, len(settings))
+	for k, v := range settings {
 		values[k] = v.Value
 	}
 
 	return values
 }
 
-func (cfg *Cfg) ResolveValueRefs() {
-	re := regexp.MustCompile("MYNEWT_VAL\\((\\w+)\\)")
-	for k, entry := range cfg.Settings {
-		value := strings.TrimSpace(entry.Value)
+func (cfg *Cfg) SettingValues() map[string]string {
+	return SettingValues(cfg.Settings)
+}
 
-		m := re.FindStringSubmatch(value)
-		if len(m) == 0 || len(m[0]) != len(value) {
-			// either there is no reference or there's something else besides
-			// reference - skip it
-			// TODO we may want to emit warning in the latter case (?)
-			continue
-		}
-
-		newName := m[1]
-
+func ResolveValueRefName(val string) string {
+	// If the value has the `MYNEWT_VAL([...])` notation, then extract the
+	// parenthesized identifier.
+	m := cfgRefRe.FindStringSubmatch(val)
+	if m == nil {
+		return ""
+	} else {
 		// TODO we may try to resolve nested references...
+		return m[1]
+	}
+}
 
-		newEntry, exists := cfg.Settings[newName]
-		entry.ValueRefName = newName
-		if exists {
-			entry.Value = newEntry.Value
-		} else {
-			// set unresolved setting value to 0, this way restrictions
-			// can be evaluated and won't create spurious warnings
+func (cfg *Cfg) ExpandRef(val string) (string, string, error) {
+	refName := ResolveValueRefName(val)
+	if refName == "" {
+		// Not a reference.
+		return "", val, nil
+	}
+
+	entry, ok := cfg.Settings[refName]
+	if !ok {
+		return "", "", util.FmtNewtError(
+			"setting value \"%s\" references undefined setting", val)
+	}
+
+	return entry.Name, entry.Value, nil
+
+}
+
+func (cfg *Cfg) ResolveValueRefs() {
+	for k, entry := range cfg.Settings {
+		refName, val, err := cfg.ExpandRef(strings.TrimSpace(entry.Value))
+		if err != nil {
+			// Referenced setting doesn't exist.  Set unresolved setting value
+			// to 0, this way restrictions can be evaluated and won't create
+			// spurious warnings.
 			entry.Value = "0"
 			cfg.UnresolvedValueRefs[k] = struct{}{}
+			cfg.Settings[k] = entry
+		} else if refName != "" {
+			entry.ValueRefName = refName
+			entry.Value = val
+			cfg.Settings[k] = entry
 		}
-		cfg.Settings[k] = entry
 	}
 }
 
@@ -447,6 +465,51 @@ func readSetting(name string, lpkg *pkg.LocalPackage,
 			return entry,
 				util.PreNewtError(err, "error parsing setting %s", name)
 		}
+		entry.Restrictions = append(entry.Restrictions, r)
+	}
+
+	if vals["choices"] != nil && vals["range"] != nil {
+		return entry, util.FmtNewtError(
+			"setting %s uses both choice and range restrictions", name)
+	}
+
+	if vals["choices"] != nil {
+		choices := cast.ToStringSlice(vals["choices"])
+		entry.ValidChoices = choices
+
+		sort.Slice(choices, func(a, b int) bool {
+			return strings.ToLower(choices[a]) < strings.ToLower(choices[b])
+		})
+
+		for i, choice := range choices {
+			if !cfgChoiceValRe.MatchString(choice) {
+				return entry, util.FmtNewtError(
+					"setting %s has invalid choice defined (%s) - " +
+						"only letters, numbers and underscore are allowed", name, choice)
+			}
+
+			if i > 0 && strings.ToLower(choices[i - 1]) == strings.ToLower(choice) {
+				return entry, util.FmtNewtError(
+					"setting %s has duplicated choice defined ('%s' and '%s')",
+					name, choice, choices[i - 1])
+			}
+		}
+
+		r := CfgRestriction{
+			BaseSetting: name,
+			Code: CFG_RESTRICTION_CODE_CHOICE,
+		}
+
+		entry.Restrictions = append(entry.Restrictions, r)
+	}
+
+	if vals["range"] != nil {
+		r, err := createRangeRestriction(name, stringValue(vals["range"]))
+		if err != nil {
+			return entry,
+				util.PreNewtError(err, "error parsing setting %s", name)
+		}
+
 		entry.Restrictions = append(entry.Restrictions, r)
 	}
 
@@ -720,7 +783,7 @@ func (cfg *Cfg) detectPriorityViolations() {
 }
 
 // Detects all flash conflict errors in the syscfg and records them internally.
-func (cfg *Cfg) detectFlashConflicts(flashMap flash.FlashMap) {
+func (cfg *Cfg) detectFlashConflicts(flashMap flashmap.FlashMap) {
 	entries := cfg.settingsOfType(CFG_SETTING_TYPE_FLASH_OWNER)
 
 	areaEntryMap := map[string][]CfgEntry{}
@@ -980,12 +1043,8 @@ func (cfg *Cfg) DeprecatedWarning() []string {
 	return lines
 }
 
-func escapeStr(s string) string {
-	return strings.ToUpper(util.CIdentifier(s))
-}
-
 func settingName(setting string) string {
-	return SYSCFG_PREFIX_SETTING + escapeStr(setting)
+	return SYSCFG_PREFIX_SETTING + util.CIdentifier(setting)
 }
 
 func normalizePkgType(typ interfaces.PackageType) interfaces.PackageType {
@@ -1058,7 +1117,7 @@ func (cfg *Cfg) detectAmbiguities() {
 
 // Detects and records errors in the build's syscfg.  This should only be
 // called after APIs are resolved to avoid false positives.
-func (cfg *Cfg) DetectErrors(flashMap flash.FlashMap) {
+func (cfg *Cfg) DetectErrors(flashMap flashmap.FlashMap) {
 	cfg.detectAmbiguities()
 	cfg.detectViolations()
 	cfg.detectPriorityViolations()
@@ -1067,7 +1126,7 @@ func (cfg *Cfg) DetectErrors(flashMap flash.FlashMap) {
 
 func Read(lpkgs []*pkg.LocalPackage, apis []string,
 	injectedSettings map[string]string, settings map[string]string,
-	flashMap flash.FlashMap) (Cfg, error) {
+	flashMap flashmap.FlashMap) (Cfg, error) {
 
 	cfg := NewCfg()
 	for k, v := range injectedSettings {
@@ -1220,7 +1279,8 @@ func writeCheckMacros(w io.Writer) {
  * attempt to use these macros without including this header will result in a
  * compiler error.
  */
-#define MYNEWT_VAL(x)                           MYNEWT_VAL_ ## x
+#define MYNEWT_VAL(_name)                       MYNEWT_VAL_ ## _name
+#define MYNEWT_VAL_CHOICE(_name, _val)          MYNEWT_VAL_ ## _name ## __ ## _val
 `
 	fmt.Fprintf(w, "%s\n", s)
 }
@@ -1245,6 +1305,24 @@ func writeDefine(key string, value string, w io.Writer) {
 		fmt.Fprintf(w, "#define %s (%s)\n", key, value)
 		fmt.Fprintf(w, "#endif\n")
 	}
+}
+
+func writeChoiceDefine(key string, value string, choices []string, w io.Writer) {
+	parentVal := ""
+	value = strings.ToLower(value)
+
+	for _, choice := range choices {
+		definedVal := 0
+		if value == strings.ToLower(choice) {
+			definedVal = 1
+			parentVal = "1"
+		}
+		fmt.Fprintf(w, "#ifndef %s__%s\n", key, choice)
+		fmt.Fprintf(w, "#define %s__%s (%d)\n", key, choice, definedVal)
+		fmt.Fprintf(w, "#endif\n")
+	}
+
+	writeDefine(key, parentVal, w)
 }
 
 func EntriesByPkg(cfg Cfg) map[string][]CfgEntry {
@@ -1281,7 +1359,11 @@ func writeSettingsOnePkg(cfg Cfg, pkgName string, pkgEntries []CfgEntry,
 		}
 
 		writeComment(entry, w)
-		writeDefine(settingName(n), entry.Value, w)
+		if entry.ValidChoices != nil {
+			writeChoiceDefine(settingName(n), entry.Value, entry.ValidChoices, w)
+		} else {
+			writeDefine(settingName(n), entry.Value, w)
+		}
 	}
 }
 

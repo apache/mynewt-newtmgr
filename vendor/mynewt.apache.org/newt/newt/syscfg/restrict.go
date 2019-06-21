@@ -55,9 +55,11 @@
 package syscfg
 
 import (
+	"encoding/json"
 	"fmt"
+	"strings"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 
 	"mynewt.apache.org/newt/newt/parse"
 	"mynewt.apache.org/newt/util"
@@ -68,18 +70,68 @@ type CfgRestrictionCode int
 const (
 	CFG_RESTRICTION_CODE_NOTNULL = iota
 	CFG_RESTRICTION_CODE_EXPR
+	CFG_RESTRICTION_CODE_CHOICE
+	CFG_RESTRICTION_CODE_RANGE
 )
 
 var cfgRestrictionNameCodeMap = map[string]CfgRestrictionCode{
 	"$notnull": CFG_RESTRICTION_CODE_NOTNULL,
+	"expr":     CFG_RESTRICTION_CODE_EXPR,
+	"choice":   CFG_RESTRICTION_CODE_CHOICE,
+	"range":    CFG_RESTRICTION_CODE_RANGE,
+}
+
+type CfgRestrictionRange struct {
+	LExpr string
+	RExpr string
 }
 
 type CfgRestriction struct {
 	BaseSetting string
 	Code        CfgRestrictionCode
 
-	// Only used if Code is CFG_RESTRICTION_CODE_EXPR
+	// Only used if Code is either CFG_RESTRICTION_CODE_EXPR or CFG_RESTRICTION_CODE_RANGE
 	Expr string
+
+	// Only used if Code is CFG_RESTRICTION_CODE_RANGE
+	Ranges []CfgRestrictionRange
+}
+
+func (c CfgRestrictionCode) String() string {
+	for s, code := range cfgRestrictionNameCodeMap {
+		if code == c {
+			return s
+		}
+	}
+
+	return "???"
+}
+
+func parseCfgRestrictionCode(s string) (CfgRestrictionCode, error) {
+	if c, ok := cfgRestrictionNameCodeMap[s]; ok {
+		return c, nil
+	}
+
+	return 0, util.FmtNewtError("cannot parse cfg restriction code \"%s\"", s)
+}
+
+func (c CfgRestrictionCode) MarshalJSON() ([]byte, error) {
+	return util.MarshalJSONStringer(c)
+}
+
+func (c *CfgRestrictionCode) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return util.ChildNewtError(err)
+	}
+
+	x, err := parseCfgRestrictionCode(s)
+	if err != nil {
+		return err
+	}
+
+	*c = x
+	return nil
 }
 
 func readRestriction(baseSetting string, text string) (CfgRestriction, error) {
@@ -150,10 +202,45 @@ func normalizeExpr(expr string, baseSetting string) string {
 	return expr
 }
 
+func (r *CfgRestriction) validateRangesBounds(settings map[string]string) bool {
+	for _, rtoken := range r.Ranges {
+		if len(rtoken.RExpr) > 0 {
+			expr := fmt.Sprintf("(%s) <= (%s)", rtoken.LExpr, rtoken.RExpr)
+			val, err := parse.ParseAndEval(expr, settings)
+			if !val || err != nil {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+func (r *CfgRestriction) createRangeExpr() string {
+	exprOutTokens := []string{}
+
+	for _, rtoken := range r.Ranges {
+		if len(rtoken.RExpr) > 0 {
+			exprOutTokens = append(exprOutTokens,
+				fmt.Sprintf("(((%s) >= (%s)) && ((%s) <= (%s)))",
+					r.BaseSetting, rtoken.LExpr, r.BaseSetting, rtoken.RExpr))
+		} else {
+			exprOutTokens = append(exprOutTokens, fmt.Sprintf("((%s) == (%s))",
+				r.BaseSetting, rtoken.LExpr))
+		}
+	}
+
+	return strings.Join(exprOutTokens," || ")
+}
+
 func (cfg *Cfg) settingViolationText(entry CfgEntry, r CfgRestriction) string {
 	prefix := fmt.Sprintf("Setting %s(%s) ", entry.Name, entry.Value)
 	if r.Code == CFG_RESTRICTION_CODE_NOTNULL {
 		return prefix + "must not be null"
+	} else if r.Code == CFG_RESTRICTION_CODE_CHOICE {
+		return prefix + "must be one of defined choices (see definition)"
+	} else if r.Code == CFG_RESTRICTION_CODE_RANGE {
+		return prefix + "must be in range: " + r.Expr
 	} else {
 		return prefix + "requires: " + r.Expr
 	}
@@ -177,6 +264,13 @@ func (r *CfgRestriction) relevantSettingNames() []string {
 				names = append(names, token.Text)
 			}
 		}
+	} else if r.Code == CFG_RESTRICTION_CODE_RANGE {
+		tokens, _ := parse.Lex(r.createRangeExpr())
+		for _, token := range tokens {
+			if token.Code == parse.TOKEN_IDENT {
+				names = append(names, token.Text)
+			}
+		}
 	}
 
 	return names
@@ -191,6 +285,45 @@ func (cfg *Cfg) restrictionMet(
 	case CFG_RESTRICTION_CODE_NOTNULL:
 		return baseEntry.Value != ""
 
+	case CFG_RESTRICTION_CODE_CHOICE:
+		if baseEntry.Value == "" {
+			// Assume empty value a valid choice (use $notnull if need otherwise)
+			return true
+		}
+		value := strings.ToLower(baseEntry.Value)
+		for _, choice := range baseEntry.ValidChoices {
+			if strings.ToLower(choice) == value {
+				return true
+			}
+		}
+		return false
+
+
+	case CFG_RESTRICTION_CODE_RANGE:
+		expr := r.createRangeExpr()
+		if expr == "" {
+			util.OneTimeWarning(
+				"Ignoring illegal range expression for setting \"%s\": "+
+					"`%s`\n", r.BaseSetting, r.Expr)
+			return true
+		}
+
+		val, err := parse.ParseAndEval(expr, settings)
+		if err != nil {
+			util.OneTimeWarning(
+				"Ignoring illegal range expression for setting \"%s\": "+
+					"`%s`\n", r.BaseSetting, r.Expr)
+			return true
+		}
+
+		// invalid bounds may or may not result in an error so just emit a warning
+		if !r.validateRangesBounds(settings) {
+			util.OneTimeWarning(
+				"Invalid bounds (lval > rval) for range expression for setting \"%s\": "+
+					"`%s`\n", r.BaseSetting, r.Expr)
+		}
+
+		return val
 	case CFG_RESTRICTION_CODE_EXPR:
 		var expr string
 		if r.BaseSetting != "" {
@@ -201,8 +334,8 @@ func (cfg *Cfg) restrictionMet(
 
 		val, err := parse.ParseAndEval(expr, settings)
 		if err != nil {
-			util.StatusMessage(util.VERBOSITY_QUIET,
-				"WARNING: ignoring illegal expression for setting \"%s\": "+
+			util.OneTimeWarning(
+				"Ignoring illegal expression for setting \"%s\": "+
 					"`%s` %s\n", r.BaseSetting, r.Expr, err.Error())
 			return true
 		}
@@ -211,4 +344,32 @@ func (cfg *Cfg) restrictionMet(
 	default:
 		panic("Invalid restriction code: " + string(r.Code))
 	}
+}
+
+func createRangeRestriction(baseSetting string, expr string) (CfgRestriction, error) {
+	r := CfgRestriction{
+		BaseSetting: baseSetting,
+		Code: CFG_RESTRICTION_CODE_RANGE,
+		Expr: expr,
+		Ranges: []CfgRestrictionRange{},
+	}
+
+	exprTokens := strings.Split(expr, ",")
+	for _,token := range exprTokens {
+		rtoken := CfgRestrictionRange{}
+
+		limits := strings.Split(token, "..")
+		if len(limits) == 1 {
+			rtoken.LExpr = limits[0]
+		} else if len(limits) == 2 && len(strings.TrimSpace(limits[1])) > 0 {
+			rtoken.LExpr = limits[0]
+			rtoken.RExpr = limits[1]
+		} else {
+			return r, util.FmtNewtError("invalid token in range expression \"%s\"", token)
+		}
+
+		r.Ranges = append(r.Ranges, rtoken)
+	}
+
+	return r, nil
 }
