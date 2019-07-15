@@ -19,8 +19,6 @@ Godeps.json
 .gitignore
 .travis.yml
 appveyor.yml
-Gopkg.lock
-Gopkg.toml
 bleholog
 go.mod
 go.sum
