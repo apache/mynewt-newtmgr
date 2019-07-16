@@ -1,6 +1,6 @@
 # RELEASE NOTES
 
-04 June 2018 - Apache Newtmgr v1.4.0
+16 July 2019 - Apache Newtmgr v1.7.0
 
 For full release notes, please visit the
 [Apache Mynewt Wiki](https://cwiki.apache.org/confluence/display/MYNEWT/Release+Notes).
@@ -12,10 +12,10 @@ Thew newtmgr tool is documented at http://mynewt.apache.org/latest/newtmgr/overv
 
 New features in this version of newtmgr include:
 
-* interactive shell for COAP operations
-* "version" command
-* moved documentation from apache-core to newtmgr repo
-* various bugfixes
+* support for upgrade-only upload request
+* option for specifying OMP resource from command line (–ompres)
+* start using go modules instead of vendored code
+* bumped go version requirements to 1.12
 
 If working on next-generation build and source package management systems
 sounds exciting to you, get in touch, by sending a mail to the Apache Mynewt
