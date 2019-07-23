@@ -32,7 +32,6 @@ type GetResCmd struct {
 	NotifyFunc sesn.GetNotifyCb
 	StopSignal chan int
 	Token      []byte
-	Typ        sesn.ResourceType
 }
 
 func NewGetResCmd() *GetResCmd {
@@ -67,10 +66,11 @@ func (c *GetResCmd) Run(s sesn.Sesn) (Result, error) {
 	var err error
 
 	if c.Observe != -1 {
-		status, val, token, err = sesn.GetResourceObserve(s, c.Typ, c.Path, c.TxOptions(),
-			c.NotifyFunc, c.StopSignal, c.Observe, c.Token)
+		status, val, token, err = sesn.GetResourceObserve(
+			s, c.Path, c.TxOptions(), c.NotifyFunc, c.StopSignal, c.Observe,
+			c.Token)
 	} else {
-		status, val, err = sesn.GetResource(s, c.Typ, c.Path, c.TxOptions())
+		status, val, err = sesn.GetResource(s, c.Path, c.TxOptions())
 	}
 
 	if err != nil {
@@ -88,7 +88,6 @@ func (c *GetResCmd) Run(s sesn.Sesn) (Result, error) {
 type PutResCmd struct {
 	CmdBase
 	Path  string
-	Typ   sesn.ResourceType
 	Value []byte
 }
 
@@ -119,7 +118,7 @@ func (r *PutResResult) Status() int {
 }
 
 func (c *PutResCmd) Run(s sesn.Sesn) (Result, error) {
-	status, r, err := sesn.PutResource(s, c.Typ, c.Path, c.Value, c.TxOptions())
+	status, r, err := sesn.PutResource(s, c.Path, c.Value, c.TxOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +132,6 @@ func (c *PutResCmd) Run(s sesn.Sesn) (Result, error) {
 type PostResCmd struct {
 	CmdBase
 	Path  string
-	Typ   sesn.ResourceType
 	Value []byte
 }
 
@@ -164,7 +162,7 @@ func (r *PostResResult) Status() int {
 }
 
 func (c *PostResCmd) Run(s sesn.Sesn) (Result, error) {
-	status, r, err := sesn.PostResource(s, c.Typ, c.Path, c.Value, c.TxOptions())
+	status, r, err := sesn.PostResource(s, c.Path, c.Value, c.TxOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -177,8 +175,7 @@ func (c *PostResCmd) Run(s sesn.Sesn) (Result, error) {
 
 type DeleteResCmd struct {
 	CmdBase
-	Path string
-	Typ  sesn.ResourceType
+	Path  string
 	Value []byte
 }
 
@@ -206,7 +203,7 @@ func (r *DeleteResResult) Status() int {
 }
 
 func (c *DeleteResCmd) Run(s sesn.Sesn) (Result, error) {
-	status, val, err := sesn.DeleteResource(s, c.Typ, c.Path, c.Value, c.TxOptions())
+	status, val, err := sesn.DeleteResource(s, c.Path, c.Value, c.TxOptions())
 	if err != nil {
 		return nil, err
 	}

@@ -25,9 +25,9 @@ import (
 	"fmt"
 	"sync"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/go-ble/ble"
 	"github.com/runtimeco/go-coap"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 
 	"mynewt.apache.org/newt/util"
@@ -52,14 +52,10 @@ type BllSesn struct {
 	mtx    sync.Mutex
 	attMtu uint16
 
-	nmpReqChr    *ble.Characteristic
-	nmpRspChr    *ble.Characteristic
-	publicReqChr *ble.Characteristic
-	publicRspChr *ble.Characteristic
-	unauthReqChr *ble.Characteristic
-	unauthRspChr *ble.Characteristic
-	secureReqChr *ble.Characteristic
-	secureRspChr *ble.Characteristic
+	nmpReqChr *ble.Characteristic
+	nmpRspChr *ble.Characteristic
+	resReqChr *ble.Characteristic
+	resRspChr *ble.Characteristic
 
 	txFilterCb nmcoap.MsgFilter
 	rxFilterCb nmcoap.MsgFilter
@@ -236,12 +232,8 @@ func (s *BllSesn) discoverAll() error {
 
 	s.nmpReqChr, _ = findChr(p, mgmtChrs.NmpReqChr)
 	s.nmpRspChr, _ = findChr(p, mgmtChrs.NmpRspChr)
-	s.publicReqChr, _ = findChr(p, mgmtChrs.ResPublicReqChr)
-	s.publicRspChr, _ = findChr(p, mgmtChrs.ResPublicRspChr)
-	s.unauthReqChr, _ = findChr(p, mgmtChrs.ResUnauthReqChr)
-	s.unauthRspChr, _ = findChr(p, mgmtChrs.ResUnauthRspChr)
-	s.secureReqChr, _ = findChr(p, mgmtChrs.ResSecureReqChr)
-	s.secureRspChr, _ = findChr(p, mgmtChrs.ResSecureRspChr)
+	s.resReqChr, _ = findChr(p, mgmtChrs.ResReqChr)
+	s.resRspChr, _ = findChr(p, mgmtChrs.ResRspChr)
 
 	return nil
 }
@@ -260,20 +252,8 @@ func (s *BllSesn) subscribe() error {
 		}
 	}
 
-	if s.publicRspChr != nil {
-		if err := s.txSubscribe(s.publicRspChr, false, onNotify); err != nil {
-			return err
-		}
-	}
-
-	if s.unauthRspChr != nil {
-		if err := s.txSubscribe(s.unauthRspChr, false, onNotify); err != nil {
-			return err
-		}
-	}
-
-	if s.secureRspChr != nil {
-		if err := s.txSubscribe(s.secureRspChr, false, onNotify); err != nil {
+	if s.resRspChr != nil {
+		if err := s.txSubscribe(s.resRspChr, false, onNotify); err != nil {
 			return err
 		}
 	}
@@ -415,34 +395,11 @@ func (s *BllSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 	return s.txvr.TxNmp(txRaw, msg, s.MtuOut(), opt.Timeout)
 }
 
-func (s *BllSesn) resReqChr(resType sesn.ResourceType) (
-	*ble.Characteristic, error) {
-
-	m := map[sesn.ResourceType]*ble.Characteristic{
-		sesn.RES_TYPE_PUBLIC: s.publicReqChr,
-		sesn.RES_TYPE_UNAUTH: s.unauthReqChr,
-		sesn.RES_TYPE_SECURE: s.secureReqChr,
-	}
-
-	chr := m[resType]
-	if chr == nil {
-		return nil, fmt.Errorf("BLE session not configured with "+
-			"characteristic for %s resources", resType)
-	}
-
-	return chr, nil
-}
-
-func (s *BllSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
+func (s *BllSesn) TxCoapOnce(m coap.Message,
 	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
 
-	chr, err := s.resReqChr(resType)
-	if err != nil {
-		return 0, nil, err
-	}
-
 	txRaw := func(b []byte) error {
-		return s.txWriteCharacteristic(chr, b, !s.cfg.WriteRsp)
+		return s.txWriteCharacteristic(s.resReqChr, b, !s.cfg.WriteRsp)
 	}
 
 	rsp, err := s.txvr.TxOic(txRaw, m, s.MtuOut(), opt.Timeout)
@@ -455,18 +412,16 @@ func (s *BllSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
 	}
 }
 
-func (s *BllSesn) TxCoapObserve(m coap.Message, resType sesn.ResourceType,
-	opt sesn.TxOptions, NotifCb sesn.GetNotifyCb, stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
-	chr, err := s.resReqChr(resType)
-	if err != nil {
-		return 0, nil, nil, err
-	}
+func (s *BllSesn) TxCoapObserve(m coap.Message, opt sesn.TxOptions,
+	NotifCb sesn.GetNotifyCb,
+	stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
 
 	txRaw := func(b []byte) error {
-		return s.txWriteCharacteristic(chr, b, !s.cfg.WriteRsp)
+		return s.txWriteCharacteristic(s.resReqChr, b, !s.cfg.WriteRsp)
 	}
 
-	rsp, err := s.txvr.TxOicObserve(txRaw, m, s.MtuOut(), opt.Timeout, NotifCb, stopsignal)
+	rsp, err := s.txvr.TxOicObserve(txRaw, m, s.MtuOut(), opt.Timeout, NotifCb,
+		stopsignal)
 	if err != nil {
 		return 0, nil, nil, err
 	} else if rsp == nil {

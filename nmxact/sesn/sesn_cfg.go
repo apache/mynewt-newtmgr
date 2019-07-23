@@ -45,24 +45,6 @@ func (r MgmtProto) String() string {
 	return mgmtProtoMap[r]
 }
 
-type ResourceType int
-
-const (
-	RES_TYPE_PUBLIC ResourceType = iota
-	RES_TYPE_UNAUTH
-	RES_TYPE_SECURE
-)
-
-var resTypeMap = map[ResourceType]string{
-	RES_TYPE_PUBLIC: "public",
-	RES_TYPE_UNAUTH: "unauth",
-	RES_TYPE_SECURE: "secure",
-}
-
-func (r ResourceType) String() string {
-	return resTypeMap[r]
-}
-
 type OnCloseFn func(s Sesn, err error)
 
 type PeerSpec struct {

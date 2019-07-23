@@ -23,8 +23,8 @@ import (
 	"fmt"
 	"sync"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/runtimeco/go-coap"
+	log "github.com/sirupsen/logrus"
 
 	"mynewt.apache.org/newt/util"
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
@@ -353,7 +353,6 @@ func (s *NakedSesn) TxNmpOnce(req *nmp.NmpMsg, opt sesn.TxOptions) (
 }
 
 func (s *NakedSesn) TxCoapOnce(m coap.Message,
-	resType sesn.ResourceType,
 	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
 
 	if err := s.failIfNotOpen(); err != nil {
@@ -364,17 +363,8 @@ func (s *NakedSesn) TxCoapOnce(m coap.Message,
 	var rspPayload []byte
 
 	fn := func() error {
-		chrId := ResChrReqIdLookup(s.mgmtChrs, resType)
-		chr, err := s.getChr(chrId)
+		chr, err := s.getChr(s.mgmtChrs.ResReqChr)
 		if err != nil {
-			return err
-		}
-
-		encReqd, authReqd, err := ResTypeSecReqs(resType)
-		if err != nil {
-			return err
-		}
-		if err := s.ensureSecurity(encReqd, authReqd); err != nil {
 			return err
 		}
 
@@ -401,8 +391,10 @@ func (s *NakedSesn) TxCoapOnce(m coap.Message,
 	return rspCode, rspPayload, nil
 }
 
-func (s *NakedSesn) TxCoapObserve(m coap.Message, resType sesn.ResourceType, opt sesn.TxOptions,
-	NotifyCb sesn.GetNotifyCb, stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
+func (s *NakedSesn) TxCoapObserve(m coap.Message, opt sesn.TxOptions,
+	NotifyCb sesn.GetNotifyCb,
+	stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
+
 	if err := s.failIfNotOpen(); err != nil {
 		return 0, nil, nil, err
 	}
@@ -412,17 +404,8 @@ func (s *NakedSesn) TxCoapObserve(m coap.Message, resType sesn.ResourceType, opt
 	var rspToken []byte
 
 	fn := func() error {
-		chrId := ResChrReqIdLookup(s.mgmtChrs, resType)
-		chr, err := s.getChr(chrId)
+		chr, err := s.getChr(s.mgmtChrs.ResReqChr)
 		if err != nil {
-			return err
-		}
-
-		encReqd, authReqd, err := ResTypeSecReqs(resType)
-		if err != nil {
-			return err
-		}
-		if err := s.ensureSecurity(encReqd, authReqd); err != nil {
 			return err
 		}
 
@@ -434,7 +417,8 @@ func (s *NakedSesn) TxCoapObserve(m coap.Message, resType sesn.ResourceType, opt
 			}
 		}
 
-		rsp, err := s.txvr.TxOicObserve(txRaw, m, s.MtuOut(), opt.Timeout, NotifyCb, stopsignal)
+		rsp, err := s.txvr.TxOicObserve(txRaw, m, s.MtuOut(), opt.Timeout,
+			NotifyCb, stopsignal)
 		if err == nil && rsp != nil {
 			rspCode = rsp.Code()
 			rspPayload = rsp.Payload()
@@ -695,9 +679,7 @@ func (s *NakedSesn) notifyListenOnce(chrId *BleChrId,
 }
 
 func (s *NakedSesn) notifyListen() {
-	s.notifyListenOnce(s.mgmtChrs.ResUnauthRspChr, s.txvr.DispatchCoap)
-	s.notifyListenOnce(s.mgmtChrs.ResSecureRspChr, s.txvr.DispatchCoap)
-	s.notifyListenOnce(s.mgmtChrs.ResPublicRspChr, s.txvr.DispatchCoap)
+	s.notifyListenOnce(s.mgmtChrs.ResRspChr, s.txvr.DispatchCoap)
 	s.notifyListenOnce(s.mgmtChrs.NmpRspChr, s.txvr.DispatchNmpRsp)
 }
 
