@@ -217,7 +217,7 @@ func (s *SerialSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 	return s.txvr.TxNmp(txFn, m, s.MtuOut(), opt.Timeout)
 }
 
-func (s *SerialSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
+func (s *SerialSesn) TxCoapOnce(m coap.Message,
 	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
 
 	if !s.isOpen {
@@ -245,8 +245,10 @@ func (s *SerialSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
 	}
 }
 
-func (s *SerialSesn) TxCoapObserve(m coap.Message, resType sesn.ResourceType,
-	opt sesn.TxOptions, NotifCb sesn.GetNotifyCb, stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
+func (s *SerialSesn) TxCoapObserve(m coap.Message, opt sesn.TxOptions,
+	NotifCb sesn.GetNotifyCb,
+	stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
+
 	return 0, nil, nil, nil
 }
 

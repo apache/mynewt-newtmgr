@@ -27,9 +27,9 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/joaojeronimo/go-crc16"
 	"github.com/runtimeco/go-coap"
+	log "github.com/sirupsen/logrus"
 	"github.com/ugorji/go/codec"
 
 	"mynewt.apache.org/newtmgr/nmxact/lora"
@@ -327,7 +327,7 @@ func (s *LoraSesn) AbortRx(seq uint8) error {
 	return nil
 }
 
-func (s *LoraSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
+func (s *LoraSesn) TxCoapOnce(m coap.Message,
 	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
 
 	if !s.IsOpen() {
@@ -347,8 +347,10 @@ func (s *LoraSesn) TxCoapOnce(m coap.Message, resType sesn.ResourceType,
 	}
 }
 
-func (s *LoraSesn) TxCoapObserve(m coap.Message, resType sesn.ResourceType,
-	opt sesn.TxOptions, NotifCb sesn.GetNotifyCb, stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
+func (s *LoraSesn) TxCoapObserve(m coap.Message,
+	opt sesn.TxOptions, NotifCb sesn.GetNotifyCb,
+	stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
+
 	return 0, nil, nil, nil
 }
 

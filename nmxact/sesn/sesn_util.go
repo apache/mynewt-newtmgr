@@ -41,19 +41,20 @@ func TxNmp(s Sesn, m *nmp.NmpMsg, o TxOptions) (nmp.NmpRsp, error) {
 	}
 }
 
-func getResourceOnce(s Sesn, resType ResourceType,
-	uri string, opt TxOptions) (coap.COAPCode, []byte, error) {
+func getResourceOnce(s Sesn, uri string,
+	opt TxOptions) (coap.COAPCode, []byte, error) {
 
 	req, err := nmcoap.CreateGet(s.CoapIsTcp(), uri, -1, nmxutil.NextToken())
 	if err != nil {
 		return 0, nil, err
 	}
 
-	return s.TxCoapOnce(req, resType, opt)
+	return s.TxCoapOnce(req, opt)
 }
 
-func getResource(s Sesn, resType ResourceType,
-	uri string, observe int, token []byte, opt TxOptions, NotifCb GetNotifyCb, stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
+func getResource(s Sesn, uri string, observe int,
+	token []byte, opt TxOptions, NotifCb GetNotifyCb,
+	stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
 
 	var req coap.Message
 	var err error
@@ -68,15 +69,14 @@ func getResource(s Sesn, resType ResourceType,
 	}
 
 	if observe == 0 {
-		return s.TxCoapObserve(req, resType, opt, NotifCb, stopsignal)
+		return s.TxCoapObserve(req, opt, NotifCb, stopsignal)
 	}
 
-	c, r, err := s.TxCoapOnce(req, resType, opt)
+	c, r, err := s.TxCoapOnce(req, opt)
 	return c, r, nil, err
 }
 
-func putResourceOnce(s Sesn, resType ResourceType,
-	uri string, value []byte,
+func putResourceOnce(s Sesn, uri string, value []byte,
 	opt TxOptions) (coap.COAPCode, []byte, error) {
 
 	req, err := nmcoap.CreatePut(s.CoapIsTcp(), uri, nmxutil.NextToken(),
@@ -85,11 +85,10 @@ func putResourceOnce(s Sesn, resType ResourceType,
 		return 0, nil, err
 	}
 
-	return s.TxCoapOnce(req, resType, opt)
+	return s.TxCoapOnce(req, opt)
 }
 
-func postResourceOnce(s Sesn, resType ResourceType,
-	uri string, value []byte,
+func postResourceOnce(s Sesn, uri string, value []byte,
 	opt TxOptions) (coap.COAPCode, []byte, error) {
 
 	req, err := nmcoap.CreatePost(s.CoapIsTcp(), uri, nmxutil.NextToken(),
@@ -98,11 +97,10 @@ func postResourceOnce(s Sesn, resType ResourceType,
 		return 0, nil, err
 	}
 
-	return s.TxCoapOnce(req, resType, opt)
+	return s.TxCoapOnce(req, opt)
 }
 
-func deleteResourceOnce(s Sesn, resType ResourceType,
-	uri string, value []byte,
+func deleteResourceOnce(s Sesn, uri string, value []byte,
 	opt TxOptions) (coap.COAPCode, []byte, error) {
 
 	req, err := nmcoap.CreateDelete(s.CoapIsTcp(), uri, nmxutil.NextToken(),
@@ -111,7 +109,7 @@ func deleteResourceOnce(s Sesn, resType ResourceType,
 		return 0, nil, err
 	}
 
-	return s.TxCoapOnce(req, resType, opt)
+	return s.TxCoapOnce(req, opt)
 }
 
 func txCoap(txCb func() (coap.COAPCode, []byte, error),
@@ -146,49 +144,48 @@ func txCoapObserve(txCb func() (coap.COAPCode, []byte, []byte, error),
 	}
 }
 
-func GetResourceObserve(s Sesn, resType ResourceType, uri string, o TxOptions, notifCb GetNotifyCb,
+func GetResourceObserve(s Sesn, uri string, o TxOptions, notifCb GetNotifyCb,
 	stopsignal chan int, observe int, token []byte) (
 	coap.COAPCode, []byte, []byte, error) {
 
 	return txCoapObserve(func() (coap.COAPCode, []byte, []byte, error) {
-		return getResource(s, resType, uri, observe, token, o, notifCb, stopsignal)
+		return getResource(s, uri, observe, token, o, notifCb, stopsignal)
 	}, o.Tries)
 }
 
-func GetResource(s Sesn, resType ResourceType, uri string, o TxOptions) (
+func GetResource(s Sesn, uri string, o TxOptions) (
 	coap.COAPCode, []byte, error) {
 
 	return txCoap(func() (coap.COAPCode, []byte, error) {
-		return getResourceOnce(s, resType, uri, o)
+		return getResourceOnce(s, uri, o)
 	}, o.Tries)
 }
 
-func PutResource(s Sesn, resType ResourceType, uri string,
+func PutResource(s Sesn, uri string,
 	value []byte, o TxOptions) (coap.COAPCode, []byte, error) {
 
 	return txCoap(func() (coap.COAPCode, []byte, error) {
-		return putResourceOnce(s, resType, uri, value, o)
+		return putResourceOnce(s, uri, value, o)
 	}, o.Tries)
 }
 
-func PostResource(s Sesn, resType ResourceType, uri string,
+func PostResource(s Sesn, uri string,
 	value []byte, o TxOptions) (coap.COAPCode, []byte, error) {
 
 	return txCoap(func() (coap.COAPCode, []byte, error) {
-		return postResourceOnce(s, resType, uri, value, o)
+		return postResourceOnce(s, uri, value, o)
 	}, o.Tries)
 }
 
-func DeleteResource(s Sesn, resType ResourceType, uri string,
-	value []byte, o TxOptions) (coap.COAPCode, []byte, error) {
+func DeleteResource(s Sesn, uri string, value []byte,
+	o TxOptions) (coap.COAPCode, []byte, error) {
 
 	return txCoap(func() (coap.COAPCode, []byte, error) {
-		return deleteResourceOnce(s, resType, uri, value, o)
+		return deleteResourceOnce(s, uri, value, o)
 	}, o.Tries)
 }
 
-func PutCborResource(s Sesn, resType ResourceType, uri string,
-	value map[string]interface{},
+func PutCborResource(s Sesn, uri string, value map[string]interface{},
 	o TxOptions) (coap.COAPCode, map[string]interface{}, error) {
 
 	b, err := nmxutil.EncodeCborMap(value)
@@ -196,7 +193,7 @@ func PutCborResource(s Sesn, resType ResourceType, uri string,
 		return 0, nil, err
 	}
 
-	code, r, err := PutResource(s, resType, uri, b, o)
+	code, r, err := PutResource(s, uri, b, o)
 	m, err := nmxutil.DecodeCborMap(r)
 	if err != nil {
 		return 0, nil, err

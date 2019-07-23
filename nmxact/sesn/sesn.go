@@ -105,12 +105,12 @@ type Sesn interface {
 	//     * other error
 	TxNmpOnce(m *nmp.NmpMsg, opt TxOptions) (nmp.NmpRsp, error)
 
-	TxCoapOnce(m coap.Message, resType ResourceType,
-		opt TxOptions) (coap.COAPCode, []byte, error)
+	TxCoapOnce(m coap.Message, opt TxOptions) (coap.COAPCode, []byte, error)
 
-	TxCoapObserve(m coap.Message, resType ResourceType,
-		opt TxOptions, NotifCb GetNotifyCb, stopsignal chan int) (coap.COAPCode, []byte, []byte, error)
+	TxCoapObserve(m coap.Message, opt TxOptions, NotifCb GetNotifyCb,
+		stopsignal chan int) (coap.COAPCode, []byte, []byte, error)
 
-	// Returns a transmit and a receive callback used to manipulate CoAP messages
+	// Returns a transmit and a receive callback used to manipulate CoAP
+	// messages
 	Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter)
 }

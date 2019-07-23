@@ -709,30 +709,6 @@ func GattService() BleSvc {
 	}
 }
 
-func ResChrReqIdLookup(mgmtChrs BleMgmtChrs,
-	resType sesn.ResourceType) *BleChrId {
-
-	m := map[sesn.ResourceType]*BleChrId{
-		sesn.RES_TYPE_PUBLIC: mgmtChrs.ResPublicReqChr,
-		sesn.RES_TYPE_UNAUTH: mgmtChrs.ResUnauthReqChr,
-		sesn.RES_TYPE_SECURE: mgmtChrs.ResSecureReqChr,
-	}
-
-	return m[resType]
-}
-
-func ResChrRspIdLookup(mgmtChrs BleMgmtChrs,
-	resType sesn.ResourceType) *BleChrId {
-
-	m := map[sesn.ResourceType]*BleChrId{
-		sesn.RES_TYPE_PUBLIC: mgmtChrs.ResPublicRspChr,
-		sesn.RES_TYPE_UNAUTH: mgmtChrs.ResUnauthRspChr,
-		sesn.RES_TYPE_SECURE: mgmtChrs.ResSecureRspChr,
-	}
-
-	return m[resType]
-}
-
 func BuildMgmtChrs(mgmtProto sesn.MgmtProto) (BleMgmtChrs, error) {
 	mgmtChrs := BleMgmtChrs{}
 
@@ -743,17 +719,9 @@ func BuildMgmtChrs(mgmtProto sesn.MgmtProto) (BleMgmtChrs, error) {
 	ompReqChrUuid, _ := ParseUuid(OmpUnsecReqChrUuid)
 	ompRspChrUuid, _ := ParseUuid(OmpUnsecRspChrUuid)
 
-	publicSvcUuid, _ := ParseUuid(IotivitySvcUuid)
-	publicReqChrUuid, _ := ParseUuid(IotivityReqChrUuid)
-	publicRspChrUuid, _ := ParseUuid(IotivityRspChrUuid)
-
-	unauthSvcUuid, _ := ParseUuid(UnauthSvcUuid)
-	unauthReqChrUuid, _ := ParseUuid(UnauthReqChrUuid)
-	unauthRspChrUuid, _ := ParseUuid(UnauthRspChrUuid)
-
-	secureSvcUuid := NewBleUuid16(SecureSvcUuid)
-	secureReqChrUuid := NewBleUuid16(SecureReqChrUuid)
-	secureRspChrUuid := NewBleUuid16(SecureRspChrUuid)
+	resSvcUuid, _ := ParseUuid(IotivitySvcUuid)
+	resReqChrUuid, _ := ParseUuid(IotivityReqChrUuid)
+	resRspChrUuid, _ := ParseUuid(IotivityRspChrUuid)
 
 	switch mgmtProto {
 	case sesn.MGMT_PROTO_NMP:
@@ -769,12 +737,8 @@ func BuildMgmtChrs(mgmtProto sesn.MgmtProto) (BleMgmtChrs, error) {
 			fmt.Errorf("invalid management protocol: %+v", mgmtProto)
 	}
 
-	mgmtChrs.ResPublicReqChr = &BleChrId{publicSvcUuid, publicReqChrUuid}
-	mgmtChrs.ResPublicRspChr = &BleChrId{publicSvcUuid, publicRspChrUuid}
-	mgmtChrs.ResUnauthReqChr = &BleChrId{unauthSvcUuid, unauthReqChrUuid}
-	mgmtChrs.ResUnauthRspChr = &BleChrId{unauthSvcUuid, unauthRspChrUuid}
-	mgmtChrs.ResSecureReqChr = &BleChrId{secureSvcUuid, secureReqChrUuid}
-	mgmtChrs.ResSecureRspChr = &BleChrId{secureSvcUuid, secureRspChrUuid}
+	mgmtChrs.ResReqChr = &BleChrId{resSvcUuid, resReqChrUuid}
+	mgmtChrs.ResRspChr = &BleChrId{resSvcUuid, resRspChrUuid}
 
 	return mgmtChrs, nil
 }
@@ -795,28 +759,6 @@ func IsSecErr(err error) bool {
 
 	default:
 		return false
-	}
-}
-
-// Indicates the minimum security requirements for accessing the specified
-// resource type.
-//
-// @return bool                 Whether encryption is required.
-// @return bool                 Whether authentiation is required.
-// @return error                Error.
-func ResTypeSecReqs(resType sesn.ResourceType) (bool, bool, error) {
-	switch resType {
-	case sesn.RES_TYPE_PUBLIC:
-		return false, false, nil
-
-	case sesn.RES_TYPE_UNAUTH:
-		return true, false, nil
-
-	case sesn.RES_TYPE_SECURE:
-		return true, true, nil
-
-	default:
-		return false, false, fmt.Errorf("invalid resource type: %+v", resType)
 	}
 }
 

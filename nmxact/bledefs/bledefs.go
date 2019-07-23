@@ -852,14 +852,10 @@ func CompareChrIds(a BleChrId, b BleChrId) int {
 }
 
 type BleMgmtChrs struct {
-	NmpReqChr       *BleChrId
-	NmpRspChr       *BleChrId
-	ResPublicReqChr *BleChrId
-	ResPublicRspChr *BleChrId
-	ResUnauthReqChr *BleChrId
-	ResUnauthRspChr *BleChrId
-	ResSecureReqChr *BleChrId
-	ResSecureRspChr *BleChrId
+	NmpReqChr *BleChrId
+	NmpRspChr *BleChrId
+	ResReqChr *BleChrId
+	ResRspChr *BleChrId
 }
 
 type BleSmAction int

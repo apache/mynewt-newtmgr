@@ -109,17 +109,16 @@ func (s *BleSesn) TxNmpOnce(req *nmp.NmpMsg, opt sesn.TxOptions) (
 }
 
 func (s *BleSesn) TxCoapOnce(m coap.Message,
-	resType sesn.ResourceType,
 	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
 
-	return s.Ns.TxCoapOnce(m, resType, opt)
+	return s.Ns.TxCoapOnce(m, opt)
 }
 
 func (s *BleSesn) TxCoapObserve(m coap.Message,
-	resType sesn.ResourceType,
-	opt sesn.TxOptions, NotifCb sesn.GetNotifyCb, stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
+	opt sesn.TxOptions, NotifCb sesn.GetNotifyCb,
+	stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
 
-	return s.Ns.TxCoapObserve(m, resType, opt, NotifCb, stopsignal)
+	return s.Ns.TxCoapObserve(m, opt, NotifCb, stopsignal)
 }
 
 func (s *BleSesn) RxAccept() (sesn.Sesn, *sesn.SesnCfg, error) {
