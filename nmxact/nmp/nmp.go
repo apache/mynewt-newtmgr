@@ -28,7 +28,6 @@ import (
 	"github.com/ugorji/go/codec"
 
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
-	"mynewt.apache.org/newt/util"
 )
 
 const NMP_HDR_SIZE = 8
@@ -87,8 +86,8 @@ func NewNmpMsg() *NmpMsg {
 
 func DecodeNmpHdr(data []byte) (*NmpHdr, error) {
 	if len(data) < NMP_HDR_SIZE {
-		return nil, util.NewNewtError(fmt.Sprintf(
-			"Newtmgr request buffer too small %d bytes", len(data)))
+		return nil, fmt.Errorf(
+			"Newtmgr request buffer too small %d bytes", len(data))
 	}
 
 	hdr := &NmpHdr{}

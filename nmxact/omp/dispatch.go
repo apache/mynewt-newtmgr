@@ -23,8 +23,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/runtimeco/go-coap"
+	log "github.com/sirupsen/logrus"
 
 	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
@@ -33,22 +33,22 @@ import (
 // The dispatcher is the owner of the listeners it points to.  Only the
 // dispatcher writes to these listeners.
 type Dispatcher struct {
-	nmpd       *nmp.Dispatcher
-	oicd       *nmcoap.Dispatcher
-	stopCh     chan struct{}
-	wg         sync.WaitGroup
-	stopped    uint32
-	txFilterCb nmcoap.MsgFilter
-	rxFilterCb nmcoap.MsgFilter
+	nmpd     *nmp.Dispatcher
+	coapd    *nmcoap.Dispatcher
+	stopCh   chan struct{}
+	wg       sync.WaitGroup
+	rxFilter nmcoap.MsgFilter
+	stopped  uint32
 }
 
-func NewDispatcher(txFilterCb, rxFilterCb nmcoap.MsgFilter, isTcp bool, logDepth int) (*Dispatcher, error) {
+func NewDispatcher(rxFilter nmcoap.MsgFilter, isTcp bool,
+	logDepth int) (*Dispatcher, error) {
+
 	d := &Dispatcher{
-		nmpd:       nmp.NewDispatcher(logDepth + 1),
-		oicd:       nmcoap.NewDispatcher(isTcp, logDepth+1),
-		stopCh:     make(chan struct{}),
-		txFilterCb: txFilterCb,
-		rxFilterCb: rxFilterCb,
+		nmpd:     nmp.NewDispatcher(logDepth + 1),
+		coapd:    nmcoap.NewDispatcher(isTcp, logDepth+1),
+		stopCh:   make(chan struct{}),
+		rxFilter: rxFilter,
 	}
 
 	// Listen for OMP responses.  This should never fail.
@@ -63,20 +63,25 @@ func NewDispatcher(txFilterCb, rxFilterCb nmcoap.MsgFilter, isTcp bool, logDepth
 func (d *Dispatcher) addOmpListener() error {
 	// OMP responses are identifiable by the lack of a CoAP token.  Set up a
 	// permanent listener to receive these messages.
-	ol, err := d.AddOicListener(nil)
+	mc := nmcoap.MsgCriteria{
+		Token: []byte{},
+		Path:  "",
+	}
+
+	ol, err := d.AddOicListener(mc)
 	if err != nil {
 		return err
 	}
 
 	d.wg.Add(1)
 	go func() {
-		defer d.RemoveOicListener(nil)
+		defer d.RemoveOicListener(mc)
 		defer d.wg.Done()
 
 		for {
 			select {
 			case m := <-ol.RspChan:
-				rsp, err := DecodeOmp(m, d.rxFilterCb)
+				rsp, err := DecodeOmp(m, d.rxFilter)
 				if err != nil {
 					log.Debugf("OMP decode failure: %s", err.Error())
 				} else if rsp != nil {
@@ -109,19 +114,23 @@ func (d *Dispatcher) Stop() {
 }
 
 func (d *Dispatcher) Dispatch(data []byte) bool {
-	return d.oicd.Dispatch(data)
+	return d.coapd.Dispatch(data)
 }
 
 func (d *Dispatcher) ProcessCoapReq(data []byte) (coap.Message, error) {
-	return d.oicd.ProcessCoapReq(data)
+	return d.coapd.ProcessCoapReq(data)
 }
 
-func (d *Dispatcher) AddOicListener(token []byte) (*nmcoap.Listener, error) {
-	return d.oicd.AddListener(token)
+func (d *Dispatcher) AddOicListener(
+	mc nmcoap.MsgCriteria) (*nmcoap.Listener, error) {
+
+	return d.coapd.AddListener(mc)
 }
 
-func (d *Dispatcher) RemoveOicListener(token []byte) *nmcoap.Listener {
-	return d.oicd.RemoveListener(token)
+func (d *Dispatcher) RemoveOicListener(
+	mc nmcoap.MsgCriteria) *nmcoap.Listener {
+
+	return d.coapd.RemoveListener(mc)
 }
 
 func (d *Dispatcher) AddNmpListener(seq uint8) (*nmp.Listener, error) {
@@ -138,9 +147,13 @@ func (d *Dispatcher) ErrorOneNmp(seq uint8, err error) error {
 
 func (d *Dispatcher) ErrorAll(err error) {
 	d.nmpd.ErrorAll(err)
-	d.oicd.ErrorAll(err)
+	d.coapd.ErrorAll(err)
 }
 
-func (d *Dispatcher) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
-	return d.txFilterCb, d.rxFilterCb
+func (d *Dispatcher) SetRxFilter(rxFilter nmcoap.MsgFilter) {
+	d.rxFilter = rxFilter
+}
+
+func (d *Dispatcher) RxFilter() nmcoap.MsgFilter {
+	return d.rxFilter
 }

@@ -20,6 +20,8 @@
 package nmble
 
 import (
+	"time"
+
 	"github.com/runtimeco/go-coap"
 
 	. "mynewt.apache.org/newtmgr/nmxact/bledefs"
@@ -102,23 +104,22 @@ func (s *BleSesn) SetOobKey(key []byte) {
 	s.Ns.SetOobKey(key)
 }
 
-func (s *BleSesn) TxNmpOnce(req *nmp.NmpMsg, opt sesn.TxOptions) (
-	nmp.NmpRsp, error) {
+func (s *BleSesn) TxRxMgmt(m *nmp.NmpMsg,
+	timeout time.Duration) (nmp.NmpRsp, error) {
 
-	return s.Ns.TxNmpOnce(req, opt)
+	return s.Ns.TxRxMgmt(m, timeout)
 }
 
-func (s *BleSesn) TxCoapOnce(m coap.Message,
-	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
-
-	return s.Ns.TxCoapOnce(m, opt)
+func (s *BleSesn) TxCoap(m coap.Message) error {
+	return s.Ns.TxCoap(m)
 }
 
-func (s *BleSesn) TxCoapObserve(m coap.Message,
-	opt sesn.TxOptions, NotifCb sesn.GetNotifyCb,
-	stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
+func (s *BleSesn) ListenCoap(mc nmcoap.MsgCriteria) (*nmcoap.Listener, error) {
+	return s.Ns.ListenCoap(mc)
+}
 
-	return s.Ns.TxCoapObserve(m, opt, NotifCb, stopsignal)
+func (s *BleSesn) StopListenCoap(mc nmcoap.MsgCriteria) {
+	s.Ns.StopListenCoap(mc)
 }
 
 func (s *BleSesn) RxAccept() (sesn.Sesn, *sesn.SesnCfg, error) {
@@ -131,4 +132,10 @@ func (s *BleSesn) RxCoap(opt sesn.TxOptions) (coap.Message, error) {
 
 func (s *BleSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
 	return s.Ns.Filters()
+}
+
+func (s *BleSesn) SetFilters(txFilter nmcoap.MsgFilter,
+	rxFilter nmcoap.MsgFilter) {
+
+	s.Ns.SetFilters(txFilter, rxFilter)
 }

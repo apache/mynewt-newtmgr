@@ -22,158 +22,106 @@ package nmcoap
 import (
 	"fmt"
 	"sync"
-	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/runtimeco/go-coap"
+	log "github.com/sirupsen/logrus"
 
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 )
 
-type Token struct {
-	Len  int
-	Data [8]byte
-}
-
-func NewToken(rawToken []byte) (Token, error) {
-	ot := Token{}
-
-	if len(rawToken) > 8 {
-		return ot, fmt.Errorf("Invalid CoAP token: too long (%d bytes)",
-			len(rawToken))
-	}
-
-	ot.Len = len(rawToken)
-	copy(ot.Data[:], rawToken)
-
-	return ot, nil
-}
-
-type Listener struct {
-	RspChan chan coap.Message
-	ErrChan chan error
-	tmoChan chan time.Time
-	timer   *time.Timer
-}
-
-func NewListener() *Listener {
-	return &Listener{
-		RspChan: make(chan coap.Message, 1),
-		ErrChan: make(chan error, 1),
-		tmoChan: make(chan time.Time, 1),
-	}
-}
-
-func (ol *Listener) AfterTimeout(tmo time.Duration) <-chan time.Time {
-	fn := func() {
-		if ol.tmoChan != nil {
-			ol.tmoChan <- time.Now()
-		}
-	}
-	ol.timer = time.AfterFunc(tmo, fn)
-	return ol.tmoChan
-}
-
-func (ol *Listener) Close() {
-	if ol.timer != nil {
-		ol.timer.Stop()
-	}
-
-	close(ol.RspChan)
-	close(ol.ErrChan)
-	close(ol.tmoChan)
-	ol.tmoChan = nil
-}
-
 // The dispatcher is the owner of the listeners it points to.  Only the
 // dispatcher writes to these listeners.
 type Dispatcher struct {
-	tokenListenerMap map[Token]*Listener
-	rxer             Receiver
-	logDepth         int
-	mtx              sync.Mutex
+	listeners []*Listener
+	rxer      Receiver
+	logDepth  int
+	mtx       sync.Mutex
 }
 
 func NewDispatcher(isTcp bool, logDepth int) *Dispatcher {
 	d := &Dispatcher{
-		tokenListenerMap: map[Token]*Listener{},
-		rxer:             NewReceiver(isTcp),
-		logDepth:         logDepth + 2,
+		rxer:     NewReceiver(isTcp),
+		logDepth: logDepth + 2,
 	}
 
 	return d
 }
 
-func (d *Dispatcher) AddListener(token []byte) (*Listener, error) {
-	nmxutil.LogAddOicListener(d.logDepth, token)
-
-	d.mtx.Lock()
-	defer d.mtx.Unlock()
-
-	ot, err := NewToken(token)
-	if err != nil {
-		return nil, err
+func (d *Dispatcher) findListenerIdx(mc MsgCriteria) int {
+	for i, lner := range d.listeners {
+		if CompareMsgCriteria(lner.Criteria, mc) == 0 {
+			return i
+		}
 	}
 
-	if _, ok := d.tokenListenerMap[ot]; ok {
-		return nil, fmt.Errorf("Duplicate OIC listener; token=%#v", token)
-	}
-
-	ol := NewListener()
-	d.tokenListenerMap[ot] = ol
-	return ol, nil
+	return -1
 }
 
-func (d *Dispatcher) RemoveListener(token []byte) *Listener {
-	d.mtx.Lock()
-	defer d.mtx.Unlock()
-
-	ot, err := NewToken(token)
-	if err != nil {
-		log.Errorf("Error creating OIC token: %s", err.Error())
-		return nil
+func (d *Dispatcher) matchListener(mc MsgCriteria) *Listener {
+	for _, lner := range d.listeners {
+		if MatchMsgCriteria(lner.Criteria, mc) {
+			return lner
+		}
 	}
 
-	ol := d.tokenListenerMap[ot]
-	if ol == nil {
-		return nil
-	}
-
-	nmxutil.LogRemoveOicListener(d.logDepth, token)
-	ol.Close()
-	delete(d.tokenListenerMap, ot)
-
-	return ol
+	return nil
 }
 
-func (d *Dispatcher) dispatchRsp(ot Token, msg coap.Message) bool {
+func (d *Dispatcher) AddListener(mc MsgCriteria) (*Listener, error) {
+	nmxutil.LogAddOicListener(d.logDepth, mc.String())
+
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
-	ol := d.tokenListenerMap[ot]
-
-	if ol == nil {
-		log.Debugf("No listener for incoming OIC message; token=%#v", ot)
-		return false
+	if idx := d.findListenerIdx(mc); idx != -1 {
+		return nil, fmt.Errorf("duplicate CoAP listener: %s", mc.String())
 	}
 
-	ol.RspChan <- msg
-	return true
+	lner := NewListener(mc)
+	d.listeners = append(d.listeners, lner)
+	SortListeners(d.listeners)
+
+	return lner, nil
+}
+
+func (d *Dispatcher) RemoveListener(mc MsgCriteria) *Listener {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
+	idx := d.findListenerIdx(mc)
+	if idx == -1 {
+		return nil
+	}
+	lner := d.listeners[idx]
+
+	d.listeners = append(d.listeners[:idx], d.listeners[idx+1:]...)
+
+	nmxutil.LogRemoveOicListener(d.logDepth, mc.String())
+	lner.Close()
+
+	return lner
 }
 
 // Returns true if the response was dispatched.
 func (d *Dispatcher) Dispatch(data []byte) bool {
-	m := d.rxer.Rx(data)
-	if m == nil {
+	// See if this fragment completes a packet.
+	msg := d.rxer.Rx(data)
+	if msg == nil {
 		return false
 	}
 
-	ot, err := NewToken(m.Token())
-	if err != nil {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+
+	mc := CriteriaFromMsg(msg)
+	lner := d.matchListener(mc)
+	if lner == nil {
+		log.Debugf("no listener for incoming CoAP message: %s", mc.String())
 		return false
 	}
 
-	return d.dispatchRsp(ot, m)
+	lner.RspChan <- msg
+	return true
 }
 
 func (d *Dispatcher) ProcessCoapReq(data []byte) (coap.Message, error) {
@@ -184,16 +132,16 @@ func (d *Dispatcher) ProcessCoapReq(data []byte) (coap.Message, error) {
 	return m, nil
 }
 
-func (d *Dispatcher) ErrorOne(token Token, err error) error {
+func (d *Dispatcher) ErrorOne(mc MsgCriteria, err error) error {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
-	ol := d.tokenListenerMap[token]
-	if ol == nil {
-		return fmt.Errorf("No OIC listener for token %#v", token)
+	lner := d.matchListener(mc)
+	if lner == nil {
+		return fmt.Errorf("no CoAP listener: %s", mc.String())
 	}
 
-	ol.ErrChan <- err
+	lner.ErrChan <- err
 
 	return nil
 }
@@ -202,7 +150,7 @@ func (d *Dispatcher) ErrorAll(err error) {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
-	for _, ol := range d.tokenListenerMap {
-		ol.ErrChan <- err
+	for _, lner := range d.listeners {
+		lner.ErrChan <- err
 	}
 }

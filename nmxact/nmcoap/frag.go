@@ -20,8 +20,8 @@
 package nmcoap
 
 import (
-	log "github.com/sirupsen/logrus"
 	"github.com/runtimeco/go-coap"
+	log "github.com/sirupsen/logrus"
 )
 
 type Reassembler struct {
@@ -40,6 +40,7 @@ func (r *Reassembler) RxFrag(frag []byte) *coap.TcpMessage {
 	tm, r.cur, err = coap.PullTcp(r.cur)
 	if err != nil {
 		log.Debugf("received invalid CoAP-TCP packet: %s", err.Error())
+		panic("GA")
 		return nil
 	}
 

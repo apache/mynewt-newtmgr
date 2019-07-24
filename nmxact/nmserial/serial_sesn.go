@@ -49,20 +49,16 @@ type SerialSesn struct {
 	msgChan  chan []byte
 	connChan chan *SerialSesn
 	stopChan chan struct{}
-
-	txFilterCb nmcoap.MsgFilter
-	rxFilterCb nmcoap.MsgFilter
 }
 
 func NewSerialSesn(sx *SerialXport, cfg sesn.SesnCfg) (*SerialSesn, error) {
 	s := &SerialSesn{
-		cfg:        cfg,
-		sx:         sx,
-		txFilterCb: cfg.TxFilterCb,
-		rxFilterCb: cfg.RxFilterCb,
+		cfg: cfg,
+		sx:  sx,
 	}
 
-	txvr, err := mgmt.NewTransceiver(cfg.TxFilterCb, cfg.RxFilterCb, false, cfg.MgmtProto, 3)
+	txvr, err := mgmt.NewTransceiver(cfg.TxFilterCb, cfg.RxFilterCb, false,
+		cfg.MgmtProto, 3)
 	if err != nil {
 		return nil, err
 	}
@@ -196,8 +192,8 @@ func (s *SerialSesn) AbortRx(seq uint8) error {
 	return nil
 }
 
-func (s *SerialSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
-	nmp.NmpRsp, error) {
+func (s *SerialSesn) TxRxMgmt(m *nmp.NmpMsg,
+	timeout time.Duration) (nmp.NmpRsp, error) {
 
 	if !s.isOpen {
 		return nil, nmxutil.NewSesnClosedError(
@@ -214,42 +210,31 @@ func (s *SerialSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 	}
 	defer s.sx.setRspSesn(nil)
 
-	return s.txvr.TxNmp(txFn, m, s.MtuOut(), opt.Timeout)
+	return s.txvr.TxRxMgmt(txFn, m, s.MtuOut(), timeout)
 }
 
-func (s *SerialSesn) TxCoapOnce(m coap.Message,
-	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
-
+func (s *SerialSesn) TxCoap(m coap.Message) error {
 	if !s.isOpen {
-		return 0, nil, nmxutil.NewSesnClosedError(
-			"Attempt to transmit over closed serial session")
-	}
-
-	txFn := func(b []byte) error {
-		return s.sx.Tx(b)
+		return nmxutil.NewSesnClosedError(
+			"attempt to transmit over closed serial session")
 	}
 
 	err := s.sx.setRspSesn(s)
 	if err != nil {
-		return 0, nil, err
+		return err
 	}
-	defer s.sx.setRspSesn(nil)
 
-	rsp, err := s.txvr.TxOic(txFn, m, s.MtuOut(), opt.Timeout)
-	if err != nil {
-		return 0, nil, err
-	} else if rsp == nil {
-		return 0, nil, nil
-	} else {
-		return rsp.Code(), rsp.Payload(), nil
-	}
+	return s.txvr.TxCoap(s.sx.Tx, m, s.MtuOut())
 }
 
-func (s *SerialSesn) TxCoapObserve(m coap.Message, opt sesn.TxOptions,
-	NotifCb sesn.GetNotifyCb,
-	stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
+func (s *SerialSesn) ListenCoap(
+	mc nmcoap.MsgCriteria) (*nmcoap.Listener, error) {
 
-	return 0, nil, nil, nil
+	return s.txvr.ListenCoap(mc)
+}
+
+func (s *SerialSesn) StopListenCoap(mc nmcoap.MsgCriteria) {
+	s.txvr.StopListenCoap(mc)
 }
 
 func (s *SerialSesn) MgmtProto() sesn.MgmtProto {
@@ -337,5 +322,11 @@ func (s *SerialSesn) RxCoap(opt sesn.TxOptions) (coap.Message, error) {
 }
 
 func (s *SerialSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
-	return s.txFilterCb, s.rxFilterCb
+	return s.txvr.Filters()
+}
+
+func (s *SerialSesn) SetFilters(txFilter nmcoap.MsgFilter,
+	rxFilter nmcoap.MsgFilter) {
+
+	s.txvr.SetFilters(txFilter, rxFilter)
 }

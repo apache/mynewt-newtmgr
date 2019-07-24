@@ -20,51 +20,83 @@
 package cli
 
 import (
-	"container/list"
+	"encoding/hex"
 	"fmt"
+	"sort"
+	"strings"
+	"sync"
+
 	"github.com/runtimeco/go-coap"
+	"github.com/spf13/cast"
 	"github.com/spf13/cobra"
 	"gopkg.in/abiosoft/ishell.v1"
-	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
+	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
+	"mynewt.apache.org/newtmgr/nmxact/sesn"
 	"mynewt.apache.org/newtmgr/nmxact/xact"
-	"strconv"
-	"strings"
-	"time"
 )
 
 var ObserverId int
 
-type ObserveElem struct {
-	Id         int
-	Token      []byte
-	Stopsignal chan int
-	Path       string
+type observeElem struct {
+	Id       int
+	Path     string
+	Listener *nmcoap.Listener
 }
 
 var ResourcePath string
-var ObserversList *list.List
+var observerId int
+var observers = map[int]*observeElem{}
+var observerMtx sync.Mutex
 
-func addObserver(path string, token []byte, stopsignal chan int) ObserveElem {
-	o := ObserveElem{
-		Id:         ObserverId,
-		Token:      token,
-		Stopsignal: stopsignal,
-		Path:       path,
+func addObserver(path string, cl *nmcoap.Listener) *observeElem {
+	observerMtx.Lock()
+	defer observerMtx.Unlock()
+
+	o := &observeElem{
+		Id:       ObserverId,
+		Path:     path,
+		Listener: cl,
 	}
-
 	ObserverId++
-	ObserversList.PushBack(o)
+	observers[o.Id] = o
+
+	go func() {
+		for {
+			msg, err := sesn.RxCoap(o.Listener, 0)
+			if err != nil {
+				fmt.Printf("notification error: %s", err.Error())
+				return
+			}
+
+			if msg == nil {
+				// No longer listening.
+				return
+			}
+
+			fmt.Println("Notification received:")
+			fmt.Println("Code:", msg.Code())
+			fmt.Println("Path:", o.Path)
+			fmt.Println("Token: [", msg.Token(), "]")
+			fmt.Printf("%s\n", resResponseStr(msg.PathString(), msg.Payload()))
+			fmt.Println()
+		}
+	}()
+
 	return o
 }
 
-func notificationCb(path string, Code coap.COAPCode, value []byte, token []byte) {
-	fmt.Println("Notification received:")
-	fmt.Println("Code:", Code)
-	fmt.Println("Token: [", token, "]")
-	fmt.Printf("%s\n", resResponseStr(path, value))
-	fmt.Println()
+func removeObserver(id int) *observeElem {
+	observerMtx.Lock()
+	defer observerMtx.Unlock()
+
+	o := observers[id]
+	if o != nil {
+		delete(observers, id)
+	}
+
+	return o
 }
 
 func copyFromMap(m map[string]interface{}, key string) (value string) {
@@ -99,20 +131,15 @@ func getPath(m map[string]interface{}) {
 	}
 }
 
-func getCmdCommon(c *ishell.Context, observe int, token []byte) error {
-
+func coapTxRx(c *ishell.Context, mp nmcoap.MsgParams) error {
 	s, err := GetSesn()
 	if err != nil {
 		nmUsage(nil, err)
 	}
 
-	cmd := xact.NewGetResCmd()
+	cmd := xact.NewResCmd()
 	cmd.SetTxOptions(nmutil.TxOptions())
-	cmd.Path = ResourcePath
-	cmd.Observe = observe
-	cmd.NotifyFunc = notificationCb
-	cmd.StopSignal = make(chan int)
-	cmd.Token = token
+	cmd.MsgParams = mp
 
 	res, err := cmd.Run(s)
 	if err != nil {
@@ -120,29 +147,21 @@ func getCmdCommon(c *ishell.Context, observe int, token []byte) error {
 		return err
 	}
 
-	sres := res.(*xact.GetResResult)
+	sres := res.(*xact.ResResult)
 	if sres.Status() != 0 {
-		fmt.Printf("Error: %s (%d)\n",
-			coap.COAPCode(sres.Status()), sres.Status())
+		fmt.Printf("Error: %s (%d)\n", sres.Rsp.Code(), sres.Status())
 		return err
 	}
 
-	if observe == 0 {
-		o := addObserver(cmd.Path, sres.Token, cmd.StopSignal)
-		c.Println("Observer added:")
-		c.Println("id:", o.Id, "path:", o.Path, "token:", o.Token)
-		c.Println()
-	}
-
-	if sres.Value != nil {
-		fmt.Printf("%s\n", resResponseStr(cmd.Path, sres.Value))
+	if len(sres.Rsp.Payload()) > 0 {
+		fmt.Printf("%s\n",
+			resResponseStr(mp.Uri, sres.Rsp.Payload()))
 	}
 
 	return nil
 }
 
 func getCmd(c *ishell.Context) {
-
 	m, err := extractResKv(c.Args)
 	if err != nil || len(c.Args) == 0 {
 		c.Println("Incorrect or no parameters provided ... using cached ones")
@@ -162,10 +181,21 @@ func getCmd(c *ishell.Context) {
 	c.Println("path: ", ResourcePath)
 	c.Println()
 
-	getCmdCommon(c, -1, nil)
+	mp := nmcoap.MsgParams{
+		Code: coap.GET,
+		Uri:  ResourcePath,
+	}
+	if err := coapTxRx(c, mp); err != nil {
+		fmt.Printf("error: %s\n", err.Error())
+	}
 }
 
 func registerCmd(c *ishell.Context) {
+	s, err := GetSesn()
+	if err != nil {
+		nmUsage(nil, err)
+	}
+
 	m, err := extractResKv(c.Args)
 	if err != nil || len(c.Args) == 0 {
 		c.Println("Incorrect or no parameters provided ... using cached ones")
@@ -185,10 +215,43 @@ func registerCmd(c *ishell.Context) {
 	c.Println("path: ", ResourcePath)
 	c.Println()
 
-	getCmdCommon(c, 0, nil)
+	mc := nmcoap.MsgCriteria{Token: nmxutil.NextToken()}
+	cl, err := s.ListenCoap(mc)
+	if err != nil {
+		fmt.Printf("error: %s\n", err.Error())
+		return
+	}
+
+	cmd := xact.NewResNoRxCmd()
+	cmd.MsgParams = nmcoap.MsgParams{
+		Code:    coap.GET,
+		Uri:     ResourcePath,
+		Observe: nmcoap.OBSERVE_START,
+		Token:   mc.Token,
+	}
+	if _, err := cmd.Run(s); err != nil {
+		fmt.Printf("error: %s\n", err.Error())
+		return
+	}
+
+	if _, err := sesn.RxCoap(cl, nmutil.TxOptions().Timeout); err != nil {
+		s.StopListenCoap(mc)
+		fmt.Printf("error: %s\n", err.Error())
+		return
+	}
+
+	o := addObserver(ResourcePath, cl)
+	c.Println("Observer added:")
+	c.Println("id:", o.Id, "path:", ResourcePath, "token:", mc.Token)
+	c.Println()
 }
 
 func unregisterCmd(c *ishell.Context) {
+	s, err := GetSesn()
+	if err != nil {
+		nmUsage(nil, err)
+	}
+
 	m, err := extractResKv(c.Args)
 	if err != nil || len(c.Args) == 0 {
 		c.Println("Incorrect or no parameters provided ... using cached ones")
@@ -207,52 +270,38 @@ func unregisterCmd(c *ishell.Context) {
 		return
 	}
 
-	idstr, ok := m["id"].(string)
-	if ok == false {
-		c.Println(c.HelpText())
-		return
-	}
-
-	id, err := strconv.Atoi(idstr)
+	id, err := cast.ToIntE(m["id"])
 	if err != nil {
+		c.Printf("Invalid ID: %v\n", m["id"])
 		c.Println(c.HelpText())
 		return
 	}
 
-	var e ObserveElem
-	found := false
-	elem := ObserversList.Front()
-	for elem != nil && found == false {
-		e, ok = (elem.Value).(ObserveElem)
-		if ok && e.Id == id {
-			found = true
-		} else {
-			elem = elem.Next()
-		}
-	}
-
-	if found == false {
+	o := removeObserver(id)
+	if o == nil {
 		c.Println("Observer id:", id, "not found")
 		return
 	}
+	s.StopListenCoap(o.Listener.Criteria)
 
-	/* Stop listen. Sleep to allow to close existing listener before we send next GET request */
-	e.Stopsignal <- 1
-	time.Sleep(1)
-
-	c.Println("Unegister for notifications")
-	c.Println("id: ", e.Id)
-	c.Println("path: ", e.Path)
-	c.Println("token: ", e.Token)
-	c.Println()
-
-	err = getCmdCommon(c, 1, e.Token)
-	if err == nil {
-		ObserversList.Remove(elem)
+	mp := nmcoap.MsgParams{
+		Code:    coap.GET,
+		Uri:     ResourcePath,
+		Observe: nmcoap.OBSERVE_STOP,
 	}
+	if err := coapTxRx(c, mp); err != nil {
+		fmt.Printf("error: %s\n", err.Error())
+		return
+	}
+
+	c.Println("Unregister for notifications")
+	c.Println("id: ", o.Id)
+	c.Println("path: ", o.Path)
+	c.Println("token: ", o.Listener.Criteria.Token)
+	c.Println()
 }
 
-func getUriParams(c *ishell.Context) (map[string]interface{}, error) {
+func getUriParams(c *ishell.Context) ([]byte, error) {
 
 	c.ShowPrompt(false)
 	defer c.ShowPrompt(true)
@@ -261,11 +310,20 @@ func getUriParams(c *ishell.Context) (map[string]interface{}, error) {
 	pstr := c.ReadLine()
 	params := strings.Split(pstr, " ")
 
-	return extractResKv(params)
+	m, err := extractResKv(params)
+	if err != nil {
+		return nil, err
+	}
+
+	b, err := nmxutil.EncodeCborMap(m)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
 }
 
 func putCmd(c *ishell.Context) {
-
 	m, err := extractResKv(c.Args)
 	if err != nil || len(c.Args) == 0 {
 		c.Println("Incorrect or no parameters provided ... using cached ones")
@@ -279,47 +337,23 @@ func putCmd(c *ishell.Context) {
 		return
 	}
 
-	m, err = getUriParams(c)
+	b, err := getUriParams(c)
 	if err != nil {
 		c.Println(c.HelpText())
 		return
 	}
 
-	s, err := GetSesn()
-	if err != nil {
-		nmUsage(nil, err)
+	mp := nmcoap.MsgParams{
+		Code:    coap.PUT,
+		Uri:     ResourcePath,
+		Payload: b,
 	}
-
-	b, err := nmxutil.EncodeCborMap(m)
-	if err != nil {
-		nmUsage(nil, util.ChildNewtError(err))
-	}
-
-	cmd := xact.NewPutResCmd()
-	cmd.SetTxOptions(nmutil.TxOptions())
-	cmd.Path = ResourcePath
-	cmd.Value = b
-
-	res, err := cmd.Run(s)
-	if err != nil {
-		c.Println("Error: ", err)
-		return
-	}
-
-	sres := res.(*xact.PutResResult)
-	if sres.Status() != 0 {
-		fmt.Printf("Error: %s (%d)\n",
-			coap.COAPCode(sres.Status()), sres.Status())
-		return
-	}
-
-	if sres.Value != nil {
-		fmt.Printf("%s\n", resResponseStr(cmd.Path, sres.Value))
+	if err := coapTxRx(c, mp); err != nil {
+		fmt.Printf("error: %s\n", err.Error())
 	}
 }
 
 func postCmd(c *ishell.Context) {
-
 	m, err := extractResKv(c.Args)
 	if err != nil || len(c.Args) == 0 {
 		c.Println("Incorrect or no parameters provided ... using cached ones")
@@ -333,47 +367,23 @@ func postCmd(c *ishell.Context) {
 		return
 	}
 
-	m, err = getUriParams(c)
+	b, err := getUriParams(c)
 	if err != nil {
 		c.Println(c.HelpText())
 		return
 	}
 
-	b, err := nmxutil.EncodeCborMap(m)
-	if err != nil {
-		nmUsage(nil, util.ChildNewtError(err))
+	mp := nmcoap.MsgParams{
+		Code:    coap.POST,
+		Uri:     ResourcePath,
+		Payload: b,
 	}
-
-	s, err := GetSesn()
-	if err != nil {
-		nmUsage(nil, err)
-	}
-
-	cmd := xact.NewPostResCmd()
-	cmd.SetTxOptions(nmutil.TxOptions())
-	cmd.Path = ResourcePath
-	cmd.Value = b
-
-	res, err := cmd.Run(s)
-	if err != nil {
-		c.Println("Error: ", err)
-		return
-	}
-
-	sres := res.(*xact.PostResResult)
-	if sres.Status() != 0 {
-		fmt.Printf("Error: %s (%d)\n",
-			coap.COAPCode(sres.Status()), sres.Status())
-		return
-	}
-
-	if sres.Value != nil {
-		fmt.Printf("%s\n", resResponseStr(cmd.Path, sres.Value))
+	if err := coapTxRx(c, mp); err != nil {
+		fmt.Printf("error: %s\n", err.Error())
 	}
 }
 
 func deleteCmd(c *ishell.Context) {
-
 	m, err := extractResKv(c.Args)
 	if err != nil || len(c.Args) == 0 {
 		c.Println("Incorrect or no parameters provided ... using cached ones")
@@ -387,42 +397,29 @@ func deleteCmd(c *ishell.Context) {
 		return
 	}
 
-	s, err := GetSesn()
-	if err != nil {
-		nmUsage(nil, err)
+	mp := nmcoap.MsgParams{
+		Code: coap.DELETE,
+		Uri:  ResourcePath,
 	}
-
-	cmd := xact.NewDeleteResCmd()
-	cmd.SetTxOptions(nmutil.TxOptions())
-	cmd.Path = ResourcePath
-
-	res, err := cmd.Run(s)
-	if err != nil {
-		c.Println("Error: ", err)
-		return
-	}
-
-	sres := res.(*xact.DeleteResResult)
-	if sres.Status() != 0 {
-		fmt.Printf("Error: %s (%d)\n",
-			coap.COAPCode(sres.Status()), sres.Status())
-		return
-	}
-
-	if sres.Value != nil {
-		fmt.Printf("%s\n", resResponseStr(cmd.Path, sres.Value))
+	if err := coapTxRx(c, mp); err != nil {
+		fmt.Printf("error: %s\n", err.Error())
 	}
 }
 
 func printObservers(c *ishell.Context) {
+	observerMtx.Lock()
+	defer observerMtx.Unlock()
 
-	elem := ObserversList.Front()
-	for elem != nil {
-		e, ok := (elem.Value).(ObserveElem)
-		if ok {
-			c.Println("id:", e.Id, ", path:", e.Path, ", token:", e.Token)
-		}
-		elem = elem.Next()
+	var ids []int
+	for id, _ := range observers {
+		ids = append(ids, id)
+	}
+	sort.Ints(ids)
+
+	for _, id := range ids {
+		o := observers[id]
+		c.Printf("id=%d path=%s token=%s\n",
+			o.Id, o.Path, hex.EncodeToString(o.Listener.Criteria.Token))
 	}
 }
 
@@ -432,8 +429,6 @@ func startInteractive(cmd *cobra.Command, args []string) {
 	// by default, new shell includes 'exit', 'help' and 'clear' commands.
 	shell := ishell.New()
 	shell.SetPrompt("> ")
-
-	ObserversList = list.New()
 
 	// display welcome info.
 	shell.Println()

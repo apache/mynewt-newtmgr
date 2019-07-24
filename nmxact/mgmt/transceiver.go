@@ -22,11 +22,12 @@ package mgmt
 import (
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/runtimeco/go-coap"
+	log "github.com/sirupsen/logrus"
 
 	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
@@ -44,24 +45,27 @@ type Transceiver struct {
 	// Used for OMP and CoAP resource requests.
 	od *omp.Dispatcher
 
+	txFilterCb nmcoap.MsgFilter
+
 	isTcp bool
 	proto sesn.MgmtProto
 	wg    sync.WaitGroup
 }
 
-func NewTransceiver(txFilterCb, rxFilterCb nmcoap.MsgFilter, isTcp bool, mgmtProto sesn.MgmtProto, logDepth int) (
-	*Transceiver, error) {
+func NewTransceiver(txFilterCb, rxFilterCb nmcoap.MsgFilter, isTcp bool,
+	mgmtProto sesn.MgmtProto, logDepth int) (*Transceiver, error) {
 
 	t := &Transceiver{
-		isTcp: isTcp,
-		proto: mgmtProto,
+		txFilterCb: txFilterCb,
+		isTcp:      isTcp,
+		proto:      mgmtProto,
 	}
 
 	if mgmtProto == sesn.MGMT_PROTO_NMP {
 		t.nd = nmp.NewDispatcher(logDepth)
 	}
 
-	od, err := omp.NewDispatcher(txFilterCb, rxFilterCb, isTcp, logDepth)
+	od, err := omp.NewDispatcher(rxFilterCb, isTcp, logDepth)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +74,7 @@ func NewTransceiver(txFilterCb, rxFilterCb nmcoap.MsgFilter, isTcp bool, mgmtPro
 	return t, nil
 }
 
-func (t *Transceiver) txPlain(txCb TxFn, req *nmp.NmpMsg, mtu int,
+func (t *Transceiver) txRxNmp(txCb TxFn, req *nmp.NmpMsg, mtu int,
 	timeout time.Duration) (nmp.NmpRsp, error) {
 
 	nl, err := t.nd.AddListener(req.Hdr.Seq)
@@ -110,7 +114,7 @@ func (t *Transceiver) txPlain(txCb TxFn, req *nmp.NmpMsg, mtu int,
 	}
 }
 
-func (t *Transceiver) txOmp(txCb TxFn, req *nmp.NmpMsg, mtu int,
+func (t *Transceiver) txRxOmp(txCb TxFn, req *nmp.NmpMsg, mtu int,
 	timeout time.Duration) (nmp.NmpRsp, error) {
 
 	nl, err := t.od.AddNmpListener(req.Hdr.Seq)
@@ -120,11 +124,10 @@ func (t *Transceiver) txOmp(txCb TxFn, req *nmp.NmpMsg, mtu int,
 	defer t.od.RemoveNmpListener(req.Hdr.Seq)
 
 	var b []byte
-	txFilterCb, _ := t.od.Filters()
 	if t.isTcp {
-		b, err = omp.EncodeOmpTcp(txFilterCb, req)
+		b, err = omp.EncodeOmpTcp(t.txFilterCb, req)
 	} else {
-		b, err = omp.EncodeOmpDgram(txFilterCb, req)
+		b, err = omp.EncodeOmpDgram(t.txFilterCb, req)
 	}
 	if err != nil {
 		return nil, err
@@ -157,151 +160,57 @@ func (t *Transceiver) txOmp(txCb TxFn, req *nmp.NmpMsg, mtu int,
 	}
 }
 
-func (t *Transceiver) TxNmp(txCb TxFn, req *nmp.NmpMsg, mtu int,
+func (t *Transceiver) TxRxMgmt(txCb TxFn, req *nmp.NmpMsg, mtu int,
 	timeout time.Duration) (nmp.NmpRsp, error) {
 
 	if t.nd != nil {
-		return t.txPlain(txCb, req, mtu, timeout)
+		return t.txRxNmp(txCb, req, mtu, timeout)
 	} else {
-		return t.txOmp(txCb, req, mtu, timeout)
+		return t.txRxOmp(txCb, req, mtu, timeout)
 	}
 }
 
-func (t *Transceiver) TxOic(txCb TxFn, req coap.Message, mtu int,
-	timeout time.Duration) (coap.Message, error) {
-
+func (t *Transceiver) TxCoap(txCb TxFn, req coap.Message, mtu int) error {
 	b, err := nmcoap.Encode(req)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	var rspExpected bool
-	switch req.Type() {
-	case coap.Confirmable:
-		rspExpected = true
-	case coap.NonConfirmable:
-		rspExpected = req.Code() == coap.GET
-	default:
-		rspExpected = false
-	}
-	if t.proto == sesn.MGMT_PROTO_COAP_SERVER {
-		rspExpected = false
-	}
-
-	var ol *nmcoap.Listener
-	if rspExpected {
-		ol, err = t.od.AddOicListener(req.Token())
-		if err != nil {
-			return nil, err
-		}
-		defer t.od.RemoveOicListener(req.Token())
-	}
-
-	log.Debugf("Tx OIC request: %s", hex.Dump(b))
+	log.Debugf("tx CoAP request: %s", hex.Dump(b))
 	frags := nmxutil.Fragment(b, mtu)
 	for _, frag := range frags {
 		if err := txCb(frag); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	if !rspExpected {
-		return nil, nil
-	}
-
-	for {
-		select {
-		case err := <-ol.ErrChan:
-			return nil, err
-		case rsp := <-ol.RspChan:
-			return rsp, nil
-		case _, ok := <-ol.AfterTimeout(timeout):
-			if ok {
-				return nil, nmxutil.NewRspTimeoutError("OIC timeout")
-			}
-		}
-	}
+	return nil
 }
 
-func (t *Transceiver) TxOicObserve(txCb TxFn, req coap.Message, mtu int,
-	timeout time.Duration, NotifyCb sesn.GetNotifyCb, stopsignal chan int) (coap.Message, error) {
+func (t *Transceiver) ListenCoap(
+	mc nmcoap.MsgCriteria) (*nmcoap.Listener, error) {
 
-	b, err := nmcoap.Encode(req)
+	mc.Path = strings.TrimPrefix(mc.Path, "/")
+
+	ol, err := t.od.AddOicListener(mc)
 	if err != nil {
 		return nil, err
 	}
 
-	var ol *nmcoap.Listener
+	return ol, nil
+}
 
-	ol, err = t.od.AddOicListener(req.Token())
-	if err != nil {
-		return nil, err
-	}
-
-	log.Debugf("Tx OIC request: %s", hex.Dump(b))
-	frags := nmxutil.Fragment(b, mtu)
-	for _, frag := range frags {
-		if err := txCb(frag); err != nil {
-			t.od.RemoveOicListener(req.Token())
-			return nil, err
-		}
-	}
-
-	var rsp coap.Message
-
-	first := make(chan int)
-	iter := 0
-
-	go func() {
-		defer t.od.RemoveOicListener(req.Token())
-
-		for {
-			select {
-			case err = <-ol.ErrChan:
-				log.Debugf("Error: %s", err)
-				first <- 2
-				return
-			case rsp = <-ol.RspChan:
-				if iter == 0 {
-					first <- 1
-					iter = 1
-				} else {
-					NotifyCb(req.PathString(), rsp.Code(), rsp.Payload(), rsp.Token())
-				}
-
-			case _, ok := <-ol.AfterTimeout(timeout):
-				if ok && iter == 0 {
-					err = nmxutil.NewRspTimeoutError("OIC timeout")
-					first <- 2
-					return
-				} else {
-					log.Debugf("Timeout")
-				}
-
-			case <-stopsignal:
-				/* Observing stopped by user */
-				return
-			}
-		}
-	}()
-
-	for {
-		select {
-		case a := <-first:
-			if a == 1 {
-				return rsp, nil
-			} else {
-				return nil, err
-			}
-		}
-	}
+func (t *Transceiver) StopListenCoap(mc nmcoap.MsgCriteria) {
+	mc.Path = strings.TrimPrefix(mc.Path, "/")
+	t.od.RemoveOicListener(mc)
 }
 
 func (t *Transceiver) DispatchNmpRsp(data []byte) {
 	if t.nd != nil {
+		log.Debugf("rx nmp response: %s", hex.Dump(data))
 		t.nd.Dispatch(data)
 	} else {
-		log.Debugf("Rx OIC response: %s", hex.Dump(data))
+		log.Debugf("rx omp response: %s", hex.Dump(data))
 		t.od.Dispatch(data)
 	}
 }
@@ -339,4 +248,15 @@ func (t *Transceiver) Stop() {
 
 func (t *Transceiver) MgmtProto() sesn.MgmtProto {
 	return t.proto
+}
+
+func (t *Transceiver) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
+	return t.txFilterCb, t.od.RxFilter()
+}
+
+func (t *Transceiver) SetFilters(txFilter nmcoap.MsgFilter,
+	rxFilter nmcoap.MsgFilter) {
+
+	t.txFilterCb = txFilter
+	t.od.SetRxFilter(rxFilter)
 }

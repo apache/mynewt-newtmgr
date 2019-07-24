@@ -24,6 +24,7 @@ require (
 	github.com/raff/goble v0.0.0-20170814221208-b12b34f940c4 // indirect
 	github.com/runtimeco/go-coap v0.0.0-20180109101419-47c23e2a63ea
 	github.com/sirupsen/logrus v1.4.1
+	github.com/spf13/cast v1.2.0
 	github.com/spf13/cobra v0.0.3
 	github.com/spf13/pflag v1.0.3 // indirect
 	github.com/tarm/serial v0.0.0-20170530023055-e50d7d20b1f6

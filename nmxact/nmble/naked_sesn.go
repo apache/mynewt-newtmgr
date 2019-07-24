@@ -22,6 +22,7 @@ package nmble
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/runtimeco/go-coap"
 	log "github.com/sirupsen/logrus"
@@ -74,9 +75,6 @@ type NakedSesn struct {
 	shuttingDown bool
 
 	smIo SmIo
-
-	txFilterCb nmcoap.MsgFilter
-	rxFilterCb nmcoap.MsgFilter
 }
 
 func (s *NakedSesn) init() error {
@@ -87,7 +85,8 @@ func (s *NakedSesn) init() error {
 		s.txvr.Stop()
 	}
 
-	txvr, err := mgmt.NewTransceiver(s.txFilterCb, s.rxFilterCb, true, s.cfg.MgmtProto, 3)
+	txvr, err := mgmt.NewTransceiver(s.cfg.TxFilterCb, s.cfg.RxFilterCb, true,
+		s.cfg.MgmtProto, 3)
 	if err != nil {
 		return err
 	}
@@ -109,11 +108,9 @@ func NewNakedSesn(bx *BleXport, cfg sesn.SesnCfg) (*NakedSesn, error) {
 	}
 
 	s := &NakedSesn{
-		cfg:        cfg,
-		bx:         bx,
-		mgmtChrs:   mgmtChrs,
-		txFilterCb: cfg.TxFilterCb,
-		rxFilterCb: cfg.RxFilterCb,
+		cfg:      cfg,
+		bx:       bx,
+		mgmtChrs: mgmtChrs,
 	}
 
 	s.init()
@@ -134,7 +131,9 @@ func (s *NakedSesn) shutdown(cause error) error {
 		s.mtx.Lock()
 		defer s.mtx.Unlock()
 
-		if s.shuttingDown || s.state == NS_STATE_CLOSED || s.state == NS_STATE_OPENING_IDLE {
+		if s.shuttingDown || s.state == NS_STATE_CLOSED ||
+			s.state == NS_STATE_OPENING_IDLE {
+
 			return nmxutil.NewSesnClosedError(
 				"Attempt to close an already-closed session")
 		}
@@ -318,8 +317,8 @@ func (s *NakedSesn) failIfNotOpen() error {
 	return nil
 }
 
-func (s *NakedSesn) TxNmpOnce(req *nmp.NmpMsg, opt sesn.TxOptions) (
-	nmp.NmpRsp, error) {
+func (s *NakedSesn) TxRxMgmt(m *nmp.NmpMsg,
+	timeout time.Duration) (nmp.NmpRsp, error) {
 
 	if err := s.failIfNotOpen(); err != nil {
 		return nil, err
@@ -341,7 +340,7 @@ func (s *NakedSesn) TxNmpOnce(req *nmp.NmpMsg, opt sesn.TxOptions) (
 			}
 		}
 
-		rsp, err = s.txvr.TxNmp(txRaw, req, s.MtuOut(), opt.Timeout)
+		rsp, err = s.txvr.TxRxMgmt(txRaw, m, s.MtuOut(), timeout)
 		return err
 	}
 
@@ -352,56 +351,20 @@ func (s *NakedSesn) TxNmpOnce(req *nmp.NmpMsg, opt sesn.TxOptions) (
 	return rsp, nil
 }
 
-func (s *NakedSesn) TxCoapOnce(m coap.Message,
-	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
+func (s *NakedSesn) ListenCoap(
+	mc nmcoap.MsgCriteria) (*nmcoap.Listener, error) {
 
-	if err := s.failIfNotOpen(); err != nil {
-		return 0, nil, err
-	}
-
-	var rspCode coap.COAPCode
-	var rspPayload []byte
-
-	fn := func() error {
-		chr, err := s.getChr(s.mgmtChrs.ResReqChr)
-		if err != nil {
-			return err
-		}
-
-		txRaw := func(b []byte) error {
-			if s.cfg.Ble.WriteRsp {
-				return s.conn.WriteChr(chr, b, "coap")
-			} else {
-				return s.conn.WriteChrNoRsp(chr, b, "coap")
-			}
-		}
-
-		rsp, err := s.txvr.TxOic(txRaw, m, s.MtuOut(), opt.Timeout)
-		if err == nil && rsp != nil {
-			rspCode = rsp.Code()
-			rspPayload = rsp.Payload()
-		}
-		return err
-	}
-
-	if err := s.runTask(fn); err != nil {
-		return 0, nil, err
-	}
-
-	return rspCode, rspPayload, nil
+	return s.txvr.ListenCoap(mc)
 }
 
-func (s *NakedSesn) TxCoapObserve(m coap.Message, opt sesn.TxOptions,
-	NotifyCb sesn.GetNotifyCb,
-	stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
+func (s *NakedSesn) StopListenCoap(mc nmcoap.MsgCriteria) {
+	s.txvr.StopListenCoap(mc)
+}
 
+func (s *NakedSesn) TxCoap(m coap.Message) error {
 	if err := s.failIfNotOpen(); err != nil {
-		return 0, nil, nil, err
+		return err
 	}
-
-	var rspCode coap.COAPCode
-	var rspPayload []byte
-	var rspToken []byte
 
 	fn := func() error {
 		chr, err := s.getChr(s.mgmtChrs.ResReqChr)
@@ -417,21 +380,10 @@ func (s *NakedSesn) TxCoapObserve(m coap.Message, opt sesn.TxOptions,
 			}
 		}
 
-		rsp, err := s.txvr.TxOicObserve(txRaw, m, s.MtuOut(), opt.Timeout,
-			NotifyCb, stopsignal)
-		if err == nil && rsp != nil {
-			rspCode = rsp.Code()
-			rspPayload = rsp.Payload()
-			rspToken = rsp.Token()
-		}
-		return err
+		return s.txvr.TxCoap(txRaw, m, s.MtuOut())
 	}
 
-	if err := s.runTask(fn); err != nil {
-		return 0, nil, nil, err
-	}
-
-	return rspCode, rspPayload, rspToken, nil
+	return s.runTask(fn)
 }
 
 func (s *NakedSesn) AbortRx(seq uint8) error {
@@ -683,38 +635,6 @@ func (s *NakedSesn) notifyListen() {
 	s.notifyListenOnce(s.mgmtChrs.NmpRspChr, s.txvr.DispatchNmpRsp)
 }
 
-func (s *NakedSesn) checkSecurity(encReqd bool, authReqd bool) (bool, bool) {
-	desc, _ := s.ConnInfo()
-
-	return !encReqd || desc.Encrypted,
-		!authReqd || desc.Authenticated
-}
-
-func (s *NakedSesn) ensureSecurity(encReqd bool, authReqd bool) error {
-	encGood, authGood := s.checkSecurity(encReqd, authReqd)
-	if encGood && authGood {
-		return nil
-	}
-
-	if err := s.initiateSecurity(); err != nil {
-		return err
-	}
-
-	// Ensure pairing meets characteristic's requirements.
-	encGood, authGood = s.checkSecurity(encReqd, authReqd)
-	if !encGood {
-		return fmt.Errorf("Insufficient BLE security; " +
-			"characteristic requires encryption")
-	}
-
-	if !authGood {
-		return fmt.Errorf("Insufficient BLE security; " +
-			"characteristic  requires authentication")
-	}
-
-	return nil
-}
-
 func (s *NakedSesn) RxAccept() (sesn.Sesn, *sesn.SesnCfg, error) {
 	return nil, nil, fmt.Errorf("Op not implemented yet")
 }
@@ -724,5 +644,11 @@ func (s *NakedSesn) RxCoap(opt sesn.TxOptions) (coap.Message, error) {
 }
 
 func (s *NakedSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
-	return s.txFilterCb, s.rxFilterCb
+	return s.txvr.Filters()
+}
+
+func (s *NakedSesn) SetFilters(txFilter nmcoap.MsgFilter,
+	rxFilter nmcoap.MsgFilter) {
+
+	s.txvr.SetFilters(txFilter, rxFilter)
 }
