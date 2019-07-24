@@ -25,12 +25,59 @@ import (
 	"sync"
 
 	"github.com/runtimeco/go-coap"
+	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
+)
+
+type ObserveCode int
+
+// These observe codes differ from those specified in the CoAP spec.  It is
+// done this way so that the default value (0) implies no observe action.
+const (
+	OBSERVE_NONE ObserveCode = iota
+	OBSERVE_START
+	OBSERVE_STOP
 )
 
 type MsgFilter func(msg coap.Message) (coap.Message, error)
 
+type MsgParams struct {
+	Code    coap.COAPCode
+	Uri     string
+	Observe ObserveCode
+	Token   []byte
+	Payload []byte
+}
+
 var messageIdMtx sync.Mutex
 var nextMessageId uint16
+
+var opNameMap = map[coap.COAPCode]string{
+	coap.GET:    "GET",
+	coap.PUT:    "PUT",
+	coap.POST:   "POST",
+	coap.DELETE: "DELETE",
+}
+
+func ParseOp(op string) (coap.COAPCode, error) {
+	for c, name := range opNameMap {
+		if strings.ToLower(op) == strings.ToLower(name) {
+			return c, nil
+		}
+	}
+
+	return 0, fmt.Errorf("invalid CoAP op: \"%s\"", op)
+}
+
+func (o ObserveCode) Spec() int {
+	switch o {
+	case OBSERVE_START:
+		return 0
+	case OBSERVE_STOP:
+		return 1
+	default:
+		return -1
+	}
+}
 
 func NextMessageId() uint16 {
 	messageIdMtx.Lock()
@@ -66,90 +113,29 @@ func Encode(m coap.Message) ([]byte, error) {
 	return b, nil
 }
 
-func CreateGet(isTcp bool, resUri string, observe int, token []byte) (coap.Message, error) {
-	var q []string
-
-	if err := validateToken(token); err != nil {
-		return nil, err
+func CreateMsg(isTcp bool, mp MsgParams) (coap.Message, error) {
+	if mp.Token == nil {
+		mp.Token = nmxutil.NextToken()
 	}
 
 	p := coap.MessageParams{
-		Type:  coap.Confirmable,
-		Code:  coap.GET,
-		Token: token,
+		Type:    coap.Confirmable,
+		Code:    mp.Code,
+		Token:   mp.Token,
+		Payload: mp.Payload,
 	}
 
 	m := buildMessage(isTcp, p)
 
-	q = strings.SplitN(resUri, "?", 2)
+	q := strings.SplitN(mp.Uri, "?", 2)
 	m.SetPathString(q[0])
 	if len(q) > 1 {
 		m.SetURIQuery(q[1])
 	}
 
-	if observe >= 0 {
-		m.SetObserve(observe)
+	if mp.Observe != OBSERVE_NONE {
+		m.SetObserve(mp.Observe.Spec())
 	}
-
-	return m, nil
-}
-
-func CreatePut(isTcp bool, resUri string, token []byte,
-	val []byte) (coap.Message, error) {
-
-	if err := validateToken(token); err != nil {
-		return nil, err
-	}
-
-	p := coap.MessageParams{
-		Type:    coap.Confirmable,
-		Code:    coap.PUT,
-		Token:   token,
-		Payload: val,
-	}
-
-	m := buildMessage(isTcp, p)
-	m.SetPathString(resUri)
-
-	return m, nil
-}
-
-func CreatePost(isTcp bool, resUri string, token []byte,
-	val []byte) (coap.Message, error) {
-
-	if err := validateToken(token); err != nil {
-		return nil, err
-	}
-
-	p := coap.MessageParams{
-		Type:    coap.Confirmable,
-		Code:    coap.POST,
-		Token:   token,
-		Payload: val,
-	}
-
-	m := buildMessage(isTcp, p)
-	m.SetPathString(resUri)
-
-	return m, nil
-}
-
-func CreateDelete(isTcp bool, resUri string, token []byte,
-	val []byte) (coap.Message, error) {
-
-	if err := validateToken(token); err != nil {
-		return nil, err
-	}
-
-	p := coap.MessageParams{
-		Type:    coap.Confirmable,
-		Code:    coap.DELETE,
-		Token:   token,
-		Payload: val,
-	}
-
-	m := buildMessage(isTcp, p)
-	m.SetPathString(resUri)
 
 	return m, nil
 }

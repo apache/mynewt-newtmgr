@@ -31,6 +31,7 @@ import (
 
 	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
+	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/xact"
 )
@@ -113,20 +114,12 @@ func printCode(code coap.COAPCode) string {
 	return s
 }
 
-func printDetails(sres interface{}) string {
+func printDetails(msg coap.Message) string {
 	var s string
-	switch sres := sres.(type) {
-	case *xact.GetResResult:
-		s += printCode(sres.Code)
-		if sres.Token != nil {
-			s += fmt.Sprintf("CoAP Response Token: %v\n", hex.EncodeToString(sres.Token))
-		}
-	case *xact.PutResResult:
-		s += printCode(sres.Code)
-	case *xact.PostResResult:
-		s += printCode(sres.Code)
-	case *xact.DeleteResResult:
-		s += printCode(sres.Code)
+	s += printCode(msg.Code())
+	if msg.Token() != nil {
+		s += fmt.Sprintf(
+			"CoAP Response Token: %v\n", hex.EncodeToString(msg.Token()))
 	}
 	return s
 }
@@ -184,44 +177,7 @@ func resResponseStr(path string, cbor []byte) string {
 	return s
 }
 
-func resGetCmd(cmd *cobra.Command, args []string) {
-	if len(args) < 1 {
-		nmUsage(cmd, nil)
-	}
-
-	s, err := GetSesn()
-	if err != nil {
-		nmUsage(nil, err)
-	}
-
-	path := args[0]
-
-	c := xact.NewGetResCmd()
-	c.SetTxOptions(nmutil.TxOptions())
-	c.Path = path
-
-	res, err := c.Run(s)
-	if err != nil {
-		nmUsage(nil, util.ChildNewtError(err))
-	}
-
-	sres := res.(*xact.GetResResult)
-	if sres.Status() != 0 {
-		fmt.Printf("Error: %s (%d)\n",
-			coap.COAPCode(sres.Status()), sres.Status())
-		return
-	}
-
-	if sres.Value != nil {
-		fmt.Printf("%s\n", resResponseStr(c.Path, sres.Value))
-	}
-
-	if details {
-		fmt.Printf(printDetails(sres))
-	}
-}
-
-func parsePayloadMap(args []string) ([]byte, error) {
+func parsePayloadMap(args []string) (map[string]interface{}, error) {
 	if len(args) == 0 {
 		return nil, nil
 	}
@@ -231,126 +187,59 @@ func parsePayloadMap(args []string) ([]byte, error) {
 		return nil, err
 	}
 
-	b, err := nmxutil.EncodeCborMap(m)
-	if err != nil {
-		return nil, util.ChildNewtError(err)
-	}
-
-	return b, nil
+	return m, nil
 }
 
-func parsePayloadJson(args []string) ([]byte, error) {
+func parsePayloadJson(args []string) (map[string]interface{}, error) {
 	if len(args) == 0 {
 		return nil, nil
 	}
 
-	var obj interface{}
+	var obj map[string]interface{}
 
 	if err := json.Unmarshal([]byte(args[0]), &obj); err != nil {
 		return nil, util.ChildNewtError(err)
 	}
 
-	b, err := nmxutil.EncodeCbor(obj)
+	return obj, nil
+}
+
+func parsePayload(args []string) ([]byte, error) {
+	var m map[string]interface{}
+	var err error
+
+	if resJson {
+		m, err = parsePayloadJson(args)
+	} else {
+		m, err = parsePayloadMap(args)
+	}
 	if err != nil {
-		return nil, util.ChildNewtError(err)
+		return nil, err
+	}
+
+	b, err := nmxutil.EncodeCborMap(m)
+	if err != nil {
+		return nil, err
 	}
 
 	return b, nil
 }
 
-func parsePayload(args []string) ([]byte, error) {
-	if resJson {
-		return parsePayloadJson(args)
-	} else {
-		return parsePayloadMap(args)
-	}
-}
-
-func resPutCmd(cmd *cobra.Command, args []string) {
-	if len(args) == 0 {
-		nmUsage(cmd, nil)
-	}
-
-	s, err := GetSesn()
-	if err != nil {
-		nmUsage(nil, err)
-	}
-
-	m, err := parsePayload(args[1:])
-	if err != nil {
-		nmUsage(cmd, err)
-	}
-
-	c := xact.NewPutResCmd()
-	c.SetTxOptions(nmutil.TxOptions())
-	c.Path = args[0]
-	c.Value = m
-
-	res, err := c.Run(s)
-	if err != nil {
-		nmUsage(nil, util.ChildNewtError(err))
-	}
-
-	sres := res.(*xact.PutResResult)
-	if sres.Status() != 0 {
-		fmt.Printf("Error: %s (%d)\n",
-			coap.COAPCode(sres.Status()), sres.Status())
-		return
-	}
-
-	if sres.Value != nil {
-		fmt.Printf("%s\n", resResponseStr(c.Path, sres.Value))
-	}
-
-	if details {
-		fmt.Printf(printDetails(sres))
-	}
-}
-
-func resPostCmd(cmd *cobra.Command, args []string) {
+func runResCmd(cmd *cobra.Command, args []string) {
 	if len(args) < 2 {
 		nmUsage(cmd, nil)
 	}
 
-	s, err := GetSesn()
+	op, err := nmcoap.ParseOp(args[0])
 	if err != nil {
 		nmUsage(nil, err)
 	}
 
-	m, err := parsePayload(args[1:])
+	path := args[1]
+
+	b, err := parsePayload(args[2:])
 	if err != nil {
-		nmUsage(cmd, err)
-	}
-
-	c := xact.NewPostResCmd()
-	c.SetTxOptions(nmutil.TxOptions())
-	c.Path = args[0]
-	c.Value = m
-
-	res, err := c.Run(s)
-	if err != nil {
-		nmUsage(nil, util.ChildNewtError(err))
-	}
-
-	sres := res.(*xact.PostResResult)
-	if sres.Status() != 0 {
-		fmt.Printf("Error: %s (%d)\n",
-			coap.COAPCode(sres.Status()), sres.Status())
-		return
-	}
-
-	if sres.Value != nil {
-		fmt.Printf("%s\n", resResponseStr(c.Path, sres.Value))
-	}
-
-	if details {
-		fmt.Printf(printDetails(sres))
-	}
-}
-
-func resDeleteCmd(cmd *cobra.Command, args []string) {
-	if len(args) < 1 {
-		nmUsage(cmd, nil)
+		nmUsage(nil, err)
 	}
 
 	s, err := GetSesn()
@@ -358,82 +247,45 @@ func resDeleteCmd(cmd *cobra.Command, args []string) {
 		nmUsage(nil, err)
 	}
 
-	path := args[0]
-
-	var m map[string]interface{}
-	m, err = extractResKv(args[1:])
-	if err != nil {
-		nmUsage(cmd, err)
-	}
-
-	b, err := nmxutil.EncodeCborMap(m)
-	if err != nil {
-		nmUsage(nil, util.ChildNewtError(err))
-	}
-
-	c := xact.NewDeleteResCmd()
+	c := xact.NewResCmd()
 	c.SetTxOptions(nmutil.TxOptions())
-	c.Path = path
-	c.Value = b
+	c.MsgParams = nmcoap.MsgParams{
+		Code:    op,
+		Uri:     path,
+		Payload: b,
+	}
 
 	res, err := c.Run(s)
 	if err != nil {
 		nmUsage(nil, util.ChildNewtError(err))
 	}
 
-	sres := res.(*xact.DeleteResResult)
+	sres := res.(*xact.ResResult)
 	if sres.Status() != 0 {
-		fmt.Printf("Error: %s (%d)\n",
-			coap.COAPCode(sres.Status()), sres.Status())
+		fmt.Printf("Error: %s (%d)\n", sres.Rsp.Code(), sres.Rsp.Code())
 		return
 	}
 
-	if sres.Value != nil {
-		fmt.Printf("%s\n", resResponseStr(c.Path, sres.Value))
+	if sres.Rsp.Payload() != nil {
+		fmt.Printf("%s\n", resResponseStr(path, sres.Rsp.Payload()))
 	}
 
 	if details {
-		fmt.Printf(printDetails(sres))
+		fmt.Printf(printDetails(sres.Rsp))
 	}
 }
 
 func resCmd() *cobra.Command {
 	resCmd := &cobra.Command{
-		Use:   "res",
+		Use:   "res <op> <path> <k=v> [k=v] [k=v]",
 		Short: "Access a CoAP resource on a device",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.HelpFunc()(cmd, args)
-		},
+		Run:   runResCmd,
 	}
 
+	resCmd.PersistentFlags().BoolVarP(&details, "details", "d", false,
+		"Show more details about the CoAP response")
 	resCmd.PersistentFlags().BoolVarP(&resJson, "json", "j", false,
 		"Accept a JSON string for the CoAP message body (not `k=v` pairs)")
-
-	resCmd.AddCommand(&cobra.Command{
-		Use:   "get <path>",
-		Short: "Send a CoAP GET request",
-		Run:   resGetCmd,
-	})
-
-	resCmd.AddCommand(&cobra.Command{
-		Use:   "put <path> <k=v> [k=v] [k=v]",
-		Short: "Send a CoAP PUT request",
-		Run:   resPutCmd,
-	})
-
-	resCmd.AddCommand(&cobra.Command{
-		Use:   "post <path> <k=v> [k=v] [k=v]",
-		Short: "Send a CoAP POST request",
-		Run:   resPostCmd,
-	})
-
-	resCmd.AddCommand(&cobra.Command{
-		Use:   "delete <path>",
-		Short: "Send a CoAP DELETE request",
-		Run:   resDeleteCmd,
-	})
-
-	resCmd.PersistentFlags().BoolVarP(&details, "details", "d", false, "Show more details about the CoAP response")
 
 	return resCmd
 }

@@ -23,9 +23,9 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/fatih/structs"
 	"github.com/runtimeco/go-coap"
+	log "github.com/sirupsen/logrus"
 	"github.com/ugorji/go/codec"
 
 	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
@@ -42,7 +42,7 @@ type OicMsg struct {
 }
 
 /*
- * Not able to install custom decoder for indefite length objects with the
+ * Not able to install custom decoder for indefinite length objects with the
  * codec.  So we need to decode the whole response, and then re-encode the
  * newtmgr response part.
  */

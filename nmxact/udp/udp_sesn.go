@@ -22,6 +22,7 @@ package udp
 import (
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/runtimeco/go-coap"
 
@@ -38,18 +39,14 @@ type UdpSesn struct {
 	addr *net.UDPAddr
 	conn *net.UDPConn
 	txvr *mgmt.Transceiver
-
-	txFilterCb nmcoap.MsgFilter
-	rxFilterCb nmcoap.MsgFilter
 }
 
 func NewUdpSesn(cfg sesn.SesnCfg) (*UdpSesn, error) {
 	s := &UdpSesn{
-		cfg:        cfg,
-		txFilterCb: cfg.TxFilterCb,
-		rxFilterCb: cfg.RxFilterCb,
+		cfg: cfg,
 	}
-	txvr, err := mgmt.NewTransceiver(cfg.TxFilterCb, cfg.RxFilterCb, false, cfg.MgmtProto, 3)
+	txvr, err := mgmt.NewTransceiver(cfg.TxFilterCb, cfg.RxFilterCb, false,
+		cfg.MgmtProto, 3)
 	if err != nil {
 		return nil, err
 	}
@@ -107,8 +104,8 @@ func (s *UdpSesn) MtuOut() int {
 		nmp.NMP_HDR_SIZE
 }
 
-func (s *UdpSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
-	nmp.NmpRsp, error) {
+func (s *UdpSesn) TxRxMgmt(m *nmp.NmpMsg,
+	timeout time.Duration) (nmp.NmpRsp, error) {
 
 	if !s.IsOpen() {
 		return nil, fmt.Errorf("Attempt to transmit over closed UDP session")
@@ -118,7 +115,7 @@ func (s *UdpSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 		_, err := s.conn.WriteToUDP(b, s.addr)
 		return err
 	}
-	return s.txvr.TxNmp(txRaw, m, s.MtuOut(), opt.Timeout)
+	return s.txvr.TxRxMgmt(txRaw, m, s.MtuOut(), timeout)
 }
 
 func (s *UdpSesn) AbortRx(seq uint8) error {
@@ -126,46 +123,25 @@ func (s *UdpSesn) AbortRx(seq uint8) error {
 	return nil
 }
 
-func (s *UdpSesn) TxCoapOnce(m coap.Message,
-	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
-
+func (s *UdpSesn) TxCoap(m coap.Message) error {
 	txRaw := func(b []byte) error {
 		_, err := s.conn.WriteToUDP(b, s.addr)
 		return err
 	}
 
-	rsp, err := s.txvr.TxOic(txRaw, m, s.MtuOut(), opt.Timeout)
-	if err != nil {
-		return 0, nil, err
-	} else if rsp == nil {
-		return 0, nil, nil
-	} else {
-		return rsp.Code(), rsp.Payload(), nil
-	}
+	return s.txvr.TxCoap(txRaw, m, s.MtuOut())
 }
 
 func (s *UdpSesn) MgmtProto() sesn.MgmtProto {
 	return s.cfg.MgmtProto
 }
 
-func (s *UdpSesn) TxCoapObserve(m coap.Message, opt sesn.TxOptions,
-	NotifyCb sesn.GetNotifyCb,
-	stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
+func (s *UdpSesn) ListenCoap(mc nmcoap.MsgCriteria) (*nmcoap.Listener, error) {
+	return s.txvr.ListenCoap(mc)
+}
 
-	txRaw := func(b []byte) error {
-		_, err := s.conn.WriteToUDP(b, s.addr)
-		return err
-	}
-
-	rsp, err := s.txvr.TxOicObserve(txRaw, m, s.MtuOut(), opt.Timeout,
-		NotifyCb, stopsignal)
-	if err != nil {
-		return 0, nil, nil, err
-	} else if rsp == nil {
-		return 0, nil, nil, nil
-	} else {
-		return rsp.Code(), rsp.Payload(), rsp.Token(), nil
-	}
+func (s *UdpSesn) StopListenCoap(mc nmcoap.MsgCriteria) {
+	s.txvr.StopListenCoap(mc)
 }
 
 func (s *UdpSesn) CoapIsTcp() bool {
@@ -181,5 +157,11 @@ func (s *UdpSesn) RxCoap(opt sesn.TxOptions) (coap.Message, error) {
 }
 
 func (s *UdpSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
-	return s.txFilterCb, s.rxFilterCb
+	return s.txvr.Filters()
+}
+
+func (s *UdpSesn) SetFilters(txFilter nmcoap.MsgFilter,
+	rxFilter nmcoap.MsgFilter) {
+
+	s.txvr.SetFilters(txFilter, rxFilter)
 }

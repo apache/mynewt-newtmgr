@@ -20,6 +20,8 @@
 package sesn
 
 import (
+	"time"
+
 	"github.com/runtimeco/go-coap"
 
 	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
@@ -27,10 +29,12 @@ import (
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 )
 
-func TxNmp(s Sesn, m *nmp.NmpMsg, o TxOptions) (nmp.NmpRsp, error) {
+// TxRxMgmt sends a management command (NMP / OMP) and listens for the
+// response.
+func TxRxMgmt(s Sesn, m *nmp.NmpMsg, o TxOptions) (nmp.NmpRsp, error) {
 	retries := o.Tries - 1
 	for i := 0; ; i++ {
-		r, err := s.TxNmpOnce(m, o)
+		r, err := s.TxRxMgmt(m, o.Timeout)
 		if err == nil {
 			return r, nil
 		}
@@ -41,163 +45,70 @@ func TxNmp(s Sesn, m *nmp.NmpMsg, o TxOptions) (nmp.NmpRsp, error) {
 	}
 }
 
-func getResourceOnce(s Sesn, uri string,
-	opt TxOptions) (coap.COAPCode, []byte, error) {
-
-	req, err := nmcoap.CreateGet(s.CoapIsTcp(), uri, -1, nmxutil.NextToken())
+// TxCoap transmits a single CoAP message over the provided session.
+func TxCoap(s Sesn, mp nmcoap.MsgParams) error {
+	msg, err := nmcoap.CreateMsg(s.CoapIsTcp(), mp)
 	if err != nil {
-		return 0, nil, err
+		return err
 	}
 
-	return s.TxCoapOnce(req, opt)
+	return s.TxCoap(msg)
 }
 
-func getResource(s Sesn, uri string, observe int,
-	token []byte, opt TxOptions, NotifCb GetNotifyCb,
-	stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
-
-	var req coap.Message
-	var err error
-
-	if observe == 1 {
-		req, err = nmcoap.CreateGet(s.CoapIsTcp(), uri, observe, token)
+// RxCoap performs a blocking receive of a CoAP message.  It returns a nil
+// message if the specified listener is closed while the function is running.
+func RxCoap(cl *nmcoap.Listener, timeout time.Duration) (coap.Message, error) {
+	if timeout != 0 {
+		for {
+			select {
+			case err := <-cl.ErrChan:
+				return nil, err
+			case rsp := <-cl.RspChan:
+				return rsp, nil
+			case _, ok := <-cl.AfterTimeout(timeout):
+				if ok {
+					return nil, nmxutil.NewRspTimeoutError("CoAP timeout")
+				}
+			}
+		}
 	} else {
-		req, err = nmcoap.CreateGet(s.CoapIsTcp(), uri, observe, nmxutil.NextToken())
+		select {
+		case err := <-cl.ErrChan:
+			return nil, err
+		case rsp := <-cl.RspChan:
+			return rsp, nil
+		}
 	}
-	if err != nil {
-		return 0, nil, nil, err
-	}
-
-	if observe == 0 {
-		return s.TxCoapObserve(req, opt, NotifCb, stopsignal)
-	}
-
-	c, r, err := s.TxCoapOnce(req, opt)
-	return c, r, nil, err
 }
 
-func putResourceOnce(s Sesn, uri string, value []byte,
-	opt TxOptions) (coap.COAPCode, []byte, error) {
+// TxRxMgmt sends a CoAP request and listens for the response.
+func TxRxCoap(s Sesn, mp nmcoap.MsgParams,
+	opts TxOptions) (coap.Message, error) {
 
-	req, err := nmcoap.CreatePut(s.CoapIsTcp(), uri, nmxutil.NextToken(),
-		value)
+	mc := nmcoap.MsgCriteria{Token: mp.Token}
+	cl, err := s.ListenCoap(mc)
 	if err != nil {
-		return 0, nil, err
+		return nil, err
+	}
+	defer s.StopListenCoap(mc)
+
+	listenOnce := func() (coap.Message, error) {
+		return RxCoap(cl, opts.Timeout)
 	}
 
-	return s.TxCoapOnce(req, opt)
-}
-
-func postResourceOnce(s Sesn, uri string, value []byte,
-	opt TxOptions) (coap.COAPCode, []byte, error) {
-
-	req, err := nmcoap.CreatePost(s.CoapIsTcp(), uri, nmxutil.NextToken(),
-		value)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	return s.TxCoapOnce(req, opt)
-}
-
-func deleteResourceOnce(s Sesn, uri string, value []byte,
-	opt TxOptions) (coap.COAPCode, []byte, error) {
-
-	req, err := nmcoap.CreateDelete(s.CoapIsTcp(), uri, nmxutil.NextToken(),
-		value)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	return s.TxCoapOnce(req, opt)
-}
-
-func txCoap(txCb func() (coap.COAPCode, []byte, error),
-	tries int) (coap.COAPCode, []byte, error) {
-
-	retries := tries - 1
+	retries := opts.Tries - 1
 	for i := 0; ; i++ {
-		code, r, err := txCb()
+		if err := TxCoap(s, mp); err != nil {
+			return nil, err
+		}
+
+		rsp, err := listenOnce()
 		if err == nil {
-			return code, r, nil
+			return rsp, nil
 		}
 
 		if !nmxutil.IsRspTimeout(err) || i >= retries {
-			return code, nil, err
+			return nil, err
 		}
 	}
-}
-
-func txCoapObserve(txCb func() (coap.COAPCode, []byte, []byte, error),
-	tries int) (coap.COAPCode, []byte, []byte, error) {
-
-	retries := tries - 1
-	for i := 0; ; i++ {
-		code, r, t, err := txCb()
-		if err == nil {
-			return code, r, t, nil
-		}
-
-		if !nmxutil.IsRspTimeout(err) || i >= retries {
-			return code, nil, nil, err
-		}
-	}
-}
-
-func GetResourceObserve(s Sesn, uri string, o TxOptions, notifCb GetNotifyCb,
-	stopsignal chan int, observe int, token []byte) (
-	coap.COAPCode, []byte, []byte, error) {
-
-	return txCoapObserve(func() (coap.COAPCode, []byte, []byte, error) {
-		return getResource(s, uri, observe, token, o, notifCb, stopsignal)
-	}, o.Tries)
-}
-
-func GetResource(s Sesn, uri string, o TxOptions) (
-	coap.COAPCode, []byte, error) {
-
-	return txCoap(func() (coap.COAPCode, []byte, error) {
-		return getResourceOnce(s, uri, o)
-	}, o.Tries)
-}
-
-func PutResource(s Sesn, uri string,
-	value []byte, o TxOptions) (coap.COAPCode, []byte, error) {
-
-	return txCoap(func() (coap.COAPCode, []byte, error) {
-		return putResourceOnce(s, uri, value, o)
-	}, o.Tries)
-}
-
-func PostResource(s Sesn, uri string,
-	value []byte, o TxOptions) (coap.COAPCode, []byte, error) {
-
-	return txCoap(func() (coap.COAPCode, []byte, error) {
-		return postResourceOnce(s, uri, value, o)
-	}, o.Tries)
-}
-
-func DeleteResource(s Sesn, uri string, value []byte,
-	o TxOptions) (coap.COAPCode, []byte, error) {
-
-	return txCoap(func() (coap.COAPCode, []byte, error) {
-		return deleteResourceOnce(s, uri, value, o)
-	}, o.Tries)
-}
-
-func PutCborResource(s Sesn, uri string, value map[string]interface{},
-	o TxOptions) (coap.COAPCode, map[string]interface{}, error) {
-
-	b, err := nmxutil.EncodeCborMap(value)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	code, r, err := PutResource(s, uri, b, o)
-	m, err := nmxutil.DecodeCborMap(r)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	return code, m, nil
 }

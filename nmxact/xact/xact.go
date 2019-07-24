@@ -38,7 +38,7 @@ func txReq(s sesn.Sesn, m *nmp.NmpMsg, c *CmdBase) (
 		c.curSesn = nil
 	}()
 
-	rsp, err := sesn.TxNmp(s, m, c.TxOptions())
+	rsp, err := sesn.TxRxMgmt(s, m, c.TxOptions())
 	if err != nil {
 		return nil, err
 	}

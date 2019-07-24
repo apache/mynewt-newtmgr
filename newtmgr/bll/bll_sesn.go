@@ -24,6 +24,7 @@ package bll
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/go-ble/ble"
 	"github.com/runtimeco/go-coap"
@@ -56,16 +57,11 @@ type BllSesn struct {
 	nmpRspChr *ble.Characteristic
 	resReqChr *ble.Characteristic
 	resRspChr *ble.Characteristic
-
-	txFilterCb nmcoap.MsgFilter
-	rxFilterCb nmcoap.MsgFilter
 }
 
 func NewBllSesn(cfg BllSesnCfg) *BllSesn {
 	return &BllSesn{
-		cfg:        cfg,
-		txFilterCb: cfg.TxFilterCb,
-		rxFilterCb: cfg.RxFilterCb,
+		cfg: cfg,
 	}
 }
 
@@ -280,7 +276,8 @@ func (s *BllSesn) openOnce() (bool, error) {
 			"Attempt to open an already-open bll session")
 	}
 
-	txvr, err := mgmt.NewTransceiver(s.txFilterCb, s.rxFilterCb, true, s.cfg.MgmtProto, 3)
+	txvr, err := mgmt.NewTransceiver(s.cfg.TxFilterCb, s.cfg.RxFilterCb, true,
+		s.cfg.MgmtProto, 3)
 	if err != nil {
 		return false, err
 	}
@@ -375,8 +372,8 @@ func (s *BllSesn) RxCoap(opt sesn.TxOptions) (coap.Message, error) {
 //     * nil: success.
 //     * nmxutil.SesnClosedError: session not open.
 //     * other error
-func (s *BllSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
-	nmp.NmpRsp, error) {
+func (s *BllSesn) TxRxMgmt(m *nmp.NmpMsg,
+	timeout time.Duration) (nmp.NmpRsp, error) {
 
 	if !s.IsOpen() {
 		return nil, nmxutil.NewSesnClosedError(
@@ -392,43 +389,23 @@ func (s *BllSesn) TxNmpOnce(msg *nmp.NmpMsg, opt sesn.TxOptions) (
 		return s.txWriteCharacteristic(s.nmpReqChr, b, true)
 	}
 
-	return s.txvr.TxNmp(txRaw, msg, s.MtuOut(), opt.Timeout)
+	return s.txvr.TxRxMgmt(txRaw, m, s.MtuOut(), timeout)
 }
 
-func (s *BllSesn) TxCoapOnce(m coap.Message,
-	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
-
+func (s *BllSesn) TxCoap(m coap.Message) error {
 	txRaw := func(b []byte) error {
 		return s.txWriteCharacteristic(s.resReqChr, b, !s.cfg.WriteRsp)
 	}
 
-	rsp, err := s.txvr.TxOic(txRaw, m, s.MtuOut(), opt.Timeout)
-	if err != nil {
-		return 0, nil, err
-	} else if rsp == nil {
-		return 0, nil, nil
-	} else {
-		return rsp.Code(), rsp.Payload(), nil
-	}
+	return s.txvr.TxCoap(txRaw, m, s.MtuOut())
 }
 
-func (s *BllSesn) TxCoapObserve(m coap.Message, opt sesn.TxOptions,
-	NotifCb sesn.GetNotifyCb,
-	stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
+func (s *BllSesn) ListenCoap(mc nmcoap.MsgCriteria) (*nmcoap.Listener, error) {
+	return s.txvr.ListenCoap(mc)
+}
 
-	txRaw := func(b []byte) error {
-		return s.txWriteCharacteristic(s.resReqChr, b, !s.cfg.WriteRsp)
-	}
-
-	rsp, err := s.txvr.TxOicObserve(txRaw, m, s.MtuOut(), opt.Timeout, NotifCb,
-		stopsignal)
-	if err != nil {
-		return 0, nil, nil, err
-	} else if rsp == nil {
-		return 0, nil, nil, nil
-	} else {
-		return rsp.Code(), rsp.Payload(), rsp.Token(), nil
-	}
+func (s *BllSesn) StopListenCoap(mc nmcoap.MsgCriteria) {
+	s.txvr.StopListenCoap(mc)
 }
 
 func (s *BllSesn) MgmtProto() sesn.MgmtProto {
@@ -440,5 +417,11 @@ func (s *BllSesn) CoapIsTcp() bool {
 }
 
 func (s *BllSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
-	return s.txFilterCb, s.rxFilterCb
+	return s.txvr.Filters()
+}
+
+func (s *BllSesn) SetFilters(txFilter nmcoap.MsgFilter,
+	rxFilter nmcoap.MsgFilter) {
+
+	s.txvr.SetFilters(txFilter, rxFilter)
 }

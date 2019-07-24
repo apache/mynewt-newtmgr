@@ -52,9 +52,6 @@ type LoraSesn struct {
 	tgtListener   *Listener
 	wg            sync.WaitGroup
 	stopChan      chan struct{}
-
-	txFilterCb nmcoap.MsgFilter
-	rxFilterCb nmcoap.MsgFilter
 }
 
 type mtechLoraTx struct {
@@ -77,11 +74,9 @@ func NewLoraSesn(cfg sesn.SesnCfg, lx *LoraXport) (*LoraSesn, error) {
 		return nil, fmt.Errorf("Invalid Lora Port %d\n", cfg.Lora.Addr)
 	}
 	s := &LoraSesn{
-		cfg:        cfg,
-		xport:      lx,
-		mtu:        0,
-		txFilterCb: cfg.TxFilterCb,
-		rxFilterCb: cfg.RxFilterCb,
+		cfg:   cfg,
+		xport: lx,
+		mtu:   0,
 	}
 
 	return s, nil
@@ -93,8 +88,7 @@ func (s *LoraSesn) Open() error {
 			"Attempt to open an already-open Lora session")
 	}
 
-	txFilterCb, rxFilterCb := s.Filters()
-	txvr, err := mgmt.NewTransceiver(txFilterCb, rxFilterCb, false,
+	txvr, err := mgmt.NewTransceiver(s.cfg.TxFilterCb, s.cfg.RxFilterCb, false,
 		s.cfg.MgmtProto, 3)
 	if err != nil {
 		return err
@@ -308,8 +302,8 @@ func (s *LoraSesn) sendFragments(b []byte) error {
 	return nil
 }
 
-func (s *LoraSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
-	nmp.NmpRsp, error) {
+func (s *LoraSesn) TxRxMgmt(m *nmp.NmpMsg,
+	timeout time.Duration) (nmp.NmpRsp, error) {
 
 	if !s.IsOpen() {
 		return nil, nmxutil.NewSesnClosedError(
@@ -319,7 +313,7 @@ func (s *LoraSesn) TxNmpOnce(m *nmp.NmpMsg, opt sesn.TxOptions) (
 	txFunc := func(b []byte) error {
 		return s.sendFragments(b)
 	}
-	return s.txvr.TxNmp(txFunc, m, s.MtuOut(), opt.Timeout)
+	return s.txvr.TxRxMgmt(txFunc, m, s.MtuOut(), timeout)
 }
 
 func (s *LoraSesn) AbortRx(seq uint8) error {
@@ -327,31 +321,22 @@ func (s *LoraSesn) AbortRx(seq uint8) error {
 	return nil
 }
 
-func (s *LoraSesn) TxCoapOnce(m coap.Message,
-	opt sesn.TxOptions) (coap.COAPCode, []byte, error) {
-
+func (s *LoraSesn) TxCoap(m coap.Message) error {
 	if !s.IsOpen() {
-		return 0, nil, nmxutil.NewSesnClosedError(
+		return nmxutil.NewSesnClosedError(
 			"Attempt to transmit over closed Lora session")
 	}
-	txFunc := func(b []byte) error {
-		return s.sendFragments(b)
-	}
-	rsp, err := s.txvr.TxOic(txFunc, m, s.MtuOut(), opt.Timeout)
-	if err != nil {
-		return 0, nil, err
-	} else if rsp == nil {
-		return 0, nil, nil
-	} else {
-		return rsp.Code(), rsp.Payload(), nil
-	}
+
+	return s.txvr.TxCoap(s.sendFragments, m, s.MtuOut())
 }
 
-func (s *LoraSesn) TxCoapObserve(m coap.Message,
-	opt sesn.TxOptions, NotifCb sesn.GetNotifyCb,
-	stopsignal chan int) (coap.COAPCode, []byte, []byte, error) {
+func (s *LoraSesn) ListenCoap(mc nmcoap.MsgCriteria) (*nmcoap.Listener, error) {
 
-	return 0, nil, nil, nil
+	return s.txvr.ListenCoap(mc)
+}
+
+func (s *LoraSesn) StopListenCoap(mc nmcoap.MsgCriteria) {
+	s.txvr.StopListenCoap(mc)
 }
 
 func (s *LoraSesn) MgmtProto() sesn.MgmtProto {
@@ -424,8 +409,7 @@ func (s *LoraSesn) RxCoap(opt sesn.TxOptions) (coap.Message, error) {
 		case mtu, ok := <-s.tgtListener.MtuChan:
 			if ok {
 				if s.mtu != mtu {
-					log.Debugf("Setting mtu for %s %d",
-						s.cfg.Lora.Addr, mtu)
+					log.Debugf("Setting mtu for %s %d", s.cfg.Lora.Addr, mtu)
 				}
 				s.mtu = mtu
 			}
@@ -442,5 +426,11 @@ func (s *LoraSesn) RxCoap(opt sesn.TxOptions) (coap.Message, error) {
 }
 
 func (s *LoraSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
-	return s.txFilterCb, s.rxFilterCb
+	return s.txvr.Filters()
+}
+
+func (s *LoraSesn) SetFilters(txFilter nmcoap.MsgFilter,
+	rxFilter nmcoap.MsgFilter) {
+
+	s.txvr.SetFilters(txFilter, rxFilter)
 }

@@ -33,7 +33,7 @@ var DfltTxOptions = TxOptions{
 	Tries:   1,
 }
 
-type GetNotifyCb func(path string, code coap.COAPCode, value []byte, token []byte)
+type NotifyCb func(msg coap.Message, err error)
 
 type TxOptions struct {
 	Timeout time.Duration
@@ -96,21 +96,28 @@ type Sesn interface {
 	RxAccept() (Sesn, *SesnCfg, error)
 	RxCoap(opt TxOptions) (coap.Message, error)
 
-	////// Internal to nmxact:
-
-	// Performs a blocking transmit a single NMP message and listens for the
-	// response.
+	// Performs a blocking transmit a single management request (NMP / OMP) and
+	// listens for the response.
 	//     * nil: success.
 	//     * nmxutil.SesnClosedError: session not open.
 	//     * other error
-	TxNmpOnce(m *nmp.NmpMsg, opt TxOptions) (nmp.NmpRsp, error)
+	TxRxMgmt(m *nmp.NmpMsg, timeout time.Duration) (nmp.NmpRsp, error)
 
-	TxCoapOnce(m coap.Message, opt TxOptions) (coap.COAPCode, []byte, error)
+	// Creates a listener for incoming CoAP messages matching the specified
+	// criteria.
+	ListenCoap(mc nmcoap.MsgCriteria) (*nmcoap.Listener, error)
 
-	TxCoapObserve(m coap.Message, opt TxOptions, NotifCb GetNotifyCb,
-		stopsignal chan int) (coap.COAPCode, []byte, []byte, error)
+	// Cancels the CoAP listener with the specified criteria.
+	StopListenCoap(mc nmcoap.MsgCriteria)
+
+	// Transmits a CoAP message.
+	TxCoap(m coap.Message) error
 
 	// Returns a transmit and a receive callback used to manipulate CoAP
 	// messages
 	Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter)
+
+	// Sets the transmit and a receive callback used to manipulate CoAP
+	// messages
+	SetFilters(txFilter nmcoap.MsgFilter, rxFilter nmcoap.MsgFilter)
 }
