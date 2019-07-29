@@ -29,9 +29,9 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/joaojeronimo/go-crc16"
 	"github.com/runtimeco/go-coap"
+	log "github.com/sirupsen/logrus"
 	"github.com/tarm/serial"
 
 	"mynewt.apache.org/newt/util"
@@ -188,9 +188,10 @@ func (sx *SerialXport) setRspSesn(s *SerialSesn) error {
 	if sx.closing {
 		return fmt.Errorf("Transport closed")
 	}
-	if s != nil && sx.rspSesn != nil {
+	if s != nil && sx.rspSesn != nil && s != sx.rspSesn {
 		return fmt.Errorf("Transport busy")
 	}
+
 	sx.rspSesn = s
 	return nil
 }
