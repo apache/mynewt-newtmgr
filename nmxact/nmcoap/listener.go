@@ -75,10 +75,6 @@ func MatchMsgCriteria(listenc MsgCriteria, msgc MsgCriteria) bool {
 
 	// Second sort key: token.
 	if listenc.Token != nil {
-		if msgc.Token == nil {
-			return false
-		}
-
 		if bytes.Compare(listenc.Token, msgc.Token) != 0 {
 			return false
 		}
