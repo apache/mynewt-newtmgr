@@ -27,7 +27,7 @@ require (
 	github.com/spf13/cast v1.2.0
 	github.com/spf13/cobra v0.0.3
 	github.com/spf13/pflag v1.0.3 // indirect
-	github.com/tarm/serial v0.0.0-20170530023055-e50d7d20b1f6
+	github.com/tarm/serial v0.0.0-20180830185346-98f6abe2eb07
 	github.com/ugorji/go v1.1.7
 	github.com/ugorji/go/codec v1.1.7
 	golang.org/x/net v0.0.0-20170828231752-66aacef3dd8a
