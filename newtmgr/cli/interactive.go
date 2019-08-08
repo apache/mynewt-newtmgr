@@ -29,7 +29,7 @@ import (
 	"github.com/runtimeco/go-coap"
 	"github.com/spf13/cast"
 	"github.com/spf13/cobra"
-	"gopkg.in/abiosoft/ishell.v1"
+	"github.com/abiosoft/ishell"
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
