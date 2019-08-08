@@ -1,5 +1,6 @@
 github.com/NickBall/go-aes-key-wrap v0.0.0-20170929221519-1c3aa3e4dfc5/go.mod h1:w5D10RxC0NmPYxmQ438CC1S07zaC1zpvuNW7s5sUk2Q=
 github.com/abiosoft/ishell v2.0.0+incompatible/go.mod h1:HQR9AqF2R3P4XXpMpI0NAzgHf/aS6+zVXRj14cVk9qg=
+github.com/abiosoft/readline v0.0.0-20180607040430-155bce2042db h1:CjPUSXOiYptLbTdr1RceuZgSFDQ7U15ITERUGrUORx8=
 github.com/abiosoft/readline v0.0.0-20180607040430-155bce2042db/go.mod h1:rB3B4rKii8V21ydCbIzH5hZiCQE7f5E9SzUb/ZZx530=
 github.com/cheggaaa/pb v1.0.18 h1:G/DgkKaBP0V5lnBg/vx61nVxxAU+VqU5yMzSc0f2PPE=
 github.com/cheggaaa/pb v1.0.18/go.mod h1:pQciLPpbU0oxA0h+VJYYLxO+XeDQb5pZijXscXHm81s=
@@ -35,6 +36,7 @@ github.com/mitchellh/go-homedir v0.0.0-20161203194507-b8bc1bf76747/go.mod h1:Sfy
 github.com/pkg/errors v0.8.0 h1:WdK/asTD0HN+q6hsWO3/vpuAkAr+tw6aNJNDFFf0+qw=
 github.com/pkg/errors v0.8.0/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
+github.com/raff/goble v0.0.0-20170814221208-b12b34f940c4 h1:wa4KKsyv+e7TmpzAfp+TWXG+3s/ZWaQ4QsVqMU5oUrk=
 github.com/raff/goble v0.0.0-20170814221208-b12b34f940c4/go.mod h1:CxaUhijgLFX0AROtH5mluSY71VqpjQBw9JXE2UKZmc4=
 github.com/runtimeco/go-coap v0.0.0-20180109101419-47c23e2a63ea h1:zTOcylKcdobkyW4gySyvvHkAGnOP0QNcGaO0ZQJFgxQ=
 github.com/runtimeco/go-coap v0.0.0-20180109101419-47c23e2a63ea/go.mod h1:x/rLuxedbWFDN497ZirUaDklkWz6JhZLjGdgurMysxM=
@@ -64,6 +66,8 @@ golang.org/x/sys v0.0.0-20180905080454-ebe1bf3edb33 h1:I6FyU15t786LL7oL/hn43zqTu
 golang.org/x/sys v0.0.0-20180905080454-ebe1bf3edb33/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
 gopkg.in/abiosoft/ishell.v1 v1.0.0-20171224170712-50251d04cb42 h1:SC3lEzz9Nt8Ur/Xn7AUS8qtjtnyDUOG3pB7hJ8JT1qM=
 gopkg.in/abiosoft/ishell.v1 v1.0.0-20171224170712-50251d04cb42/go.mod h1:3LjPMJqZQyIeenUuJm+3oamADXoWVncBdPuAEY3SNZ4=
+gopkg.in/abiosoft/ishell.v2 v2.0.0 h1:/J5yh3nWYSSGFjALcitTI9CLE0Tu27vBYHX0srotqOc=
+gopkg.in/abiosoft/ishell.v2 v2.0.0/go.mod h1:sFp+cGtH6o4s1FtpVPTMcHq2yue+c4DGOVohJCPUzwY=
 gopkg.in/cheggaaa/pb.v1 v1.0.28/go.mod h1:V/YB90LKu/1FcN3WVnfiiE5oMCibMjukxqG/qStrOgw=
 mynewt.apache.org/newt v0.0.0-20190515182908-60fc2df06bfc h1:K0/vRbTP33/68ioS1FS+u4zJ5WQDDUgYS/9BO9H0xP4=
 mynewt.apache.org/newt v0.0.0-20190515182908-60fc2df06bfc/go.mod h1:lFsPYOHxMMWA11pydOeh0GVFiXtx0A9VnzOQ6SiRR88=

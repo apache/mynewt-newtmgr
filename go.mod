@@ -3,7 +3,6 @@ module mynewt.apache.org/newtmgr
 go 1.12
 
 require (
-	github.com/abiosoft/ishell v2.0.0+incompatible // indirect
 	github.com/abiosoft/readline v0.0.0-20180607040430-155bce2042db // indirect
 	github.com/cheggaaa/pb v1.0.18
 	github.com/chzyer/logex v1.1.10 // indirect
@@ -31,7 +30,7 @@ require (
 	github.com/ugorji/go v1.1.7
 	github.com/ugorji/go/codec v1.1.7
 	golang.org/x/net v0.0.0-20170828231752-66aacef3dd8a
-	gopkg.in/abiosoft/ishell.v1 v1.0.0-20171224170712-50251d04cb42
+	gopkg.in/abiosoft/ishell.v2 v2.0.0
 	gopkg.in/cheggaaa/pb.v1 v1.0.28 // indirect
 	mynewt.apache.org/newt v0.0.0-20190515182908-60fc2df06bfc
 )
