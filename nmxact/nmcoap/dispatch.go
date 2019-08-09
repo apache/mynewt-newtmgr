@@ -68,7 +68,7 @@ func (d *Dispatcher) matchListener(mc MsgCriteria) *Listener {
 }
 
 func (d *Dispatcher) AddListener(mc MsgCriteria) (*Listener, error) {
-	nmxutil.LogAddOicListener(d.logDepth, mc.String())
+	nmxutil.LogAddCoapListener(d.logDepth, mc.String())
 
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
@@ -96,7 +96,7 @@ func (d *Dispatcher) RemoveListener(mc MsgCriteria) *Listener {
 
 	d.listeners = append(d.listeners[:idx], d.listeners[idx+1:]...)
 
-	nmxutil.LogRemoveOicListener(d.logDepth, mc.String())
+	nmxutil.LogRemoveCoapListener(d.logDepth, mc.String())
 	lner.Close()
 
 	return lner

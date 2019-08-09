@@ -192,7 +192,7 @@ func (t *Transceiver) ListenCoap(
 
 	mc.Path = strings.TrimPrefix(mc.Path, "/")
 
-	ol, err := t.od.AddOicListener(mc)
+	ol, err := t.od.AddCoapListener(mc)
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +202,7 @@ func (t *Transceiver) ListenCoap(
 
 func (t *Transceiver) StopListenCoap(mc nmcoap.MsgCriteria) {
 	mc.Path = strings.TrimPrefix(mc.Path, "/")
-	t.od.RemoveOicListener(mc)
+	t.od.RemoveCoapListener(mc)
 }
 
 func (t *Transceiver) DispatchNmpRsp(data []byte) {

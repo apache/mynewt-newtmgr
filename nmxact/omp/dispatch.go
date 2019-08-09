@@ -68,14 +68,14 @@ func (d *Dispatcher) addOmpListener() error {
 		Path:  "",
 	}
 
-	ol, err := d.AddOicListener(mc)
+	ol, err := d.AddCoapListener(mc)
 	if err != nil {
 		return err
 	}
 
 	d.wg.Add(1)
 	go func() {
-		defer d.RemoveOicListener(mc)
+		defer d.RemoveCoapListener(mc)
 		defer d.wg.Done()
 
 		for {

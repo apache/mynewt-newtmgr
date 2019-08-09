@@ -190,12 +190,12 @@ func LogRemoveNmpListener(parentLevel int, seq uint8) {
 	LogListener(parentLevel, "remove-nmp-listener", fmt.Sprintf("seq=%d", seq))
 }
 
-func LogAddOicListener(parentLevel int, desc string) {
+func LogAddCoapListener(parentLevel int, desc string) {
 	LogListener(parentLevel, "add-oic-listener",
 		fmt.Sprintf("desc=%s", desc))
 }
 
-func LogRemoveOicListener(parentLevel int, desc string) {
+func LogRemoveCoapListener(parentLevel int, desc string) {
 	LogListener(parentLevel, "remove-oic-listener",
 		fmt.Sprintf("desc=%s", desc))
 }
