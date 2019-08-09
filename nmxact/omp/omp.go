@@ -105,8 +105,9 @@ func encodeOmpBase(txFilterCb nmcoap.MsgFilter, isTcp bool, nmr *nmp.NmpMsg) (en
 	er := encodeRecord{}
 
 	mp := coap.MessageParams{
-		Type: coap.Confirmable,
-		Code: coap.PUT,
+		Type:  coap.Confirmable,
+		Code:  coap.PUT,
+		Token: nmxutil.SeqToToken(nmr.Hdr.Seq),
 	}
 
 	if isTcp {
