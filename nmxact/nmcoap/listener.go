@@ -19,9 +19,8 @@ type Listener struct {
 	Criteria MsgCriteria
 	RspChan  chan coap.Message
 	ErrChan  chan error
-	//StopChan chan struct{}
-	tmoChan chan time.Time
-	timer   *time.Timer
+	tmoChan  chan time.Time
+	timer    *time.Timer
 }
 
 func (mc *MsgCriteria) String() string {
