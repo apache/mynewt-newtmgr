@@ -107,9 +107,9 @@ func logShowCmd(cmd *cobra.Command, args []string) {
 			return
 		}
 
-		fmt.Printf("%10s %22s | %16s %16s %6s %s\n",
+		fmt.Printf("%10s %22s | %16s %16s %6s %8s %s\n",
 			"[index]", "[timestamp]", "[module]", "[level]", "[type]",
-			"[message]")
+			"[img]", "[message]")
 		for _, entry := range log.Entries {
 			modText := fmt.Sprintf("%s (%d)",
 				nmp.LogModuleToString(int(entry.Module)), entry.Module)
@@ -138,14 +138,15 @@ func logShowCmd(cmd *cobra.Command, args []string) {
 					int(entry.Type), entry.Index)
 				msgText = hex.EncodeToString(entry.Msg)
 			}
-			fmt.Printf("%10d %20dus | %16s %16s %6s %s\n",
+
+			fmt.Printf("%10d %20dus | %16s %16s %6s %8s %s\n",
 				entry.Index,
 				entry.Timestamp,
 				modText,
 				levText,
 				entry.Type,
+				hex.EncodeToString(entry.ImgHash),
 				msgText)
-
 		}
 	}
 }
@@ -327,5 +328,6 @@ func logCmd() *cobra.Command {
 	}
 
 	logCmd.AddCommand(ListCmd)
+
 	return logCmd
 }

@@ -135,6 +135,7 @@ type LogEntry struct {
 	Module    uint8        `codec:"module"`
 	Level     uint8        `codec:"level"`
 	Type      LogEntryType `codec:"type"`
+	ImgHash   []byte       `codec:"imghash"`
 	Msg       []byte       `codec:"msg"`
 }
 
