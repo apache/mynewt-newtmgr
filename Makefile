@@ -28,8 +28,9 @@ build:
 	mkdir -p $(MYNEWTDIR)
 	ln -s $(NEWTMGR_INSTALLDIR) $(REPODIR)
 	GOPATH=$(GODIR) go get github.com/currantlabs/ble github.com/mgutz/logxi/v1 golang.org/x/sys/unix
-	cd $(NEWTMGRDIR) && GOPATH=$(GODIR) GO15VENDOREXPERIMENT=1 go install
+	cd $(NEWTMGRDIR) && GOPATH=$(GODIR) GO15VENDOREXPERIMENT=1 GO111MODULE=on go install
 	mv $(GODIR)/bin/$(TARGET) $(DSTFILE)
+	chmod -R 777 $(GODIR)
 	rm -rf $(GODIR)
 
 install:
