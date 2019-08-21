@@ -110,7 +110,7 @@ build and install the latest release version of newtmgr from source.
    .. code-block:: console
 
       $ cd newtmgr
-      $ go install
+      $ GO111MODULE=on go install
       $ ls /tmp/go/bin/newtmgr.exe
       -rwxr-xr-x 1 user None 15457280 Sep 12 00:30 /tmp/go/bin/newtmgr.exe
 
