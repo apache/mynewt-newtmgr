@@ -44,6 +44,7 @@ var (
 
 var noerase bool
 var upgrade bool
+var imageNum int
 
 func imageFlagsStr(image nmp.ImageStateEntry) string {
 	strs := []string{}
@@ -71,7 +72,7 @@ func imageStatePrintRsp(rsp *nmp.ImageStateRsp) error {
 	}
 	fmt.Println("Images:")
 	for _, img := range rsp.Images {
-		fmt.Printf(" slot=%d\n", img.Slot)
+		fmt.Printf(" image=%d slot=%d\n", img.Image, img.Slot)
 		fmt.Printf("    version: %s\n", img.Version)
 		fmt.Printf("    bootable: %v\n", img.Bootable)
 		fmt.Printf("    flags: %s\n", imageFlagsStr(img))
@@ -190,6 +191,10 @@ func imageUploadCmd(cmd *cobra.Command, args []string) {
 	if noerase == true {
 		c.NoErase = true
 	}
+	if imageNum < 0 {
+		nmUsage(cmd, util.NewNewtError("Invalid image number"))
+	}
+	c.ImageNum = imageNum
 	c.Upgrade = upgrade
 	c.ProgressBar = pb.StartNew(len(imageFile))
 	c.ProgressBar.SetUnits(pb.U_BYTES)
@@ -403,6 +408,9 @@ func imageCmd() *cobra.Command {
 		"upgrade", "u", false,
 		"Only allow the upload if the new image's version is greater than "+
 			"that of the currently running image")
+	uploadCmd.PersistentFlags().IntVarP(&imageNum,
+		"image", "n", 0,
+		"In a multi-image system, which image should be uploaded")
 	imageCmd.AddCommand(uploadCmd)
 
 	coreListCmd := &cobra.Command{

@@ -43,6 +43,7 @@ type ImageUploadCmd struct {
 	StartOff   int
 	Upgrade    bool
 	ProgressCb ImageUploadProgressFn
+	ImageNum   int
 }
 
 type ImageUploadResult struct {
@@ -68,7 +69,7 @@ func (r *ImageUploadResult) Status() int {
 }
 
 func buildImageUploadReq(imageSz int, hash []byte, upgrade bool, chunk []byte,
-	off int) *nmp.ImageUploadReq {
+	off int, imageNum int) *nmp.ImageUploadReq {
 
 	r := nmp.NewImageUploadReq()
 
@@ -79,6 +80,7 @@ func buildImageUploadReq(imageSz int, hash []byte, upgrade bool, chunk []byte,
 	}
 	r.Off = uint32(off)
 	r.Data = chunk
+	r.ImageNum = uint8(imageNum)
 
 	return r
 }
@@ -91,10 +93,10 @@ func min(a, b int) int {
 }
 
 func encodeUploadReq(s sesn.Sesn, hash []byte, upgrade bool, data []byte,
-	off int, chunklen int) ([]byte, error) {
+	off int, chunklen int, imageNum int) ([]byte, error) {
 
 	r := buildImageUploadReq(len(data), hash, upgrade, data[off:off+chunklen],
-		off)
+		off, imageNum)
 	enc, err := mgmt.EncodeMgmt(s, r.Msg())
 	if err != nil {
 		return nil, err
@@ -110,7 +112,7 @@ func encodeUploadReq(s sesn.Sesn, hash []byte, upgrade bool, data []byte,
 }
 
 func findChunkLen(s sesn.Sesn, hash []byte, upgrade bool, data []byte,
-	off int) (int, error) {
+	off int, imageNum int) (int, error) {
 
 	// Let's start by encoding max allowed chunk len and we will see how many
 	// bytes we need to cut
@@ -118,7 +120,7 @@ func findChunkLen(s sesn.Sesn, hash []byte, upgrade bool, data []byte,
 
 	// Keep reducing the chunk size until the request fits the MTU.
 	for {
-		enc, err := encodeUploadReq(s, hash, upgrade, data, off, chunklen)
+		enc, err := encodeUploadReq(s, hash, upgrade, data, off, chunklen, imageNum)
 		if err != nil {
 			return 0, err
 		}
@@ -135,7 +137,7 @@ func findChunkLen(s sesn.Sesn, hash []byte, upgrade bool, data []byte,
 	return chunklen, nil
 }
 
-func nextImageUploadReq(s sesn.Sesn, upgrade bool, data []byte, off int) (
+func nextImageUploadReq(s sesn.Sesn, upgrade bool, data []byte, off int, imageNum int) (
 	*nmp.ImageUploadReq, error) {
 	var hash []byte = nil
 
@@ -146,7 +148,7 @@ func nextImageUploadReq(s sesn.Sesn, upgrade bool, data []byte, off int) (
 	}
 
 	// Find chunk length
-	chunklen, err := findChunkLen(s, hash, upgrade, data, off)
+	chunklen, err := findChunkLen(s, hash, upgrade, data, off, imageNum)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +157,7 @@ func nextImageUploadReq(s sesn.Sesn, upgrade bool, data []byte, off int) (
 	// fit we'll recalculate without hash
 	if off == 0 && chunklen < IMAGE_UPLOAD_MIN_1ST_CHUNK {
 		hash = nil
-		chunklen, err = findChunkLen(s, hash, upgrade, data, off)
+		chunklen, err = findChunkLen(s, hash, upgrade, data, off, imageNum)
 		if err != nil {
 			return nil, err
 		}
@@ -170,7 +172,7 @@ func nextImageUploadReq(s sesn.Sesn, upgrade bool, data []byte, off int) (
 	}
 
 	r := buildImageUploadReq(len(data), hash, upgrade,
-		data[off:off+chunklen], off)
+		data[off:off+chunklen], off, imageNum)
 
 	// Request above should encode just fine since we calculate proper chunk
 	// length but (at least for now) let's double check it
@@ -190,7 +192,7 @@ func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 	res := newImageUploadResult()
 
 	for off := c.StartOff; off < len(c.Data); {
-		r, err := nextImageUploadReq(s, c.Upgrade, c.Data, off)
+		r, err := nextImageUploadReq(s, c.Upgrade, c.Data, off, c.ImageNum)
 		if err != nil {
 			return nil, err
 		}
@@ -242,6 +244,7 @@ type ImageUpgradeCmd struct {
 	LastOff     uint32
 	Upgrade     bool
 	ProgressBar *pb.ProgressBar
+	ImageNum    int
 }
 
 type ImageUpgradeResult struct {
@@ -251,8 +254,9 @@ type ImageUpgradeResult struct {
 
 func NewImageUpgradeCmd() *ImageUpgradeCmd {
 	return &ImageUpgradeCmd{
-		CmdBase: NewCmdBase(),
-		NoErase: false,
+		CmdBase:  NewCmdBase(),
+		NoErase:  false,
+		ImageNum: 0,
 	}
 }
 
@@ -316,6 +320,7 @@ func (c *ImageUpgradeCmd) runUpload(s sesn.Sesn) (*ImageUploadResult, error) {
 		cmd.StartOff = startOff
 		cmd.Upgrade = c.Upgrade
 		cmd.ProgressCb = progressCb
+		cmd.ImageNum = c.ImageNum
 		cmd.SetTxOptions(c.TxOptions())
 
 		res, err := cmd.Run(s)
