@@ -24,12 +24,13 @@ package nmp
 //////////////////////////////////////////////////////////////////////////////
 
 type ImageUploadReq struct {
-	NmpBase `codec:"-"`
-	Off     uint32 `codec:"off"`
-	Len     uint32 `codec:"len,omitempty"`
-	DataSha []byte `codec:"sha,omitempty"`
-	Upgrade bool   `codec:"upgrade,omitempty"`
-	Data    []byte `codec:"data"`
+	NmpBase  `codec:"-"`
+	ImageNum uint8  `codec:"image"`
+	Off      uint32 `codec:"off"`
+	Len      uint32 `codec:"len,omitempty"`
+	DataSha  []byte `codec:"sha,omitempty"`
+	Upgrade  bool   `codec:"upgrade,omitempty"`
+	Data     []byte `codec:"data"`
 }
 
 type ImageUploadRsp struct {
@@ -81,6 +82,7 @@ func (sm SplitStatus) String() string {
 
 type ImageStateEntry struct {
 	NmpBase
+	Image     int    `codec:"image"`
 	Slot      int    `codec:"slot"`
 	Version   string `codec:"version"`
 	Hash      []byte `codec:"hash"`
