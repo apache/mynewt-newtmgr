@@ -217,6 +217,11 @@ func parsePayload(args []string) ([]byte, error) {
 		return nil, err
 	}
 
+	if m == nil {
+		// No payload.
+		return nil, nil
+	}
+
 	b, err := nmxutil.EncodeCborMap(m)
 	if err != nil {
 		return nil, err
