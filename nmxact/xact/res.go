@@ -46,9 +46,11 @@ func newResResult() *ResResult {
 }
 
 func (r *ResResult) Status() int {
-	if r.Rsp.Code() == coap.Content {
+	switch r.Rsp.Code() {
+	case coap.Created, coap.Deleted, coap.Valid, coap.Changed, coap.Content:
 		return 0
-	} else {
+
+	default:
 		return int(r.Rsp.Code())
 	}
 }
