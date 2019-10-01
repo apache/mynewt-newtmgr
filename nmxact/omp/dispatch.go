@@ -171,10 +171,12 @@ func (d *Dispatcher) RemoveNmpListener(seq uint8) *nmp.Listener {
 	defer d.mtx.Unlock()
 
 	ompl := d.seqListenerMap[seq]
-	if ompl != nil {
-		delete(d.seqListenerMap, seq)
-		close(ompl.stopCh)
+	if ompl == nil {
+		return nil
 	}
+
+	delete(d.seqListenerMap, seq)
+	close(ompl.stopCh)
 
 	nmxutil.LogRemoveNmpListener(d.logDepth, seq)
 	return ompl.nmpl
