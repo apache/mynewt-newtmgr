@@ -150,15 +150,19 @@ func EncodeNmpPlain(nmr *NmpMsg) ([]byte, error) {
 	return data, nil
 }
 
-func fillNmpReq(req NmpReq, op uint8, group uint16, id uint8) {
+func fillNmpReqWithSeq(req NmpReq, op uint8, group uint16, id uint8, seq uint8) {
 	hdr := NmpHdr{
 		Op:    op,
 		Flags: 0,
 		Len:   0,
 		Group: group,
-		Seq:   nmxutil.NextNmpSeq(),
+		Seq:   seq,
 		Id:    id,
 	}
 
 	req.SetHdr(&hdr)
+}
+
+func fillNmpReq(req NmpReq, op uint8, group uint16, id uint8) {
+	fillNmpReqWithSeq(req, op, group, id, nmxutil.NextNmpSeq())
 }

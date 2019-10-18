@@ -45,6 +45,12 @@ func NewImageUploadReq() *ImageUploadReq {
 	return r
 }
 
+func NewImageUploadReqWithSeq(seq uint8) *ImageUploadReq {
+	r := &ImageUploadReq{}
+	fillNmpReqWithSeq(r, NMP_OP_WRITE, NMP_GROUP_IMAGE, NMP_ID_IMAGE_UPLOAD, seq)
+	return r
+}
+
 func (r *ImageUploadReq) Msg() *NmpMsg { return MsgFromReq(r) }
 
 func NewImageUploadRsp() *ImageUploadRsp {
