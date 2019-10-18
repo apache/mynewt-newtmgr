@@ -27,6 +27,7 @@ import (
 
 	"mynewt.apache.org/newtmgr/nmxact/mgmt"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
+	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
 
@@ -69,9 +70,9 @@ func (r *ImageUploadResult) Status() int {
 }
 
 func buildImageUploadReq(imageSz int, hash []byte, upgrade bool, chunk []byte,
-	off int, imageNum int) *nmp.ImageUploadReq {
+	off int, imageNum int, seq uint8) *nmp.ImageUploadReq {
 
-	r := nmp.NewImageUploadReq()
+	r := nmp.NewImageUploadReqWithSeq(seq)
 
 	if off == 0 {
 		r.Len = uint32(imageSz)
@@ -93,26 +94,20 @@ func min(a, b int) int {
 }
 
 func encodeUploadReq(s sesn.Sesn, hash []byte, upgrade bool, data []byte,
-	off int, chunklen int, imageNum int) ([]byte, error) {
+	off int, chunklen int, imageNum int, seq uint8) ([]byte, error) {
 
 	r := buildImageUploadReq(len(data), hash, upgrade, data[off:off+chunklen],
-		off, imageNum)
+		off, imageNum, seq)
 	enc, err := mgmt.EncodeMgmt(s, r.Msg())
 	if err != nil {
 		return nil, err
-	}
-
-	// If encoded length is larger than MTU, we need to make chunk shorter
-	if len(enc) > s.MtuOut() {
-		overflow := len(enc) - s.MtuOut()
-		chunklen -= overflow
 	}
 
 	return enc, nil
 }
 
 func findChunkLen(s sesn.Sesn, hash []byte, upgrade bool, data []byte,
-	off int, imageNum int) (int, error) {
+	off int, imageNum int, seq uint8) (int, error) {
 
 	// Let's start by encoding max allowed chunk len and we will see how many
 	// bytes we need to cut
@@ -120,7 +115,7 @@ func findChunkLen(s sesn.Sesn, hash []byte, upgrade bool, data []byte,
 
 	// Keep reducing the chunk size until the request fits the MTU.
 	for {
-		enc, err := encodeUploadReq(s, hash, upgrade, data, off, chunklen, imageNum)
+		enc, err := encodeUploadReq(s, hash, upgrade, data, off, chunklen, imageNum, seq)
 		if err != nil {
 			return 0, err
 		}
@@ -147,8 +142,10 @@ func nextImageUploadReq(s sesn.Sesn, upgrade bool, data []byte, off int, imageNu
 		hash = sha[:]
 	}
 
+	seq := nmxutil.NextNmpSeq()
+
 	// Find chunk length
-	chunklen, err := findChunkLen(s, hash, upgrade, data, off, imageNum)
+	chunklen, err := findChunkLen(s, hash, upgrade, data, off, imageNum, seq)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +154,7 @@ func nextImageUploadReq(s sesn.Sesn, upgrade bool, data []byte, off int, imageNu
 	// fit we'll recalculate without hash
 	if off == 0 && chunklen < IMAGE_UPLOAD_MIN_1ST_CHUNK {
 		hash = nil
-		chunklen, err = findChunkLen(s, hash, upgrade, data, off, imageNum)
+		chunklen, err = findChunkLen(s, hash, upgrade, data, off, imageNum, seq)
 		if err != nil {
 			return nil, err
 		}
@@ -172,7 +169,7 @@ func nextImageUploadReq(s sesn.Sesn, upgrade bool, data []byte, off int, imageNu
 	}
 
 	r := buildImageUploadReq(len(data), hash, upgrade,
-		data[off:off+chunklen], off, imageNum)
+		data[off:off+chunklen], off, imageNum, seq)
 
 	// Request above should encode just fine since we calculate proper chunk
 	// length but (at least for now) let's double check it
