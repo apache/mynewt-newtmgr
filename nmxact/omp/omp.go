@@ -20,12 +20,10 @@
 package omp
 
 import (
-	"encoding/hex"
 	"fmt"
 
 	"github.com/fatih/structs"
 	"github.com/runtimeco/go-coap"
-	log "github.com/sirupsen/logrus"
 	"github.com/ugorji/go/codec"
 
 	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
@@ -157,11 +155,6 @@ func EncodeOmpTcp(txFilterCb nmcoap.MsgFilter, nmr *nmp.NmpMsg) ([]byte, error) 
 		return nil, fmt.Errorf("Failed to encode: %s\n", err.Error())
 	}
 
-	log.Debugf("Serialized OMP TCP request:\n"+
-		"Hdr %+v:\n%s\nPayload:%s\nData:\n%s",
-		nmr.Hdr, hex.Dump(er.hdrBytes), hex.Dump(er.m.Payload()),
-		hex.Dump(data))
-
 	return data, nil
 }
 
@@ -175,11 +168,6 @@ func EncodeOmpDgram(txFilterCb nmcoap.MsgFilter, nmr *nmp.NmpMsg) ([]byte, error
 	if err != nil {
 		return nil, fmt.Errorf("Failed to encode: %s\n", err.Error())
 	}
-
-	log.Debugf("Serialized OMP datagram request:\n"+
-		"Hdr %+v:\n%s\nPayload:%s\nData:\n%s",
-		nmr.Hdr, hex.Dump(er.hdrBytes), hex.Dump(er.m.Payload()),
-		hex.Dump(data))
 
 	return data, nil
 }
