@@ -190,39 +190,39 @@ func parsePayloadMap(args []string) (map[string]interface{}, error) {
 	return m, nil
 }
 
-func parsePayloadJson(args []string) (map[string]interface{}, error) {
+func parsePayloadJson(args []string) (interface{}, error) {
 	if len(args) == 0 {
 		return nil, nil
 	}
 
-	var obj map[string]interface{}
+	var val interface{}
 
-	if err := json.Unmarshal([]byte(args[0]), &obj); err != nil {
+	if err := json.Unmarshal([]byte(args[0]), &val); err != nil {
 		return nil, util.ChildNewtError(err)
 	}
 
-	return obj, nil
+	return val, nil
 }
 
 func parsePayload(args []string) ([]byte, error) {
-	var m map[string]interface{}
+	var val interface{}
 	var err error
 
 	if resJson {
-		m, err = parsePayloadJson(args)
+		val, err = parsePayloadJson(args)
 	} else {
-		m, err = parsePayloadMap(args)
+		val, err = parsePayloadMap(args)
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	if m == nil {
+	if val == nil {
 		// No payload.
 		return nil, nil
 	}
 
-	b, err := nmxutil.EncodeCborMap(m)
+	b, err := nmxutil.EncodeCbor(val)
 	if err != nil {
 		return nil, err
 	}
