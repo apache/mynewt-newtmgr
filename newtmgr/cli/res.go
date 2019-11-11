@@ -38,6 +38,7 @@ import (
 
 var details bool
 var resJson bool
+var resInt bool
 
 func indent(s string, numSpaces int) string {
 	b := make([]byte, numSpaces)
@@ -190,6 +191,46 @@ func parsePayloadMap(args []string) (map[string]interface{}, error) {
 	return m, nil
 }
 
+// removeFloats processes an unmarshalled JSON value, converting float64 values
+// to int64 values where possible.  For arrays, it is recursively called on
+// each element.  For objects (maps), it is recursively called on each value.
+// A float is converted to an int if conversion does not result in a change in
+// value.  For example, `2.0` is converted, but `1.5` is not.
+func removeFloats(itf interface{}) interface{} {
+	tryToInt64 := func(f float64) interface{} {
+		i := int64(f)
+		if float64(i) == f {
+			return i
+		} else {
+			return f
+		}
+	}
+
+	switch actual := itf.(type) {
+	case float32:
+		return tryToInt64(float64(actual))
+
+	case float64:
+		return tryToInt64(actual)
+
+	case []interface{}:
+		for i, val := range actual {
+			actual[i] = removeFloats(val)
+		}
+		return actual
+
+	case map[string]interface{}:
+		for k, v := range actual {
+			actual[k] = removeFloats(v)
+		}
+
+		return actual
+
+	default:
+		return actual
+	}
+}
+
 func parsePayloadJson(args []string) (interface{}, error) {
 	if len(args) == 0 {
 		return nil, nil
@@ -199,6 +240,12 @@ func parsePayloadJson(args []string) (interface{}, error) {
 
 	if err := json.Unmarshal([]byte(args[0]), &val); err != nil {
 		return nil, util.ChildNewtError(err)
+	}
+
+	// If the user specified `--int`, convert floats to ints where it does not
+	// result in truncation.
+	if resInt {
+		val = removeFloats(val)
 	}
 
 	return val, nil
@@ -291,6 +338,9 @@ func resCmd() *cobra.Command {
 		"Show more details about the CoAP response")
 	resCmd.PersistentFlags().BoolVarP(&resJson, "json", "j", false,
 		"Accept a JSON string for the CoAP message body (not `k=v` pairs)")
+	resCmd.PersistentFlags().BoolVarP(&resInt, "int", "", false,
+		"Parse all numbers as integer values where possible "+
+			"(only applicable when combined with -j)")
 
 	return resCmd
 }
