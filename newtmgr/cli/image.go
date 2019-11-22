@@ -26,8 +26,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/cheggaaa/pb"
 	"github.com/spf13/cobra"
+	pb "gopkg.in/cheggaaa/pb.v1"
 
 	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/core"

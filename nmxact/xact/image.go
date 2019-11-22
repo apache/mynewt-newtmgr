@@ -23,7 +23,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 
-	"github.com/cheggaaa/pb"
+	pb "gopkg.in/cheggaaa/pb.v1"
 
 	"mynewt.apache.org/newtmgr/nmxact/mgmt"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
