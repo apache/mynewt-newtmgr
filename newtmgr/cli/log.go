@@ -32,8 +32,11 @@ import (
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
+	"mynewt.apache.org/newtmgr/nmxact/sesn"
 	"mynewt.apache.org/newtmgr/nmxact/xact"
 )
+
+var optLogShowFull bool
 
 // Converts the provided CBOR map to a JSON string.
 func logCborMsgText(cborMap []byte) (string, error) {
@@ -50,72 +53,75 @@ func logCborMsgText(cborMap []byte) (string, error) {
 	return string(msg), nil
 }
 
-func logShowCmd(cmd *cobra.Command, args []string) {
-	c := xact.NewLogShowCmd()
-	c.SetTxOptions(nmutil.TxOptions())
+type logShowCfg struct {
+	Name      string
+	Last      bool
+	Index     uint32
+	Timestamp int64
+}
 
-	if len(args) >= 1 {
-		c.Name = args[0]
+func logShowParseArgs(args []string) (*logShowCfg, error) {
+	cfg := &logShowCfg{}
+
+	if len(args) < 1 {
+		return cfg, nil
 	}
-	if len(args) >= 2 {
-		if args[1] == "last" {
-			c.Index = 0
-			c.Timestamp = -1
-		} else {
-			u64, err := strconv.ParseUint(args[1], 0, 64)
-			if err != nil {
-				nmUsage(cmd, err)
-			}
-			if u64 > 0xffffffff {
-				nmUsage(cmd, util.NewNewtError("index out of range"))
-			}
-			c.Index = uint32(u64)
-		}
+	cfg.Name = args[0]
+
+	if len(args) < 2 {
+		return cfg, nil
 	}
-	if len(args) >= 3 && args[1] != "last" {
-		var err error
-		c.Timestamp, err = strconv.ParseInt(args[2], 0, 64)
+
+	if args[1] == "last" {
+		cfg.Index = 0
+		cfg.Timestamp = -1
+	} else {
+		u64, err := strconv.ParseUint(args[1], 0, 64)
 		if err != nil {
-			nmUsage(cmd, err)
+			return nil, util.ChildNewtError(err)
 		}
+		if u64 > 0xffffffff {
+			return nil, util.NewNewtError("index out of range")
+		}
+		cfg.Index = uint32(u64)
 	}
 
-	s, err := GetSesn()
+	if len(args) < 3 || args[1] == "last" {
+		return cfg, nil
+	}
+
+	ts, err := strconv.ParseInt(args[2], 0, 64)
 	if err != nil {
-		nmUsage(nil, err)
+		return nil, util.ChildNewtError(err)
 	}
+	cfg.Timestamp = ts
 
-	res, err := c.Run(s)
-	if err != nil {
-		nmUsage(nil, util.ChildNewtError(err))
-	}
+	return cfg, nil
+}
 
-	sres := res.(*xact.LogShowResult)
-	fmt.Printf("Status: %d\n", sres.Status())
-	fmt.Printf("Next index: %d\n", sres.Rsp.NextIndex)
-	if len(sres.Rsp.Logs) == 0 {
+func printLogShowRsp(rsp *nmp.LogShowRsp, printHdr bool) {
+	if len(rsp.Logs) == 0 {
 		fmt.Printf("(no logs retrieved)\n")
 		return
 	}
 
-	for _, log := range sres.Rsp.Logs {
-		fmt.Printf("Name: %s\n", log.Name)
-		fmt.Printf("Type: %s\n", nmp.LogTypeToString(log.Type))
+	for _, log := range rsp.Logs {
+		if printHdr {
+			fmt.Printf("Name: %s\n", log.Name)
+			fmt.Printf("Type: %s\n", nmp.LogTypeToString(log.Type))
 
-		if len(log.Entries) == 0 {
-			fmt.Printf("(no log entries retrieved)\n")
-			return
+			fmt.Printf("%10s %22s | %16s %16s %6s %8s %s\n",
+				"[index]", "[timestamp]", "[module]", "[level]", "[type]",
+				"[img]", "[message]")
 		}
 
-		fmt.Printf("%10s %22s | %16s %16s %6s %8s %s\n",
-			"[index]", "[timestamp]", "[module]", "[level]", "[type]",
-			"[img]", "[message]")
 		for _, entry := range log.Entries {
 			modText := fmt.Sprintf("%s (%d)",
 				nmp.LogModuleToString(int(entry.Module)), entry.Module)
 			levText := fmt.Sprintf("%s (%d)",
 				nmp.LogLevelToString(int(entry.Level)), entry.Level)
 
+			var err error
 			msgText := ""
 			switch entry.Type {
 			case nmp.LOG_ENTRY_TYPE_STRING:
@@ -148,6 +154,77 @@ func logShowCmd(cmd *cobra.Command, args []string) {
 				hex.EncodeToString(entry.ImgHash),
 				msgText)
 		}
+	}
+}
+
+func logShowFullCmd(s sesn.Sesn, cfg *logShowCfg) error {
+	if cfg.Name == "" {
+		return util.FmtNewtError("must specify a single log to read when `-a` is used")
+	}
+
+	c := xact.NewLogShowFullCmd()
+	c.SetTxOptions(nmutil.TxOptions())
+
+	c.Name = cfg.Name
+	c.Index = cfg.Index
+
+	first := true
+	c.ProgressCb = func(_ *xact.LogShowFullCmd, rsp *nmp.LogShowRsp) {
+		printLogShowRsp(rsp, first)
+		first = false
+	}
+
+	_, err := c.Run(s)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func logShowPartialCmd(s sesn.Sesn, cfg *logShowCfg) error {
+	c := xact.NewLogShowCmd()
+	c.SetTxOptions(nmutil.TxOptions())
+
+	c.Name = cfg.Name
+	c.Index = cfg.Index
+	c.Timestamp = cfg.Timestamp
+
+	res, err := c.Run(s)
+	if err != nil {
+		return err
+	}
+
+	sres := res.(*xact.LogShowResult)
+	fmt.Printf("Status: %d\n", sres.Status())
+	fmt.Printf("Next index: %d\n", sres.Rsp.NextIndex)
+	if len(sres.Rsp.Logs) == 0 {
+		fmt.Printf("(no logs retrieved)\n")
+	} else {
+		printLogShowRsp(sres.Rsp, true)
+	}
+
+	return nil
+}
+
+func logShowCmd(cmd *cobra.Command, args []string) {
+	cfg, err := logShowParseArgs(args)
+	if err != nil {
+		nmUsage(cmd, err)
+	}
+
+	s, err := GetSesn()
+	if err != nil {
+		nmUsage(nil, err)
+	}
+
+	if optLogShowFull {
+		err = logShowFullCmd(s, cfg)
+	} else {
+		err = logShowPartialCmd(s, cfg)
+	}
+	if err != nil {
+		nmUsage(nil, err)
 	}
 }
 
@@ -296,6 +373,7 @@ func logCmd() *cobra.Command {
 		Short:   "Show the logs on a device",
 		Run:     logShowCmd,
 	}
+	showCmd.PersistentFlags().BoolVarP(&optLogShowFull, "all", "a", false, "read until end of log")
 	logCmd.AddCommand(showCmd)
 
 	clearCmd := &cobra.Command{
