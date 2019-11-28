@@ -25,7 +25,7 @@ import (
 )
 
 //////////////////////////////////////////////////////////////////////////////
-// $read                                                                    //
+// $show                                                                    //
 //////////////////////////////////////////////////////////////////////////////
 
 type LogShowCmd struct {
@@ -67,6 +67,90 @@ func (c *LogShowCmd) Run(s sesn.Sesn) (Result, error) {
 
 	res := newLogShowResult()
 	res.Rsp = srsp
+	return res, nil
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// $showfull                                                                //
+//////////////////////////////////////////////////////////////////////////////
+
+type LogShowFullProgressFn func(c *LogShowFullCmd, r *nmp.LogShowRsp)
+type LogShowFullCmd struct {
+	CmdBase
+	Name       string
+	Index      uint32
+	ProgressCb LogShowFullProgressFn
+}
+
+func NewLogShowFullCmd() *LogShowFullCmd {
+	return &LogShowFullCmd{
+		CmdBase: NewCmdBase(),
+	}
+}
+
+type LogShowFullResult struct {
+	Rsps []*nmp.LogShowRsp
+}
+
+func newLogShowFullResult() *LogShowFullResult {
+	return &LogShowFullResult{}
+}
+
+func (r *LogShowFullResult) Status() int {
+	if len(r.Rsps) > 0 {
+		return r.Rsps[len(r.Rsps)-1].Rc
+	} else {
+		return nmp.NMP_ERR_EUNKNOWN
+	}
+}
+
+func (c *LogShowFullCmd) buildReq(idx uint32) *nmp.LogShowReq {
+	r := nmp.NewLogShowReq()
+	r.Name = c.Name
+	r.Index = idx
+
+	return r
+}
+
+func (c *LogShowFullCmd) Run(s sesn.Sesn) (Result, error) {
+	res := newLogShowFullResult()
+
+	idx := c.Index
+	for {
+		r := c.buildReq(idx)
+
+		rsp, err := txReq(s, r.Msg(), &c.CmdBase)
+		if err != nil {
+			return nil, err
+		}
+		srsp := rsp.(*nmp.LogShowRsp)
+
+		if c.ProgressCb != nil {
+			c.ProgressCb(c, srsp)
+		}
+
+		res.Rsps = append(res.Rsps, srsp)
+
+		// A status code of 1 means there logs to read.  For historical
+		// reasons, 1 doesn't map to an appropriate error code, so just
+		// hardcode it here.
+		if srsp.Rc != 1 {
+			break
+		}
+
+		if len(srsp.Logs) == 0 {
+			break
+		}
+		lastLog := srsp.Logs[len(srsp.Logs)-1]
+
+		if len(lastLog.Entries) == 0 {
+			break
+		}
+		lastEntry := lastLog.Entries[len(lastLog.Entries)-1]
+
+		idx = lastEntry.Index + 1
+	}
+
 	return res, nil
 }
 
