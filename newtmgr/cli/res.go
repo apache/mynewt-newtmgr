@@ -23,6 +23,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"strconv"
 	"strings"
 
@@ -39,6 +40,9 @@ import (
 var details bool
 var resJson bool
 var resInt bool
+var resJsonFilename string
+var resRawFilename string
+var resBinFilename string
 
 func indent(s string, numSpaces int) string {
 	b := make([]byte, numSpaces)
@@ -231,14 +235,10 @@ func removeFloats(itf interface{}) interface{} {
 	}
 }
 
-func parsePayloadJson(args []string) (interface{}, error) {
-	if len(args) == 0 {
-		return nil, nil
-	}
-
+func parsePayloadJson(arg string) (interface{}, error) {
 	var val interface{}
 
-	if err := json.Unmarshal([]byte(args[0]), &val); err != nil {
+	if err := json.Unmarshal([]byte(arg), &val); err != nil {
 		return nil, util.ChildNewtError(err)
 	}
 
@@ -256,7 +256,10 @@ func parsePayload(args []string) ([]byte, error) {
 	var err error
 
 	if resJson {
-		val, err = parsePayloadJson(args)
+		if len(args) == 0 {
+			return nil, nil
+		}
+		val, err = parsePayloadJson(args[0])
 	} else {
 		val, err = parsePayloadMap(args)
 	}
@@ -277,9 +280,75 @@ func parsePayload(args []string) ([]byte, error) {
 	return b, nil
 }
 
+func calcCborPayload(args []string) ([]byte, error) {
+	if resRawFilename != "" {
+		c, err := ioutil.ReadFile(resRawFilename)
+		if err != nil {
+			return nil, util.ChildNewtError(err)
+		}
+
+		return c, nil
+	}
+
+	if resJsonFilename != "" {
+		j, err := ioutil.ReadFile(resJsonFilename)
+		if err != nil {
+			return nil, util.ChildNewtError(err)
+		}
+
+		val, err := parsePayloadJson(string(j))
+		if err != nil {
+			return nil, err
+		}
+
+		c, err := nmxutil.EncodeCbor(val)
+		if err != nil {
+			return nil, err
+		}
+
+		return c, nil
+	}
+
+	if resBinFilename != "" {
+		b, err := ioutil.ReadFile(resBinFilename)
+		if err != nil {
+			return nil, util.ChildNewtError(err)
+		}
+
+		c, err := nmxutil.EncodeCbor(b)
+		if err != nil {
+			return nil, err
+		}
+
+		return c, nil
+	}
+
+	c, err := parsePayload(args)
+	if err != nil {
+		return nil, err
+	}
+
+	return c, nil
+}
+
 func runResCmd(cmd *cobra.Command, args []string) {
 	if len(args) < 2 {
 		nmUsage(cmd, nil)
+	}
+
+	numFileArgs := 0
+	if resRawFilename != "" {
+		numFileArgs++
+	}
+	if resJsonFilename != "" {
+		numFileArgs++
+	}
+	if resBinFilename != "" {
+		numFileArgs++
+	}
+	if numFileArgs > 1 {
+		nmUsage(cmd, util.FmtNewtError(
+			"too many payload files specified: have=%d want<=1", numFileArgs))
 	}
 
 	op, err := nmcoap.ParseOp(args[0])
@@ -289,7 +358,7 @@ func runResCmd(cmd *cobra.Command, args []string) {
 
 	path := args[1]
 
-	b, err := parsePayload(args[2:])
+	b, err := calcCborPayload(args[2:])
 	if err != nil {
 		nmUsage(nil, err)
 	}
@@ -338,9 +407,16 @@ func resCmd() *cobra.Command {
 		"Show more details about the CoAP response")
 	resCmd.PersistentFlags().BoolVarP(&resJson, "json", "j", false,
 		"Accept a JSON string for the CoAP message body (not `k=v` pairs)")
+	resCmd.PersistentFlags().StringVarP(&resJsonFilename, "jsonfile", "J", "",
+		"Name of file containing JSON for the CoAP message body")
+	resCmd.PersistentFlags().StringVarP(&resRawFilename, "rawfile", "R", "",
+		"Name of file containing the raw CoAP message body")
+	resCmd.PersistentFlags().StringVarP(&resBinFilename, "binfile", "B", "",
+		"Name of file containing bytes to encode as a byte string for the "+
+			"CoAP message body")
 	resCmd.PersistentFlags().BoolVarP(&resInt, "int", "", false,
 		"Parse all numbers as integer values where possible "+
-			"(only applicable when combined with -j)")
+			"(only applicable when combined with -j or -J)")
 
 	return resCmd
 }
