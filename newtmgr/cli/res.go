@@ -259,17 +259,25 @@ func parsePayload(args []string) ([]byte, error) {
 		if len(args) == 0 {
 			return nil, nil
 		}
-		val, err = parsePayloadJson(args[0])
+		itf, err := parsePayloadJson(args[0])
+		if err != nil {
+			return nil, err
+		}
+		// Check for zero payload.  Need to return nil explicitly; don't wrap
+		// in interface{}.
+		if itf == nil {
+			return nil, nil
+		}
 	} else {
-		val, err = parsePayloadMap(args)
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	if val == nil {
-		// No payload.
-		return nil, nil
+		itf, err := parsePayloadMap(args)
+		if err != nil {
+			return nil, err
+		}
+		// Check for zero payload.  Need to return nil explicitly; don't wrap
+		// in interface{}.
+		if itf == nil {
+			return nil, nil
+		}
 	}
 
 	b, err := nmxutil.EncodeCbor(val)
