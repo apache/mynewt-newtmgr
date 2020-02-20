@@ -255,27 +255,28 @@ func parsePayload(args []string) ([]byte, error) {
 	var val interface{}
 	var err error
 
+	if len(args) == 0 {
+		return nil, nil
+	}
+
 	if resJson {
-		if len(args) == 0 {
-			return nil, nil
-		}
-		itf, err := parsePayloadJson(args[0])
+		val, err = parsePayloadJson(args[0])
 		if err != nil {
 			return nil, err
 		}
 		// Check for zero payload.  Need to return nil explicitly; don't wrap
 		// in interface{}.
-		if itf == nil {
+		if val == nil {
 			return nil, nil
 		}
 	} else {
-		itf, err := parsePayloadMap(args)
+		val, err = parsePayloadMap(args)
 		if err != nil {
 			return nil, err
 		}
 		// Check for zero payload.  Need to return nil explicitly; don't wrap
 		// in interface{}.
-		if itf == nil {
+		if val == nil {
 			return nil, nil
 		}
 	}
