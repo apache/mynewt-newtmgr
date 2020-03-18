@@ -1,6 +1,6 @@
 # RELEASE NOTES
 
-04 June 2018 - Apache Newtmgr v1.4.0
+18 March 2018 - Apache Newtmgr v1.8.0
 
 For full release notes, please visit the
 [Apache Mynewt Wiki](https://cwiki.apache.org/confluence/display/MYNEWT/Release+Notes).
@@ -12,9 +12,9 @@ Thew newtmgr tool is documented at http://mynewt.apache.org/latest/newtmgr/overv
 
 New features in this version of newtmgr include:
 
-* interactive shell for COAP operations
-* "version" command
-* moved documentation from apache-core to newtmgr repo
+* new '"shell exec" command for executing specified CLI command on target device
+* log show now includes imghash
+* multi-image support
 * various bugfixes
 
 If working on next-generation build and source package management systems
