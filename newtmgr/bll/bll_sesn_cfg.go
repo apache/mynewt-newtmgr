@@ -24,7 +24,7 @@ package bll
 import (
 	"time"
 
-	"github.com/go-ble/ble"
+	"github.com/JuulLabs-OSS/ble"
 
 	"mynewt.apache.org/newtmgr/nmxact/nmcoap"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"

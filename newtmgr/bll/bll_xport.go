@@ -23,8 +23,9 @@ package bll
 
 import (
 	"fmt"
-	"github.com/go-ble/ble"
-	"github.com/go-ble/ble/examples/lib/dev"
+
+	"github.com/JuulLabs-OSS/ble"
+	"github.com/JuulLabs-OSS/ble/examples/lib/dev"
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
@@ -41,13 +42,13 @@ func NewXportCfg() XportCfg {
 }
 
 type BllXport struct {
-	cfg XportCfg
-	hciIdx	int
+	cfg    XportCfg
+	hciIdx int
 }
 
 func NewBllXport(cfg XportCfg, hciIdx int) *BllXport {
 	return &BllXport{
-		cfg: cfg,
+		cfg:    cfg,
 		hciIdx: hciIdx,
 	}
 }
