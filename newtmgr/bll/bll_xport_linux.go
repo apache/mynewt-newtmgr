@@ -22,9 +22,9 @@
 package bll
 
 import (
-	"github.com/go-ble/ble"
-	"github.com/go-ble/ble/linux"
-	"github.com/go-ble/ble/linux/hci/cmd"
+	"github.com/JuulLabs-OSS/ble"
+	"github.com/JuulLabs-OSS/ble/linux"
+	"github.com/JuulLabs-OSS/ble/linux/hci/cmd"
 
 	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
