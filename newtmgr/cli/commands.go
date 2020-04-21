@@ -39,7 +39,8 @@ func Commands() *cobra.Command {
 		Use:   nmutil.ToolInfo.ExeName,
 		Short: nmutil.ToolInfo.ShortName + " helps you manage remote devices",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			NewtmgrLogLevel, err := log.ParseLevel(logLevelStr)
+			var err error
+			NewtmgrLogLevel, err = log.ParseLevel(logLevelStr)
 			if err != nil {
 				nmUsage(nil, util.ChildNewtError(err))
 			}
@@ -49,6 +50,9 @@ func Commands() *cobra.Command {
 				nmUsage(nil, err)
 			}
 			nmxutil.SetLogLevel(NewtmgrLogLevel)
+
+			// Set cbgo log level if we're using macOS.
+			OSSpecificInit()
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd.HelpFunc()(cmd, args)

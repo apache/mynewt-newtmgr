@@ -3,7 +3,8 @@ module mynewt.apache.org/newtmgr
 go 1.12
 
 require (
-	github.com/JuulLabs-OSS/ble v0.0.0-20200415235928-df3a9e6783a9
+	github.com/JuulLabs-OSS/ble v0.0.0-20200421174404-4a6a93a950fe
+	github.com/JuulLabs-OSS/cbgo v0.0.0-20200421065905-1762a9c3147c
 	github.com/abiosoft/ishell v2.0.0+incompatible // indirect
 	github.com/abiosoft/readline v0.0.0-20180607040430-155bce2042db // indirect
 	github.com/cheggaaa/pb v2.0.7+incompatible // indirect
@@ -25,7 +26,7 @@ require (
 	github.com/pkg/errors v0.8.1
 	github.com/raff/goble v0.0.0-20200327175727-d63360dcfd80 // indirect
 	github.com/runtimeco/go-coap v0.0.0-20190911184520-8e5532820fc0
-	github.com/sirupsen/logrus v1.4.2
+	github.com/sirupsen/logrus v1.5.0
 	github.com/spf13/cast v1.3.0
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/pflag v1.0.5 // indirect
