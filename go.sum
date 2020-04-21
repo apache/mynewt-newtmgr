@@ -1,6 +1,10 @@
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/JuulLabs-OSS/ble v0.0.0-20200415235928-df3a9e6783a9 h1:2VXy9m1Bl4unkc3ZcWUrwn/sv1uCoimg99wmFv4xoNE=
 github.com/JuulLabs-OSS/ble v0.0.0-20200415235928-df3a9e6783a9/go.mod h1:qMsm/vRFvBk32uWdeFzvSZ8xsw0DUopgJFRgxaYpzt4=
+github.com/JuulLabs-OSS/ble v0.0.0-20200421174404-4a6a93a950fe h1:YnTwo0OKGlHaI9LgmuJRdecE08aZ5q/xBKkKx6NGWlQ=
+github.com/JuulLabs-OSS/ble v0.0.0-20200421174404-4a6a93a950fe/go.mod h1:pfS28CC0m6k3HdEWztSfIpvKpn3Zsxu1jzuNJ3pnFNo=
+github.com/JuulLabs-OSS/cbgo v0.0.0-20200421065905-1762a9c3147c h1:CwwgT8zV4/uvoPQuRtGBt+aQwLL7zCV/ezGz0UdXp14=
+github.com/JuulLabs-OSS/cbgo v0.0.0-20200421065905-1762a9c3147c/go.mod h1:L4YtGP+gnyD84w7+jN66ncspFRfOYB5aj9QSXaFHmBA=
 github.com/NickBall/go-aes-key-wrap v0.0.0-20170929221519-1c3aa3e4dfc5/go.mod h1:w5D10RxC0NmPYxmQ438CC1S07zaC1zpvuNW7s5sUk2Q=
 github.com/abiosoft/ishell v2.0.0+incompatible h1:zpwIuEHc37EzrsIYah3cpevrIc8Oma7oZPxr03tlmmw=
 github.com/abiosoft/ishell v2.0.0+incompatible/go.mod h1:HQR9AqF2R3P4XXpMpI0NAzgHf/aS6+zVXRj14cVk9qg=
@@ -139,6 +143,8 @@ github.com/sirupsen/logrus v1.4.1 h1:GL2rEmy6nsikmW0r8opw9JIRScdMF5hA8cOYLH7In1k
 github.com/sirupsen/logrus v1.4.1/go.mod h1:ni0Sbl8bgC9z8RoU9G6nDWqqs/fq4eDPysMBDgk/93Q=
 github.com/sirupsen/logrus v1.4.2 h1:SPIRibHv4MatM3XXNO2BJeFLZwZ2LvZgfQ5+UNI2im4=
 github.com/sirupsen/logrus v1.4.2/go.mod h1:tLMulIdttU9McNUspp0xgXVQah82FyeX6MwdIuYE2rE=
+github.com/sirupsen/logrus v1.5.0 h1:1N5EYkVAPEywqZRJd7cwnRtCb6xJx7NH3T3WUTF980Q=
+github.com/sirupsen/logrus v1.5.0/go.mod h1:+F7Ogzej0PZc/94MaYx/nvG9jOFMD2osvC3s+Squfpo=
 github.com/spf13/afero v1.1.2/go.mod h1:j4pytiNVoe2o6bmDsKpLACNPDBIoEAkihy7loJ1B0CQ=
 github.com/spf13/cast v1.2.0 h1:HHl1DSRbEQN2i8tJmtS6ViPyHx35+p51amrdsiTCrkg=
 github.com/spf13/cast v1.2.0/go.mod h1:r2rcYCSwa1IExKTDiTfzaxqT2FNHs8hODu4LnUfgKEg=
