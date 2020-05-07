@@ -25,10 +25,14 @@ import (
 
 	pb "gopkg.in/cheggaaa/pb.v1"
 
+	log "github.com/sirupsen/logrus"
 	"mynewt.apache.org/newtmgr/nmxact/mgmt"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
+	"sync"
+	"sync/atomic"
+	"time"
 )
 
 //////////////////////////////////////////////////////////////////////////////
@@ -36,6 +40,12 @@ import (
 //////////////////////////////////////////////////////////////////////////////
 const IMAGE_UPLOAD_MAX_CHUNK = 512
 const IMAGE_UPLOAD_MIN_1ST_CHUNK = 32
+const IMAGE_UPLOAD_STATUS_MISSED = -1
+const IMAGE_UPLOAD_CHUNK_MISSED_WM = -1
+const IMAGE_UPLOAD_START_WS = 1
+const IMAGE_UPLOAD_DEF_MAX_WS = 5
+const IMAGE_UPLOAD_STATUS_EXPECTED = 0
+const IMAGE_UPLOAD_STATUS_RQ = 1
 
 type ImageUploadProgressFn func(c *ImageUploadCmd, r *nmp.ImageUploadRsp)
 type ImageUploadCmd struct {
@@ -45,6 +55,17 @@ type ImageUploadCmd struct {
 	Upgrade    bool
 	ProgressCb ImageUploadProgressFn
 	ImageNum   int
+	MaxWinSz   int
+}
+
+type ImageUploadIntTracker struct {
+	Mutex    sync.Mutex
+	TuneWS   bool
+	RspMap   map[int]int
+	WCount   int
+	WCap     int
+	Off      int
+	MaxRxOff int64
 }
 
 type ImageUploadResult struct {
@@ -120,7 +141,7 @@ func findChunkLen(s sesn.Sesn, hash []byte, upgrade bool, data []byte,
 			return 0, err
 		}
 
-		if len(enc) <= s.MtuOut() {
+		if len(enc) <= (s.MtuOut()) {
 			break
 		}
 
@@ -164,8 +185,8 @@ func nextImageUploadReq(s sesn.Sesn, upgrade bool, data []byte, off int, imageNu
 	// we can't do much more...
 	if chunklen <= 0 {
 		return nil, fmt.Errorf("Cannot create image upload request; "+
-			"MTU too low to fit any image data; max-payload-size=%d",
-			s.MtuOut())
+			"MTU too low to fit any image data; max-payload-size=%d chunklen %d",
+			s.MtuOut(), chunklen)
 	}
 
 	r := buildImageUploadReq(len(data), hash, upgrade,
@@ -185,34 +206,186 @@ func nextImageUploadReq(s sesn.Sesn, upgrade bool, data []byte, off int, imageNu
 	return r, nil
 }
 
-func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
-	res := newImageUploadResult()
+func (t *ImageUploadIntTracker) UpdateTracker(off int, status int) {
+	if status == IMAGE_UPLOAD_STATUS_MISSED {
+		/* Upon error, set the value to missed for retransmission */
+		t.RspMap[off] = IMAGE_UPLOAD_CHUNK_MISSED_WM
+	} else if status == IMAGE_UPLOAD_STATUS_EXPECTED {
+		/* When the chunk at a certain offset is transmitted,
+		   a response requesting the next offset is expected. This
+		   indicates that the chunk is successfully trasmitted. Wait
+		   on the chunk in response e.g when offset 0, len 100 is sent,
+		   expected offset in the ack is 100 etc. */
+		t.RspMap[off] = 1
+	} else if status == IMAGE_UPLOAD_STATUS_RQ {
+		/* If the chunk at this offset was already transmitted, value
+		   goes to zero and that KV pair gets cleaned up subsequently.
+		   If there is a repeated request for a certain offset,
+		   that offset is not received by the remote side. Decrement
+		   the value. Missed chunk processing routine retransmits it */
+		t.RspMap[off] -= 1
+	}
+}
 
-	for off := c.StartOff; off < len(c.Data); {
-		r, err := nextImageUploadReq(s, c.Upgrade, c.Data, off, c.ImageNum)
-		if err != nil {
-			return nil, err
-		}
+func (t *ImageUploadIntTracker) CheckWindow() bool {
+	t.Mutex.Lock()
+	defer t.Mutex.Unlock()
 
-		rsp, err := txReq(s, r.Msg(), &c.CmdBase)
-		if err != nil {
-			return nil, err
+	return t.WCount < t.WCap
+}
+
+func (t *ImageUploadIntTracker) ProcessMissedChunks() {
+	t.Mutex.Lock()
+	defer t.Mutex.Unlock()
+	for o, c := range t.RspMap {
+		if c < IMAGE_UPLOAD_CHUNK_MISSED_WM {
+			delete(t.RspMap, o)
+			t.Off = o
+			log.Debugf("missed? off %d count %d", o, c)
 		}
+		// clean up done chunks
+		if c == 0 {
+			delete(t.RspMap, o)
+		}
+	}
+}
+
+func (t *ImageUploadIntTracker) HandleResponse(c *ImageUploadCmd, rsp nmp.NmpRsp, res *ImageUploadResult) bool {
+	t.Mutex.Lock()
+	defer t.Mutex.Unlock()
+	wFull := false
+
+	if rsp != nil {
 		irsp := rsp.(*nmp.ImageUploadRsp)
+		res.Rsps = append(res.Rsps, irsp)
+		t.UpdateTracker(int(irsp.Off), IMAGE_UPLOAD_STATUS_RQ)
 
-		off = int(irsp.Off)
-
+		if t.MaxRxOff < int64(irsp.Off) {
+			t.MaxRxOff = int64(irsp.Off)
+		}
 		if c.ProgressCb != nil {
 			c.ProgressCb(c, irsp)
 		}
-
-		res.Rsps = append(res.Rsps, irsp)
-		if irsp.Rc != 0 {
-			break
-		}
 	}
 
-	return res, nil
+	if t.WCap == t.WCount {
+		wFull = true
+	}
+
+	if t.TuneWS && t.WCap < c.MaxWinSz {
+		t.WCap += 1
+	}
+	t.WCount -= 1
+
+	// Indicate transition from window being full to with open slot(s)
+	if wFull && t.WCap > t.WCount {
+		return true
+	} else {
+		return false
+	}
+}
+
+func (t *ImageUploadIntTracker) HandleError(off int, err error) bool {
+	/*XXX: there could be an Unauthorize or EOF error  when the rate is too high
+	  due to a large window, we retry. example:
+	  "failed to decrypt message: coap_sec_tunnel: decode GCM fail EOF"
+	  Since the error is sent with fmt.Errorf() API, with no code,
+	  the string may have to be parsed to know the particular error */
+	t.Mutex.Lock()
+	defer t.Mutex.Unlock()
+	log.Debugf("HandleError off %v error %v", off, err)
+	var wFull = false
+	if t.WCap == t.WCount {
+		wFull = true
+	}
+
+	if t.WCount > IMAGE_UPLOAD_START_WS+1 {
+		t.WCap -= 1
+	}
+	t.TuneWS = false
+	t.WCount -= 1
+	t.UpdateTracker(off, IMAGE_UPLOAD_STATUS_MISSED)
+
+	// Indicate transition from window being full to with open slot(s)
+	if wFull && t.WCap > t.WCount {
+		return true
+	} else {
+		return false
+	}
+}
+
+func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
+	res := newImageUploadResult()
+	ch := make(chan int)
+	rspc := make(chan nmp.NmpRsp, c.MaxWinSz)
+	errc := make(chan error, c.MaxWinSz)
+
+	t := ImageUploadIntTracker{
+		TuneWS:   true,
+		WCount:   0,
+		WCap:     IMAGE_UPLOAD_START_WS,
+		Off:      c.StartOff,
+		RspMap:   make(map[int]int),
+		MaxRxOff: 0,
+	}
+
+	for int(atomic.LoadInt64(&t.MaxRxOff)) < len(c.Data) {
+		// Block if window is full
+		if !t.CheckWindow() {
+			ch <- 1
+		}
+
+		t.ProcessMissedChunks()
+
+		if t.Off == len(c.Data) {
+			continue
+		}
+
+		t.Mutex.Lock()
+		r, err := nextImageUploadReq(s, c.Upgrade, c.Data, t.Off, c.ImageNum)
+		if err != nil {
+			t.Mutex.Unlock()
+			return nil, err
+		}
+
+		t.Off = (int(r.Off) + len(r.Data))
+
+		// Use up a chunk in window
+		t.WCount += 1
+		err = txReqAsync(s, r.Msg(), &c.CmdBase, rspc, errc)
+		if err != nil {
+			log.Debugf("err txReqAsync %v", err)
+			t.Mutex.Unlock()
+			break
+		}
+		// Mark the expected offset in successful tx of this chunk. i.e off + len
+		t.UpdateTracker(int(r.Off)+len(r.Data), IMAGE_UPLOAD_STATUS_EXPECTED)
+		t.Mutex.Unlock()
+
+		go func(off int) {
+			select {
+			case err := <-errc:
+				sig := t.HandleError(off, err)
+				if sig {
+					<-ch
+				}
+				return
+			case rsp := <-rspc:
+				sig := t.HandleResponse(c, rsp, res)
+				if sig {
+					<-ch
+				}
+				return
+			}
+		}(int(r.Off))
+	}
+
+	if int(t.MaxRxOff) == len(c.Data) {
+		return res, nil
+	} else {
+		return nil, fmt.Errorf("ImageUpload unexpected error after %d/%d bytes",
+			t.MaxRxOff, len(c.Data))
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -242,6 +415,7 @@ type ImageUpgradeCmd struct {
 	Upgrade     bool
 	ProgressBar *pb.ProgressBar
 	ImageNum    int
+	MaxWinSz    int
 }
 
 type ImageUpgradeResult struct {
@@ -312,13 +486,18 @@ func (c *ImageUpgradeCmd) runUpload(s sesn.Sesn) (*ImageUploadResult, error) {
 	}
 
 	for {
+		var opt = sesn.TxOptions{
+			Timeout: 3 * time.Second,
+			Tries:   1,
+		}
 		cmd := NewImageUploadCmd()
 		cmd.Data = c.Data
 		cmd.StartOff = startOff
 		cmd.Upgrade = c.Upgrade
 		cmd.ProgressCb = progressCb
 		cmd.ImageNum = c.ImageNum
-		cmd.SetTxOptions(c.TxOptions())
+		cmd.SetTxOptions(opt)
+		cmd.MaxWinSz = c.MaxWinSz
 
 		res, err := cmd.Run(s)
 		if err == nil {

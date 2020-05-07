@@ -118,6 +118,11 @@ func (s *UdpSesn) TxRxMgmt(m *nmp.NmpMsg,
 	return s.txvr.TxRxMgmt(txRaw, m, s.MtuOut(), timeout)
 }
 
+func (s *UdpSesn) TxRxMgmtAsync(m *nmp.NmpMsg,
+	timeout time.Duration, ch chan nmp.NmpRsp, errc chan error) error {
+	return fmt.Errorf("unsupported")
+}
+
 func (s *UdpSesn) AbortRx(seq uint8) error {
 	s.txvr.ErrorAll(fmt.Errorf("Rx aborted"))
 	return nil

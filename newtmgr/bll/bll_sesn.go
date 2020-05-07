@@ -392,6 +392,27 @@ func (s *BllSesn) TxRxMgmt(m *nmp.NmpMsg,
 	return s.txvr.TxRxMgmt(txRaw, m, s.MtuOut(), timeout)
 }
 
+func (s *BllSesn) TxRxMgmtAsync(m *nmp.NmpMsg,
+	timeout time.Duration, ch chan nmp.NmpRsp, errc chan error) error {
+
+	if !s.IsOpen() {
+		return nmxutil.NewSesnClosedError(
+			"Attempt to transmit over closed BLE session")
+	}
+
+	if s.nmpReqChr == nil || s.nmpRspChr == nil {
+		return fmt.Errorf("Cannot send NMP request; peer doesn't " +
+			"support request or response characteristic")
+	}
+
+	txRaw := func(b []byte) error {
+		return s.txWriteCharacteristic(s.nmpReqChr, b, true)
+	}
+
+	s.txvr.TxRxMgmtAsync(txRaw, m, s.MtuOut(), timeout, ch, errc)
+	return nil
+}
+
 func (s *BllSesn) TxCoap(m coap.Message) error {
 	txRaw := func(b []byte) error {
 		return s.txWriteCharacteristic(s.resReqChr, b, !s.cfg.WriteRsp)

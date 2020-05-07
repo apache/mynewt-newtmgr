@@ -114,6 +114,54 @@ func (t *Transceiver) txRxNmp(txCb TxFn, req *nmp.NmpMsg, mtu int,
 	}
 }
 
+func (t *Transceiver) txRxNmpAsync(txCb TxFn, req *nmp.NmpMsg, mtu int,
+	timeout time.Duration, ch chan nmp.NmpRsp, errc chan error) error {
+
+	nl, err := t.nd.AddListener(req.Hdr.Seq)
+	if err != nil {
+		return err
+	}
+	defer t.nd.RemoveListener(req.Hdr.Seq)
+
+	b, err := nmp.EncodeNmpPlain(req)
+	if err != nil {
+		return err
+	}
+
+	log.Debugf("Tx NMP async request: seq %d %s", req.Hdr.Seq, hex.Dump(b))
+	if t.isTcp == false && len(b) > mtu {
+		return fmt.Errorf("Request too big")
+	}
+	frags := nmxutil.Fragment(b, mtu)
+	for _, frag := range frags {
+		if err := txCb(frag); err != nil {
+			return err
+		}
+	}
+
+	// Now wait for NMP response.
+	go func() {
+		for {
+			select {
+			case err := <-nl.ErrChan:
+				errc <- err
+				return
+			case rsp := <-nl.RspChan:
+				ch <- rsp
+				return
+			case _, ok := <-nl.AfterTimeout(timeout):
+				if ok {
+					errc <- nmxutil.NewRspTimeoutError("NMP timeout")
+					return
+				}
+			}
+
+		}
+	}()
+
+	return nil
+}
+
 func (t *Transceiver) txRxOmp(txCb TxFn, req *nmp.NmpMsg, mtu int,
 	timeout time.Duration) (nmp.NmpRsp, error) {
 
@@ -160,6 +208,62 @@ func (t *Transceiver) txRxOmp(txCb TxFn, req *nmp.NmpMsg, mtu int,
 	}
 }
 
+func (t *Transceiver) txRxOmpAsync(txCb TxFn, req *nmp.NmpMsg, mtu int,
+	timeout time.Duration, ch chan nmp.NmpRsp, errc chan error) error {
+
+	seq := req.Hdr.Seq
+	nl, err := t.od.AddNmpListener(seq)
+	if err != nil {
+		return err
+	}
+
+	var b []byte
+	if t.isTcp {
+		b, err = omp.EncodeOmpTcp(t.txFilterCb, req)
+	} else {
+		b, err = omp.EncodeOmpDgram(t.txFilterCb, req)
+	}
+	if err != nil {
+		return err
+	}
+
+	log.Debugf("Tx OMP request: %v %s", seq, hex.Dump(b))
+
+	if t.isTcp == false && len(b) > mtu {
+		return fmt.Errorf("Request too big")
+	}
+	frags := nmxutil.Fragment(b, mtu)
+	for _, frag := range frags {
+		if err := txCb(frag); err != nil {
+			log.Debugf("txCb error %v", err)
+			t.od.RemoveNmpListener(seq)
+			return err
+		}
+	}
+
+	// Now wait for NMP response.
+	go func() {
+		defer t.od.RemoveNmpListener(seq)
+		for {
+			select {
+			case err := <-nl.ErrChan:
+				log.Debugf("Error reported %v seq %v", err, seq)
+				errc <- err
+				return
+			case rsp := <-nl.RspChan:
+				ch <- rsp
+				return
+			case _, ok := <-nl.AfterTimeout(timeout):
+				if ok {
+					errc <- fmt.Errorf("Request timedout")
+					return
+				}
+			}
+		}
+	}()
+	return nil
+}
+
 func (t *Transceiver) TxRxMgmt(txCb TxFn, req *nmp.NmpMsg, mtu int,
 	timeout time.Duration) (nmp.NmpRsp, error) {
 
@@ -167,6 +271,16 @@ func (t *Transceiver) TxRxMgmt(txCb TxFn, req *nmp.NmpMsg, mtu int,
 		return t.txRxNmp(txCb, req, mtu, timeout)
 	} else {
 		return t.txRxOmp(txCb, req, mtu, timeout)
+	}
+}
+
+func (t *Transceiver) TxRxMgmtAsync(txCb TxFn, req *nmp.NmpMsg, mtu int,
+	timeout time.Duration, ch chan nmp.NmpRsp, errc chan error) error {
+
+	if t.nd != nil {
+		return t.txRxNmpAsync(txCb, req, mtu, timeout, ch, errc)
+	} else {
+		return t.txRxOmpAsync(txCb, req, mtu, timeout, ch, errc)
 	}
 }
 
