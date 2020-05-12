@@ -406,7 +406,7 @@ func imageCmd() *cobra.Command {
 		Run:     imageUploadCmd,
 	}
 	uploadCmd.PersistentFlags().BoolVarP(&noerase,
-		"noerase", "e", false,
+		"noerase", "e", true,
 		"Don't send specific image erase command to start with")
 	uploadCmd.PersistentFlags().BoolVarP(&upgrade,
 		"upgrade", "u", false,
