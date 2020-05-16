@@ -67,7 +67,7 @@ The var-names are: ``type``, and ``connstring``. The valid values for each var-n
     * ``baud``: (Optional) A number that specifies the buad rate for the connection. Defaults to **115200** if the
       attribute is not specified.
 
-    Example: ``connstring="dev=/dev/ttyUSB0, baud=9600"``
+    Example: ``connstring="dev=/dev/ttyUSB0,baud=9600"``
     **Note:** The 1.0 format, which only requires a serial port name, is still supported. For example, ``connstring=/dev/ttyUSB0``.
 
   - **udp** and **oic_udp**: The peer ip address and port number that the newtmgr or oicmgr on the remote device is
