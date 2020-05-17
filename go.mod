@@ -3,8 +3,8 @@ module mynewt.apache.org/newtmgr
 go 1.12
 
 require (
-	github.com/JuulLabs-OSS/ble v0.0.0-20200421174404-4a6a93a950fe
-	github.com/JuulLabs-OSS/cbgo v0.0.0-20200421065905-1762a9c3147c
+	github.com/JuulLabs-OSS/ble v0.0.0-20200517053828-ca7534402217
+	github.com/JuulLabs-OSS/cbgo v0.0.1
 	github.com/abiosoft/ishell v2.0.0+incompatible // indirect
 	github.com/abiosoft/readline v0.0.0-20180607040430-155bce2042db // indirect
 	github.com/cheggaaa/pb v2.0.7+incompatible // indirect
