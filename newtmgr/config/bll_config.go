@@ -40,6 +40,7 @@ type BllConfig struct {
 	OwnAddrType bledefs.BleAddrType
 	PeerId      string
 	PeerName    string
+	Passkey     int64
 
 	// Connection timeout, in seconds.
 	ConnTimeout float64
@@ -95,6 +96,12 @@ func ParseBllConnString(cs string) (*BllConfig, error) {
 			if err != nil {
 				return nil, einvalBleConnString("Invalid conn_timeout: %s", v)
 			}
+		case "passkey":
+			var err error
+			bc.Passkey, err = strconv.ParseInt(v, 10, 32)
+			if err != nil {
+				return nil, einvalBleConnString("Invalid passkey: %s", v)
+			}
 
 		default:
 			return nil, einvalBllConnString("Unrecognized key: %s", k)
@@ -123,6 +130,9 @@ func BuildBllSesnCfg(bc *BllConfig) (bll.BllSesnCfg, error) {
 		}
 	} else {
 		return sc, util.NewNewtError("bll session lacks a peer specifier")
+	}
+	if bc.Passkey != 0 {
+		sc.Authentication.Passkey = int(bc.Passkey)
 	}
 
 	sc.WriteRsp = nmutil.BleWriteRsp

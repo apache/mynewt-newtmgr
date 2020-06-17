@@ -31,21 +31,23 @@ import (
 )
 
 type BllSesnCfg struct {
-	MgmtProto    sesn.MgmtProto
-	AdvFilter    ble.AdvFilter
-	PreferredMtu uint16
-	ConnTimeout  time.Duration
-	ConnTries    int
-	WriteRsp     bool
-	TxFilterCb   nmcoap.MsgFilter
-	RxFilterCb   nmcoap.MsgFilter
+	MgmtProto      sesn.MgmtProto
+	AdvFilter      ble.AdvFilter
+	PreferredMtu   uint16
+	ConnTimeout    time.Duration
+	ConnTries      int
+	WriteRsp       bool
+	TxFilterCb     nmcoap.MsgFilter
+	RxFilterCb     nmcoap.MsgFilter
+	Authentication ble.AuthData
 }
 
 func NewBllSesnCfg() BllSesnCfg {
 	return BllSesnCfg{
-		PreferredMtu: 512,
-		ConnTimeout:  10 * time.Second,
-		ConnTries:    3,
-		WriteRsp:     false,
+		PreferredMtu:   512,
+		ConnTimeout:    10 * time.Second,
+		ConnTries:      3,
+		WriteRsp:       false,
+		Authentication: ble.AuthData{},
 	}
 }

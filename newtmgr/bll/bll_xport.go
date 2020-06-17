@@ -23,9 +23,11 @@ package bll
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/rigado/ble"
-	"github.com/rigado/ble/examples/lib/dev"
+	"github.com/rigado/ble/linux"
+	bonds "github.com/rigado/ble/linux/hci/bond"
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
@@ -63,7 +65,16 @@ func (bx *BllXport) BuildBllSesn(cfg BllSesnCfg) (sesn.Sesn, error) {
 }
 
 func (bx *BllXport) Start() error {
-	d, err := dev.NewDevice(bx.cfg.CtlrName, ble.OptDeviceID(bx.hciIdx))
+	optid := ble.OptDeviceID(bx.hciIdx)
+
+	// To create a pair with a device, the pair manager needs a file
+	// to store and load pair information
+	bondFilePath := filepath.Join("bonds.json")
+	bm := bonds.NewBondManager(bondFilePath)
+
+	// Enable security by putting the pair manager in the enable security option
+	optSecurity := ble.OptEnableSecurity(bm)
+	d, err := linux.NewDeviceWithNameAndHandler(bx.cfg.CtlrName, nil, optid, optSecurity)
 	if err != nil {
 		return fmt.Errorf("[hci%d]: %s", bx.hciIdx, err)
 	}

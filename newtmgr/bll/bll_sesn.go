@@ -267,6 +267,24 @@ func (s *BllSesn) exchangeMtu() error {
 	return nil
 }
 
+func (s *BllSesn) authenticate() error {
+	cln, err := s.getCln()
+	if err != nil {
+		return err
+	}
+
+	if s.cfg.Authentication.Passkey == 0 {
+		return nil
+	}
+
+	err = cln.Pair(s.cfg.Authentication, time.Minute)
+	if err != nil {
+		return nmxutil.NewBleSecurityError(
+			"Incorrect passkey provided")
+	}
+	return nil
+}
+
 // @return bool                 Whether to retry the open attempt; false
 //                                  on success.
 //         error                The cause of a failed open; nil on success.
@@ -288,6 +306,11 @@ func (s *BllSesn) openOnce() (bool, error) {
 	}
 
 	if err := s.exchangeMtu(); err != nil {
+		return true, err
+	}
+
+	// Authenticate if authentication data provided
+	if err := s.authenticate(); err != nil {
 		return true, err
 	}
 
