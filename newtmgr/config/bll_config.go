@@ -27,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/JuulLabs-OSS/ble"
+	"github.com/rigado/ble"
 
 	"mynewt.apache.org/newt/util"
 	"mynewt.apache.org/newtmgr/newtmgr/bll"

@@ -22,7 +22,7 @@
 package bll
 
 import (
-	"github.com/JuulLabs-OSS/ble"
+	"github.com/rigado/ble"
 
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
 )

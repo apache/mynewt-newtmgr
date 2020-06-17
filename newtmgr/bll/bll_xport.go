@@ -24,8 +24,8 @@ package bll
 import (
 	"fmt"
 
-	"github.com/JuulLabs-OSS/ble"
-	"github.com/JuulLabs-OSS/ble/examples/lib/dev"
+	"github.com/rigado/ble"
+	"github.com/rigado/ble/examples/lib/dev"
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )

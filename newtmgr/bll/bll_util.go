@@ -25,7 +25,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/JuulLabs-OSS/ble"
+	"github.com/rigado/ble"
 
 	"mynewt.apache.org/newtmgr/nmxact/bledefs"
 )

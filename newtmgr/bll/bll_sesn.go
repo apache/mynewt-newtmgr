@@ -26,7 +26,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/JuulLabs-OSS/ble"
+	"github.com/rigado/ble"
 	"github.com/runtimeco/go-coap"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
@@ -238,7 +238,7 @@ func (s *BllSesn) discoverAll() error {
 func (s *BllSesn) subscribe() error {
 	log.Debugf("Subscribing to NMP response characteristic")
 
-	onNotify := func(data []byte) {
+	onNotify := func(id uint, data []byte) {
 		s.txvr.DispatchNmpRsp(data)
 	}
 
