@@ -83,8 +83,8 @@ func (sx *SerialXport) BuildSesn(cfg sesn.SesnCfg) (sesn.Sesn, error) {
 func (sx *SerialXport) acceptServerSesn(sl *SerialSesn) (*SerialSesn, error) {
 	sc := sesn.NewSesnCfg()
 	sc.MgmtProto = sesn.MGMT_PROTO_COAP_SERVER
-	sc.TxFilterCb = sl.cfg.TxFilterCb
-	sc.RxFilterCb = sl.cfg.RxFilterCb
+	sc.TxFilter = sl.cfg.TxFilter
+	sc.RxFilter = sl.cfg.RxFilter
 
 	s, err := NewSerialSesn(sx, sc)
 	if err != nil {

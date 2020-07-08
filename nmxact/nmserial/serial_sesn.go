@@ -57,7 +57,7 @@ func NewSerialSesn(sx *SerialXport, cfg sesn.SesnCfg) (*SerialSesn, error) {
 		sx:  sx,
 	}
 
-	txvr, err := mgmt.NewTransceiver(cfg.TxFilterCb, cfg.RxFilterCb, false,
+	txvr, err := mgmt.NewTransceiver(cfg.TxFilter, cfg.RxFilter, false,
 		cfg.MgmtProto, 3)
 	if err != nil {
 		return nil, err
@@ -76,7 +76,7 @@ func (s *SerialSesn) Open() error {
 			"Attempt to open an already-open serial session")
 	}
 
-	txvr, err := mgmt.NewTransceiver(s.cfg.TxFilterCb, s.cfg.RxFilterCb, false,
+	txvr, err := mgmt.NewTransceiver(s.cfg.TxFilter, s.cfg.RxFilter, false,
 		s.cfg.MgmtProto, 3)
 	if err != nil {
 		s.m.Unlock()
@@ -321,12 +321,12 @@ func (s *SerialSesn) RxCoap(opt sesn.TxOptions) (coap.Message, error) {
 	}
 }
 
-func (s *SerialSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
+func (s *SerialSesn) Filters() (nmcoap.TxMsgFilter, nmcoap.RxMsgFilter) {
 	return s.txvr.Filters()
 }
 
-func (s *SerialSesn) SetFilters(txFilter nmcoap.MsgFilter,
-	rxFilter nmcoap.MsgFilter) {
+func (s *SerialSesn) SetFilters(txFilter nmcoap.TxMsgFilter,
+	rxFilter nmcoap.RxMsgFilter) {
 
 	s.txvr.SetFilters(txFilter, rxFilter)
 }

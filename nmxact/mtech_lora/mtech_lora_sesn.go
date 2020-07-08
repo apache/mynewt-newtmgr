@@ -88,7 +88,7 @@ func (s *LoraSesn) Open() error {
 			"Attempt to open an already-open Lora session")
 	}
 
-	txvr, err := mgmt.NewTransceiver(s.cfg.TxFilterCb, s.cfg.RxFilterCb, false,
+	txvr, err := mgmt.NewTransceiver(s.cfg.TxFilter, s.cfg.RxFilter, false,
 		s.cfg.MgmtProto, 3)
 	if err != nil {
 		return err
@@ -369,8 +369,8 @@ func (s *LoraSesn) RxAccept() (sesn.Sesn, *sesn.SesnCfg, error) {
 			}
 			cl_s.cfg.Lora.ConfirmedTx = s.cfg.Lora.ConfirmedTx
 			cl_s.cfg.Lora.SegSz = s.cfg.Lora.SegSz
-			cl_s.cfg.TxFilterCb = s.cfg.TxFilterCb
-			cl_s.cfg.RxFilterCb = s.cfg.RxFilterCb
+			cl_s.cfg.TxFilter = s.cfg.TxFilter
+			cl_s.cfg.RxFilter = s.cfg.RxFilter
 			return cl_s, &cl_s.cfg, nil
 		case <-s.stopChan:
 			return nil, nil, fmt.Errorf("Session closed")
@@ -425,12 +425,12 @@ func (s *LoraSesn) RxCoap(opt sesn.TxOptions) (coap.Message, error) {
 	}
 }
 
-func (s *LoraSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
+func (s *LoraSesn) Filters() (nmcoap.TxMsgFilter, nmcoap.RxMsgFilter) {
 	return s.txvr.Filters()
 }
 
-func (s *LoraSesn) SetFilters(txFilter nmcoap.MsgFilter,
-	rxFilter nmcoap.MsgFilter) {
+func (s *LoraSesn) SetFilters(txFilter nmcoap.TxMsgFilter,
+	rxFilter nmcoap.RxMsgFilter) {
 
 	s.txvr.SetFilters(txFilter, rxFilter)
 }

@@ -45,27 +45,27 @@ type Transceiver struct {
 	// Used for OMP and CoAP resource requests.
 	od *omp.Dispatcher
 
-	txFilterCb nmcoap.MsgFilter
+	txFilter nmcoap.TxMsgFilter
 
 	isTcp bool
 	proto sesn.MgmtProto
 	wg    sync.WaitGroup
 }
 
-func NewTransceiver(txFilterCb, rxFilterCb nmcoap.MsgFilter, isTcp bool,
+func NewTransceiver(txFilter nmcoap.TxMsgFilter, rxFilter nmcoap.RxMsgFilter, isTcp bool,
 	mgmtProto sesn.MgmtProto, logDepth int) (*Transceiver, error) {
 
 	t := &Transceiver{
-		txFilterCb: txFilterCb,
-		isTcp:      isTcp,
-		proto:      mgmtProto,
+		txFilter: txFilter,
+		isTcp:    isTcp,
+		proto:    mgmtProto,
 	}
 
 	if mgmtProto == sesn.MGMT_PROTO_NMP {
 		t.nd = nmp.NewDispatcher(logDepth)
 	}
 
-	od, err := omp.NewDispatcher(rxFilterCb, isTcp, logDepth)
+	od, err := omp.NewDispatcher(rxFilter, isTcp, logDepth)
 	if err != nil {
 		return nil, err
 	}
@@ -125,9 +125,9 @@ func (t *Transceiver) txRxOmp(txCb TxFn, req *nmp.NmpMsg, mtu int,
 
 	var b []byte
 	if t.isTcp {
-		b, err = omp.EncodeOmpTcp(t.txFilterCb, req)
+		b, err = omp.EncodeOmpTcp(t.txFilter, req)
 	} else {
-		b, err = omp.EncodeOmpDgram(t.txFilterCb, req)
+		b, err = omp.EncodeOmpDgram(t.txFilter, req)
 	}
 	if err != nil {
 		return nil, err
@@ -250,13 +250,13 @@ func (t *Transceiver) MgmtProto() sesn.MgmtProto {
 	return t.proto
 }
 
-func (t *Transceiver) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
-	return t.txFilterCb, t.od.RxFilter()
+func (t *Transceiver) Filters() (nmcoap.TxMsgFilter, nmcoap.RxMsgFilter) {
+	return t.txFilter, t.od.RxFilter()
 }
 
-func (t *Transceiver) SetFilters(txFilter nmcoap.MsgFilter,
-	rxFilter nmcoap.MsgFilter) {
+func (t *Transceiver) SetFilters(txFilter nmcoap.TxMsgFilter,
+	rxFilter nmcoap.RxMsgFilter) {
 
-	t.txFilterCb = txFilter
+	t.txFilter = txFilter
 	t.od.SetRxFilter(rxFilter)
 }

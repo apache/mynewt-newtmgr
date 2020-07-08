@@ -85,7 +85,7 @@ func (s *NakedSesn) init() error {
 		s.txvr.Stop()
 	}
 
-	txvr, err := mgmt.NewTransceiver(s.cfg.TxFilterCb, s.cfg.RxFilterCb, true,
+	txvr, err := mgmt.NewTransceiver(s.cfg.TxFilter, s.cfg.RxFilter, true,
 		s.cfg.MgmtProto, 3)
 	if err != nil {
 		return err
@@ -643,12 +643,12 @@ func (s *NakedSesn) RxCoap(opt sesn.TxOptions) (coap.Message, error) {
 	return nil, fmt.Errorf("Op not implemented yet")
 }
 
-func (s *NakedSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
+func (s *NakedSesn) Filters() (nmcoap.TxMsgFilter, nmcoap.RxMsgFilter) {
 	return s.txvr.Filters()
 }
 
-func (s *NakedSesn) SetFilters(txFilter nmcoap.MsgFilter,
-	rxFilter nmcoap.MsgFilter) {
+func (s *NakedSesn) SetFilters(txFilter nmcoap.TxMsgFilter,
+	rxFilter nmcoap.RxMsgFilter) {
 
 	s.txvr.SetFilters(txFilter, rxFilter)
 }

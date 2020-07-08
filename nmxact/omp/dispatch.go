@@ -42,13 +42,13 @@ type Dispatcher struct {
 	seqListenerMap map[uint8]*Listener
 	coapd          *nmcoap.Dispatcher
 	wg             sync.WaitGroup
-	rxFilter       nmcoap.MsgFilter
+	rxFilter       nmcoap.RxMsgFilter
 	stopped        bool
 	logDepth       int
 	mtx            sync.Mutex
 }
 
-func NewDispatcher(rxFilter nmcoap.MsgFilter, isTcp bool,
+func NewDispatcher(rxFilter nmcoap.RxMsgFilter, isTcp bool,
 	logDepth int) (*Dispatcher, error) {
 
 	d := &Dispatcher{
@@ -199,10 +199,10 @@ func (d *Dispatcher) ErrorAll(err error) {
 	d.coapd.ErrorAll(err)
 }
 
-func (d *Dispatcher) SetRxFilter(rxFilter nmcoap.MsgFilter) {
+func (d *Dispatcher) SetRxFilter(rxFilter nmcoap.RxMsgFilter) {
 	d.rxFilter = rxFilter
 }
 
-func (d *Dispatcher) RxFilter() nmcoap.MsgFilter {
+func (d *Dispatcher) RxFilter() nmcoap.RxMsgFilter {
 	return d.rxFilter
 }

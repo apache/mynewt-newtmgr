@@ -44,16 +44,16 @@ type OicMsg struct {
  * codec.  So we need to decode the whole response, and then re-encode the
  * newtmgr response part.
  */
-func DecodeOmp(m coap.Message, rxFilterCb nmcoap.MsgFilter) (nmp.NmpRsp, error) {
+func DecodeOmp(m coap.Message, rxFilter nmcoap.RxMsgFilter) (nmp.NmpRsp, error) {
 	// Ignore non-responses.
 	if m.Code() == coap.GET || m.Code() == coap.PUT || m.Code() == coap.POST ||
 		m.Code() == coap.DELETE {
 		return nil, nil
 	}
 
-	if rxFilterCb != nil {
+	if rxFilter != nil {
 		var err error
-		m, err = rxFilterCb(m)
+		m, err = rxFilter.Filter(m)
 		if err != nil {
 			return nil, err
 		}
@@ -99,7 +99,7 @@ type encodeRecord struct {
 	fieldMap map[string]interface{}
 }
 
-func encodeOmpBase(txFilterCb nmcoap.MsgFilter, isTcp bool, nmr *nmp.NmpMsg) (encodeRecord, error) {
+func encodeOmpBase(txFilter nmcoap.TxMsgFilter, isTcp bool, nmr *nmp.NmpMsg) (encodeRecord, error) {
 	er := encodeRecord{}
 
 	mp := coap.MessageParams{
@@ -133,9 +133,9 @@ func encodeOmpBase(txFilterCb nmcoap.MsgFilter, isTcp bool, nmr *nmp.NmpMsg) (en
 	}
 	er.m.SetPayload(payload)
 
-	if txFilterCb != nil {
+	if txFilter != nil {
 		var err error
-		er.m, err = txFilterCb(er.m)
+		er.m, err = txFilter.Filter(er.m)
 		if err != nil {
 			return er, err
 		}
@@ -144,8 +144,8 @@ func encodeOmpBase(txFilterCb nmcoap.MsgFilter, isTcp bool, nmr *nmp.NmpMsg) (en
 	return er, nil
 }
 
-func EncodeOmpTcp(txFilterCb nmcoap.MsgFilter, nmr *nmp.NmpMsg) ([]byte, error) {
-	er, err := encodeOmpBase(txFilterCb, true, nmr)
+func EncodeOmpTcp(txFilter nmcoap.TxMsgFilter, nmr *nmp.NmpMsg) ([]byte, error) {
+	er, err := encodeOmpBase(txFilter, true, nmr)
 	if err != nil {
 		return nil, err
 	}
@@ -158,8 +158,8 @@ func EncodeOmpTcp(txFilterCb nmcoap.MsgFilter, nmr *nmp.NmpMsg) ([]byte, error) 
 	return data, nil
 }
 
-func EncodeOmpDgram(txFilterCb nmcoap.MsgFilter, nmr *nmp.NmpMsg) ([]byte, error) {
-	er, err := encodeOmpBase(txFilterCb, false, nmr)
+func EncodeOmpDgram(txFilter nmcoap.TxMsgFilter, nmr *nmp.NmpMsg) ([]byte, error) {
+	er, err := encodeOmpBase(txFilter, false, nmr)
 	if err != nil {
 		return nil, err
 	}

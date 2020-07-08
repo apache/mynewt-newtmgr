@@ -86,9 +86,9 @@ type SesnCfg struct {
 	Ble  SesnCfgBle
 	Lora SesnCfgLora
 
-	// Callbacks
-	TxFilterCb nmcoap.MsgFilter
-	RxFilterCb nmcoap.MsgFilter
+	// Filters
+	TxFilter nmcoap.TxMsgFilter
+	RxFilter nmcoap.RxMsgFilter
 }
 
 func NewSesnCfg() SesnCfg {
