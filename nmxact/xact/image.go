@@ -136,6 +136,14 @@ func nextImageUploadReq(s sesn.Sesn, upgrade bool, data []byte, off int, imageNu
 	*nmp.ImageUploadReq, error) {
 	var hash []byte = nil
 
+	// Ensure we produce consistent requests while we calculate the chunk
+	// length.
+	txFilter, _ := s.Filters()
+	if txFilter != nil {
+		txFilter.Freeze()
+		defer txFilter.Unfreeze()
+	}
+
 	// For 1st chunk we'll need valid data hash
 	if off == 0 {
 		sha := sha256.Sum256(data)
