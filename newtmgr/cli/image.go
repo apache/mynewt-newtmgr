@@ -45,6 +45,7 @@ var (
 var noerase bool
 var upgrade bool
 var imageNum int
+var maxWinSz int
 
 func imageFlagsStr(image nmp.ImageStateEntry) string {
 	strs := []string{}
@@ -200,9 +201,12 @@ func imageUploadCmd(cmd *cobra.Command, args []string) {
 	c.ProgressBar.SetUnits(pb.U_BYTES)
 	c.ProgressBar.ShowSpeed = true
 	c.LastOff = 0
+	c.MaxWinSz = maxWinSz
 	c.ProgressCb = func(cmd *xact.ImageUploadCmd, rsp *nmp.ImageUploadRsp) {
-		c.ProgressBar.Add(int(rsp.Off - c.LastOff))
-		c.LastOff = rsp.Off
+		if rsp.Off > c.LastOff {
+			c.ProgressBar.Add(int(rsp.Off - c.LastOff))
+			c.LastOff = rsp.Off
+		}
 	}
 
 	res, err := c.Run(s)
@@ -402,7 +406,7 @@ func imageCmd() *cobra.Command {
 		Run:     imageUploadCmd,
 	}
 	uploadCmd.PersistentFlags().BoolVarP(&noerase,
-		"noerase", "e", false,
+		"noerase", "e", true,
 		"Don't send specific image erase command to start with")
 	uploadCmd.PersistentFlags().BoolVarP(&upgrade,
 		"upgrade", "u", false,
@@ -411,6 +415,10 @@ func imageCmd() *cobra.Command {
 	uploadCmd.PersistentFlags().IntVarP(&imageNum,
 		"image", "n", 0,
 		"In a multi-image system, which image should be uploaded")
+	uploadCmd.PersistentFlags().IntVarP(&maxWinSz,
+		"maxwinsize", "w", xact.IMAGE_UPLOAD_DEF_MAX_WS,
+		"Set the maximum size for the window of outstanding chunks in transit. "+
+			"caution:higher num may not translate to better perf and may result in errors")
 	imageCmd.AddCommand(uploadCmd)
 
 	coreListCmd := &cobra.Command{

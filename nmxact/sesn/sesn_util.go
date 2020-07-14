@@ -45,6 +45,20 @@ func TxRxMgmt(s Sesn, m *nmp.NmpMsg, o TxOptions) (nmp.NmpRsp, error) {
 	}
 }
 
+func TxRxMgmtAsync(s Sesn, m *nmp.NmpMsg, o TxOptions, ch chan nmp.NmpRsp, errc chan error) error {
+	retries := o.Tries - 1
+	for i := 0; ; i++ {
+		err := s.TxRxMgmtAsync(m, o.Timeout, ch, errc)
+		if err == nil {
+			return nil
+		}
+
+		if !nmxutil.IsRspTimeout(err) || i >= retries {
+			return err
+		}
+	}
+}
+
 // TxCoap transmits a single CoAP message over the provided session.
 func TxCoap(s Sesn, mp nmcoap.MsgParams) error {
 	msg, err := nmcoap.CreateMsg(s.CoapIsTcp(), mp)

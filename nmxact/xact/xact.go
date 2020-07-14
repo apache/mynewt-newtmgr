@@ -20,6 +20,7 @@
 package xact
 
 import (
+	log "github.com/sirupsen/logrus"
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/sesn"
 )
@@ -44,4 +45,27 @@ func txReq(s sesn.Sesn, m *nmp.NmpMsg, c *CmdBase) (
 	}
 
 	return rsp, nil
+}
+
+func txReqAsync(s sesn.Sesn, m *nmp.NmpMsg, c *CmdBase, ch chan nmp.NmpRsp, errc chan error) error {
+
+	if c.abortErr != nil {
+		return c.abortErr
+	}
+
+	c.curNmpSeq = m.Hdr.Seq
+	c.curSesn = s
+	defer func() {
+		c.curNmpSeq = 0
+		c.curSesn = nil
+	}()
+
+	err := sesn.TxRxMgmtAsync(s, m, c.TxOptions(), ch, errc)
+	if err != nil {
+		log.Debugf("error %v TxRxMgmtAsync sesn %v seq %d",
+			err, c.curSesn, c.curNmpSeq)
+		return err
+	} else {
+		return nil
+	}
 }
