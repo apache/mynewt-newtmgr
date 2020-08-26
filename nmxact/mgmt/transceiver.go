@@ -121,7 +121,6 @@ func (t *Transceiver) txRxNmpAsync(txCb TxFn, req *nmp.NmpMsg, mtu int,
 	if err != nil {
 		return err
 	}
-	defer t.nd.RemoveListener(req.Hdr.Seq)
 
 	b, err := nmp.EncodeNmpPlain(req)
 	if err != nil {
@@ -141,6 +140,7 @@ func (t *Transceiver) txRxNmpAsync(txCb TxFn, req *nmp.NmpMsg, mtu int,
 
 	// Now wait for NMP response.
 	go func() {
+		defer t.nd.RemoveListener(req.Hdr.Seq)
 		for {
 			select {
 			case err := <-nl.ErrChan:
