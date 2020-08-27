@@ -65,7 +65,7 @@ type ImageUploadIntTracker struct {
 	WCount   int
 	WCap     int
 	Off      int
-	MaxRxOff int64
+	MaxRxOff int32
 }
 
 type ImageUploadResult struct {
@@ -260,8 +260,8 @@ func (t *ImageUploadIntTracker) HandleResponse(c *ImageUploadCmd, rsp nmp.NmpRsp
 		res.Rsps = append(res.Rsps, irsp)
 		t.UpdateTracker(int(irsp.Off), IMAGE_UPLOAD_STATUS_RQ)
 
-		if t.MaxRxOff < int64(irsp.Off) {
-			t.MaxRxOff = int64(irsp.Off)
+		if t.MaxRxOff < int32(irsp.Off) {
+			t.MaxRxOff = int32(irsp.Off)
 		}
 		if c.ProgressCb != nil {
 			c.ProgressCb(c, irsp)
@@ -329,7 +329,7 @@ func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 		MaxRxOff: 0,
 	}
 
-	for int(atomic.LoadInt64(&t.MaxRxOff)) < len(c.Data) {
+	for int(atomic.LoadInt32(&t.MaxRxOff)) < len(c.Data) {
 		// Block if window is full
 		if !t.CheckWindow() {
 			ch <- 1
