@@ -37,8 +37,8 @@ type BllSesnCfg struct {
 	ConnTimeout  time.Duration
 	ConnTries    int
 	WriteRsp     bool
-	TxFilterCb   nmcoap.MsgFilter
-	RxFilterCb   nmcoap.MsgFilter
+	TxFilter     nmcoap.TxMsgFilter
+	RxFilter     nmcoap.RxMsgFilter
 }
 
 func NewBllSesnCfg() BllSesnCfg {

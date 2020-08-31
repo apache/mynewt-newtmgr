@@ -136,12 +136,12 @@ func (s *BleSesn) RxCoap(opt sesn.TxOptions) (coap.Message, error) {
 	return s.Ns.RxCoap(opt)
 }
 
-func (s *BleSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
+func (s *BleSesn) Filters() (nmcoap.TxMsgFilter, nmcoap.RxMsgFilter) {
 	return s.Ns.Filters()
 }
 
-func (s *BleSesn) SetFilters(txFilter nmcoap.MsgFilter,
-	rxFilter nmcoap.MsgFilter) {
+func (s *BleSesn) SetFilters(txFilter nmcoap.TxMsgFilter,
+	rxFilter nmcoap.RxMsgFilter) {
 
 	s.Ns.SetFilters(txFilter, rxFilter)
 }

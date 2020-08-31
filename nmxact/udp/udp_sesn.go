@@ -45,7 +45,7 @@ func NewUdpSesn(cfg sesn.SesnCfg) (*UdpSesn, error) {
 	s := &UdpSesn{
 		cfg: cfg,
 	}
-	txvr, err := mgmt.NewTransceiver(cfg.TxFilterCb, cfg.RxFilterCb, false,
+	txvr, err := mgmt.NewTransceiver(cfg.TxFilter, cfg.RxFilter, false,
 		cfg.MgmtProto, 3)
 	if err != nil {
 		return nil, err
@@ -161,12 +161,12 @@ func (s *UdpSesn) RxCoap(opt sesn.TxOptions) (coap.Message, error) {
 	return nil, fmt.Errorf("Op not implemented yet")
 }
 
-func (s *UdpSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
+func (s *UdpSesn) Filters() (nmcoap.TxMsgFilter, nmcoap.RxMsgFilter) {
 	return s.txvr.Filters()
 }
 
-func (s *UdpSesn) SetFilters(txFilter nmcoap.MsgFilter,
-	rxFilter nmcoap.MsgFilter) {
+func (s *UdpSesn) SetFilters(txFilter nmcoap.TxMsgFilter,
+	rxFilter nmcoap.RxMsgFilter) {
 
 	s.txvr.SetFilters(txFilter, rxFilter)
 }

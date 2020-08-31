@@ -116,9 +116,9 @@ type Sesn interface {
 
 	// Returns a transmit and a receive callback used to manipulate CoAP
 	// messages
-	Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter)
+	Filters() (nmcoap.TxMsgFilter, nmcoap.RxMsgFilter)
 
 	// Sets the transmit and a receive callback used to manipulate CoAP
 	// messages
-	SetFilters(txFilter nmcoap.MsgFilter, rxFilter nmcoap.MsgFilter)
+	SetFilters(txFilter nmcoap.TxMsgFilter, rxFilter nmcoap.RxMsgFilter)
 }

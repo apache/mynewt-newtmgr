@@ -276,7 +276,7 @@ func (s *BllSesn) openOnce() (bool, error) {
 			"Attempt to open an already-open bll session")
 	}
 
-	txvr, err := mgmt.NewTransceiver(s.cfg.TxFilterCb, s.cfg.RxFilterCb, true,
+	txvr, err := mgmt.NewTransceiver(s.cfg.TxFilter, s.cfg.RxFilter, true,
 		s.cfg.MgmtProto, 3)
 	if err != nil {
 		return false, err
@@ -437,12 +437,12 @@ func (s *BllSesn) CoapIsTcp() bool {
 	return true
 }
 
-func (s *BllSesn) Filters() (nmcoap.MsgFilter, nmcoap.MsgFilter) {
+func (s *BllSesn) Filters() (nmcoap.TxMsgFilter, nmcoap.RxMsgFilter) {
 	return s.txvr.Filters()
 }
 
-func (s *BllSesn) SetFilters(txFilter nmcoap.MsgFilter,
-	rxFilter nmcoap.MsgFilter) {
+func (s *BllSesn) SetFilters(txFilter nmcoap.TxMsgFilter,
+	rxFilter nmcoap.RxMsgFilter) {
 
 	s.txvr.SetFilters(txFilter, rxFilter)
 }

@@ -44,8 +44,8 @@ var globalP *config.ConnProfile
 // This keeps track of whether the global interface has been assigned.  This
 // is necessary to accommodate golang's nil-interface semantics.
 var globalXportSet bool
-var globalTxFilter nmcoap.MsgFilter
-var globalRxFilter nmcoap.MsgFilter
+var globalTxFilter nmcoap.TxMsgFilter
+var globalRxFilter nmcoap.RxMsgFilter
 
 func initConnProfile() error {
 	var p *config.ConnProfile
@@ -286,8 +286,8 @@ func buildBllSesn(cp *config.ConnProfile) (sesn.Sesn, error) {
 		return nil, util.NewNewtError("ERROR")
 	}
 
-	sc.TxFilterCb = globalTxFilter
-	sc.RxFilterCb = globalRxFilter
+	sc.TxFilter = globalTxFilter
+	sc.RxFilter = globalRxFilter
 
 	s, err := bx.BuildBllSesn(sc)
 	if err != nil {
@@ -320,8 +320,8 @@ func GetSesn() (sesn.Sesn, error) {
 		if err != nil {
 			return nil, err
 		}
-		sc.TxFilterCb = globalTxFilter
-		sc.RxFilterCb = globalRxFilter
+		sc.TxFilter = globalTxFilter
+		sc.RxFilter = globalRxFilter
 
 		x, err := GetXport()
 		if err != nil {
@@ -350,7 +350,7 @@ func GetSesnIfOpen() (sesn.Sesn, error) {
 	return globalSesn, nil
 }
 
-func SetFilters(txFilter nmcoap.MsgFilter, rxFilter nmcoap.MsgFilter) {
+func SetFilters(txFilter nmcoap.TxMsgFilter, rxFilter nmcoap.RxMsgFilter) {
 	globalTxFilter = txFilter
 	globalRxFilter = rxFilter
 }

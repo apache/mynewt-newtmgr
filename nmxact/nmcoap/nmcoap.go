@@ -38,7 +38,29 @@ const (
 	OBSERVE_STOP
 )
 
-type MsgFilter func(msg coap.Message) (coap.Message, error)
+type TxMsgFilter interface {
+	// Filter applies the filter to an outgoing CoAP message.
+	Filter(msg coap.Message) (coap.Message, error)
+
+	// Freeze makes the filter use the same parameters for all transmits until
+	// unfrozen.  The parameters will be different from the previous message,
+	// but they will not change while the session is frozen.
+	Freeze()
+
+	// Unfreeze makes the filter use new parameters for all subsequent
+	// messages.
+	Unfreeze()
+}
+
+type RxMsgFilter interface {
+	Filter(msg coap.Message) (coap.Message, error)
+}
+
+type RxFilterFunc func(msg coap.Message) (coap.Message, error)
+
+func (f RxFilterFunc) Filter(msg coap.Message) (coap.Message, error) {
+	return f(msg)
+}
 
 type MsgParams struct {
 	Code    coap.COAPCode
