@@ -219,9 +219,9 @@ func (t *Transceiver) txRxOmpAsync(txCb TxFn, req *nmp.NmpMsg, mtu int,
 
 	var b []byte
 	if t.isTcp {
-		b, err = omp.EncodeOmpTcp(t.txFilterCb, req)
+		b, err = omp.EncodeOmpTcp(t.txFilter, req)
 	} else {
-		b, err = omp.EncodeOmpDgram(t.txFilterCb, req)
+		b, err = omp.EncodeOmpDgram(t.txFilter, req)
 	}
 	if err != nil {
 		return err
