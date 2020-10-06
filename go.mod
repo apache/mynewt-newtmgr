@@ -3,7 +3,7 @@ module mynewt.apache.org/newtmgr
 go 1.12
 
 require (
-	github.com/JuulLabs-OSS/ble v0.0.0-20200517053828-ca7534402217
+	github.com/JuulLabs-OSS/ble v0.0.0-20200716215611-d4fcc9d598bb
 	github.com/JuulLabs-OSS/cbgo v0.0.1
 	github.com/abiosoft/ishell v2.0.0+incompatible // indirect
 	github.com/abiosoft/readline v0.0.0-20180607040430-155bce2042db // indirect
@@ -17,10 +17,7 @@ require (
 	github.com/flynn-archive/go-shlex v0.0.0-20150515145356-3f9db97f8568 // indirect
 	github.com/joaojeronimo/go-crc16 v0.0.0-20140729130949-59bd0194935e
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
-	github.com/mattn/go-colorable v0.1.6 // indirect
 	github.com/mattn/go-runewidth v0.0.6 // indirect
-	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b // indirect
-	github.com/mgutz/logxi v0.0.0-20161027140823-aebf8a7d67ab // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/peterh/liner v1.1.0 // indirect
 	github.com/pkg/errors v0.8.1
@@ -31,7 +28,6 @@ require (
 	github.com/spf13/cobra v0.0.5
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/tarm/serial v0.0.0-20180830185346-98f6abe2eb07
-	github.com/ugorji/go v1.1.7 // indirect
 	github.com/ugorji/go/codec v1.1.7
 	go.starlark.net v0.0.0-20190919145610-979af19b165c // indirect
 	golang.org/x/arch v0.0.0-20190927153633-4e8777c89be4 // indirect

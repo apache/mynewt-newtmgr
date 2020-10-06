@@ -5,6 +5,8 @@ github.com/JuulLabs-OSS/ble v0.0.0-20200421174404-4a6a93a950fe h1:YnTwo0OKGlHaI9
 github.com/JuulLabs-OSS/ble v0.0.0-20200421174404-4a6a93a950fe/go.mod h1:pfS28CC0m6k3HdEWztSfIpvKpn3Zsxu1jzuNJ3pnFNo=
 github.com/JuulLabs-OSS/ble v0.0.0-20200517053828-ca7534402217 h1:THtxHOyxAZdHhhHkRFGXxev58uYyKDkACzP3XDdc0mM=
 github.com/JuulLabs-OSS/ble v0.0.0-20200517053828-ca7534402217/go.mod h1:6deIuswYSv6W1l3sM/nonw0OKWtIZCn7ZOWvIREoq2A=
+github.com/JuulLabs-OSS/ble v0.0.0-20200716215611-d4fcc9d598bb h1:kIZ7fr8RxucJXNHifPxm71yiWuzpw0SmjlafMzoOd0U=
+github.com/JuulLabs-OSS/ble v0.0.0-20200716215611-d4fcc9d598bb/go.mod h1:6deIuswYSv6W1l3sM/nonw0OKWtIZCn7ZOWvIREoq2A=
 github.com/JuulLabs-OSS/cbgo v0.0.0-20200421065905-1762a9c3147c h1:CwwgT8zV4/uvoPQuRtGBt+aQwLL7zCV/ezGz0UdXp14=
 github.com/JuulLabs-OSS/cbgo v0.0.0-20200421065905-1762a9c3147c/go.mod h1:L4YtGP+gnyD84w7+jN66ncspFRfOYB5aj9QSXaFHmBA=
 github.com/JuulLabs-OSS/cbgo v0.0.1 h1:A5JdglvFot1J9qYR0POZ4qInttpsVPN9lqatjaPp2ro=
