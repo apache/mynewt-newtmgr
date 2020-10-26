@@ -353,7 +353,13 @@ func (s *NakedSesn) TxRxMgmt(m *nmp.NmpMsg,
 
 func (s *NakedSesn) TxRxMgmtAsync(m *nmp.NmpMsg,
 	timeout time.Duration, ch chan nmp.NmpRsp, errc chan error) error {
-	return fmt.Errorf("unsupported")
+	rsp, err := s.TxRxMgmt(m, timeout)
+	if err != nil {
+		errc <- err
+	} else {
+		ch <- rsp
+	}
+	return nil
 }
 
 func (s *NakedSesn) ListenCoap(

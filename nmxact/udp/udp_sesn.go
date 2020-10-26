@@ -120,7 +120,13 @@ func (s *UdpSesn) TxRxMgmt(m *nmp.NmpMsg,
 
 func (s *UdpSesn) TxRxMgmtAsync(m *nmp.NmpMsg,
 	timeout time.Duration, ch chan nmp.NmpRsp, errc chan error) error {
-	return fmt.Errorf("unsupported")
+	rsp, err := s.TxRxMgmt(m, timeout)
+	if err != nil {
+		errc <- err
+	} else {
+		ch <- rsp
+	}
+	return nil
 }
 
 func (s *UdpSesn) AbortRx(seq uint8) error {
