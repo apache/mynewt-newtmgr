@@ -32,8 +32,8 @@ type BllSesnCfg struct {
 	MgmtProto    sesn.MgmtProto
 	PreferredMtu int
 	ConnTimeout  time.Duration
-	TxFilterCb   nmcoap.MsgFilter
-	RxFilterCb   nmcoap.MsgFilter
+	TxFilter     nmcoap.TxMsgFilter
+	RxFilter     nmcoap.RxMsgFilter
 }
 
 func NewBllSesnCfg() BllSesnCfg {
