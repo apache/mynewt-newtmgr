@@ -56,12 +56,12 @@ func taskStatRunCmd(cmd *cobra.Command, args []string) {
 	}
 	sort.Strings(names)
 
-	fmt.Printf("  %8s %3s %3s %8s %8s %8s %8s %8s %8s\n",
+	fmt.Printf("  %8s\t%3s %3s %8s %8s %8s %8s %8s %8s\n",
 		"task", "pri", "tid", "runtime", "csw", "stksz",
 		"stkuse", "last_checkin", "next_checkin")
 	for _, n := range names {
 		t := sres.Rsp.Tasks[n]
-		fmt.Printf("  %8s %3d %3d %8d %8d %8d %8d %8d %8d\n",
+		fmt.Printf("  %8s\t%3d %3d %8d %8d %8d %8d %8d %8d\n",
 			n,
 			t["prio"],
 			t["tid"],
