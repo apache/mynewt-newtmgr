@@ -1,6 +1,6 @@
 # RELEASE NOTES
 
-18 March 2020 - Apache Newtmgr v1.8.0
+24 March 2021 - Apache Newtmgr v1.9.0
 
 For full release notes, please visit the
 [Apache Mynewt Wiki](https://cwiki.apache.org/confluence/display/MYNEWT/Release+Notes).
@@ -12,9 +12,8 @@ Thew newtmgr tool is documented at http://mynewt.apache.org/latest/newtmgr/overv
 
 New features in this version of newtmgr include:
 
-* new '"shell exec" command for executing specified CLI command on target device
-* log show now includes imghash
-* multi-image support
+* support for MacOS Mojave/Catalina
+* DFU speed optimizations
 * various bugfixes
 
 If working on next-generation build and source package management systems
