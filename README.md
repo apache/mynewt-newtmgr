@@ -32,6 +32,6 @@ published at http://mynewt.apache.org/latest/os/modules/devmgmt/newtmgr.html
 Build the newtmgr tool as follows:
 
 1. Unpack newtmgr source.
-2. Rename resulting `apache-mynewt-newtmgr-1.3.0` directory to `$GOPATH/src/mynewt.apache.org/newtmgr`
+2. Rename resulting `apache-mynewt-newtmgr-1.9.0` directory to `$GOPATH/src/mynewt.apache.org/newtmgr`
 3. `cd $GOPATH/src/mynewt.apache.org/newtmgr/newtmgr`
 4. `GO111MODULE=on go build`
