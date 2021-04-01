@@ -360,11 +360,15 @@ func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 
 		// Use up a chunk in window
 		t.WCount += 1
-		err = txReqAsync(s, r.Msg(), &c.CmdBase, rspc, errc)
+//		err = txReqAsync(s, r.Msg(), &c.CmdBase, rspc, errc)
+		rsp, err := txReq(s, r.Msg(), &c.CmdBase)
 		if err != nil {
+			errc <- err
 			log.Debugf("err txReqAsync %v", err)
 			t.Mutex.Unlock()
 			break
+		}else{
+			respc <- rsp
 		}
 		// Mark the expected offset in successful tx of this chunk. i.e off + len
 		t.UpdateTracker(int(r.Off)+len(r.Data), IMAGE_UPLOAD_STATUS_EXPECTED)

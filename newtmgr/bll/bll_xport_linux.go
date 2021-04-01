@@ -38,10 +38,13 @@ func BllXportSetConnParams(dev ble.Device, ownAddrType bledefs.BleAddrType) erro
 		LEScanWindow:          0x0010, // 0x0004 - 0x4000; N * 0.625 msec
 		InitiatorFilterPolicy: 0x00,   // White list is not used
 		OwnAddressType:        uint8(ownAddrType),
-		ConnIntervalMin:       0x0006, // 0x0006 - 0x0C80; N * 1.25 msec
-		ConnIntervalMax:       0x0006, // 0x0006 - 0x0C80; N * 1.25 msec
+//		ConnIntervalMin:       0x0006, // 0x0006 - 0x0C80; N * 1.25 msec
+//		ConnIntervalMax:       0x0006, // 0x0006 - 0x0C80; N * 1.25 msec
+		ConnIntervalMin:       0x000a,
+		ConnIntervalMax:       0x0010,
 		ConnLatency:           0x0000, // 0x0000 - 0x01F3; N * 1.25 msec
-		SupervisionTimeout:    0x0048, // 0x000A - 0x0C80; N * 10 msec
+//		SupervisionTimeout:    0x0048, // 0x000A - 0x0C80; N * 10 msec
+		SupervisionTimeout:    0x0190,
 		MinimumCELength:       0x0000, // 0x0000 - 0xFFFF; N * 0.625 msec
 		MaximumCELength:       0x0000, // 0x0000 - 0xFFFF; N * 0.625 msec
 
