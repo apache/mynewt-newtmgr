@@ -43,6 +43,8 @@ var (
 )
 
 var noerase bool
+var resetdevice bool
+var testhash string
 var upgrade bool
 var imageNum int
 var maxWinSz int
@@ -191,6 +193,15 @@ func imageUploadCmd(cmd *cobra.Command, args []string) {
 	c.Data = imageFile
 	if noerase == true {
 		c.NoErase = true
+	}
+	if resetdevice == true {
+		c.ResetDevice = true
+	}
+	if testhash != "" {
+		c.Hash, err = hex.DecodeString(testhash)
+		if err != nil {
+			nmUsage(cmd, util.NewNewtError("Invalid hash"))
+		}
 	}
 	if imageNum < 0 {
 		nmUsage(cmd, util.NewNewtError("Invalid image number"))
@@ -408,6 +419,12 @@ func imageCmd() *cobra.Command {
 	uploadCmd.PersistentFlags().BoolVarP(&noerase,
 		"noerase", "e", true,
 		"Don't send specific image erase command to start with")
+	uploadCmd.PersistentFlags().BoolVarP(&resetdevice,
+		"reset", "", false,
+		"Reset device after upload image")
+	uploadCmd.PersistentFlags().StringVarP(&testhash,
+		"test", "", "",
+		"Set image hash to test")
 	uploadCmd.PersistentFlags().BoolVarP(&upgrade,
 		"upgrade", "u", false,
 		"Only allow the upload if the new image's version is greater than "+
