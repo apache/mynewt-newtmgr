@@ -124,3 +124,10 @@ func DecodeRspBody(hdr *NmpHdr, body []byte) (NmpRsp, error) {
 	r.SetHdr(hdr)
 	return r, nil
 }
+
+func RegisterResponseHandler (ogi Ogi, f rspCtor) {
+	cb := rspCtorMap[ogi]
+	if cb == nil {
+		rspCtorMap[ogi] = f
+	}
+}
