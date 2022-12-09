@@ -148,6 +148,11 @@ func findChunkLen(s sesn.Sesn, hash []byte, upgrade bool, data []byte,
 		// Encoded length is larger than MTU, we need to make chunk shorter
 		overflow := len(enc) - s.MtuOut()
 		chunklen -= overflow
+		if chunklen <= 0 {
+			return 0, fmt.Errorf("Cannot create image upload request; "+
+				"MTU too low to fit any image data; max-payload-size=%d chunklen %d",
+				s.MtuOut(), chunklen)
+		}
 	}
 
 	return chunklen, nil

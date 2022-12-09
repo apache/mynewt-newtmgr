@@ -40,6 +40,7 @@ var Tries int
 var ConnProfile string
 var DeviceName string
 var BleWriteRsp bool
+var MtuOverride int
 var ConnType string
 var ConnString string
 var ConnExtra string
