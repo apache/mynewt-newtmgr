@@ -21,6 +21,7 @@ package cli
 
 import (
 	"fmt"
+	"runtime"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -57,6 +58,11 @@ func Commands() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			cmd.HelpFunc()(cmd, args)
 		},
+	}
+
+	if runtime.GOOS == "darwin" {
+		nmCmd.PersistentFlags().IntVarP(&nmutil.MtuOverride, "mtu-ovrd", "m", 0,
+			"Override MTU in case it can't be negotiated on Mac computers (slice out of range error)")
 	}
 
 	nmCmd.PersistentFlags().StringVarP(&nmutil.ConnProfile, "conn", "c", "",

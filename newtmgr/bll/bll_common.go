@@ -22,6 +22,8 @@
 package bll
 
 import (
+	"fmt"
+	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"runtime"
 	"time"
 
@@ -38,8 +40,8 @@ func exchangeMtu(cln ble.Client, preferredMtu uint16) (uint16, error) {
 	// macOS, the request to exchange MTU doesn't actually do anything.  The
 	// BLE library relies on the assumption that the OS already exchanged MTUs
 	// on its own.  If this assumption is incorrect, the number that was
-	// returned is the default out of date value (23).  In this case, sleep and
-	// retry.
+	// returned is the default out of date value (23 or for some strange reason,
+	// on some versions of mac 17). In this case, sleep and retry.
 	var mtu int
 	for i := 0; i < 3; i++ {
 		var err error
@@ -53,16 +55,34 @@ func exchangeMtu(cln ble.Client, preferredMtu uint16) (uint16, error) {
 			break
 		}
 
-		// If macOS returned a value other than 23, then MTU exchange has
+		// If macOS returned a value higher than 23, then MTU exchange has
 		// completed.
-		if mtu != bledefs.BLE_ATT_MTU_DFLT {
+		if mtu > bledefs.BLE_ATT_MTU_DFLT {
 			break
 		}
 
 		// Otherwise, give the OS some time to perform the exchange.
-		log.Debugf("macOS reports an MTU of 23.  " +
+		log.Debugf("macOS reports an MTU of <=23.  " +
 			"Assume exchange hasn't completed; wait and requery.")
 		time.Sleep(time.Second)
+	}
+
+	// On some versions of mac (e.g. monterey) workaround with
+	// looping three times seems to not work anymore. This allows to use
+	// "-m <mtu value>" flag to set MTU from command line.
+	if nmutil.MtuOverride != 0 {
+		if nmutil.MtuOverride < 23 {
+			return 0, fmt.Errorf("MTU should be at least 23")
+		} else {
+			mtu = nmutil.MtuOverride
+		}
+	}
+
+	// If no MTU value was specified in the command line
+	// and performing three loops didn't help in performing exchange, MTU is still invalid (< 23).
+	// In this case we hardcode it to 185.
+	if mtu < bledefs.BLE_ATT_MTU_DFLT {
+		mtu = 185
 	}
 
 	log.Debugf("Exchanged MTU; ATT MTU = %d", mtu)
