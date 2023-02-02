@@ -50,7 +50,7 @@ var errTimeout error = errors.New("Timeout reading from serial connection")
 func NewXportCfg() *XportCfg {
 	return &XportCfg{
 		ReadTimeout: 10 * time.Second,
-		Mtu:         512,
+		Mtu:         128,
 	}
 }
 
@@ -286,8 +286,8 @@ func (sx *SerialXport) Tx(bytes []byte) error {
 		 * we need to save room for the header (2 byte) and
 		 * carriage return (and possibly LF 2 bytes), */
 
-		/* all totaled, 124 bytes should work */
-		writeLen := util.Min(124, totlen-written)
+		/* all totaled, MTU-4 bytes bytes should work */
+		writeLen := util.Min(sx.cfg.Mtu - 4, totlen-written)
 
 		writeBytes := base64Data[written : written+writeLen]
 		sx.txRaw(writeBytes)
