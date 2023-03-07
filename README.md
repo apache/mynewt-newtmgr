@@ -19,6 +19,10 @@
 #
 -->
 
+<a href="https://github.com/apache/mynewt-newtmgr/actions/workflows/build.yml">
+  <img src="https://github.com/apache/mynewt-newtmgr/actions/workflows/build.yml/badge.svg">
+<a/>
+
 # Newtmgr
 
 Newt Manager (newtmgr) is the application tool that enables a user to communicate with and manage
