@@ -495,7 +495,7 @@ func (c *ImageUpgradeCmd) runUpload(s sesn.Sesn) (*ImageUploadResult, error) {
 
 	for {
 		var opt = sesn.TxOptions{
-			Timeout: 3 * time.Second,
+			Timeout: c.CmdBase.txOptions.Timeout,
 			Tries:   1,
 		}
 		cmd := NewImageUploadCmd()
