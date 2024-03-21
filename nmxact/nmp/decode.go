@@ -66,6 +66,7 @@ func logListRspCtor() NmpRsp       { return NewLogListRsp() }
 func logModuleListRspCtor() NmpRsp { return NewLogModuleListRsp() }
 func logLevelListRspCtor() NmpRsp  { return NewLogLevelListRsp() }
 func logClearRspCtor() NmpRsp      { return NewLogClearRsp() }
+func logNumEntriesRspCtor() NmpRsp { return NewLogNumEntriesRsp() }
 func crashRspCtor() NmpRsp         { return NewCrashRsp() }
 func runTestRspCtor() NmpRsp       { return NewRunTestRsp() }
 func runListRspCtor() NmpRsp       { return NewRunListRsp() }
@@ -96,6 +97,7 @@ var rspCtorMap = map[Ogi]rspCtor{
 	{op_rr, gr_log, NMP_ID_LOG_MODULE_LIST}:  logModuleListRspCtor,
 	{op_rr, gr_log, NMP_ID_LOG_LEVEL_LIST}:   logLevelListRspCtor,
 	{op_wr, gr_log, NMP_ID_LOG_CLEAR}:        logClearRspCtor,
+	{op_rr, gr_log, NMP_ID_LOG_NUM_ENTRIES}:  logNumEntriesRspCtor,
 	{op_wr, gr_cra, NMP_ID_CRASH_TRIGGER}:    crashRspCtor,
 	{op_wr, gr_run, NMP_ID_RUN_TEST}:         runTestRspCtor,
 	{op_rr, gr_run, NMP_ID_RUN_LIST}:         runListRspCtor,
