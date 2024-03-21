@@ -63,7 +63,7 @@ func (f RxFilterFunc) Filter(msg coap.Message) (coap.Message, error) {
 }
 
 type MsgParams struct {
-	Code    coap.COAPCode
+	Code    coap.Code
 	Uri     string
 	Observe ObserveCode
 	Token   []byte
