@@ -339,7 +339,7 @@ func (s *LoraSesn) TxCoap(m coap.Message) error {
 			"Attempt to transmit over closed Lora session")
 	}
 
-	return s.txvr.TxCoap(s.sendFragments, m, s.MtuOut())
+	return s.txvr.TxCoap(s.sendFragments, m)
 }
 
 func (s *LoraSesn) ListenCoap(mc nmcoap.MsgCriteria) (*nmcoap.Listener, error) {

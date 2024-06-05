@@ -284,18 +284,16 @@ func (t *Transceiver) TxRxMgmtAsync(txCb TxFn, req *nmp.NmpMsg, mtu int,
 	}
 }
 
-func (t *Transceiver) TxCoap(txCb TxFn, req coap.Message, mtu int) error {
+func (t *Transceiver) TxCoap(txCb TxFn, req coap.Message) error {
 	b, err := nmcoap.Encode(req)
 	if err != nil {
 		return err
 	}
 
 	log.Debugf("tx CoAP request: %s", hex.Dump(b))
-	frags := nmxutil.Fragment(b, mtu)
-	for _, frag := range frags {
-		if err := txCb(frag); err != nil {
-			return err
-		}
+
+	if err := txCb(b); err != nil {
+		return err
 	}
 
 	return nil

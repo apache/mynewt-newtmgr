@@ -384,14 +384,22 @@ func (s *NakedSesn) TxCoap(m coap.Message) error {
 		}
 
 		txRaw := func(b []byte) error {
-			if s.cfg.Ble.WriteRsp {
-				return s.conn.WriteChr(chr, b, "coap")
-			} else {
-				return s.conn.WriteChrNoRsp(chr, b, "coap")
+			frags := nmxutil.Fragment(b, s.MtuOut())
+			for _, frag := range frags {
+				if s.cfg.Ble.WriteRsp {
+					if err := s.conn.WriteChr(chr, frag, "coap"); err != nil {
+						return err
+					}
+				} else {
+					if err := s.conn.WriteChrNoRsp(chr, frag, "coap"); err != nil {
+						return err
+					}
+				}
 			}
+			return nil
 		}
 
-		return s.txvr.TxCoap(txRaw, m, s.MtuOut())
+		return s.txvr.TxCoap(txRaw, m)
 	}
 
 	return s.runTask(fn)

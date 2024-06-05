@@ -136,11 +136,16 @@ func (s *UdpSesn) AbortRx(seq uint8) error {
 
 func (s *UdpSesn) TxCoap(m coap.Message) error {
 	txRaw := func(b []byte) error {
-		_, err := s.conn.WriteToUDP(b, s.addr)
-		return err
+		frags := nmxutil.Fragment(b, s.MtuOut())
+		for _, frag := range frags {
+			if _, err := s.conn.WriteToUDP(frag, s.addr); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 
-	return s.txvr.TxCoap(txRaw, m, s.MtuOut())
+	return s.txvr.TxCoap(txRaw, m)
 }
 
 func (s *UdpSesn) MgmtProto() sesn.MgmtProto {
