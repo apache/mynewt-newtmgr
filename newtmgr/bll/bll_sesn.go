@@ -415,10 +415,16 @@ func (s *BllSesn) TxRxMgmtAsync(m *nmp.NmpMsg,
 
 func (s *BllSesn) TxCoap(m coap.Message) error {
 	txRaw := func(b []byte) error {
-		return s.txWriteCharacteristic(s.resReqChr, b, !s.cfg.WriteRsp)
+		frags := nmxutil.Fragment(b, s.MtuOut())
+		for _, frag := range frags {
+			if err := s.txWriteCharacteristic(s.resReqChr, frag, !s.cfg.WriteRsp); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 
-	return s.txvr.TxCoap(txRaw, m, s.MtuOut())
+	return s.txvr.TxCoap(txRaw, m)
 }
 
 func (s *BllSesn) ListenCoap(mc nmcoap.MsgCriteria) (*nmcoap.Listener, error) {

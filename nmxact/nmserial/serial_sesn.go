@@ -236,7 +236,7 @@ func (s *SerialSesn) TxCoap(m coap.Message) error {
 		return err
 	}
 
-	return s.txvr.TxCoap(s.sx.Tx, m, s.MtuOut())
+	return s.txvr.TxCoap(s.sx.Tx, m)
 }
 
 func (s *SerialSesn) ListenCoap(
