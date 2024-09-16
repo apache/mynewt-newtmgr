@@ -49,7 +49,7 @@ Examples
 +---------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------+
 
 Here are some example outputs for the ``myble`` application from the
-:doc:`Enabling Newt Manager in any app <../../os/tutorials/add_newtmgr>` tutiorial:
+:doc:`Enabling Newt Manager in any app <../../tutorials/devmgmt/add_newtmgr>` tutiorial:
 
 The statistics for the ble_att Stats:
 
