@@ -55,8 +55,7 @@ tested on Windows 10 64 bit platform.
      
           tar -xzf /tmp/apache-mynewt-newtmgr-bin-windows-1.4.1.tgz -C /usr/bin
 
-4. Verify the installed version of newtmgr. See `Checking the Installed
-   Version <#check_newtmgr>`__.
+4. Verify the installed version of newtmgr. See :ref:`Checking the Installed Version`_.
 
 Installing the Latest Release of Newtmgr from Source
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

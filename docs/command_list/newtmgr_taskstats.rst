@@ -47,7 +47,7 @@ Examples
 +-----------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------+
 
 Here is an example output for the ``myble`` application from the
-:doc:`Enabling Newt Manager in any app <../../os/tutorials/add_newtmgr>` tutorial:
+:doc:`Enabling Newt Manager in any app <../../tutorials/devmgmt/add_newtmgr>` tutorial:
 
 .. code-block:: console
 

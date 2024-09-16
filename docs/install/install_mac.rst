@@ -63,7 +63,7 @@ newtmgr:
     ==> Downloading from https://raw.githubusercontent.com/runtimeco/binary-releases/master/mynewt-newt-tools_1.4.1/mynewt-newtmgr-1.4.1.sierra.bottle.tar.gz
     ######################################################################## 100.0%
     ==> Pouring mynewt-newtmgr-1.4.1.sierra.bottle.tar.gz
-    🍺  /usr/local/Cellar/mynewt-newtmgr/1.4.1: 3 files, 17.3MB
+        /usr/local/Cellar/mynewt-newtmgr/1.4.1: 3 files, 17.3MB
 
 **Notes:** Homebrew bottles for newtmgr 1.4.1 are available for Mac OS
 Sierra, El Captian. If you are running an earlier version of Mac OS, the
@@ -160,7 +160,7 @@ Install the latest unstable version of newtmgr from the master branch:
     ==> go get github.com/raff/goble
     ==> go get github.com/mgutz/logxi/v1
     ==> go install
-    🍺  /usr/local/Cellar/mynewt-newtmgr/HEAD-2d5217f: 3 files, 17.3MB, built in 1 minute 10 seconds
+        /usr/local/Cellar/mynewt-newtmgr/HEAD-2d5217f: 3 files, 17.3MB, built in 1 minute 10 seconds
 
 To switch back to the latest stable release version of newtmgr, you can
 run:
