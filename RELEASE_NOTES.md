@@ -1,6 +1,6 @@
 # RELEASE NOTES
 
-27 Match 2024 - Apache Newtmgr v1.12.0
+13 November 2024 - Apache Newtmgr v1.13.0
 
 For full release notes, please visit the
 [Apache Mynewt Wiki](https://cwiki.apache.org/confluence/display/MYNEWT/Release+Notes).
