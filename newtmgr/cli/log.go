@@ -60,6 +60,35 @@ type logShowCfg struct {
 	Timestamp int64
 }
 
+type logNumEntriesCfg struct {
+	Name      string
+	Index     uint32
+}
+
+func logNumEntriesParseArgs(args []string) (*logNumEntriesCfg, error) {
+	cfg := &logNumEntriesCfg{}
+
+	if len(args) < 1 {
+		return cfg, nil
+	}
+	cfg.Name = args[0]
+
+	if len(args) < 2 {
+		cfg.Index = 0
+  } else {
+		u64, err := strconv.ParseUint(args[1], 0, 64)
+		if err != nil {
+			return nil, util.ChildNewtError(err)
+		}
+		if u64 > 0xffffffff {
+			return nil, util.NewNewtError("index out of range")
+		}
+		cfg.Index = uint32(u64)
+	}
+
+	return cfg, nil
+}
+
 func logShowParseArgs(args []string) (*logShowCfg, error) {
 	cfg := &logShowCfg{}
 
@@ -110,8 +139,8 @@ func printLogShowRsp(rsp *nmp.LogShowRsp, printHdr bool) {
 			fmt.Printf("Name: %s\n", log.Name)
 			fmt.Printf("Type: %s\n", nmp.LogTypeToString(log.Type))
 
-			fmt.Printf("%10s %22s | %16s %16s %6s %8s %s\n",
-				"[index]", "[timestamp]", "[module]", "[level]", "[type]",
+			fmt.Printf("%16s %10s %22s | %16s %16s %6s %8s %s\n",
+				"[num_entries]", "[index]", "[timestamp]", "[module]", "[level]", "[type]",
 				"[img]", "[message]")
 		}
 
@@ -145,7 +174,8 @@ func printLogShowRsp(rsp *nmp.LogShowRsp, printHdr bool) {
 				msgText = hex.EncodeToString(entry.Msg)
 			}
 
-			fmt.Printf("%10d %20dus | %16s %16s %6s %8s %s\n",
+			fmt.Printf("%16d %10d %20dus | %16s %16s %6s %8s %s\n",
+				entry.NumEntries,
 				entry.Index,
 				entry.Timestamp,
 				modText,
@@ -205,6 +235,20 @@ func logShowPartialCmd(s sesn.Sesn, cfg *logShowCfg) error {
 	}
 
 	return nil
+}
+
+func logNumEntriesCmd(cmd *cobra.Command, args []string) {
+	cfg, err := logNumEntriesParseArgs(args)
+	if err != nil {
+		nmUsage(cmd, err)
+	}
+
+	s, err := GetSesn()
+	if err != nil {
+		nmUsage(nil, err)
+	}
+
+  logNumEntriesProcCmd(s, cfg)
 }
 
 func logShowCmd(cmd *cobra.Command, args []string) {
@@ -286,6 +330,33 @@ func logModuleListCmd(cmd *cobra.Command, args []string) {
 	for _, name := range names {
 		fmt.Printf("    %s (%d)\n", name, sres.Rsp.Map[name])
 	}
+}
+
+func logNumEntriesProcCmd(s sesn.Sesn, cfg *logNumEntriesCfg) {
+	s, err := GetSesn()
+	if err != nil {
+		nmUsage(nil, err)
+	}
+
+	c := xact.NewLogNumEntriesCmd()
+	c.SetTxOptions(nmutil.TxOptions())
+	c.Name = cfg.Name
+	c.Index = cfg.Index
+
+	res, err := c.Run(s)
+	if err != nil {
+		nmUsage(nil, util.ChildNewtError(err))
+  }
+
+	sres := res.(*xact.LogNumEntriesResult)
+	if sres.Rsp.Rc != 0 {
+		fmt.Printf("error: %d\n", sres.Rsp.Rc)
+	  return;
+  }
+
+	fmt.Printf("Number of entries: %d\n", sres.Rsp.NumEntries)
+
+  return
 }
 
 func logLevelListCmd(cmd *cobra.Command, args []string) {
@@ -406,6 +477,14 @@ func logCmd() *cobra.Command {
 	}
 
 	logCmd.AddCommand(ListCmd)
+
+	NumEntriesCmd := &cobra.Command{
+		Use:   "num_entries [log-name [min-index]] -c <conn_profile>",
+		Short: "Show the number of entries from index for a particular log",
+		Run:   logNumEntriesCmd,
+	}
+
+	logCmd.AddCommand(NumEntriesCmd)
 
 	return logCmd
 }

@@ -90,6 +90,7 @@ const (
 	NMP_ID_LOG_MODULE_LIST = 3
 	NMP_ID_LOG_LEVEL_LIST  = 4
 	NMP_ID_LOG_LIST        = 5
+	NMP_ID_LOG_NUM_ENTRIES = 6
 )
 
 // Crash group (5).
