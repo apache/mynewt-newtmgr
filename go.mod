@@ -22,7 +22,7 @@ require (
 	github.com/spf13/cobra v1.6.1
 	github.com/tarm/serial v0.0.0-20180830185346-98f6abe2eb07
 	github.com/ugorji/go/codec v1.2.10
-	golang.org/x/net v0.33.0
+	golang.org/x/net v0.36.0
 	gopkg.in/cheggaaa/pb.v1 v1.0.28
 	mynewt.apache.org/newt v0.0.0-20230307214303-0b46ad464e7a
 )
