@@ -39,17 +39,18 @@ const (
 // Per-user commands are then defined after group 64.
 
 const (
-	NMP_GROUP_DEFAULT = 0
-	NMP_GROUP_IMAGE   = 1
-	NMP_GROUP_STAT    = 2
-	NMP_GROUP_CONFIG  = 3
-	NMP_GROUP_LOG     = 4
-	NMP_GROUP_CRASH   = 5
-	NMP_GROUP_SPLIT   = 6
-	NMP_GROUP_RUN     = 7
-	NMP_GROUP_FS      = 8
-	NMP_GROUP_SHELL   = 9
-	NMP_GROUP_PERUSER = 64
+	NMP_GROUP_DEFAULT  = 0
+	NMP_GROUP_IMAGE    = 1
+	NMP_GROUP_STAT     = 2
+	NMP_GROUP_CONFIG   = 3
+	NMP_GROUP_LOG      = 4
+	NMP_GROUP_CRASH    = 5
+	NMP_GROUP_SPLIT    = 6
+	NMP_GROUP_RUN      = 7
+	NMP_GROUP_FS       = 8
+	NMP_GROUP_SHELL    = 9
+	NMP_GROUP_MEMFAULT = 10
+	NMP_GROUP_PERUSER  = 64
 )
 
 // Default group (0).
@@ -111,4 +112,9 @@ const (
 // Shell group (8).
 const (
 	NMP_ID_SHELL_EXEC = 0
+)
+
+// Memfault group (8).
+const (
+	NMP_ID_MEMFAULT_PULL = 0
 )
