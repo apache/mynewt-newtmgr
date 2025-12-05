@@ -36,5 +36,5 @@ published at http://mynewt.apache.org/latest/os/modules/devmgmt/newtmgr.html
 Build the newtmgr tool as follows:
 
 1. Unpack newtmgr source.
-2. `cd newmgr` in resulting folder
+2. `cd newtmgr` in resulting folder
 3. `go build`
