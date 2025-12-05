@@ -45,6 +45,7 @@ const IMAGE_UPLOAD_START_WS = 1
 const IMAGE_UPLOAD_DEF_MAX_WS = 5
 const IMAGE_UPLOAD_STATUS_EXPECTED = 0
 const IMAGE_UPLOAD_STATUS_RQ = 1
+const IMAGE_UPLOAD_REFUSED = 10
 
 type ImageUploadProgressFn func(c *ImageUploadCmd, r *nmp.ImageUploadRsp)
 type ImageUploadCmd struct {
@@ -262,13 +263,15 @@ func (t *ImageUploadIntTracker) ProcessMissedChunks() {
 	}
 }
 
-func (t *ImageUploadIntTracker) HandleResponse(c *ImageUploadCmd, rsp nmp.NmpRsp, res *ImageUploadResult) bool {
+func (t *ImageUploadIntTracker) HandleResponse(c *ImageUploadCmd, rsp nmp.NmpRsp, res *ImageUploadResult, updatable *bool) bool {
 	t.Mutex.Lock()
 	defer t.Mutex.Unlock()
 	wFull := false
-
 	if rsp != nil {
 		irsp := rsp.(*nmp.ImageUploadRsp)
+		if irsp.Rc == IMAGE_UPLOAD_REFUSED {
+			*updatable = false
+		}
 		res.Rsps = append(res.Rsps, irsp)
 		t.UpdateTracker(int(irsp.Off), IMAGE_UPLOAD_STATUS_RQ)
 
@@ -331,6 +334,7 @@ func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 	ch := make(chan int)
 	rspc := make(chan nmp.NmpRsp, c.MaxWinSz)
 	errc := make(chan error, c.MaxWinSz)
+	var upd bool = true
 
 	t := ImageUploadIntTracker{
 		TuneWS:   true,
@@ -351,6 +355,10 @@ func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 
 		if t.Off == len(c.Data) {
 			continue
+		}
+
+		if !upd {
+			goto out
 		}
 
 		t.Mutex.Lock()
@@ -383,7 +391,7 @@ func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 				}
 				return
 			case rsp := <-rspc:
-				sig := t.HandleResponse(c, rsp, res)
+				sig := t.HandleResponse(c, rsp, res, &upd)
 				if sig {
 					<-ch
 				}
@@ -392,8 +400,12 @@ func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 		}(int(r.Off))
 	}
 
+	out:
 	if int(t.MaxRxOff) == len(c.Data) {
 		return res, nil
+	} else if !upd{
+		return nil, fmt.Errorf("ImageUpload aborted by receiver after %d/%d bytes",
+			t.MaxRxOff, len(c.Data))
 	} else {
 		return nil, fmt.Errorf("ImageUpload unexpected error after %d/%d bytes",
 			t.MaxRxOff, len(c.Data))
