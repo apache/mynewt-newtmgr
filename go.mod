@@ -1,8 +1,6 @@
 module mynewt.apache.org/newtmgr
 
-go 1.24.0
-
-toolchain go1.24.10
+go 1.25.0
 
 require (
 	github.com/JuulLabs-OSS/ble v0.0.0-20200716215611-d4fcc9d598bb
@@ -18,7 +16,7 @@ require (
 	github.com/spf13/cobra v1.6.1
 	github.com/tarm/serial v0.0.0-20180830185346-98f6abe2eb07
 	github.com/ugorji/go/codec v1.2.10
-	golang.org/x/net v0.40.0
+	golang.org/x/net v0.55.0
 	gopkg.in/cheggaaa/pb.v1 v1.0.28
 	mynewt.apache.org/newt v0.0.0-20251205100816-b94d8bd3bc87
 )
@@ -38,5 +36,5 @@ require (
 	github.com/raff/goble v0.0.0-20200327175727-d63360dcfd80 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	golang.org/x/sys v0.38.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
 )
