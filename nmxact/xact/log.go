@@ -233,6 +233,49 @@ func (c *LogModuleListCmd) Run(s sesn.Sesn) (Result, error) {
 	res.Rsp = srsp
 	return res, nil
 }
+//////////////////////////////////////////////////////////////////////////////
+// $Num Entries                                                             //
+//////////////////////////////////////////////////////////////////////////////
+
+type LogNumEntriesCmd struct {
+	CmdBase
+	Name      string
+	Index     uint32
+}
+
+func NewLogNumEntriesCmd() *LogNumEntriesCmd {
+	return &LogNumEntriesCmd{
+		CmdBase: NewCmdBase(),
+	}
+}
+
+type LogNumEntriesResult struct {
+	Rsp *nmp.LogNumEntriesRsp
+}
+
+func newLogNumEntriesResult() *LogNumEntriesResult {
+	return &LogNumEntriesResult{}
+}
+
+func (r *LogNumEntriesResult) Status() int {
+	return r.Rsp.Rc
+}
+
+func (c *LogNumEntriesCmd) Run(s sesn.Sesn) (Result, error) {
+	r := nmp.NewLogNumEntriesReq()
+	r.Name = c.Name
+	r.Index = c.Index
+
+	rsp, err := txReq(s, r.Msg(), &c.CmdBase)
+	if err != nil {
+		return nil, err
+	}
+	srsp := rsp.(*nmp.LogNumEntriesRsp)
+
+	res := newLogNumEntriesResult()
+	res.Rsp = srsp
+	return res, nil
+}
 
 //////////////////////////////////////////////////////////////////////////////
 // $level list                                                              //

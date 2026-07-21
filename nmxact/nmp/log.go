@@ -130,13 +130,14 @@ type LogShowReq struct {
 }
 
 type LogEntry struct {
-	Index     uint32       `codec:"index"`
-	Timestamp int64        `codec:"ts"`
-	Module    uint8        `codec:"module"`
-	Level     uint8        `codec:"level"`
-	Type      LogEntryType `codec:"type"`
-	ImgHash   []byte       `codec:"imghash"`
-	Msg       []byte       `codec:"msg"`
+	NumEntries uint32       `codec:"num_entries"`
+	Index      uint32       `codec:"index"`
+	Timestamp  int64        `codec:"ts"`
+	Module     uint8        `codec:"module"`
+	Level      uint8        `codec:"level"`
+	Type       LogEntryType `codec:"type"`
+	ImgHash    []byte       `codec:"imghash"`
+	Msg        []byte       `codec:"msg"`
 }
 
 type LogShowLog struct {
@@ -165,6 +166,37 @@ func NewLogShowRsp() *LogShowRsp {
 }
 
 func (r *LogShowRsp) Msg() *NmpMsg { return MsgFromReq(r) }
+
+//////////////////////////////////////////////////////////////////////////////
+// $NumEntries                                                              //
+//////////////////////////////////////////////////////////////////////////////
+
+type LogNumEntriesReq struct {
+	NmpBase `codec:"-"`
+	Name      string `codec:"log_name"`
+	Index     uint32 `codec:"index"`
+}
+
+type LogNumEntriesRsp struct {
+	NmpBase
+	Rc         int      `codec:"rc"`
+	NumEntries uint32   `codec:"num_entries"`
+}
+
+func NewLogNumEntriesReq() *LogNumEntriesReq {
+	r := &LogNumEntriesReq{}
+	fillNmpReq(r, NMP_OP_READ, NMP_GROUP_LOG, NMP_ID_LOG_NUM_ENTRIES)
+	return r
+}
+
+func (r *LogNumEntriesReq) Msg() *NmpMsg { return MsgFromReq(r) }
+
+func NewLogNumEntriesRsp() *LogNumEntriesRsp {
+	return &LogNumEntriesRsp{}
+}
+
+func (r *LogNumEntriesRsp) Msg() *NmpMsg { return MsgFromReq(r) }
+
 
 //////////////////////////////////////////////////////////////////////////////
 // $list                                                                    //
