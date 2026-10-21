@@ -783,8 +783,11 @@ func newCoreLoadResult() *CoreLoadResult {
 }
 
 func (r *CoreLoadResult) Status() int {
-	rsp := r.Rsps[len(r.Rsps)-1]
-	return rsp.Rc
+	if len(r.Rsps) > 0 {
+		return r.Rsps[len(r.Rsps)-1].Rc
+	} else {
+		return nmp.NMP_ERR_EUNKNOWN
+	}
 }
 
 func (c *CoreLoadCmd) Run(s sesn.Sesn) (Result, error) {

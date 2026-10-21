@@ -481,3 +481,31 @@ func TestFsDownloadRunTxError(t *testing.T) {
 		t.Errorf("no error")
 	}
 }
+
+// Status() of a result without responses (e.g. uploading an empty file,
+// which sends no request) must not panic.
+func TestMultiRspResultStatusEmpty(t *testing.T) {
+	results := []Result{
+		&FsDownloadResult{},
+		&FsUploadResult{},
+		&CoreLoadResult{},
+		&ImageUploadResult{},
+		&LogShowFullResult{},
+	}
+	for _, r := range results {
+		if st := r.Status(); st != nmp.NMP_ERR_EUNKNOWN {
+			t.Errorf("%T: status %d", r, st)
+		}
+	}
+
+	s := newFakeSesn(newFakeFsDev().handle)
+	c := NewFsUploadCmd()
+	c.Name = "/f"
+	res, err := runCmd(t, c, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st := res.Status(); st != nmp.NMP_ERR_EUNKNOWN {
+		t.Errorf("empty upload: status %d", st)
+	}
+}
