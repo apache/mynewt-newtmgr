@@ -363,3 +363,30 @@ func TestDispatcherCoapListener(t *testing.T) {
 		t.Errorf("RemoveCoapListener returned %p, want %p", got, l)
 	}
 }
+
+// When Stop returns, the CoAP listeners owned by the OMP listeners must be
+// gone.  The window is small, so repeat a number of times.
+func TestDispatcherStopRemovesCoapListeners(t *testing.T) {
+	for i := 0; i < 200; i++ {
+		d, err := NewDispatcher(nil, false, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		for seq := uint8(30); seq < 34; seq++ {
+			if _, err := d.AddNmpListener(seq); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		stopWithTimeout(t, d)
+
+		for seq := uint8(30); seq < 34; seq++ {
+			b := encodeTestOmpRsp(t, coap.Content, seq, "x")
+			if d.Dispatch(b) {
+				t.Fatalf("iteration %d: Dispatch for seq %d after Stop "+
+					"returned true", i, seq)
+			}
+		}
+	}
+}
