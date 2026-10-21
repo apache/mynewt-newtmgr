@@ -290,7 +290,7 @@ func (c *Conn) eventListen(bl *Listener) error {
 							err := StatusError(MSG_OP_EVT,
 								MSG_TYPE_MTU_CHANGE_EVT,
 								msg.Status)
-							log.Debugf(err.Error())
+							log.Debugf("%s", err.Error())
 						} else {
 							log.Debugf("BLE ATT MTU updated; from=%d to=%d",
 								c.attMtu, msg.Mtu)
@@ -303,7 +303,7 @@ func (c *Conn) eventListen(bl *Listener) error {
 							err = StatusError(MSG_OP_EVT,
 								MSG_TYPE_ENC_CHANGE_EVT,
 								msg.Status)
-							log.Debugf(err.Error())
+							log.Debugf("%s", err.Error())
 						} else {
 							log.Debugf("Connection encrypted; conn_handle=%d",
 								msg.ConnHandle)

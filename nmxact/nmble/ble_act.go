@@ -61,7 +61,7 @@ func connect(x *BleXport, bl *Listener, r *BleConnectReq) (uint16, error) {
 					str := fmt.Sprintf("BLE connection attempt failed; "+
 						"status=%s (%d)",
 						ErrCodeToString(msg.Status), msg.Status)
-					log.Debugf(str)
+					log.Debugf("%s", str)
 					return 0, nmxutil.NewBleHostError(msg.Status, str)
 				}
 
@@ -72,13 +72,13 @@ func connect(x *BleXport, bl *Listener, r *BleConnectReq) (uint16, error) {
 					str := fmt.Sprintf("BLE connection attempt failed; "+
 						"status=%s (%d)",
 						ErrCodeToString(msg.Status), msg.Status)
-					log.Debugf(str)
+					log.Debugf("%s", str)
 					return 0, nmxutil.NewBleHostError(msg.Status, str)
 				}
 
 			case *BleConnCancelEvt:
 				str := "BLE connection attempt cancelled"
-				log.Debugf(str)
+				log.Debugf("%s", str)
 				return 0, fmt.Errorf("%s", str)
 
 			default:
@@ -943,14 +943,14 @@ func advStart(x *BleXport, bl *Listener, stopChan chan struct{},
 					str := fmt.Sprintf("BLE peer failed to connect to us; "+
 						"status=%s (%d)",
 						ErrCodeToString(msg.Status), msg.Status)
-					log.Debugf(str)
+					log.Debugf("%s", str)
 					return 0, nmxutil.NewBleHostError(msg.Status, str)
 				}
 
 			case *BleAdvCompleteEvt:
 				str := fmt.Sprintf("Advertising stopped; reason=%s (%d)",
 					ErrCodeToString(msg.Reason), msg.Reason)
-				log.Debugf(str)
+				log.Debugf("%s", str)
 				return 0, nmxutil.NewBleHostError(msg.Reason, str)
 
 			default:
