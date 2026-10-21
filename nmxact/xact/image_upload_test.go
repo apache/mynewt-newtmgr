@@ -131,6 +131,8 @@ func TestImageUploadRun(t *testing.T) {
 			{"one chunk", oneChunk, 1},
 			{"one chunk + 1", oneChunk + 1, 1},
 			{"many win 1", 10000, 1},
+			{"many win 2", 10000, 2},
+			{"many win 5", 10000, 5},
 		}
 
 		for _, tt := range tests {
@@ -296,7 +298,7 @@ func TestImageUploadRunProgress(t *testing.T) {
 func TestImageUploadRunRetransmit(t *testing.T) {
 	data := testImage(5000)
 
-	for _, winSz := range []int{1} {
+	for _, winSz := range []int{1, 5} {
 		s := newFakeSesn(nil)
 		s.mtu = 200
 
@@ -326,6 +328,32 @@ func TestImageUploadRunRetransmit(t *testing.T) {
 			c.MaxWinSz = winSz
 			if _, err := runCmd(t, c, s); err != nil {
 				t.Fatalf("win %d drop %d: %v", winSz, drop, err)
+			}
+			checkUploaded(t, dev, data)
+		}
+	}
+}
+
+// Window based uploads used to deadlock occasionally: a response
+// handler could signal a free slot while the main loop was not waiting,
+// leaving a stale signal behind which let the loop overfill the window.
+// With the window then growing while the count shrank, no handler
+// observed a full window anymore and the main loop waited forever.
+// The deadlock depends on goroutine scheduling, so run many uploads.
+func TestImageUploadRunWindowStress(t *testing.T) {
+	data := testImage(2000)
+
+	for _, winSz := range []int{2, 5} {
+		for i := 0; i < 50; i++ {
+			dev := &fakeImgDev{}
+			s := newFakeSesn(dev.handle)
+			s.mtu = 128
+
+			c := NewImageUploadCmd()
+			c.Data = data
+			c.MaxWinSz = winSz
+			if _, err := runCmd(t, c, s); err != nil {
+				t.Fatalf("win %d iter %d: %v", winSz, i, err)
 			}
 			checkUploaded(t, dev, data)
 		}
