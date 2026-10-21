@@ -55,11 +55,14 @@ func (f *ErrFunnel) Insert(err error) {
 		})
 	} else {
 		if f.LessCb(f.curErr, err) {
-			if !f.errTimer.Stop() {
-				<-f.errTimer.C
-			}
 			f.curErr = err
-			f.errTimer.Reset(f.AccumDelay)
+
+			// The timer was created by time.AfterFunc(), so it has no
+			// channel to drain.  If it already fired, timerExp() is
+			// waiting for the lock and will report the new error.
+			if f.errTimer.Stop() {
+				f.errTimer.Reset(f.AccumDelay)
+			}
 		}
 	}
 }
