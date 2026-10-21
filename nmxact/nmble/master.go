@@ -267,8 +267,12 @@ func (m *Master) StopWaitingPrimary(token interface{}, err error) {
 		return
 	}
 
+	c := m.primaries[idx]
 	m.primaries = append(
 		m.primaries[0:idx], m.primaries[idx+1:len(m.primaries)]...)
+
+	// Wake up the waiter blocked in AcquirePrimary().
+	c.ch <- err
 }
 
 // Removes the specified secondary from the wait queue.
