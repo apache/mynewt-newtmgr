@@ -21,6 +21,7 @@ package nmble
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
@@ -60,6 +61,10 @@ type Listener struct {
 	Acked   bool
 
 	timer *time.Timer
+
+	// Protects timer and closed against the timer callback.
+	mtx    sync.Mutex
+	closed bool
 }
 
 func NewListener() *Listener {
@@ -71,9 +76,20 @@ func NewListener() *Listener {
 }
 
 func (bl *Listener) AfterTimeout(tmo time.Duration) <-chan time.Time {
+	bl.mtx.Lock()
+	defer bl.mtx.Unlock()
+
 	fn := func() {
-		if !bl.Acked {
-			bl.TmoChan <- time.Now()
+		bl.mtx.Lock()
+		defer bl.mtx.Unlock()
+
+		// The listener may have been closed after the timer fired.  Never
+		// block here; a pending timeout is as good as a new one.
+		if !bl.closed && !bl.Acked {
+			select {
+			case bl.TmoChan <- time.Now():
+			default:
+			}
 		}
 	}
 	bl.timer = time.AfterFunc(tmo, fn)
@@ -81,14 +97,15 @@ func (bl *Listener) AfterTimeout(tmo time.Duration) <-chan time.Time {
 }
 
 func (bl *Listener) Close() {
-	// This provokes a race condition.  The timer may get initialized at any
-	// time.
+	bl.mtx.Lock()
+	defer bl.mtx.Unlock()
+
 	if bl.timer != nil {
 		bl.timer.Stop()
 	}
 
-	// Mark the command as acked in case the race condition mentioned above
-	// occurred.  If the timer goes off, nothing will happen.
+	// If the timer already fired, its callback sees this and does nothing.
+	bl.closed = true
 	bl.Acked = true
 
 	close(bl.MsgChan)

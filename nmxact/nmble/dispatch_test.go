@@ -584,3 +584,14 @@ func TestDispatcherErrorAllDeliversError(t *testing.T) {
 		t.Errorf("ErrChan not closed after the error")
 	}
 }
+
+// The timer callback may run concurrently with Close.  It must neither
+// race with Close nor panic with "send on closed channel".  The race is
+// timing dependent, so try many times.
+func TestListenerTimeoutRacesClose(t *testing.T) {
+	for i := 0; i < 2000; i++ {
+		l := NewListener()
+		l.AfterTimeout(0)
+		l.Close()
+	}
+}
