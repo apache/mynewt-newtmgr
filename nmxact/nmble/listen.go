@@ -98,12 +98,9 @@ func (bl *Listener) Close() {
 		}
 	}
 
+	// Don't drain ErrChan.  Dispatcher.ErrorAll() queues an error right
+	// before closing the listener, and the owner must still receive it.
 	close(bl.ErrChan)
-	for {
-		if _, ok := <-bl.ErrChan; !ok {
-			break
-		}
-	}
 
 	close(bl.TmoChan)
 	for {
