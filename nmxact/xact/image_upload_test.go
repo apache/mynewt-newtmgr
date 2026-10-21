@@ -40,8 +40,10 @@ type fakeImgDev struct {
 	upgrade bool
 	img     int
 
-	// If non-zero, all upload requests are answered with this rc.
-	failRc int
+	// If non-zero, upload requests with an offset of at least failOff
+	// are answered with this rc.
+	failRc  int
+	failOff uint32
 
 	// Offsets of requests answered with a timeout error, once each.
 	dropOffs map[uint32]bool
@@ -61,7 +63,7 @@ func (d *fakeImgDev) handle(req fakeReq) (nmp.NmpRsp, error) {
 		return nil, nmxutil.NewRspTimeoutError("NMP timeout")
 	}
 
-	if d.failRc != 0 {
+	if d.failRc != 0 && ur.Off >= d.failOff {
 		return &nmp.ImageUploadRsp{Rc: d.failRc}, nil
 	}
 
@@ -529,5 +531,70 @@ func TestImageUpgradeRun(t *testing.T) {
 			t.Errorf("%s: last progress off %d", tt.name, last)
 		}
 		mtx.Unlock()
+	}
+}
+
+// A non-zero rc from the device must end the upload and be reported via
+// the result's status instead of making Run() loop forever.
+func TestImageUploadRunDeviceError(t *testing.T) {
+	data := testImage(5000)
+
+	for _, winSz := range []int{1, 5} {
+		for _, failOff := range []uint32{0, 1} {
+			dev := &fakeImgDev{
+				failRc:  nmp.NMP_ERR_ENOMEM,
+				failOff: failOff,
+			}
+			s := newFakeSesn(dev.handle)
+			s.mtu = 200
+
+			var mtx sync.Mutex
+			var cbRcs []int
+			c := NewImageUploadCmd()
+			c.Data = data
+			c.MaxWinSz = winSz
+			c.ProgressCb = func(_ *ImageUploadCmd, r *nmp.ImageUploadRsp) {
+				mtx.Lock()
+				defer mtx.Unlock()
+				cbRcs = append(cbRcs, r.Rc)
+			}
+
+			res, err := runCmd(t, c, s)
+			if err != nil {
+				t.Fatalf("win %d fail at %d: %v", winSz, failOff, err)
+			}
+			if st := res.Status(); st != nmp.NMP_ERR_ENOMEM {
+				t.Errorf("win %d fail at %d: status %d", winSz, failOff,
+					st)
+			}
+
+			mtx.Lock()
+			if len(cbRcs) == 0 || cbRcs[len(cbRcs)-1] != nmp.NMP_ERR_ENOMEM {
+				t.Errorf("win %d fail at %d: progress rcs %v", winSz,
+					failOff, cbRcs)
+			}
+			mtx.Unlock()
+		}
+	}
+}
+
+func TestImageUpgradeRunDeviceError(t *testing.T) {
+	dev := &imgUpgradeDev{}
+	dev.failRc = nmp.NMP_ERR_ENOMEM
+	dev.failOff = 1
+	s := newFakeSesn(dev.handle)
+	dev.s = s
+
+	c := NewImageUpgradeCmd()
+	c.Data = testImage(3000)
+	c.MaxWinSz = 1
+	c.ProgressCb = func(*ImageUploadCmd, *nmp.ImageUploadRsp) {}
+
+	res, err := runCmd(t, c, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st := res.Status(); st != nmp.NMP_ERR_ENOMEM {
+		t.Errorf("status %d", st)
 	}
 }

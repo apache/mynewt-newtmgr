@@ -65,6 +65,9 @@ type ImageUploadIntTracker struct {
 	WCap     int
 	Off      int
 	MaxRxOff int32
+
+	// Set when the device answered with a non-zero rc.
+	rspFailed bool
 }
 
 type ImageUploadResult struct {
@@ -267,14 +270,23 @@ func (t *ImageUploadIntTracker) HandleResponse(c *ImageUploadCmd, rsp nmp.NmpRsp
 	defer t.Mutex.Unlock()
 	wFull := false
 
-	if rsp != nil {
+	// Once the device reported an error, responses to requests which
+	// were still in flight are ignored.  This keeps the error response
+	// last in the result, so that Status() reports it.
+	if rsp != nil && !t.rspFailed {
 		irsp := rsp.(*nmp.ImageUploadRsp)
 		res.Rsps = append(res.Rsps, irsp)
-		t.UpdateTracker(int(irsp.Off), IMAGE_UPLOAD_STATUS_RQ)
 
-		// MaxRxOff is also read without the mutex by Run().
-		if t.MaxRxOff < int32(irsp.Off) {
-			atomic.StoreInt32(&t.MaxRxOff, int32(irsp.Off))
+		if irsp.Rc != 0 {
+			// The device rejected the request; stop the upload.
+			t.rspFailed = true
+		} else {
+			t.UpdateTracker(int(irsp.Off), IMAGE_UPLOAD_STATUS_RQ)
+
+			// MaxRxOff is also read without the mutex by Run().
+			if t.MaxRxOff < int32(irsp.Off) {
+				atomic.StoreInt32(&t.MaxRxOff, int32(irsp.Off))
+			}
 		}
 		if c.ProgressCb != nil {
 			c.ProgressCb(c, irsp)
@@ -351,6 +363,14 @@ func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 			<-ch
 		}
 
+		// Stop if the device reported an error.
+		t.Mutex.Lock()
+		failed := t.rspFailed
+		t.Mutex.Unlock()
+		if failed {
+			break
+		}
+
 		t.ProcessMissedChunks()
 
 		if t.Off == len(c.Data) {
@@ -394,19 +414,21 @@ func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 		}(int(r.Off))
 	}
 
-	maxRxOff := int(atomic.LoadInt32(&t.MaxRxOff))
-	if maxRxOff == len(c.Data) {
+	t.Mutex.Lock()
+	defer t.Mutex.Unlock()
+
+	// On a non-zero rc from the device, the result is returned as well;
+	// its Status() reports the device's rc.
+	if t.rspFailed || int(t.MaxRxOff) == len(c.Data) {
 		// Responses to requests still in flight may be processed after
 		// we return; hand out a snapshot of the result so that the
 		// caller does not race with them.
-		t.Mutex.Lock()
-		defer t.Mutex.Unlock()
 		snap := newImageUploadResult()
 		snap.Rsps = append(snap.Rsps, res.Rsps...)
 		return snap, nil
 	} else {
 		return nil, fmt.Errorf("ImageUpload unexpected error after %d/%d bytes",
-			maxRxOff, len(c.Data))
+			t.MaxRxOff, len(c.Data))
 	}
 }
 
