@@ -44,6 +44,11 @@ func TestFragment(t *testing.T) {
 			[][]byte{{0, 1, 2, 3, 4}, {5, 6, 7, 8, 9}}},
 		{"exact", data, 10, [][]byte{data}},
 		{"larger mtu", data, 100, [][]byte{data}},
+
+		// No usable MTU: the buffer is not fragmented.
+		{"mtu 0", data, 0, [][]byte{data}},
+		{"negative mtu", data, -5, [][]byte{data}},
+		{"mtu 0 empty", []byte{}, 0, [][]byte{}},
 	}
 
 	for _, tt := range tests {

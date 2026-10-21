@@ -158,6 +158,15 @@ func StopAndDrainTimer(timer *time.Timer) {
 func Fragment(b []byte, mtu int) [][]byte {
 	frags := [][]byte{}
 
+	// Without a usable MTU, do not fragment at all.  An mtu of 0 used to
+	// loop forever and a negative one used to panic.
+	if mtu <= 0 {
+		if len(b) > 0 {
+			frags = append(frags, b)
+		}
+		return frags
+	}
+
 	for off := 0; off < len(b); off += mtu {
 		fragEnd := off + mtu
 		if fragEnd > len(b) {
