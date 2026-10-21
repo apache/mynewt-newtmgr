@@ -81,7 +81,8 @@ func extractResKv(params []string) (map[string]interface{}, error) {
 		var val interface{}
 
 		// If value is quoted, parse it as a string.
-		if strings.HasPrefix(parts[1], "\"") &&
+		if len(parts[1]) >= 2 &&
+			strings.HasPrefix(parts[1], "\"") &&
 			strings.HasSuffix(parts[1], "\"") {
 
 			val = parts[1][1 : len(parts[1])-1]

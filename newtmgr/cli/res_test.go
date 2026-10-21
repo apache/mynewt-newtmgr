@@ -50,6 +50,9 @@ func TestExtractResKv(t *testing.T) {
 			map[string]interface{}{"a": ""}},
 		{"only leading quote", []string{`a="x`},
 			map[string]interface{}{"a": `"x`}},
+		// A lone quote is not a quoted string; it used to panic.
+		{"single quote", []string{`a="`},
+			map[string]interface{}{"a": `"`}},
 		{"bool true", []string{"a=true"}, map[string]interface{}{"a": true}},
 		{"bool mixed case", []string{"a=FaLsE"},
 			map[string]interface{}{"a": false}},
