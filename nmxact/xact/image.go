@@ -533,7 +533,9 @@ func (c *ImageUpgradeCmd) runUpload(s sesn.Sesn) (*ImageUploadResult, error) {
 		if r.Rc == 0 {
 			startOff = int(r.Off)
 		}
-		c.ProgressCb(uc, r)
+		if c.ProgressCb != nil {
+			c.ProgressCb(uc, r)
+		}
 	}
 
 	for {

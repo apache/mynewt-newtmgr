@@ -624,3 +624,23 @@ func TestImageUploadRunDefaultWindow(t *testing.T) {
 	}
 	checkUploaded(t, &udev.fakeImgDev, data)
 }
+
+func TestImageUpgradeRunNoProgressCb(t *testing.T) {
+	data := testImage(3000)
+	dev := &imgUpgradeDev{}
+	s := newFakeSesn(dev.handle)
+	dev.s = s
+
+	c := NewImageUpgradeCmd()
+	c.Data = data
+	c.MaxWinSz = 1
+
+	res, err := runCmd(t, c, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st := res.Status(); st != 0 {
+		t.Errorf("status %d", st)
+	}
+	checkUploaded(t, &dev.fakeImgDev, data)
+}
