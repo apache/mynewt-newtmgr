@@ -54,6 +54,10 @@ func TestParseBllConnString(t *testing.T) {
 		cs   string
 		want BllConfig
 	}{
+		// The --hci index must be applied even without a connstring
+		// (e.g. when the peer is given with -n).
+		{"empty", "", BllConfig{ConnTimeout: 4, HciIdx: 1}},
+		{"whitespace", "  ", BllConfig{ConnTimeout: 4, HciIdx: 1}},
 		{"peer_name", "peer_name=mydev",
 			BllConfig{PeerName: "mydev", ConnTimeout: 4, HciIdx: 1}},
 		{"all keys",
