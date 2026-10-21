@@ -58,7 +58,7 @@ func NewBleConfig() *BleConfig {
 }
 
 func einvalBleConnString(f string, args ...interface{}) error {
-	suffix := fmt.Sprintf(f, args)
+	suffix := fmt.Sprintf(f, args...)
 	return util.FmtNewtError("Invalid BLE connstring; %s", suffix)
 }
 
