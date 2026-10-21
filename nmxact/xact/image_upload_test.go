@@ -598,3 +598,29 @@ func TestImageUpgradeRunDeviceError(t *testing.T) {
 		t.Errorf("status %d", st)
 	}
 }
+
+// Commands created by the constructors must work without setting
+// MaxWinSz explicitly.
+func TestImageUploadRunDefaultWindow(t *testing.T) {
+	data := testImage(3000)
+
+	dev := &fakeImgDev{}
+	s := newFakeSesn(dev.handle)
+	uc := NewImageUploadCmd()
+	uc.Data = data
+	if _, err := runCmd(t, uc, s); err != nil {
+		t.Fatal(err)
+	}
+	checkUploaded(t, dev, data)
+
+	udev := &imgUpgradeDev{}
+	s = newFakeSesn(udev.handle)
+	udev.s = s
+	gc := NewImageUpgradeCmd()
+	gc.Data = data
+	gc.ProgressCb = func(*ImageUploadCmd, *nmp.ImageUploadRsp) {}
+	if _, err := runCmd(t, gc, s); err != nil {
+		t.Fatal(err)
+	}
+	checkUploaded(t, &udev.fakeImgDev, data)
+}
