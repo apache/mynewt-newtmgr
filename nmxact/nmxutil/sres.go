@@ -76,7 +76,6 @@ func (s *SingleResource) Release() bool {
 
 		if !s.acquired {
 			panic("SingleResource release without acquire")
-			return nil
 		}
 
 		if len(s.waitQueue) == 0 {
