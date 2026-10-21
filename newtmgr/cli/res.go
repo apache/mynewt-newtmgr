@@ -173,7 +173,7 @@ func resResponseStr(path string, cbor []byte) string {
 		}
 		j, err := json.MarshalIndent(cleanUpMapValue(m), "", "    ")
 		if err != nil {
-			s += fmt.Sprintf("\nerror: ", err)
+			s += fmt.Sprintf("\nerror: %s", err)
 		}
 		s += fmt.Sprintf("\n%v", string(j))
 	} else {
@@ -401,7 +401,7 @@ func runResCmd(cmd *cobra.Command, args []string) {
 	}
 
 	if details {
-		fmt.Printf(printDetails(sres.Rsp))
+		fmt.Print(printDetails(sres.Rsp))
 	}
 }
 
