@@ -329,7 +329,10 @@ func (t *ImageUploadIntTracker) HandleError(off int, err error) bool {
 
 func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 	res := newImageUploadResult()
-	ch := make(chan int)
+
+	// Signalled (without blocking) whenever a response or error has been
+	// processed and a window slot may have been freed.
+	ch := make(chan int, 1)
 	rspc := make(chan nmp.NmpRsp, c.MaxWinSz)
 	errc := make(chan error, c.MaxWinSz)
 
@@ -344,8 +347,8 @@ func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 
 	for int(atomic.LoadInt32(&t.MaxRxOff)) < len(c.Data) {
 		// Block if window is full
-		if !t.CheckWindow() {
-			ch <- 1
+		for !t.CheckWindow() {
+			<-ch
 		}
 
 		t.ProcessMissedChunks()
@@ -378,17 +381,15 @@ func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 		go func(off int) {
 			select {
 			case err := <-errc:
-				sig := t.HandleError(off, err)
-				if sig {
-					<-ch
-				}
-				return
+				t.HandleError(off, err)
 			case rsp := <-rspc:
-				sig := t.HandleResponse(c, rsp, res)
-				if sig {
-					<-ch
-				}
-				return
+				t.HandleResponse(c, rsp, res)
+			}
+
+			// Wake up the main loop if it is waiting for a free slot.
+			select {
+			case ch <- 1:
+			default:
 			}
 		}(int(r.Off))
 	}
