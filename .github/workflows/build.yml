@@ -47,3 +47,11 @@ jobs:
              newtmgr
              newtmgr help
              newtmgr version
+      - name: Unit tests
+        shell: bash
+        run: |
+             if [ "$RUNNER_OS" = "Linux" ]; then
+                 go test -race ./...
+             else
+                 go test ./...
+             fi
