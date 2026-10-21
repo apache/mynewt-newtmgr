@@ -1606,10 +1606,7 @@ func (bb *BleBytes) MarshalJSON() ([]byte, error) {
 		fmt.Fprintf(&buf, "0x%02x", b)
 	}
 
-	s := buf.String()
-	return json.Marshal(s)
-
-	return buf.Bytes(), nil
+	return json.Marshal(buf.String())
 }
 
 func (bb *BleBytes) UnmarshalJSON(data []byte) error {
