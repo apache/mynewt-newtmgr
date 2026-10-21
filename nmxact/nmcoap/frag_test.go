@@ -159,3 +159,53 @@ func TestReceiverTcp(t *testing.T) {
 		t.Fatalf("unexpected message %v", got)
 	}
 }
+
+// Two messages received in a single buffer must both be returned, one per
+// call.  Previously the second message was silently dropped.
+func TestReassemblerBackToBack(t *testing.T) {
+	b1 := tcpMsg(t, []byte{1}, "", []byte("first"))
+	b2 := tcpMsg(t, []byte{2}, "", []byte("second"))
+	b3 := tcpMsg(t, []byte{3}, "", []byte("third"))
+
+	r := NewReassembler()
+	buf := append(append([]byte{}, b1...), b2...)
+
+	checkTcpMsg(t, r.RxFrag(buf), []byte{1}, []byte("first"))
+	checkTcpMsg(t, r.RxFrag(nil), []byte{2}, []byte("second"))
+	if m := r.RxFrag(nil); m != nil {
+		t.Fatalf("unexpected third message: %v", m)
+	}
+
+	// First message complete plus the start of the next one.
+	buf = append(append([]byte{}, b1...), b3[:3]...)
+	checkTcpMsg(t, r.RxFrag(buf), []byte{1}, []byte("first"))
+	checkTcpMsg(t, r.RxFrag(b3[3:]), []byte{3}, []byte("third"))
+	if m := r.RxFrag(nil); m != nil {
+		t.Fatalf("unexpected extra message: %v", m)
+	}
+}
+
+func TestReceiverRxBuffered(t *testing.T) {
+	udp := NewReceiver(false)
+	if m := udp.RxBuffered(); m != nil {
+		t.Fatalf("UDP receiver returned buffered message %v", m)
+	}
+
+	tcp := NewReceiver(true)
+	if m := tcp.RxBuffered(); m != nil {
+		t.Fatalf("empty TCP receiver returned message %v", m)
+	}
+
+	b1 := tcpMsg(t, []byte{1}, "", nil)
+	b2 := tcpMsg(t, []byte{2}, "", nil)
+	if m := tcp.Rx(append(append([]byte{}, b1...), b2...)); m == nil {
+		t.Fatalf("expected first message")
+	}
+	m := tcp.RxBuffered()
+	if m == nil || m.Token()[0] != 2 {
+		t.Fatalf("expected second message, got %v", m)
+	}
+	if m := tcp.RxBuffered(); m != nil {
+		t.Fatalf("unexpected message %v", m)
+	}
+}

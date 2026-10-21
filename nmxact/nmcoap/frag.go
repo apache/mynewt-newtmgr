@@ -48,6 +48,9 @@ func (r *Reassembler) RxFrag(frag []byte) *coap.TcpMessage {
 		return nil
 	}
 
-	r.cur = nil
+	// Keep any trailing bytes; they are the start of the next message.
+	if len(r.cur) == 0 {
+		r.cur = nil
+	}
 	return tm
 }

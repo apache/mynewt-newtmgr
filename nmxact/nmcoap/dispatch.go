@@ -104,12 +104,20 @@ func (d *Dispatcher) RemoveListener(mc MsgCriteria) *Listener {
 
 // Returns true if the response was dispatched.
 func (d *Dispatcher) Dispatch(data []byte) bool {
-	// See if this fragment completes a packet.
-	msg := d.rxer.Rx(data)
-	if msg == nil {
-		return false
+	dispatched := false
+
+	// See if this fragment completes a packet.  With TCP, a fragment may
+	// complete more than one packet; dispatch all of them.
+	for msg := d.rxer.Rx(data); msg != nil; msg = d.rxer.RxBuffered() {
+		if d.dispatchMsg(msg) {
+			dispatched = true
+		}
 	}
 
+	return dispatched
+}
+
+func (d *Dispatcher) dispatchMsg(msg coap.Message) bool {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
