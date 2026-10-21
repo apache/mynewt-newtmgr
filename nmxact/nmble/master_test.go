@@ -333,3 +333,39 @@ func TestMasterAbortPreemptsSecondary(t *testing.T) {
 	m.Release()
 	checkMasterState(t, m, MASTER_STATE_IDLE, 0)
 }
+
+// A primary removed from the wait queue must be woken up with the given
+// error rather than left blocked in AcquirePrimary forever.
+func TestMasterStopWaitingPrimary(t *testing.T) {
+	m, _ := newTestMaster(t)
+	prim := make(chan acqResult, 2)
+
+	if err := m.AcquirePrimary(0); err != nil {
+		t.Fatal(err)
+	}
+
+	acquirePrimaryAsync(m, 1, prim)
+	waitMasterState(t, m, MASTER_STATE_PRIMARY, 1)
+	acquirePrimaryAsync(m, 2, prim)
+	waitMasterState(t, m, MASTER_STATE_PRIMARY, 2)
+
+	want := errors.New("stop waiting")
+	m.StopWaitingPrimary(1, want)
+	if r := recvAcq(t, prim); r.id != 1 || r.err != want {
+		t.Fatalf("got %+v, want id 1 with error %v", r, want)
+	}
+	checkMasterState(t, m, MASTER_STATE_PRIMARY, 1)
+
+	// Unknown token: no-op.
+	m.StopWaitingPrimary(42, want)
+	checkMasterState(t, m, MASTER_STATE_PRIMARY, 1)
+
+	// The remaining waiter is still served.
+	m.Release()
+	if r := recvAcq(t, prim); r.id != 2 || r.err != nil {
+		t.Fatalf("got %+v, want id 2 with nil error", r)
+	}
+
+	m.Release()
+	checkMasterState(t, m, MASTER_STATE_IDLE, 0)
+}
