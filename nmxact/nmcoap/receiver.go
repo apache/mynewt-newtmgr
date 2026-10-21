@@ -57,3 +57,18 @@ func (r *Receiver) Rx(data []byte) coap.Message {
 		return m
 	}
 }
+
+// RxBuffered returns the next complete message that is already buffered
+// from previously received data, or nil if there is none.  Only TCP can
+// buffer messages.
+func (r *Receiver) RxBuffered() coap.Message {
+	if r.reassembler == nil {
+		return nil
+	}
+
+	tm := r.reassembler.RxFrag(nil)
+	if tm == nil {
+		return nil
+	}
+	return tm
+}
