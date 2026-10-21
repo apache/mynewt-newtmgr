@@ -495,3 +495,62 @@ func TestListenBufferNotReused(t *testing.T) {
 		t.Errorf("second datagram = %q", bufs[1])
 	}
 }
+
+// TxCoap on a session that is not open must fail rather than dereference
+// the nil connection.
+func TestUdpSesnTxCoapClosed(t *testing.T) {
+	s := newTestSesn(t, sesn.MGMT_PROTO_OMP, "127.0.0.1:1")
+
+	m := coap.NewDgramMessage(coap.MessageParams{
+		Type:  coap.Confirmable,
+		Code:  coap.GET,
+		Token: []byte{1},
+	})
+	m.SetPathString("res")
+
+	if err := s.TxCoap(m); err == nil {
+		t.Errorf("TxCoap on closed session succeeded")
+	}
+}
+
+func TestUdpSesnTxCoap(t *testing.T) {
+	dev, err := net.ListenUDP("udp",
+		&net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dev.Close()
+
+	s := newTestSesn(t, sesn.MGMT_PROTO_OMP, dev.LocalAddr().String())
+	if err := s.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+
+	m := coap.NewDgramMessage(coap.MessageParams{
+		Type:    coap.Confirmable,
+		Code:    coap.PUT,
+		Token:   []byte{9},
+		Payload: []byte("coap"),
+	})
+	m.SetPathString("res")
+	if err := s.TxCoap(m); err != nil {
+		t.Fatalf("TxCoap failed: %v", err)
+	}
+
+	if err := dev.SetReadDeadline(time.Now().Add(testTimeout)); err != nil {
+		t.Fatal(err)
+	}
+	buf := make([]byte, 4096)
+	n, _, err := dev.ReadFromUDP(buf)
+	if err != nil {
+		t.Fatalf("device did not receive CoAP request: %v", err)
+	}
+	got, err := coap.ParseDgramMessage(buf[:n])
+	if err != nil {
+		t.Fatalf("invalid CoAP request: %v", err)
+	}
+	if got.PathString() != "res" || string(got.Payload()) != "coap" {
+		t.Errorf("got path %q payload %q", got.PathString(), got.Payload())
+	}
+}

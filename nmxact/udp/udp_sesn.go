@@ -135,6 +135,10 @@ func (s *UdpSesn) AbortRx(seq uint8) error {
 }
 
 func (s *UdpSesn) TxCoap(m coap.Message) error {
+	if !s.IsOpen() {
+		return fmt.Errorf("Attempt to transmit over closed UDP session")
+	}
+
 	txRaw := func(b []byte) error {
 		frags := nmxutil.Fragment(b, s.MtuOut())
 		for _, frag := range frags {
