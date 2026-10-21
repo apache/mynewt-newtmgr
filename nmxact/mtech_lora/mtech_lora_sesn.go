@@ -71,7 +71,7 @@ func NewLoraSesn(cfg sesn.SesnCfg, lx *LoraXport) (*LoraSesn, error) {
 	}
 
 	if cfg.Lora.Port < 1 || cfg.Lora.Port > 223 {
-		return nil, fmt.Errorf("Invalid Lora Port %d\n", cfg.Lora.Addr)
+		return nil, fmt.Errorf("Invalid Lora Port %d\n", cfg.Lora.Port)
 	}
 	s := &LoraSesn{
 		cfg:   cfg,
