@@ -366,3 +366,14 @@ func TestDispatcherDuplicateRspDoesNotBlock(t *testing.T) {
 		t.Fatalf("RemoveListener blocked")
 	}
 }
+
+// The timer callback may run concurrently with Close.  It must neither
+// race with Close nor panic with "send on closed channel".  The race is
+// timing dependent, so try many times.
+func TestListenerTimeoutRacesClose(t *testing.T) {
+	for i := 0; i < 2000; i++ {
+		nl := NewListener()
+		nl.AfterTimeout(0)
+		nl.Close()
+	}
+}
