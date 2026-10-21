@@ -114,7 +114,7 @@ func (lx *LoraXport) minMtu() int {
 
 func NormalizeAddr(addr string) (string, error) {
 	a := strings.Replace(addr, ":", "", -1)
-	a = strings.Replace(addr, "-", "", -1)
+	a = strings.Replace(a, "-", "", -1)
 	// XXX check that there's 8 components, 2 chars each, which are in [0-9,a-f]
 	if len(a) != 16 {
 		return "", fmt.Errorf("Invalid addr")
