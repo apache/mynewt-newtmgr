@@ -88,8 +88,10 @@ func (d *Dispatcher) addOmpListener(seq uint8) (*Listener, error) {
 
 	d.wg.Add(1)
 	go func() {
-		defer d.RemoveCoapListener(mc)
+		// Deferred calls run in reverse order: remove the CoAP listener
+		// before signalling Stop() that this goroutine is done.
 		defer d.wg.Done()
+		defer d.RemoveCoapListener(mc)
 
 		// Listen for events.  All feedback is sent to the client via the NMP
 		// listener channels.  It is done this way so that client code can be
