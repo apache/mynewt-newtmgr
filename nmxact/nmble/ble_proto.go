@@ -1463,12 +1463,18 @@ func ErrCodeToString(e int) string {
 
 	switch {
 	case e >= ERR_CODE_SM_PEER_BASE:
+		s = SmErrCodeStringMap[e-ERR_CODE_SM_PEER_BASE]
+
 	case e >= ERR_CODE_SM_US_BASE:
+		s = SmErrCodeStringMap[e-ERR_CODE_SM_US_BASE]
+
 	case e >= ERR_CODE_L2C_BASE:
 	case e >= ERR_CODE_HCI_BASE:
 		s = HciErrCodeStringMap[e-ERR_CODE_HCI_BASE]
 
 	case e >= ERR_CODE_ATT_BASE:
+		s = AttErrCodeStringMap[e-ERR_CODE_ATT_BASE]
+
 	default:
 		s = ErrCodeStringMap[e]
 	}

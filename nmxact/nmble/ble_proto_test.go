@@ -279,6 +279,14 @@ func TestErrCodeToString(t *testing.T) {
 			HciErrCodeStringMap[ERR_CODE_HCI_REM_USER_CONN_TERM]},
 		{ERR_CODE_HCI_BASE + 0xfe, "unknown"},
 		{ERR_CODE_L2C_BASE + 1, "unknown"},
+		{ERR_CODE_ATT_BASE + ERR_CODE_ATT_INSUFFICIENT_ENC,
+			"insufficient encryption"},
+		{ERR_CODE_ATT_BASE, "unknown"},
+		{ERR_CODE_ATT_BASE + 0xfe, "unknown"},
+		{ERR_CODE_SM_US_BASE + ERR_CODE_SM_ERR_PASSKEY, "passkey"},
+		{ERR_CODE_SM_PEER_BASE + ERR_CODE_SM_ERR_DHKEY,
+			"dhkey check failed"},
+		{ERR_CODE_SM_PEER_BASE + 0x100, "unknown"},
 	}
 
 	for _, tt := range tests {
@@ -291,6 +299,22 @@ func TestErrCodeToString(t *testing.T) {
 	for code, name := range ErrCodeStringMap {
 		if got := ErrCodeToString(code); got != name {
 			t.Errorf("ErrCodeToString(%d) = %q, want %q", code, got, name)
+		}
+	}
+	for code, name := range AttErrCodeStringMap {
+		if got := ErrCodeToString(ERR_CODE_ATT_BASE + code); got != name {
+			t.Errorf("ErrCodeToString(att %d) = %q, want %q", code, got,
+				name)
+		}
+	}
+	for code, name := range SmErrCodeStringMap {
+		for _, base := range []int{ERR_CODE_SM_US_BASE,
+			ERR_CODE_SM_PEER_BASE} {
+
+			if got := ErrCodeToString(base + code); got != name {
+				t.Errorf("ErrCodeToString(%#x) = %q, want %q", base+code,
+					got, name)
+			}
 		}
 	}
 	for code, name := range HciErrCodeStringMap {
