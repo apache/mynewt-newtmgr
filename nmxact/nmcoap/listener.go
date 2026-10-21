@@ -24,6 +24,7 @@ import (
 	"encoding/hex"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/runtimeco/go-coap"
@@ -40,6 +41,9 @@ type Listener struct {
 	ErrChan  chan error
 	tmoChan  chan time.Time
 	timer    *time.Timer
+
+	// Protects tmoChan and timer against the timer callback.
+	mtx sync.Mutex
 }
 
 func (mc *MsgCriteria) String() string {
@@ -118,9 +122,20 @@ func NewListener(mc MsgCriteria) *Listener {
 }
 
 func (ol *Listener) AfterTimeout(tmo time.Duration) <-chan time.Time {
+	ol.mtx.Lock()
+	defer ol.mtx.Unlock()
+
 	fn := func() {
+		ol.mtx.Lock()
+		defer ol.mtx.Unlock()
+
+		// The listener may have been closed after the timer fired.  Never
+		// block here; a pending timeout is as good as a new one.
 		if ol.tmoChan != nil {
-			ol.tmoChan <- time.Now()
+			select {
+			case ol.tmoChan <- time.Now():
+			default:
+			}
 		}
 	}
 	ol.timer = time.AfterFunc(tmo, fn)
@@ -128,6 +143,9 @@ func (ol *Listener) AfterTimeout(tmo time.Duration) <-chan time.Time {
 }
 
 func (ol *Listener) Close() {
+	ol.mtx.Lock()
+	defer ol.mtx.Unlock()
+
 	if ol.timer != nil {
 		ol.timer.Stop()
 	}

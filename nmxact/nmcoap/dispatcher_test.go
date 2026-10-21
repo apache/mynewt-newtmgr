@@ -319,3 +319,14 @@ func TestListenerCloseBeforeTimeout(t *testing.T) {
 		t.Errorf("timer still active after Close")
 	}
 }
+
+// Regression test for 827bef2: the timer callback may run concurrently
+// with Close.  It must neither race with Close nor panic with "send on
+// closed channel".  The race is timing dependent, so try many times.
+func TestListenerTimeoutRacesClose(t *testing.T) {
+	for i := 0; i < 2000; i++ {
+		l := NewListener(MsgCriteria{})
+		l.AfterTimeout(0)
+		l.Close()
+	}
+}
