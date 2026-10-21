@@ -455,3 +455,38 @@ func TestErrFunnelNilInsert(t *testing.T) {
 	}()
 	f.Insert(nil)
 }
+
+// A more severe error inserted just as the accumulation timer fires must
+// not deadlock Insert (time.AfterFunc timers have no channel to drain)
+// and must still be the error reported.
+func TestErrFunnelInsertWhileTimerFires(t *testing.T) {
+	f := &ErrFunnel{
+		AccumDelay: time.Millisecond,
+	}
+	f.LessCb = func(a error, b error) bool {
+		// Called with the funnel locked: give the timer time to fire so
+		// that Stop() fails.  If it does not fire in time the test still
+		// passes, it just does not exercise the race.
+		time.Sleep(50 * time.Millisecond)
+		return sevLess(a, b)
+	}
+
+	w := f.Wait()
+	f.Insert(sevError(1))
+
+	done := make(chan struct{})
+	go func() {
+		f.Insert(sevError(2))
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(syncTestTimeout):
+		t.Fatalf("Insert deadlocked")
+	}
+
+	if err := recvFunnel(t, w); err != sevError(2) {
+		t.Errorf("got %v, want severity 2", err)
+	}
+}
