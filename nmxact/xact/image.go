@@ -340,6 +340,13 @@ func (t *ImageUploadIntTracker) HandleError(off int, err error) bool {
 }
 
 func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
+	// The window size is also the capacity of the response channels.
+	// Unbuffered channels deadlock with sessions which deliver the
+	// response before TxRxMgmtAsync() returns.
+	if c.MaxWinSz <= 0 {
+		c.MaxWinSz = IMAGE_UPLOAD_DEF_MAX_WS
+	}
+
 	res := newImageUploadResult()
 
 	// Signalled (without blocking) whenever a response or error has been
