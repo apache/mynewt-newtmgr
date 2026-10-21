@@ -352,14 +352,13 @@ func TestDispatcherErrorAll(t *testing.T) {
 	d.ErrorAll(want)
 
 	for i, l := range lners {
-		// The error is delivered before the listener is closed.
 		select {
-		case err, ok := <-l.ErrChan:
-			if ok && err != want {
+		case err := <-l.ErrChan:
+			if err != want {
 				t.Errorf("listener %d: got %v, want %v", i, err, want)
 			}
 		case <-time.After(testTimeout):
-			t.Fatalf("listener %d: ErrChan neither written nor closed", i)
+			t.Fatalf("listener %d: no error delivered", i)
 		}
 		if _, ok := <-l.MsgChan; ok {
 			t.Errorf("listener %d: MsgChan not closed", i)
@@ -520,8 +519,16 @@ func TestListenerCloseDrains(t *testing.T) {
 
 	l.Close()
 
-	if !isClosedMsg(l.MsgChan) || !isClosedErr(l.ErrChan) {
-		t.Errorf("channels not drained and closed")
+	if !isClosedMsg(l.MsgChan) {
+		t.Errorf("MsgChan not drained and closed")
+	}
+
+	// A pending error is kept for the owner.
+	if err, ok := <-l.ErrChan; !ok || err == nil {
+		t.Errorf("pending error lost by Close")
+	}
+	if !isClosedErr(l.ErrChan) {
+		t.Errorf("ErrChan not closed")
 	}
 	if l.timer.Stop() {
 		t.Errorf("timer still active after Close")
@@ -552,5 +559,28 @@ func isClosedTmo(c chan time.Time) bool {
 		return !ok
 	default:
 		return false
+	}
+}
+
+// ErrorAll must deliver the error even if the listener owner is not
+// blocked on ErrChan at that moment (e.g. it is busy handling a message).
+// Previously Close() drained the error that ErrorAll had just queued, so
+// the owner only saw a closed channel and a nil error.
+func TestDispatcherErrorAllDeliversError(t *testing.T) {
+	d := NewDispatcher()
+	l := addTestListener(t, d, SeqKey(1))
+
+	want := errors.New("xport stopped")
+	d.ErrorAll(want)
+
+	err, ok := <-l.ErrChan
+	if !ok {
+		t.Fatalf("ErrChan closed without delivering the error")
+	}
+	if err != want {
+		t.Fatalf("got %v, want %v", err, want)
+	}
+	if _, ok := <-l.ErrChan; ok {
+		t.Errorf("ErrChan not closed after the error")
 	}
 }
