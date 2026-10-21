@@ -381,6 +381,11 @@ func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 		t.ProcessMissedChunks()
 
 		if t.Off == len(c.Data) {
+			// Everything has been sent; wait for a response instead of
+			// spinning.
+			if int(atomic.LoadInt32(&t.MaxRxOff)) < len(c.Data) {
+				<-ch
+			}
 			continue
 		}
 

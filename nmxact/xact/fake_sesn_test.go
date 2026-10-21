@@ -84,6 +84,10 @@ type fakeSesn struct {
 	handler fakeHandler
 	reqs    []fakeReq
 
+	// If non-zero, TxRxMgmtAsync() delivers the result from a separate
+	// goroutine after this delay, like the transceiver based sessions.
+	asyncDelay time.Duration
+
 	abortErr  error
 	abortSeqs []uint8
 
@@ -221,15 +225,27 @@ func (s *fakeSesn) TxRxMgmt(m *nmp.NmpMsg,
 
 // TxRxMgmtAsync behaves like the serial and naked BLE sessions: the
 // transaction is performed synchronously and the result is pushed to the
-// provided channels before returning.
+// provided channels before returning.  If asyncDelay is set, the result
+// is delivered later from a separate goroutine instead.
 func (s *fakeSesn) TxRxMgmtAsync(m *nmp.NmpMsg, timeout time.Duration,
 	ch chan nmp.NmpRsp, errc chan error) error {
 
 	rsp, err := s.TxRxMgmt(m, timeout)
-	if err != nil {
-		errc <- err
+	deliver := func() {
+		if err != nil {
+			errc <- err
+		} else {
+			ch <- rsp
+		}
+	}
+
+	if s.asyncDelay == 0 {
+		deliver()
 	} else {
-		ch <- rsp
+		go func() {
+			time.Sleep(s.asyncDelay)
+			deliver()
+		}()
 	}
 	return nil
 }

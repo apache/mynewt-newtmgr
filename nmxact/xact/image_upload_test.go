@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"mynewt.apache.org/newtmgr/nmxact/nmp"
 	"mynewt.apache.org/newtmgr/nmxact/nmxutil"
@@ -643,4 +644,36 @@ func TestImageUpgradeRunNoProgressCb(t *testing.T) {
 		t.Errorf("status %d", st)
 	}
 	checkUploaded(t, &dev.fakeImgDev, data)
+}
+
+// Responses delivered asynchronously, as with the transceiver based
+// sessions: after the last chunk has been sent, Run() waits for the
+// outstanding responses.
+func TestImageUploadRunAsyncSession(t *testing.T) {
+	data := testImage(3000)
+
+	for _, winSz := range []int{1, 2, 5} {
+		for _, drop := range []bool{false, true} {
+			dev := &fakeImgDev{}
+			if drop {
+				dev.dropOffs = map[uint32]bool{0: true}
+			}
+			s := newFakeSesn(dev.handle)
+			s.mtu = 200
+			s.asyncDelay = time.Millisecond
+
+			c := NewImageUploadCmd()
+			c.Data = data
+			c.MaxWinSz = winSz
+
+			res, err := runCmd(t, c, s)
+			if err != nil {
+				t.Fatalf("win %d drop %v: %v", winSz, drop, err)
+			}
+			if st := res.Status(); st != 0 {
+				t.Errorf("win %d drop %v: status %d", winSz, drop, st)
+			}
+			checkUploaded(t, dev, data)
+		}
+	}
 }
