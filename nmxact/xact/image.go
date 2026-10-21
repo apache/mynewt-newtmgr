@@ -272,8 +272,9 @@ func (t *ImageUploadIntTracker) HandleResponse(c *ImageUploadCmd, rsp nmp.NmpRsp
 		res.Rsps = append(res.Rsps, irsp)
 		t.UpdateTracker(int(irsp.Off), IMAGE_UPLOAD_STATUS_RQ)
 
+		// MaxRxOff is also read without the mutex by Run().
 		if t.MaxRxOff < int32(irsp.Off) {
-			t.MaxRxOff = int32(irsp.Off)
+			atomic.StoreInt32(&t.MaxRxOff, int32(irsp.Off))
 		}
 		if c.ProgressCb != nil {
 			c.ProgressCb(c, irsp)
@@ -392,11 +393,19 @@ func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 		}(int(r.Off))
 	}
 
-	if int(t.MaxRxOff) == len(c.Data) {
-		return res, nil
+	maxRxOff := int(atomic.LoadInt32(&t.MaxRxOff))
+	if maxRxOff == len(c.Data) {
+		// Responses to requests still in flight may be processed after
+		// we return; hand out a snapshot of the result so that the
+		// caller does not race with them.
+		t.Mutex.Lock()
+		defer t.Mutex.Unlock()
+		snap := newImageUploadResult()
+		snap.Rsps = append(snap.Rsps, res.Rsps...)
+		return snap, nil
 	} else {
 		return nil, fmt.Errorf("ImageUpload unexpected error after %d/%d bytes",
-			t.MaxRxOff, len(c.Data))
+			maxRxOff, len(c.Data))
 	}
 }
 
