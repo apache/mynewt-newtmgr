@@ -40,7 +40,7 @@ func (r *Reassembler) RxFrag(frag []byte) *coap.TcpMessage {
 	tm, r.cur, err = coap.PullTcp(r.cur)
 	if err != nil {
 		log.Debugf("received invalid CoAP-TCP packet: %s", err.Error())
-		panic("GA")
+		r.cur = nil
 		return nil
 	}
 
