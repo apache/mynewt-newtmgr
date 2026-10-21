@@ -35,6 +35,10 @@ type Listener struct {
 	ErrChan chan error
 	tmoChan chan time.Time
 	timer   *time.Timer
+
+	// Protects tmoChan and timer against the timer callback.
+	mtx    sync.Mutex
+	closed bool
 }
 
 func NewListener() *Listener {
@@ -46,14 +50,31 @@ func NewListener() *Listener {
 }
 
 func (nl *Listener) AfterTimeout(tmo time.Duration) <-chan time.Time {
+	nl.mtx.Lock()
+	defer nl.mtx.Unlock()
+
 	fn := func() {
-		nl.tmoChan <- time.Now()
+		nl.mtx.Lock()
+		defer nl.mtx.Unlock()
+
+		// The listener may have been closed after the timer fired.  Never
+		// block here; a pending timeout is as good as a new one.
+		if !nl.closed {
+			select {
+			case nl.tmoChan <- time.Now():
+			default:
+			}
+		}
 	}
 	nl.timer = time.AfterFunc(tmo, fn)
 	return nl.tmoChan
 }
 
 func (nl *Listener) Close() {
+	nl.mtx.Lock()
+	defer nl.mtx.Unlock()
+
+	nl.closed = true
 	if nl.timer != nil {
 		nl.timer.Stop()
 	}
