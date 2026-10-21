@@ -60,6 +60,7 @@ func einvalBllConnString(f string, args ...interface{}) error {
 
 func ParseBllConnString(cs string) (*BllConfig, error) {
 	bc := NewBllConfig()
+	bc.HciIdx = nmutil.HciIdx
 
 	if strings.TrimSpace(cs) == "" {
 		return bc, nil
@@ -100,8 +101,6 @@ func ParseBllConnString(cs string) (*BllConfig, error) {
 			return nil, einvalBllConnString("Unrecognized key: %s", k)
 		}
 	}
-
-	bc.HciIdx = nmutil.HciIdx
 
 	return bc, nil
 }
