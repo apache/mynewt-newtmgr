@@ -30,6 +30,33 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// connProfileParseVars applies "key=value" variable definitions from the
+// "conn add" command line to the given connection profile.
+func connProfileParseVars(cp *config.ConnProfile, vdefs []string) error {
+	for _, vdef := range vdefs {
+		s := strings.SplitN(vdef, "=", 2)
+		if len(s) != 2 {
+			return util.FmtNewtError(
+				"Invalid variable definition (expected key=value): %s", vdef)
+		}
+
+		switch s[0] {
+		case "type":
+			var err error
+			cp.Type, err = config.ConnTypeFromString(s[1])
+			if err != nil {
+				return err
+			}
+		case "connstring":
+			cp.ConnString = s[1]
+		default:
+			return util.NewNewtError("Unknown variable " + s[0])
+		}
+	}
+
+	return nil
+}
+
 func connProfileAddCmd(cmd *cobra.Command, args []string) {
 	cpm := config.GlobalConnProfileMgr()
 
@@ -43,20 +70,8 @@ func connProfileAddCmd(cmd *cobra.Command, args []string) {
 	cp.Name = name
 	cp.Type = config.CONN_TYPE_NONE
 
-	for _, vdef := range args[1:] {
-		s := strings.SplitN(vdef, "=", 2)
-		switch s[0] {
-		case "type":
-			var err error
-			cp.Type, err = config.ConnTypeFromString(s[1])
-			if err != nil {
-				nmUsage(cmd, err)
-			}
-		case "connstring":
-			cp.ConnString = s[1]
-		default:
-			nmUsage(cmd, util.NewNewtError("Unknown variable "+s[0]))
-		}
+	if err := connProfileParseVars(cp, args[1:]); err != nil {
+		nmUsage(cmd, err)
 	}
 
 	// Check that a type is specified.
