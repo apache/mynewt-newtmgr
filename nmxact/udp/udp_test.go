@@ -444,3 +444,54 @@ func TestUdpXportStartStop(t *testing.T) {
 		t.Errorf("BuildSesn returned %T, want *UdpSesn", s)
 	}
 }
+
+// The dispatch callback may hand the received data to another goroutine
+// (OMP responses are decoded asynchronously and the CoAP payload refers to
+// the input buffer), so each datagram must get its own buffer rather than
+// being overwritten by the next one.
+func TestListenBufferNotReused(t *testing.T) {
+	dev, err := net.ListenUDP("udp",
+		&net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dev.Close()
+
+	rx := make(chan []byte, 2)
+	conn, _, err := Listen(dev.LocalAddr().String(), func(data []byte) {
+		rx <- data
+	})
+	if err != nil {
+		t.Fatalf("Listen failed: %v", err)
+	}
+	defer conn.Close()
+
+	dst := &net.UDPAddr{
+		IP:   net.IPv4(127, 0, 0, 1),
+		Port: conn.LocalAddr().(*net.UDPAddr).Port,
+	}
+	for _, s := range []string{"first", "SECND"} {
+		if _, err := dev.WriteToUDP([]byte(s), dst); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var bufs [][]byte
+	for i := 0; i < 2; i++ {
+		select {
+		case b := <-rx:
+			bufs = append(bufs, b)
+		case <-time.After(testTimeout):
+			t.Fatalf("timeout waiting for datagram %d", i)
+		}
+	}
+
+	// Both datagrams have been received; the first slice must still hold
+	// the first datagram.
+	if string(bufs[0]) != "first" {
+		t.Errorf("first datagram = %q, want %q", bufs[0], "first")
+	}
+	if string(bufs[1]) != "SECND" {
+		t.Errorf("second datagram = %q", bufs[1])
+	}
+}

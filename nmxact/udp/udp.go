@@ -45,9 +45,13 @@ func Listen(peerString string, dispatchCb func(data []byte)) (
 	}
 
 	go func() {
-		data := make([]byte, MAX_PACKET_SIZE)
-
 		for {
+			// Use a new buffer for each datagram.  The callback may hand
+			// the data to another goroutine (e.g. a CoAP message payload
+			// refers to it), so it must not be overwritten by the next
+			// read.
+			data := make([]byte, MAX_PACKET_SIZE)
+
 			nr, srcAddr, err := conn.ReadFromUDP(data)
 			if err != nil {
 				// Connection closed or read error.
