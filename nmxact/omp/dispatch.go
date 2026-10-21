@@ -93,6 +93,22 @@ func (d *Dispatcher) addOmpListener(seq uint8) (*Listener, error) {
 		defer d.wg.Done()
 		defer d.RemoveCoapListener(mc)
 
+		// The client expects a single response or error.  Never block
+		// forwarding extras (e.g. duplicate responses); this goroutine must
+		// keep draining the CoAP listener and remain responsive to stopCh.
+		sendRsp := func(rsp nmp.NmpRsp) {
+			select {
+			case ompl.nmpl.RspChan <- rsp:
+			default:
+			}
+		}
+		sendErr := func(err error) {
+			select {
+			case ompl.nmpl.ErrChan <- err:
+			default:
+			}
+		}
+
 		// Listen for events.  All feedback is sent to the client via the NMP
 		// listener channels.  It is done this way so that client code can be
 		// OMP/NMP agnostic.
@@ -101,16 +117,16 @@ func (d *Dispatcher) addOmpListener(seq uint8) (*Listener, error) {
 			case m := <-ompl.coapl.RspChan:
 				rsp, err := DecodeOmp(m, d.rxFilter)
 				if err != nil {
-					ompl.nmpl.ErrChan <- err
+					sendErr(err)
 				} else if rsp != nil {
-					ompl.nmpl.RspChan <- rsp
+					sendRsp(rsp)
 				} else {
 					/* no error, no response */
 				}
 
 			case err := <-ompl.coapl.ErrChan:
 				if err != nil {
-					ompl.nmpl.ErrChan <- err
+					sendErr(err)
 				}
 
 			case <-ompl.stopCh:

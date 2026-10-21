@@ -390,3 +390,69 @@ func TestDispatcherStopRemovesCoapListeners(t *testing.T) {
 		}
 	}
 }
+
+// A device may send more than one response with the same sequence number
+// (e.g. a CoAP retransmission).  The extra responses must not block the RX
+// path or the listener goroutine, otherwise Stop() never returns.
+func TestDispatcherDuplicateRspDoesNotBlock(t *testing.T) {
+	d, err := NewDispatcher(nil, false, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	nl, err := d.AddNmpListener(50)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	b := encodeTestOmpRsp(t, coap.Content, 50, "dup")
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 5; i++ {
+			d.Dispatch(b)
+		}
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(testTimeout):
+		t.Fatalf("Dispatch of duplicate response blocked")
+	}
+
+	if echo := recvRsp(t, nl).(*nmp.EchoRsp); echo.Payload != "dup" {
+		t.Errorf("payload = %q", echo.Payload)
+	}
+
+	d.RemoveNmpListener(50)
+	stopWithTimeout(t, d)
+}
+
+// Repeated errors must not block the listener goroutine either.
+func TestDispatcherRepeatedErrorDoesNotBlock(t *testing.T) {
+	d, err := NewDispatcher(nil, false, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := d.AddNmpListener(51); err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 5; i++ {
+			d.ErrorAll(errors.New("err"))
+		}
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(testTimeout):
+		t.Fatalf("ErrorAll blocked")
+	}
+
+	stopWithTimeout(t, d)
+}
