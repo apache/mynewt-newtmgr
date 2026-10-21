@@ -323,3 +323,46 @@ func TestListenerCloseStopsTimer(t *testing.T) {
 		t.Errorf("timer still active after Close")
 	}
 }
+
+// A device may send more than one response with the same sequence number
+// (e.g. a retransmission).  The RX path must not block on the extra
+// responses, otherwise the listener can never be removed.
+func TestDispatcherDuplicateRspDoesNotBlock(t *testing.T) {
+	d := NewDispatcher(0)
+	nl, err := d.AddListener(3)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	b := encodeTestEchoRsp(t, NMP_OP_WRITE_RSP, 3, "dup")
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 3; i++ {
+			d.Dispatch(b)
+		}
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(testTimeout):
+		t.Fatalf("Dispatch of duplicate response blocked")
+	}
+
+	if echo := recvRsp(t, nl).(*EchoRsp); echo.Payload != "dup" {
+		t.Errorf("payload = %q", echo.Payload)
+	}
+
+	removed := make(chan struct{})
+	go func() {
+		d.RemoveListener(3)
+		close(removed)
+	}()
+
+	select {
+	case <-removed:
+	case <-time.After(testTimeout):
+		t.Fatalf("RemoveListener blocked")
+	}
+}

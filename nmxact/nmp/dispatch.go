@@ -138,7 +138,14 @@ func (d *Dispatcher) DispatchRsp(r NmpRsp) bool {
 		return false
 	}
 
-	nl.RspChan <- r
+	// Only one response per sequence number is expected.  Drop duplicates
+	// rather than blocking the receive path while holding the lock.
+	select {
+	case nl.RspChan <- r:
+	default:
+		log.Debugf("Dropping duplicate NMP response; seq=%d", r.Hdr().Seq)
+		return false
+	}
 
 	return true
 }
