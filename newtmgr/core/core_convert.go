@@ -238,7 +238,7 @@ func (cc *CoreConvert) makeRegInfo(regs []byte) {
 
 func (cc *CoreConvert) setProgHdrOff() {
 	off := binary.Size(cc.elfHdr)
-	off += len(cc.phdrs) * binary.Size(cc.phdrs[0])
+	off += len(cc.phdrs) * binary.Size(elf.Prog32{})
 
 	for idx, phdr := range cc.phdrs {
 		phdr.Off = uint32(off)

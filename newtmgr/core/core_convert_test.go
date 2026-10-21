@@ -310,3 +310,44 @@ func TestConvertMissingFiles(t *testing.T) {
 		t.Errorf("Convert() without files: err = %v", err)
 	}
 }
+
+// A corefile without memory or register TLVs results in an ELF file with
+// no program headers.  This used to panic.
+func TestConvertNoProgHdrs(t *testing.T) {
+	hash := seq(32, 1)
+
+	tests := []struct {
+		name string
+		tlvs []testTlv
+		hash []byte
+	}{
+		{"header only", nil, nil},
+		{"image only", []testTlv{{COREDUMP_TLV_IMAGE, 0, hash}}, hash},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cc, dst, err := convert(t, buildCore(COREDUMP_MAGIC, tt.tlvs))
+			if err != nil {
+				t.Fatalf("ConvertFilenames: %v", err)
+			}
+			if !bytes.Equal(cc.ImageHash, tt.hash) {
+				t.Errorf("ImageHash = %x, want %x", cc.ImageHash, tt.hash)
+			}
+
+			f, err := elf.Open(dst)
+			if err != nil {
+				t.Fatalf("elf.Open: %v", err)
+			}
+			defer f.Close()
+
+			if f.Type != elf.ET_CORE || f.Machine != elf.EM_ARM {
+				t.Errorf("type/machine = %v/%v", f.Type, f.Machine)
+			}
+			if len(f.Progs) != 0 {
+				t.Errorf("expected no program headers, got %d",
+					len(f.Progs))
+			}
+		})
+	}
+}
