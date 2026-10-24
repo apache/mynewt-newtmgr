@@ -22,6 +22,8 @@ notifications:
   issues: notifications@mynewt.apache.org
   pullrequests: notifications@mynewt.apache.org
 github:
+  dependabot_alerts: true
+  dependabot_updates: true
   rulesets:
     - name: "Default Branch Protection"
       type: branch
