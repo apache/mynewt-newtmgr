@@ -30,13 +30,17 @@ updates:
         patterns:
           - "*"
 
+  # Security updates only: a zero limit disables version update PRs,
+  # security update PRs are not affected by it.
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "deps"
     groups:
       go-modules:
+        applies-to: security-updates
         patterns:
           - "*"
