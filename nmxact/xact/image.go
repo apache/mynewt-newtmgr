@@ -68,6 +68,9 @@ type ImageUploadIntTracker struct {
 
 	// Set when the device answered with a non-zero rc.
 	rspFailed bool
+
+	// Offset the upload started at; nothing below it is resent.
+	startOff int
 }
 
 type ImageUploadResult struct {
@@ -329,7 +332,23 @@ func (t *ImageUploadIntTracker) HandleError(off int, err error) bool {
 	}
 	t.TuneWS = false
 	t.WCount -= 1
-	t.UpdateTracker(off, IMAGE_UPLOAD_STATUS_MISSED)
+
+	// Resend everything the device has not confirmed yet.  Responses and
+	// errors are not matched to requests, so off is not necessarily the
+	// failed chunk; the device writes chunks in order though, so a failed
+	// chunk is at or after the highest offset the device reported.
+	// Retransmission of missed chunks is otherwise triggered by responses
+	// for later chunks, which never come if the failed chunk was the last
+	// one or all chunks in the window failed.  Chunks the device already
+	// has are answered with the offset it expects, without being written
+	// again.
+	resendOff := int(t.MaxRxOff)
+	if resendOff < t.startOff {
+		resendOff = t.startOff
+	}
+	if resendOff < t.Off {
+		t.Off = resendOff
+	}
 
 	// Indicate transition from window being full to with open slot(s)
 	if wFull && t.WCap > t.WCount {
@@ -362,6 +381,7 @@ func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 		Off:      c.StartOff,
 		RspMap:   make(map[int]int),
 		MaxRxOff: 0,
+		startOff: c.StartOff,
 	}
 
 	for int(atomic.LoadInt32(&t.MaxRxOff)) < len(c.Data) {
@@ -380,7 +400,12 @@ func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 
 		t.ProcessMissedChunks()
 
-		if t.Off == len(c.Data) {
+		// Off is also rewound by HandleError() on failed requests.
+		t.Mutex.Lock()
+		allSent := t.Off == len(c.Data)
+		t.Mutex.Unlock()
+
+		if allSent {
 			// Everything has been sent; wait for a response instead of
 			// spinning.
 			if int(atomic.LoadInt32(&t.MaxRxOff)) < len(c.Data) {
