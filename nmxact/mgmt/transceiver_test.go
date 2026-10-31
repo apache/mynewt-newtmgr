@@ -500,11 +500,33 @@ func TestTxRxMgmtAsyncErrors(t *testing.T) {
 			}
 
 			// Tx failure.
+			req := echoReq("x")
 			f.txErr = errors.New("tx failed")
-			err := f.txvr.TxRxMgmtAsync(f.tx, echoReq("x"), 1024,
+			err := f.txvr.TxRxMgmtAsync(f.tx, req, 1024,
 				testTimeout, ch, errc)
 			if err != f.txErr {
 				t.Errorf("got error %v, want %v", err, f.txErr)
+			}
+
+			// The listener of the failed request must be gone, so that
+			// the request can be sent again.  OMP removes its CoAP
+			// listener asynchronously, so an immediate resend may still
+			// find it.
+			if mode.proto != sesn.MGMT_PROTO_NMP {
+				return
+			}
+			f.txErr = nil
+			err = f.txvr.TxRxMgmtAsync(f.tx, req, 1024, testTimeout, ch,
+				errc)
+			if err != nil {
+				t.Fatalf("resend after tx failure: %v", err)
+			}
+			select {
+			case <-ch:
+			case err := <-errc:
+				t.Errorf("resend after tx failure: %v", err)
+			case <-time.After(testTimeout):
+				t.Errorf("resend after tx failure: no response")
 			}
 		})
 	}
