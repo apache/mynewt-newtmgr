@@ -60,6 +60,7 @@ const (
 	NMP_ID_DEF_MPSTAT         = 3
 	NMP_ID_DEF_DATETIME_STR   = 4
 	NMP_ID_DEF_RESET          = 5
+	NMP_ID_DEF_PARAMS         = 6
 )
 
 // Image group (1).

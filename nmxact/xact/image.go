@@ -55,6 +55,11 @@ type ImageUploadCmd struct {
 	ProgressCb ImageUploadProgressFn
 	ImageNum   int
 	MaxWinSz   int
+
+	// Maximum length of an encoded request; 0 means the session MTU.  A
+	// larger value is only usable if the session can split a request over
+	// several transport packets and the peer reassembles them.
+	MaxReqLen int
 }
 
 type ImageUploadIntTracker struct {
@@ -129,8 +134,16 @@ func encodeUploadReq(s sesn.Sesn, hash []byte, upgrade bool, data []byte,
 	return enc, nil
 }
 
+func maxReqLen(s sesn.Sesn, reqLen int) int {
+	if reqLen > 0 {
+		return reqLen
+	}
+
+	return s.MtuOut()
+}
+
 func findChunkLen(s sesn.Sesn, hash []byte, upgrade bool, data []byte,
-	off int, imageNum int, seq uint8) (int, error) {
+	off int, imageNum int, seq uint8, reqLen int) (int, error) {
 
 	// Let's start by encoding max allowed chunk len and we will see how many
 	// bytes we need to cut
@@ -143,26 +156,28 @@ func findChunkLen(s sesn.Sesn, hash []byte, upgrade bool, data []byte,
 			return 0, err
 		}
 
-		if len(enc) <= (s.MtuOut()) {
+		if len(enc) <= reqLen {
 			break
 		}
 
 		// Encoded length is larger than MTU, we need to make chunk shorter
-		overflow := len(enc) - s.MtuOut()
+		overflow := len(enc) - reqLen
 		chunklen -= overflow
 		if chunklen <= 0 {
 			return 0, fmt.Errorf("Cannot create image upload request; "+
 				"MTU too low to fit any image data; max-payload-size=%d chunklen %d",
-				s.MtuOut(), chunklen)
+				reqLen, chunklen)
 		}
 	}
 
 	return chunklen, nil
 }
 
-func nextImageUploadReq(s sesn.Sesn, upgrade bool, data []byte, off int, imageNum int) (
-	*nmp.ImageUploadReq, error) {
+func nextImageUploadReq(s sesn.Sesn, upgrade bool, data []byte, off int, imageNum int,
+	reqLen int) (*nmp.ImageUploadReq, error) {
 	var hash []byte = nil
+
+	reqLen = maxReqLen(s, reqLen)
 
 	// Ensure we produce consistent requests while we calculate the chunk
 	// length.
@@ -181,7 +196,8 @@ func nextImageUploadReq(s sesn.Sesn, upgrade bool, data []byte, off int, imageNu
 	seq := nmxutil.NextNmpSeq()
 
 	// Find chunk length
-	chunklen, err := findChunkLen(s, hash, upgrade, data, off, imageNum, seq)
+	chunklen, err := findChunkLen(s, hash, upgrade, data, off, imageNum, seq,
+		reqLen)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +206,8 @@ func nextImageUploadReq(s sesn.Sesn, upgrade bool, data []byte, off int, imageNu
 	// fit we'll recalculate without hash
 	if off == 0 && chunklen < IMAGE_UPLOAD_MIN_1ST_CHUNK {
 		hash = nil
-		chunklen, err = findChunkLen(s, hash, upgrade, data, off, imageNum, seq)
+		chunklen, err = findChunkLen(s, hash, upgrade, data, off, imageNum, seq,
+			reqLen)
 		if err != nil {
 			return nil, err
 		}
@@ -201,7 +218,7 @@ func nextImageUploadReq(s sesn.Sesn, upgrade bool, data []byte, off int, imageNu
 	if chunklen <= 0 {
 		return nil, fmt.Errorf("Cannot create image upload request; "+
 			"MTU too low to fit any image data; max-payload-size=%d chunklen %d",
-			s.MtuOut(), chunklen)
+			reqLen, chunklen)
 	}
 
 	r := buildImageUploadReq(len(data), hash, upgrade,
@@ -213,9 +230,9 @@ func nextImageUploadReq(s sesn.Sesn, upgrade bool, data []byte, off int, imageNu
 	if err != nil {
 		return nil, err
 	}
-	if len(enc) > s.MtuOut() {
+	if len(enc) > reqLen {
 		return nil, fmt.Errorf("Invalid chunk length; payload-size=%d "+
-			"max-payload-size=%d", len(enc), s.MtuOut())
+			"max-payload-size=%d", len(enc), reqLen)
 	}
 
 	return r, nil
@@ -390,7 +407,8 @@ func (c *ImageUploadCmd) Run(s sesn.Sesn) (Result, error) {
 		}
 
 		t.Mutex.Lock()
-		r, err := nextImageUploadReq(s, c.Upgrade, c.Data, t.Off, c.ImageNum)
+		r, err := nextImageUploadReq(s, c.Upgrade, c.Data, t.Off, c.ImageNum,
+			c.MaxReqLen)
 		if err != nil {
 			t.Mutex.Unlock()
 			return nil, err
@@ -472,6 +490,7 @@ type ImageUpgradeCmd struct {
 	ProgressBar *pb.ProgressBar
 	ImageNum    int
 	MaxWinSz    int
+	MaxReqLen   int
 }
 
 type ImageUpgradeResult struct {
@@ -556,6 +575,7 @@ func (c *ImageUpgradeCmd) runUpload(s sesn.Sesn) (*ImageUploadResult, error) {
 		cmd.ImageNum = c.ImageNum
 		cmd.SetTxOptions(opt)
 		cmd.MaxWinSz = c.MaxWinSz
+		cmd.MaxReqLen = c.MaxReqLen
 
 		res, err := cmd.Run(s)
 		if err == nil {

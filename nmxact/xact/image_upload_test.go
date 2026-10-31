@@ -118,7 +118,7 @@ func TestImageUploadRun(t *testing.T) {
 	for _, pv := range protoVariants {
 		// Size of the first chunk at an MTU of 256.
 		r, err := nextImageUploadReq(newProtoSesn(pv, 256, nil), false,
-			testImage(1000), 0, 0)
+			testImage(1000), 0, 0, 0)
 		if err != nil {
 			t.Fatal(err)
 		}

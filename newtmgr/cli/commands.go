@@ -117,6 +117,7 @@ func Commands() *cobra.Command {
 	nmCmd.AddCommand(imageCmd())
 	nmCmd.AddCommand(logCmd())
 	nmCmd.AddCommand(mempoolStatCmd())
+	nmCmd.AddCommand(paramsCmd())
 	nmCmd.AddCommand(resetCmd())
 	nmCmd.AddCommand(runCmd())
 	nmCmd.AddCommand(statsCmd())

@@ -53,6 +53,7 @@ func mpStatRspCtor() NmpRsp        { return NewMempoolStatRsp() }
 func dateTimeReadRspCtor() NmpRsp  { return NewDateTimeReadRsp() }
 func dateTimeWriteRspCtor() NmpRsp { return NewDateTimeWriteRsp() }
 func resetRspCtor() NmpRsp         { return NewResetRsp() }
+func mcumgrParamsRspCtor() NmpRsp  { return NewMcumgrParamsRsp() }
 func imageUploadRspCtor() NmpRsp   { return NewImageUploadRsp() }
 func imageStateRspCtor() NmpRsp    { return NewImageStateRsp() }
 func coreListRspCtor() NmpRsp      { return NewCoreListRsp() }
@@ -82,6 +83,7 @@ var rspCtorMap = map[Ogi]rspCtor{
 	{op_rr, gr_def, NMP_ID_DEF_DATETIME_STR}: dateTimeReadRspCtor,
 	{op_wr, gr_def, NMP_ID_DEF_DATETIME_STR}: dateTimeWriteRspCtor,
 	{op_wr, gr_def, NMP_ID_DEF_RESET}:        resetRspCtor,
+	{op_rr, gr_def, NMP_ID_DEF_PARAMS}:       mcumgrParamsRspCtor,
 	{op_wr, gr_img, NMP_ID_IMAGE_UPLOAD}:     imageUploadRspCtor,
 	{op_rr, gr_img, NMP_ID_IMAGE_STATE}:      imageStateRspCtor,
 	{op_wr, gr_img, NMP_ID_IMAGE_STATE}:      imageStateRspCtor,

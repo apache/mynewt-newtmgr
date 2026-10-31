@@ -46,6 +46,7 @@ var noerase bool
 var upgrade bool
 var imageNum int
 var maxWinSz int
+var maxReqSz int
 
 func imageFlagsStr(image nmp.ImageStateEntry) string {
 	strs := []string{}
@@ -202,6 +203,20 @@ func imageUploadCmd(cmd *cobra.Command, args []string) {
 	c.ProgressBar.ShowSpeed = true
 	c.LastOff = 0
 	c.MaxWinSz = maxWinSz
+
+	if maxReqSz > 0 {
+		c.MaxReqLen = maxReqSz
+	} else if maxReqSz == 0 {
+		if params := sesnMcumgrParams(s); params != nil {
+			c.MaxReqLen = int(params.BufSize)
+			if !cmd.Flags().Changed("maxwinsize") && params.BufCount > 0 &&
+				int(params.BufCount) < c.MaxWinSz {
+
+				c.MaxWinSz = int(params.BufCount)
+			}
+		}
+	}
+
 	c.ProgressCb = func(cmd *xact.ImageUploadCmd, rsp *nmp.ImageUploadRsp) {
 		if rsp.Off > c.LastOff {
 			c.ProgressBar.Add(int(rsp.Off - c.LastOff))
@@ -419,6 +434,11 @@ func imageCmd() *cobra.Command {
 		"maxwinsize", "w", xact.IMAGE_UPLOAD_DEF_MAX_WS,
 		"Set the maximum size for the window of outstanding chunks in transit. "+
 			"caution:higher num may not translate to better perf and may result in errors")
+	uploadCmd.PersistentFlags().IntVar(&maxReqSz,
+		"maxreqsize", 0,
+		"Maximum size of an upload request. 0 reads the device's buffer "+
+			"size (requests larger than the MTU are split over several "+
+			"packets), -1 limits requests to the MTU")
 	imageCmd.AddCommand(uploadCmd)
 
 	coreListCmd := &cobra.Command{
