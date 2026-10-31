@@ -74,10 +74,36 @@ func NewTransceiver(txFilter nmcoap.TxMsgFilter, rxFilter nmcoap.RxMsgFilter, is
 	return t, nil
 }
 
+// A sequence number may still be in use by an earlier request whose response
+// was lost and which has not timed out yet, e.g. when many requests are sent
+// quickly and the 8-bit sequence number wraps around.  Use another one
+// instead of failing the request.
+const maxSeqTries = 256
+
+func (t *Transceiver) addNmpListener(req *nmp.NmpMsg) (*nmp.Listener, error) {
+	for i := 1; ; i++ {
+		nl, err := t.nd.AddListener(req.Hdr.Seq)
+		if err == nil || i >= maxSeqTries {
+			return nl, err
+		}
+		req.Hdr.Seq = nmxutil.NextNmpSeq()
+	}
+}
+
+func (t *Transceiver) addOmpListener(req *nmp.NmpMsg) (*nmp.Listener, error) {
+	for i := 1; ; i++ {
+		nl, err := t.od.AddNmpListener(req.Hdr.Seq)
+		if err == nil || i >= maxSeqTries {
+			return nl, err
+		}
+		req.Hdr.Seq = nmxutil.NextNmpSeq()
+	}
+}
+
 func (t *Transceiver) txRxNmp(txCb TxFn, req *nmp.NmpMsg, mtu int,
 	timeout time.Duration) (nmp.NmpRsp, error) {
 
-	nl, err := t.nd.AddListener(req.Hdr.Seq)
+	nl, err := t.addNmpListener(req)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +143,7 @@ func (t *Transceiver) txRxNmp(txCb TxFn, req *nmp.NmpMsg, mtu int,
 func (t *Transceiver) txRxNmpAsync(txCb TxFn, req *nmp.NmpMsg, mtu int,
 	timeout time.Duration, ch chan nmp.NmpRsp, errc chan error) error {
 
-	nl, err := t.nd.AddListener(req.Hdr.Seq)
+	nl, err := t.addNmpListener(req)
 	if err != nil {
 		return err
 	}
@@ -172,7 +198,7 @@ func (t *Transceiver) txRxNmpAsync(txCb TxFn, req *nmp.NmpMsg, mtu int,
 func (t *Transceiver) txRxOmp(txCb TxFn, req *nmp.NmpMsg, mtu int,
 	timeout time.Duration) (nmp.NmpRsp, error) {
 
-	nl, err := t.od.AddNmpListener(req.Hdr.Seq)
+	nl, err := t.addOmpListener(req)
 	if err != nil {
 		return nil, err
 	}
@@ -218,8 +244,8 @@ func (t *Transceiver) txRxOmp(txCb TxFn, req *nmp.NmpMsg, mtu int,
 func (t *Transceiver) txRxOmpAsync(txCb TxFn, req *nmp.NmpMsg, mtu int,
 	timeout time.Duration, ch chan nmp.NmpRsp, errc chan error) error {
 
+	nl, err := t.addOmpListener(req)
 	seq := req.Hdr.Seq
-	nl, err := t.od.AddNmpListener(seq)
 	if err != nil {
 		return err
 	}
