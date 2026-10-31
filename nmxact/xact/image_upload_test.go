@@ -337,6 +337,50 @@ func TestImageUploadRunRetransmit(t *testing.T) {
 	}
 }
 
+// Requests at the end of the upload, or all requests of a window, timing
+// out leave no response to trigger the retransmission; the upload must
+// still complete.
+func TestImageUploadRunRetransmitTail(t *testing.T) {
+	data := testImage(5000)
+
+	for _, winSz := range []int{1, 3, 5} {
+		s := newFakeSesn(nil)
+		s.mtu = 200
+
+		clean := &fakeImgDev{}
+		s.handler = clean.handle
+		c := NewImageUploadCmd()
+		c.Data = data
+		c.MaxWinSz = winSz
+		if _, err := runCmd(t, c, s); err != nil {
+			t.Fatal(err)
+		}
+		reqs := uploadReqs(t, s)
+		n := len(reqs)
+
+		for _, drop := range [][]int{
+			{n - 1},
+			{n - 2, n - 1},
+			{n / 2, n/2 + 1, n/2 + 2, n/2 + 3, n/2 + 4},
+		} {
+			dev := &fakeImgDev{dropOffs: map[uint32]bool{}}
+			for _, i := range drop {
+				dev.dropOffs[reqs[i].Off] = true
+			}
+			s := newFakeSesn(dev.handle)
+			s.mtu = 200
+
+			c := NewImageUploadCmd()
+			c.Data = data
+			c.MaxWinSz = winSz
+			if _, err := runCmd(t, c, s); err != nil {
+				t.Fatalf("win %d drop %v: %v", winSz, drop, err)
+			}
+			checkUploaded(t, dev, data)
+		}
+	}
+}
+
 // Window based uploads used to deadlock occasionally: a response
 // handler could signal a free slot while the main loop was not waiting,
 // leaving a stale signal behind which let the loop overfill the window.
