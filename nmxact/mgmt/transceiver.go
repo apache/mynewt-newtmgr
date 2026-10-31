@@ -122,19 +122,26 @@ func (t *Transceiver) txRxNmpAsync(txCb TxFn, req *nmp.NmpMsg, mtu int,
 		return err
 	}
 
+	// No response is waited for if the request was not sent.
+	fail := func(err error) error {
+		t.nd.RemoveListener(req.Hdr.Seq)
+		return err
+	}
+
 	b, err := nmp.EncodeNmpPlain(req)
 	if err != nil {
-		return err
+		return fail(err)
 	}
 
 	log.Debugf("Tx NMP async request: seq %d %s", req.Hdr.Seq, hex.Dump(b))
 	if t.isTcp == false && len(b) > mtu {
-		return fmt.Errorf("Request too big")
+		return fail(fmt.Errorf("Request too big"))
 	}
 	frags := nmxutil.Fragment(b, mtu)
 	for _, frag := range frags {
 		if err := txCb(frag); err != nil {
-			return err
+			log.Debugf("txCb error %v", err)
+			return fail(err)
 		}
 	}
 
@@ -224,12 +231,14 @@ func (t *Transceiver) txRxOmpAsync(txCb TxFn, req *nmp.NmpMsg, mtu int,
 		b, err = omp.EncodeOmpDgram(t.txFilter, req)
 	}
 	if err != nil {
+		t.od.RemoveNmpListener(seq)
 		return err
 	}
 
 	log.Debugf("Tx OMP request: %v %s", seq, hex.Dump(b))
 
 	if t.isTcp == false && len(b) > mtu {
+		t.od.RemoveNmpListener(seq)
 		return fmt.Errorf("Request too big")
 	}
 	frags := nmxutil.Fragment(b, mtu)
