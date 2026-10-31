@@ -446,6 +446,56 @@ func TestTxRxMgmtAsync(t *testing.T) {
 	}
 }
 
+// A request whose sequence number is still used by an earlier, unanswered
+// request is sent with another sequence number instead of failing.
+func TestTxRxMgmtSeqInUse(t *testing.T) {
+	for _, mode := range txvrModes {
+		t.Run(mode.name, func(t *testing.T) {
+			f := newFakeDevice(t, mode.proto, mode.isTcp)
+
+			for _, async := range []bool{false, true} {
+				req := echoReq("seq")
+				busy := req.Hdr.Seq
+				var err error
+				if mode.proto == sesn.MGMT_PROTO_NMP {
+					_, err = f.txvr.nd.AddListener(busy)
+				} else {
+					_, err = f.txvr.od.AddNmpListener(busy)
+				}
+				if err != nil {
+					t.Fatalf("AddListener failed: %v", err)
+				}
+
+				var rsp nmp.NmpRsp
+				if async {
+					ch := make(chan nmp.NmpRsp, 1)
+					errc := make(chan error, 1)
+					err = f.txvr.TxRxMgmtAsync(f.tx, req, 1024, testTimeout,
+						ch, errc)
+					if err == nil {
+						select {
+						case rsp = <-ch:
+						case err = <-errc:
+						case <-time.After(testTimeout):
+							t.Fatalf("timeout waiting for async response")
+						}
+					}
+				} else {
+					rsp, err = f.txvr.TxRxMgmt(f.tx, req, 1024, testTimeout)
+				}
+				if err != nil {
+					t.Fatalf("async=%v: unexpected error: %v", async, err)
+				}
+				if req.Hdr.Seq == busy {
+					t.Errorf("async=%v: busy seq %d reused", async, busy)
+				}
+				checkEcho(t, rsp, req.Hdr.Seq, "seq")
+			}
+			f.checkErrs(t)
+		})
+	}
+}
+
 // Regression test for d1f7072: an async request that times out must report
 // the timeout on errc rather than panic with "send on closed channel".
 func TestTxRxMgmtAsyncTimeout(t *testing.T) {
@@ -500,11 +550,33 @@ func TestTxRxMgmtAsyncErrors(t *testing.T) {
 			}
 
 			// Tx failure.
+			req := echoReq("x")
 			f.txErr = errors.New("tx failed")
-			err := f.txvr.TxRxMgmtAsync(f.tx, echoReq("x"), 1024,
+			err := f.txvr.TxRxMgmtAsync(f.tx, req, 1024,
 				testTimeout, ch, errc)
 			if err != f.txErr {
 				t.Errorf("got error %v, want %v", err, f.txErr)
+			}
+
+			// The listener of the failed request must be gone, so that
+			// the request can be sent again.  OMP removes its CoAP
+			// listener asynchronously, so an immediate resend may still
+			// find it.
+			if mode.proto != sesn.MGMT_PROTO_NMP {
+				return
+			}
+			f.txErr = nil
+			err = f.txvr.TxRxMgmtAsync(f.tx, req, 1024, testTimeout, ch,
+				errc)
+			if err != nil {
+				t.Fatalf("resend after tx failure: %v", err)
+			}
+			select {
+			case <-ch:
+			case err := <-errc:
+				t.Errorf("resend after tx failure: %v", err)
+			case <-time.After(testTimeout):
+				t.Errorf("resend after tx failure: no response")
 			}
 		})
 	}

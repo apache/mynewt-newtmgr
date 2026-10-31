@@ -473,6 +473,7 @@ func TestImageUploadTrackerHandleError(t *testing.T) {
 		TuneWS: true,
 		WCount: 4,
 		WCap:   4,
+		Off:    1000,
 		RspMap: map[int]int{},
 	}
 	err := fmt.Errorf("boom")
@@ -485,9 +486,13 @@ func TestImageUploadTrackerHandleError(t *testing.T) {
 		t.Errorf("after err 1: cap=%d count=%d tune=%v", tr.WCap,
 			tr.WCount, tr.TuneWS)
 	}
-	if tr.RspMap[100] != IMAGE_UPLOAD_CHUNK_MISSED_WM {
-		t.Errorf("rsp map: %v", tr.RspMap)
+	// Next chunk is resent from the highest offset confirmed by the
+	// device, not from the offset passed in.
+	if tr.Off != 0 {
+		t.Errorf("after err 1: off=%d", tr.Off)
 	}
+	tr.Off = 1000
+	tr.MaxRxOff = 50
 
 	if tr.HandleError(200, err) {
 		t.Errorf("signal although window still full")
@@ -495,6 +500,14 @@ func TestImageUploadTrackerHandleError(t *testing.T) {
 	if tr.WCap != 2 || tr.WCount != 2 {
 		t.Errorf("after err 2: cap=%d count=%d", tr.WCap, tr.WCount)
 	}
+	if tr.Off != 50 {
+		t.Errorf("after err 2: off=%d", tr.Off)
+	}
+
+	// Never resent from before the start offset.
+	tr.Off = 1000
+	tr.MaxRxOff = 0
+	tr.startOff = 600
 
 	// The window does not shrink below IMAGE_UPLOAD_START_WS + 1, so
 	// the slot opens now.
@@ -503,5 +516,8 @@ func TestImageUploadTrackerHandleError(t *testing.T) {
 	}
 	if tr.WCap != 2 || tr.WCount != 1 {
 		t.Errorf("after err 3: cap=%d count=%d", tr.WCap, tr.WCount)
+	}
+	if tr.Off != 600 {
+		t.Errorf("after err 3: off=%d", tr.Off)
 	}
 }
