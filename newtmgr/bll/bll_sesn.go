@@ -409,8 +409,7 @@ func (s *BllSesn) TxRxMgmtAsync(m *nmp.NmpMsg,
 		return s.txWriteCharacteristic(s.nmpReqChr, b, true)
 	}
 
-	s.txvr.TxRxMgmtAsync(txRaw, m, s.MtuOut(), timeout, ch, errc)
-	return nil
+	return s.txvr.TxRxMgmtAsync(txRaw, m, s.MtuOut(), timeout, ch, errc)
 }
 
 func (s *BllSesn) TxCoap(m coap.Message) error {
