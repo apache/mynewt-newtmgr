@@ -287,7 +287,7 @@ func (sx *SerialXport) Tx(bytes []byte) error {
 		 * carriage return (and possibly LF 2 bytes), */
 
 		/* all totaled, MTU-4 bytes bytes should work */
-		writeLen := util.Min(sx.cfg.Mtu - 4, totlen-written)
+		writeLen := util.Min(sx.cfg.Mtu-4, totlen-written)
 
 		writeBytes := base64Data[written : written+writeLen]
 		sx.txRaw(writeBytes)
@@ -312,6 +312,26 @@ func (sx *SerialXport) Rx() ([]byte, error) {
 			}
 		}
 		log.Debugf("Rx serial:\n%s", hex.Dump(line))
+
+		// Scan past any leading garbage bytes (such as 0x00 0x00 emitted during
+		// UART/USB-CDC initialization) when waiting for a new packet header.
+		if len(line) < 2 || line[0] != 0x04 || line[1] != 0x14 {
+			startIdx := -1
+			for i := 0; i+1 < len(line); i++ {
+				if line[i] == 0x06 && line[i+1] == 0x09 {
+					startIdx = i
+					break
+				}
+			}
+			if startIdx < 0 {
+				continue
+			}
+			if startIdx > 0 {
+				log.Debugf("Discarding %d leading bytes before packet start", startIdx)
+				line = line[startIdx:]
+			}
+		}
+
 		if len(line) < 2 || ((line[0] != 4 || line[1] != 20) &&
 			(line[0] != 6 || line[1] != 9)) {
 			continue
