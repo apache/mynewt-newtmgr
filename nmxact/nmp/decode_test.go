@@ -61,6 +61,33 @@ func TestDecodeRspBodyAllTypes(t *testing.T) {
 	}
 }
 
+func TestDecodeMcumgrParamsRsp(t *testing.T) {
+	body, err := BodyBytes(map[string]interface{}{
+		"buf_size":  1024,
+		"buf_count": 2,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	hdr := &NmpHdr{
+		Op:    NMP_OP_READ_RSP,
+		Group: NMP_GROUP_DEFAULT,
+		Id:    NMP_ID_DEF_PARAMS,
+		Len:   uint16(len(body)),
+	}
+
+	rsp, err := DecodeRspBody(hdr, body)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	prsp := rsp.(*McumgrParamsRsp)
+	if prsp.Rc != 0 || prsp.BufSize != 1024 || prsp.BufCount != 2 {
+		t.Errorf("unexpected response: %+v", prsp)
+	}
+}
+
 func TestDecodeRspBodyRoundTrip(t *testing.T) {
 	src := NewImageStateRsp()
 	src.Rc = 0

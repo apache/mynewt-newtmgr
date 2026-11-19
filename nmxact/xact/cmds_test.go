@@ -206,6 +206,14 @@ func TestSimpleCmds(t *testing.T) {
 			fields: map[string]string{},
 		},
 		{
+			name:   "mcumgr params",
+			newCmd: func() Cmd { return NewMcumgrParamsCmd() },
+			op:     nmp.NMP_OP_READ,
+			group:  nmp.NMP_GROUP_DEFAULT,
+			id:     nmp.NMP_ID_DEF_PARAMS,
+			fields: map[string]string{},
+		},
+		{
 			name:   "image state read",
 			newCmd: func() Cmd { return NewImageStateReadCmd() },
 			op:     nmp.NMP_OP_READ,

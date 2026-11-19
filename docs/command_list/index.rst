@@ -29,6 +29,7 @@ need more information and examples.
       image       Manage images on a device
       log         Manage logs on a device
       mpstat      Read mempool statistics from a device
+      params      Read mcumgr buffer parameters from a device
       reset       Perform a soft reset of a device
       run         Run test procedures on a device
       stat        Read statistics from a device
