@@ -43,6 +43,7 @@ type XportCfg struct {
 	Baud        int
 	Mtu         int
 	ReadTimeout time.Duration
+	FragDelay   time.Duration
 }
 
 var errTimeout error = errors.New("Timeout reading from serial connection")
@@ -51,6 +52,7 @@ func NewXportCfg() *XportCfg {
 	return &XportCfg{
 		ReadTimeout: 10 * time.Second,
 		Mtu:         128,
+		FragDelay:   20 * time.Millisecond,
 	}
 }
 
@@ -276,7 +278,7 @@ func (sx *SerialXport) Tx(bytes []byte) error {
 			/* slower platforms take some time to process each segment
 			 * and have very small receive buffers.  Give them a bit of
 			 * time here */
-			time.Sleep(20 * time.Millisecond)
+			time.Sleep(sx.cfg.FragDelay)
 			sx.txRaw([]byte{4, 20})
 		}
 

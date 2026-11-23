@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"mynewt.apache.org/newtmgr/newtmgr/nmutil"
 	"mynewt.apache.org/newtmgr/nmxact/nmserial"
@@ -67,6 +68,13 @@ func ParseSerialConnString(cs string) (*nmserial.XportCfg, error) {
 			if err != nil {
 				return sc, einvalSerialConnString("Invalid mtu: %s", v)
 			}
+
+		case "frag_delay":
+			ms, err := strconv.Atoi(v)
+			if err != nil || ms < 0 {
+				return sc, einvalSerialConnString("Invalid frag_delay: %s", v)
+			}
+			sc.FragDelay = time.Duration(ms) * time.Millisecond
 
 		default:
 			return sc, einvalSerialConnString("Unrecognized key: %s", k)
