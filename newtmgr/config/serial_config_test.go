@@ -69,6 +69,29 @@ func TestParseSerialConnString(t *testing.T) {
 	}
 }
 
+func TestParseSerialConnStringFragDelay(t *testing.T) {
+	tests := []struct {
+		cs    string
+		delay time.Duration
+	}{
+		{"dev=/dev/x", 20 * time.Millisecond},
+		{"dev=/dev/x,frag_delay=0", 0},
+		{"dev=/dev/x,frag_delay=5", 5 * time.Millisecond},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.cs, func(t *testing.T) {
+			sc, err := ParseSerialConnString(tt.cs)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if sc.FragDelay != tt.delay {
+				t.Errorf("FragDelay = %v, want %v", sc.FragDelay, tt.delay)
+			}
+		})
+	}
+}
+
 func TestParseSerialConnStringErrors(t *testing.T) {
 	tests := []struct {
 		cs  string
@@ -80,6 +103,10 @@ func TestParseSerialConnStringErrors(t *testing.T) {
 			"Invalid serial connstring; Invalid baud: "},
 		{"mtu=big",
 			"Invalid serial connstring; Invalid mtu: big"},
+		{"frag_delay=soon",
+			"Invalid serial connstring; Invalid frag_delay: soon"},
+		{"frag_delay=-1",
+			"Invalid serial connstring; Invalid frag_delay: -1"},
 		{"dev=/dev/x,speed=9600",
 			"Invalid serial connstring; Unrecognized key: speed"},
 		{"=foo",
